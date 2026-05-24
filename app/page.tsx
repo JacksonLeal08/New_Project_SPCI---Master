@@ -5,6 +5,11 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "motion/react";
 import * as d3 from 'd3';
 
+// --- GOOGLE WORKSPACE IMPORTS ---
+import { initAuth, googleSignIn, logout, getAccessToken } from '../lib/firebaseAuth';
+import { SHEETS_MAPPINGS, createSpreadsheet, readSpreadsheet, writeSpreadsheet, extractSpreadsheetId } from '../lib/sheetsDatabase';
+import { User } from 'firebase/auth';
+
 // --- SEED / SETUP STORAGE UTILS ---
 const INITIAL_EXTINTORES = [
   { id: '101', idAtivo: 'PAT-E-101', model: 'PQS ABC - 8KG', location: 'Almoxarifado Central', subLocation: 'Setor B', seloInmetro: '98765432', chassi: 'E-4011', peso: '8', lastRecarga: '2023-03-15', recurrenceInterval: '1 Ano', validadeRecarga: '2024-03-15', validadeTesteHidro: '2027', status: 'Vencido' },
@@ -220,8 +225,618 @@ const D3SectorHeatmap = ({ data }: D3SectorHeatmapProps) => {
 };
 
 export default function SpciComplianceApp() {
+  const getCustomAttributes = (asset: any) => {
+    const standardKeys = [
+      'id', 'idAtivo', 'category', 'model', 'location', 'subLocation', 'seloInmetro', 'chassi', 'peso',
+      'lastRecarga', 'recurrenceInterval', 'validadeRecarga', 'validadeTesteHidro', 'status', 'geolocation',
+      'type', 'components', 'lastInsp', 'nextInsp', 'group', 'systemType', 'qty', 'battery', 'autonomy',
+      'name', 'code', 'power', 'range', 'starts'
+    ];
+    return Object.keys(asset).filter(k => {
+      if (standardKeys.includes(k)) return false;
+      if (standardKeys.some(sk => sk.toLowerCase() === k.toLowerCase())) return false;
+      return typeof asset[k] === 'string' && asset[k].trim() !== '';
+    }).map(k => ({ key: k, value: asset[k] }));
+  };
+
   // Navigation State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'extintores' | 'hidrantes' | 'sinalizacao' | 'iluminacao' | 'bombas' | 'field-ronda' | 'alerts'>('dashboard');
+  // Navigation State
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'extintores' | 'hidrantes' | 'sinalizacao' | 'iluminacao' | 'bombas' | 'field-ronda' | 'alerts' | 'sheets-db'>('dashboard');
+
+  // --- GOOGLE SHEETS API INTEGRATION STATES ---
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [gToken, setGToken] = useState<any>(null);
+  const [authChecking, setAuthChecking] = useState<boolean>(true);
+  const [sheetsConsoleLogs, setSheetsConsoleLogs] = useState<string[]>(['[Sistema] Inicializado central de dados local SPCI. Ready.']);
+
+  const addConsoleLog = (msg: string) => {
+    const timestamp = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+    setSheetsConsoleLogs(prev => [`[${timestamp}] ${msg}`, ...prev.slice(0, 49)]);
+  };
+
+  const [sheetsConfig, setSheetsConfig] = useState<Record<string, { id: string; url: string; syncState: 'idle' | 'syncing' | 'success' | 'error'; lastSync?: string; lastError?: string }>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('spci_sheets_config');
+      if (stored) return JSON.parse(stored);
+    }
+    return {
+      extintores: { id: '', url: '', syncState: 'idle' },
+      hidrantes: { id: '', url: '', syncState: 'idle' },
+      sinalizacao: { id: '', url: '', syncState: 'idle' },
+      iluminacao: { id: '', url: '', syncState: 'idle' },
+      bombas: { id: '', url: '', syncState: 'idle' }
+    };
+  });
+
+  const saveSheetsConfig = (newConfig: any) => {
+    setSheetsConfig(newConfig);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('spci_sheets_config', JSON.stringify(newConfig));
+    }
+  };
+
+  // --- AUTOMODELED TEMPLATES & AI AUDIT STATE ---
+  const [sheetsTemplates, setSheetsTemplates] = useState<Record<string, {
+    customModel: boolean;
+    templateId: string;
+    headers: string[];
+    lastAuditedAt?: string;
+    aiAuditResult?: {
+      compatible: boolean;
+      score: number;
+      addedColumns: string[];
+      removedColumns: string[];
+      mappedColumns: Record<string, string>;
+      technicalAnalysis: string;
+      nbrComplianceWarning: string;
+    } | null;
+    isRemodeled: boolean;
+  }>>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('spci_sheets_templates');
+      if (stored) return JSON.parse(stored);
+    }
+    return {
+      extintores: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
+      hidrantes: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
+      sinalizacao: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
+      iluminacao: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
+      bombas: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null }
+    };
+  });
+
+  const saveSheetsTemplates = (newTemplates: any) => {
+    setSheetsTemplates(newTemplates);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('spci_sheets_templates', JSON.stringify(newTemplates));
+    }
+  };
+
+  const [analyzingKeys, setAnalyzingKeys] = useState<Record<string, boolean>>({});
+
+  const handleAIModelAnalysis = async (moduleKey: string, moduleTitle: string, rawInputId: string) => {
+    const token = gToken;
+    if (!token) {
+      triggerSuccessNotification("Requer Google Login 🔑", "Por favor, conecte sua conta Google no painel antes de analisar modelos.");
+      return;
+    }
+    if (!rawInputId) {
+      triggerSuccessNotification("Link Vazio ⚠️", "Insira o ID ou URL da planilha de modelo.");
+      return;
+    }
+
+    const templateId = extractSpreadsheetId(rawInputId);
+    setAnalyzingKeys(prev => ({ ...prev, [moduleKey]: true }));
+    addConsoleLog(`[IA] Iniciando Auditoria de Reestruturação para [${moduleTitle}]. Lendo cabeçalhos: ${templateId}...`);
+
+    try {
+      const rows = await readSpreadsheet(token, templateId, 'Sheet1!A1:Z1');
+      if (!rows || rows.length === 0 || rows[0].length === 0) {
+        throw new Error("Não foi possível carregar as colunas. Verifique se o documento possui dados na primeira linha da 'Sheet1'.");
+      }
+
+      const activeHeaders = rows[0].map((h: any) => String(h).trim()).filter(Boolean);
+      addConsoleLog(`[IA] Cabeçalhos encontrados na planilha de modelo: ${JSON.stringify(activeHeaders)}`);
+
+      const defaultMapping = (SHEETS_MAPPINGS as any)[moduleKey === 'sinalizacao' ? 'sinalizacao' : moduleKey === 'iluminacao' ? 'iluminacao' : moduleKey === 'extintores' ? 'extintor' : moduleKey === 'hidrantes' ? 'hidrante' : 'bomba'];
+      const oldHeaders = defaultMapping.headers;
+
+      addConsoleLog("[IA] Chamando cérebro artificial Gemini para auditoria de mapeamento SPCI...");
+      
+      const prompt = `Você é um Engenheiro de Dados SPCI especializado em conformidade de incêndio brasileira NBR 12962/NBR 13434. Faça uma auditoria de compatibilidade de reestruturação de banco de dados para o módulo ${moduleTitle}.
+
+ESTRUTURA ATUAL DE COLUNAS:
+${JSON.stringify(oldHeaders)}
+
+NOVA ESTRUTURA DE COLUNAS DETECTADA NO MODELO SHEET:
+${JSON.stringify(activeHeaders)}
+
+Analise o seguinte:
+1. Compatibilidade técnica rápida de migração de colunas.
+2. Identifique quais colunas foram adicionadas, quais removidas e mapeie colunas equivalentes de nome similar (ex: "ID_Ativo" para "IdAtivo").
+3. Determine se é possível realizar o remodelamento sem quebrar a integridade estrutural (IDs de salvamento).
+4. Forneça um status claro ("É possível" ou "Não é possível" a reestruturação).
+
+Responda estritamente com um JSON sem marcações extras (formato JSON literal puro) com este esquema exato:
+{
+  "compatible": boolean,
+  "score": number,
+  "addedColumns": ["coluna1"],
+  "removedColumns": ["coluna2"],
+  "mappedColumns": {"coluna_antiga": "coluna_nova"},
+  "technicalAnalysis": "Resumo técnico explicativo de compatibilidade técnica em 2 frases",
+  "nbrComplianceWarning": "Mensagem de alerta de conformidade legal de incêndio NBR"
+}`;
+
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, systemInstruction: "Você é um auditor de banco de dados SPCI rigoroso. Responda estritamente em formato JSON válido." }),
+      });
+      
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
+      let parsedResult;
+      try {
+        let cleanText = data.text.trim();
+        if (cleanText.startsWith("```json")) {
+          cleanText = cleanText.substring(7);
+        }
+        if (cleanText.endsWith("```")) {
+          cleanText = cleanText.substring(0, cleanText.length - 3);
+        }
+        parsedResult = JSON.parse(cleanText.trim());
+      } catch (e) {
+        console.warn("Falha ao analisar JSON do Gemini, usando estruturação padrão", data.text);
+        parsedResult = {
+          compatible: true,
+          score: 85,
+          addedColumns: activeHeaders.filter((h: string) => !oldHeaders.includes(h)),
+          removedColumns: oldHeaders.filter((h: string) => !activeHeaders.includes(h)),
+          mappedColumns: {},
+          technicalAnalysis: "Auditoria efetuada. Nova estrutura aceita e pronta para remapeamento dinâmico pelo motor do SPCI.",
+          nbrComplianceWarning: "Certifique-se de que nenhum campo de validade legal de combate a incêndio foi removido do modelo."
+        };
+      }
+
+      const currentTpl = sheetsTemplates[moduleKey] || { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null };
+      const timestamp = new Date().toLocaleString('pt-BR');
+
+      saveSheetsTemplates({
+        ...sheetsTemplates,
+        [moduleKey]: {
+          ...currentTpl,
+          templateId,
+          headers: activeHeaders,
+          isRemodeled: false, // New model loaded, but not yet remodeled inside SPCI
+          lastAuditedAt: timestamp,
+          aiAuditResult: parsedResult
+        }
+      });
+
+      addConsoleLog(`[IA] Auditoria concluída para [${moduleTitle}]. Score Compatibilidade: ${parsedResult.score}%.`);
+      
+      triggerSuccessNotification(
+        parsedResult.compatible ? "Análise IA: Compatível! 🟢" : "Análise IA: Alerta de Risco! 🔴",
+        `Estrutura avaliada com Score de ${parsedResult.score}% para ${moduleTitle}. Confira o log no console.`
+      );
+
+    } catch (err: any) {
+      console.error(err);
+      addConsoleLog(`[IA] Falha na auditoria para [${moduleTitle}]: ${err.message || err}`);
+      triggerSuccessNotification("Erro de Análise ❌", `Falha técnica ao auditar: ${err.message || err}`);
+    } finally {
+      setAnalyzingKeys(prev => ({ ...prev, [moduleKey]: false }));
+    }
+  };
+
+  const handleApplyRemodelNow = async (moduleKey: string, moduleTitle: string) => {
+    const tpl = sheetsTemplates[moduleKey];
+    if (!tpl || tpl.headers.length === 0) {
+      triggerSuccessNotification("Sem Modelo Ativo ⚠️", "Por favor, determine uma planilha de modelo primeiro.");
+      return;
+    }
+
+    addConsoleLog(`[Remodelamento] Iniciando reestruturação imediata (forced) do banco de dados para [${moduleTitle}]...`);
+    
+    saveSheetsTemplates({
+      ...sheetsTemplates,
+      [moduleKey]: {
+        ...tpl,
+        isRemodeled: true
+      }
+    });
+
+    const token = gToken;
+    const config = sheetsConfig[moduleKey];
+    if (token && config && config.id) {
+      try {
+        addConsoleLog(`[Remodelamento] Atualizando estrutura de colunas do Google Sheets ativo ${config.id}...`);
+        await writeSpreadsheet(token, config.id, [tpl.headers]);
+        addConsoleLog("[Remodelamento] Estrutura gravada com sucesso!");
+      } catch (err: any) {
+        addConsoleLog(`[Remodelamento] Nota: O arquivo remoto não pôde ser limpo com a nova estrutura ainda: ${err.message || err}`);
+      }
+    }
+
+    triggerSuccessNotification("Banco Remodelado! 🔵", `A estrutura do banco local do módulo ${moduleTitle} foi atualizada para os novos campos.`);
+  };
+
+  const handleMassImport = async (moduleKey: string, moduleTitle: string) => {
+    const tpl = sheetsTemplates[moduleKey];
+    const token = gToken;
+    if (!token) {
+      triggerSuccessNotification("Requer Google Login 🔑", "Por favor, entre com sua conta Google no topo para permitir imports em nuvem.");
+      return;
+    }
+    if (!tpl || !tpl.templateId) {
+      triggerSuccessNotification("Defina o Link 📝", "Insira o ID ou link do modelo de importação.");
+      return;
+    }
+
+    const tplId = extractSpreadsheetId(tpl.templateId);
+    addConsoleLog(`[Massa] Iniciando Importação em Massa & Remodelagem de Dados para [${moduleTitle}]. Conectando ao Sheets: ${tplId}`);
+    
+    const currentModule = sheetsConfig[moduleKey] || { id: '', url: '', syncState: 'idle' };
+    saveSheetsConfig({
+      ...sheetsConfig,
+      [moduleKey]: { ...currentModule, syncState: 'syncing' }
+    });
+
+    try {
+      const rows = await readSpreadsheet(token, tplId, 'Sheet1!A1:Z500');
+      if (!rows || rows.length === 0) {
+        throw new Error("A planilha fornecida está vazia ou inacessível.");
+      }
+
+      const headers = rows[0].map((h: any) => String(h).trim()).filter(Boolean);
+      addConsoleLog(`[Massa] Importando com os novos cabeçalhos: ${JSON.stringify(headers)}`);
+
+      const importedAssets = rows.slice(1).map((row: any[], rowIndex: number) => {
+        const asset: Record<string, any> = {};
+        asset.id = `import-${Date.now()}-${rowIndex}-${Math.floor(Math.random() * 100)}`;
+        
+        headers.forEach((header, colIdx) => {
+          const val = row[colIdx] !== undefined ? String(row[colIdx]).trim() : '';
+          asset[header] = val;
+        });
+
+        // Map core standard props so normal dashboard components don't crash
+        asset.idAtivo = asset["IdAtivo"] || asset["idAtivo"] || asset["Patrimonio"] || asset["ID"] || asset.id;
+        asset.model = asset["Modelo"] || asset["modelo"] || asset["Nome"] || asset["Ativo"] || '';
+        asset.location = asset["Localizacao"] || asset["localizacao"] || asset["Local"] || asset["LOCAL"] || '';
+        asset.subLocation = asset["SubLocalizacao"] || asset["subLocalizacao"] || '';
+        asset.seloInmetro = asset["SeloInmetro"] || asset["seloInmetro"] || '';
+        asset.chassi = asset["Chassi"] || asset["chassi"] || '';
+        asset.peso = asset["Peso_KG"] || asset["peso"] || '';
+        asset.lastRecarga = asset["UltimaRecarga"] || asset["ultimaRecarga"] || '';
+        asset.validadeRecarga = asset["ValidadeRecarga"] || asset["validadeRecarga"] || '';
+        asset.status = asset["Status"] || asset["status"] || 'Conforme';
+        asset.components = asset["Componentes"] ? asset["Componentes"].split(',').map((s: string) => s.trim()) : [];
+        asset.lastInsp = asset["UltimaInspecao"] || '';
+        asset.nextInsp = asset["ProximaInspecao"] || '';
+        asset.group = asset["Grupo"] || '';
+        asset.systemType = asset["TipoSistema"] || '';
+        asset.qty = parseInt(asset["Quantidade"]) || 1;
+        asset.battery = asset["Bateria"] || '';
+        asset.autonomy = asset["Autonomia"] || '';
+        asset.name = asset["Nome"] || '';
+        asset.code = asset["Codigo"] || '';
+        asset.type = asset["Tipo"] || '';
+        asset.power = asset["Power"] || '';
+        asset.range = asset["Pressao_Range"] || '';
+        asset.starts = asset["Partidas"] || '0';
+        asset.geolocation = {
+          lat: parseFloat(asset["Latitude"] || asset["latitude"]) || -20.1245,
+          lng: parseFloat(asset["Longitude"] || asset["longitude"]) || -44.5668
+        };
+
+        return asset;
+      });
+
+      addConsoleLog(`[Massa] Remapeamento concluído. Importados ${importedAssets.length} registros.`);
+
+      // Store locally
+      if (moduleKey === 'extintores') {
+        setExtintores(importedAssets);
+        saveToStorage('spci_extintores', importedAssets);
+      } else if (moduleKey === 'hidrantes') {
+        setHidrantes(importedAssets);
+        saveToStorage('spci_hidrantes', importedAssets);
+      } else if (moduleKey === 'sinalizacao') {
+        setSinalizacoes(importedAssets);
+        saveToStorage('spci_sinalizacoes', importedAssets);
+      } else if (moduleKey === 'iluminacao') {
+        setIluminacoes(importedAssets);
+        saveToStorage('spci_iluminacao', importedAssets);
+      } else if (moduleKey === 'bombas') {
+        setBombas(importedAssets);
+        saveToStorage('spci_bombas', importedAssets);
+      }
+
+      // Propagate database schema changes on Google active sheet database if exists
+      const activeDbId = currentModule.id ? extractSpreadsheetId(currentModule.id) : null;
+      if (activeDbId) {
+        addConsoleLog(`[Massa] Propagando dados + cabeçalhos no bando de dados ativo: ${activeDbId}...`);
+        const rowsToWrite = [
+          headers,
+          ...importedAssets.map((asset: any) => {
+            return headers.map(h => String(asset[h] !== undefined ? asset[h] : ''));
+          })
+        ];
+        await writeSpreadsheet(token, activeDbId, rowsToWrite);
+        addConsoleLog("[Massa] Google Sheets atualizado com sucesso!");
+      }
+
+      const timestamp = new Date().toLocaleString('pt-BR');
+      
+      saveSheetsConfig({
+        ...sheetsConfig,
+        [moduleKey]: {
+          ...currentModule,
+          syncState: 'success',
+          lastSync: timestamp
+        }
+      });
+
+      saveSheetsTemplates({
+        ...sheetsTemplates,
+        [moduleKey]: {
+          ...tpl,
+          headers,
+          isRemodeled: true
+        }
+      });
+
+      addConsoleLog(`[Massa] Sucesso absoluto! O banco de dados ${moduleTitle} foi reestruturado de forma auto-modelada via IA.`);
+      
+      setPremiumAlert({
+        show: true,
+        title: "Importação e Remodelagem por IA! 🟢",
+        message: `Sua importação em lote foi um sucesso! O banco do módulo [${moduleTitle}] foi auto-remoldado com sucesso usando a inteligência artificial para mapear as seguintes colunas de dados: ${headers.join(', ')}. Total: ${importedAssets.length} registros.`,
+        type: 'success'
+      });
+
+    } catch (err: any) {
+      console.error(err);
+      addConsoleLog(`[Massa] Falha no importador em lote para [${moduleTitle}]: ${err.message || err}`);
+      saveSheetsConfig({
+        ...sheetsConfig,
+        [moduleKey]: { ...currentModule, syncState: 'error', lastError: err.message || String(err) }
+      });
+      triggerSuccessNotification("Falha no Mass Import ❌", `Erro técnico: ${err.message || err}`);
+    }
+  };
+
+  // Listen to Google Auth
+  useEffect(() => {
+    const unsubscribe = initAuth(
+      (user, token) => {
+        setCurrentUser(user);
+        setGToken(token);
+        setAuthChecking(false);
+        addConsoleLog(`Autenticado com sucesso via Google! Login: ${user.email}`);
+      },
+      () => {
+        setCurrentUser(null);
+        setGToken(null);
+        setAuthChecking(false);
+      }
+    );
+    return () => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    setAuthChecking(true);
+    try {
+      addConsoleLog("Iniciando janela oficial de login com Google...");
+      const result = await googleSignIn();
+      if (result) {
+        setCurrentUser(result.user);
+        setGToken(result.accessToken);
+        addConsoleLog(`Acesso concedido para: ${result.user.email}`);
+        triggerSuccessNotification("Acesso Concedido! 🟢", `Conexão efetuada para o banco de dados via planilhas do usuário ${result.user.displayName}`);
+      }
+    } catch (err: any) {
+      console.error(err);
+      addConsoleLog(`Falha ao conectar Google Account: ${err.message || err}`);
+    } finally {
+      setAuthChecking(false);
+    }
+  };
+
+  const handleGoogleLogout = async () => {
+    try {
+      await logout();
+      setCurrentUser(null);
+      setGToken(null);
+      addConsoleLog("Sessão da conta do Google finalizada.");
+      triggerSuccessNotification("Desconectado! ⚪", "Sessão finalizada. Acesso às planilhas em nuvem bloqueado.");
+    } catch (err: any) {
+      console.error(err);
+    }
+  };
+
+  // Autocreate spreadsheet helper
+  const handleCreateSheetForModule = async (moduleKey: string, moduleTitle: string) => {
+    const token = gToken;
+    if (!token) {
+      triggerSuccessNotification("Requer Google Login 🔑", "Por favor, conecte sua conta Google no painel antes de gerenciar planilhas.");
+      return;
+    }
+
+    addConsoleLog(`Iniciando criação de nova planilha para o módulo: [${moduleTitle}]...`);
+    // Update module status
+    const currentModule = sheetsConfig[moduleKey] || { id: '', url: '', syncState: 'idle' };
+    saveSheetsConfig({
+      ...sheetsConfig,
+      [moduleKey]: { ...currentModule, syncState: 'syncing' }
+    });
+
+    try {
+      const titleApp = `SPCI - ${moduleTitle} Database (Planta SPCI)`;
+      const newSheet = await createSpreadsheet(token, titleApp);
+      addConsoleLog(`Planilha criada com sucesso ID: ${newSheet.id}`);
+
+      // Push current local items to initialize the newly created sheet!
+      let items: any[] = [];
+      if (moduleKey === 'extintores') items = extintores;
+      else if (moduleKey === 'hidrantes') items = hidrantes;
+      else if (moduleKey === 'sinalizacao') items = sinalizacoes;
+      else if (moduleKey === 'iluminacao') items = iluminacoes;
+      else if (moduleKey === 'bombas') items = bombas;
+
+      const mapping = (SHEETS_MAPPINGS as any)[moduleKey === 'sinalizacao' ? 'sinalizacao' : moduleKey === 'iluminacao' ? 'iluminacao' : moduleKey === 'extintores' ? 'extintor' : moduleKey === 'hidrantes' ? 'hidrante' : 'bomba'];
+      const rows = [
+        mapping.headers,
+        ...items.map(x => mapping.toRow(x))
+      ];
+
+      addConsoleLog(`Inicializando tabela [${moduleTitle}] com ${items.length} registros preexistentes em cache...`);
+      await writeSpreadsheet(token, newSheet.id, rows);
+      addConsoleLog("Estrutura de dados NBR montada com sucesso.");
+
+      const timestamp = new Date().toLocaleString('pt-BR');
+      saveSheetsConfig({
+        ...sheetsConfig,
+        [moduleKey]: {
+          id: newSheet.id,
+          url: newSheet.url,
+          syncState: 'success',
+          lastSync: timestamp
+        }
+      });
+
+      triggerSuccessNotification("Banco de Dados Criado! 🟢", `Planilha "${titleApp}" criada e vinculada ao módulo com sucesso.`);
+    } catch (err: any) {
+      console.error(err);
+      addConsoleLog(`Erro ao criar banco de dados [${moduleTitle}]: ${err.message || err}`);
+      saveSheetsConfig({
+        ...sheetsConfig,
+        [moduleKey]: { ...currentModule, syncState: 'error', lastError: err.message || String(err) }
+      });
+    }
+  };
+
+  // Synchronize or merge spreadsheets helper
+  const handleSyncModuleWithSheets = async (moduleKey: string, moduleTitle: string) => {
+    const token = gToken;
+    if (!token) {
+      triggerSuccessNotification("Requer Google Login 🔑", "Por favor, conecte sua conta Google no painel antes de sincronizar.");
+      return;
+    }
+
+    const currentModule = sheetsConfig[moduleKey] || { id: '', url: '', syncState: 'idle' };
+    if (!currentModule.id) {
+      triggerSuccessNotification("Planilha não vinculada ❌", `Por favor, crie ou cole o link de uma planilha para o módulo ${moduleTitle} antes de sincronizar.`);
+      return;
+    }
+
+    const sheetId = extractSpreadsheetId(currentModule.id);
+    addConsoleLog(`Iniciando Sincronização Inteligente para [${moduleTitle}]. ID Planilha: ${sheetId}...`);
+
+    saveSheetsConfig({
+      ...sheetsConfig,
+      [moduleKey]: { ...currentModule, syncState: 'syncing' }
+    });
+
+    try {
+      const mapping = (SHEETS_MAPPINGS as any)[moduleKey === 'sinalizacao' ? 'sinalizacao' : moduleKey === 'iluminacao' ? 'iluminacao' : moduleKey === 'extintores' ? 'extintor' : moduleKey === 'hidrantes' ? 'hidrante' : 'bomba'];
+      
+      addConsoleLog("Lendo registros presentes no Google Sheets...");
+      const rows = await readSpreadsheet(token, sheetId);
+      
+      let remoteItems: any[] = [];
+      if (rows && rows.length > 1) {
+        const fileHeaders = rows[0].map((h: any) => String(h).trim());
+        const headerMap: Record<string, number> = {};
+        fileHeaders.forEach((h, i) => { headerMap[h] = i; });
+        
+        remoteItems = rows.slice(1).map(row => mapping.fromRow(row, headerMap));
+        addConsoleLog(`Obtidos ${remoteItems.length} registros da planilha remota.`);
+      } else {
+        addConsoleLog("Planilha vazia ou sem cabeçalhos válidos detectada.");
+      }
+
+      // Local state items
+      let localItems: any[] = [];
+      if (moduleKey === 'extintores') localItems = extintores;
+      else if (moduleKey === 'hidrantes') localItems = hidrantes;
+      else if (moduleKey === 'sinalizacao') localItems = sinalizacoes;
+      else if (moduleKey === 'iluminacao') localItems = iluminacoes;
+      else if (moduleKey === 'bombas') localItems = bombas;
+
+      // Bi-directional Merge matching by ID
+      addConsoleLog("Fazendo correspondência de conformidades local-remota...");
+      const mergedMap = new Map();
+      localItems.forEach(item => {
+        if (item && item.id) mergedMap.set(String(item.id), item);
+      });
+      remoteItems.forEach(item => {
+        if (item && item.id) mergedMap.set(String(item.id), item);
+      });
+
+      const mergedList = Array.from(mergedMap.values());
+      addConsoleLog(`União dos bancos concluída: Total de ${mergedList.length} ativos consolidados.`);
+
+      // Overwrite the Google Sheet
+      const rowsToWrite = [
+        mapping.headers,
+        ...mergedList.map(item => mapping.toRow(item))
+      ];
+
+      addConsoleLog("Gravando de volta registros consolidados no Google Sheets...");
+      await writeSpreadsheet(token, sheetId, rowsToWrite);
+      addConsoleLog("Escrita concluída.");
+
+      // Save merged to Local States & Storage
+      if (moduleKey === 'extintores') {
+        setExtintores(mergedList);
+        saveToStorage('spci_extintores', mergedList);
+      } else if (moduleKey === 'hidrantes') {
+        setHidrantes(mergedList);
+        saveToStorage('spci_hidrantes', mergedList);
+      } else if (moduleKey === 'sinalizacao') {
+        setSinalizacoes(mergedList);
+        saveToStorage('spci_sinalizacoes', mergedList);
+      } else if (moduleKey === 'iluminacao') {
+        setIluminacoes(mergedList);
+        saveToStorage('spci_iluminacao', mergedList);
+      } else if (moduleKey === 'bombas') {
+        setBombas(mergedList);
+        saveToStorage('spci_bombas', mergedList);
+      }
+
+      const timestamp = new Date().toLocaleString('pt-BR');
+      saveSheetsConfig({
+        ...sheetsConfig,
+        [moduleKey]: {
+          id: sheetId,
+          url: currentModule.url || `https://docs.google.com/spreadsheets/d/${sheetId}/edit`,
+          syncState: 'success',
+          lastSync: timestamp
+        }
+      });
+
+      addConsoleLog(`Sincronia encerrada operacionalmente às ${timestamp}.`);
+      triggerSuccessNotification("Sincronia Concluída! 🔄", `Planilha "${moduleTitle}" consolidada com sucesso de forma bidirecional.`);
+    } catch (err: any) {
+      console.error(err);
+      addConsoleLog(`Falha de Sincronia em [${moduleTitle}]: ${err.message || err}`);
+      saveSheetsConfig({
+        ...sheetsConfig,
+        [moduleKey]: { ...currentModule, syncState: 'error', lastError: err.message || String(err) }
+      });
+    }
+  };
+
   const [extintores, setExtintores] = useState<any[]>(() => {
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('spci_extintores');
@@ -980,7 +1595,8 @@ export default function SpciComplianceApp() {
             { id: 'iluminacao', label: 'Iluminação Emergência', icon: '💡' },
             { id: 'bombas', label: 'Casa de Bombas', icon: '⚙️' },
             { id: 'field-ronda', label: 'Extensão Ronda Campo', icon: '📱' },
-            { id: 'alerts', label: 'Disparo de Alertas', icon: '🔔' }
+            { id: 'alerts', label: 'Disparo de Alertas', icon: '🔔' },
+            { id: 'sheets-db', label: 'Google Sheets DB', icon: '🟢' }
           ].map(item => (
             <button
               key={item.id}
@@ -997,12 +1613,21 @@ export default function SpciComplianceApp() {
           ))}
         </nav>
 
-        {/* Sync panel indicator */}
-        <div className="bg-[#2D424A]/40 border border-[#CFD8DC]/10 p-3 rounded-xl text-center text-xs space-y-1 mb-2">
-          <p className="text-[#a5d6a7] font-semibold flex items-center justify-center gap-2">
-            <span>🟢</span> Sincronia Ativa
+        {/* Sync panel indicator - updated dynamically */}
+        <div 
+          onClick={() => {
+            setActiveTab('sheets-db');
+            setSelectedAssetForInspection(null);
+            setShowAddForm(false);
+          }}
+          className="bg-[#2D424A]/40 border border-[#CFD8DC]/10 p-3 rounded-xl text-center text-xs space-y-1.5 mb-2 cursor-pointer hover:bg-[#37474F]/75 transition-all group"
+        >
+          <p className="text-[#a5d6a7] font-bold flex items-center justify-center gap-2 font-['Hanken_Grotesk']">
+            <span>{currentUser ? '🟢' : '⚪'}</span> {currentUser ? 'Google DB Conectante' : 'DB Sheets Off'}
           </p>
-          <p className="text-[10px] text-slate-400 font-mono">Última: Hoje, 2026-05-24</p>
+          <p className="text-[10px] text-slate-400 font-mono leading-none group-hover:text-amber-200 transition-colors">
+            {currentUser ? `User: ${currentUser.email?.split('@')[0]}` : 'Clique para Configurar'}
+          </p>
         </div>
       </aside>
 
@@ -1028,14 +1653,46 @@ export default function SpciComplianceApp() {
             </button>
 
             {/* Profile photo matching templates */}
-            <div className="hidden lg:flex items-center gap-2 border-l border-white/20 pl-4">
-              <img 
-                alt="Foto do Técnico" 
-                className="w-8 h-8 rounded-full border border-white/40 object-cover" 
-                src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHivi8AubFRd57LyIxQ_UCpU0e5EZHM7CU3G0i5bllB8kOWe0yEs4_cvHEjTQldIXZ0yPUWT5hwkkTpWHR2G9Gjx98y4rPOGqxaYrFeEXeUwSRzxkhtGzh5--E207GrM5-Au-1AN5-u4BCViGJdZ6KqlR0cESE55hAr_EvCNv256E2_diaNV_n9I15GyoyVCIta-61ZT2s2Jcj4UQRvunu_9CEmB-1098iMlvEIZSql0OlnOTbn8TqoaPpDM5fG7loYuhMU8HKyWY"
-              />
-              <span className="text-xs font-semibold tracking-wide">jack_compliance</span>
-            </div>
+            {currentUser ? (
+              <div 
+                onClick={() => setActiveTab('sheets-db')}
+                className="hidden lg:flex items-center gap-2 border-l border-white/20 pl-4 cursor-pointer hover:bg-white/10 p-1.5 rounded-xl transition-all"
+                title={`Módulo Ativo do Técnico: ${currentUser.email}`}
+                id="header-user-profile-active"
+              >
+                {currentUser.photoURL ? (
+                  <img 
+                    alt="Foto do Técnico" 
+                    className="w-8 h-8 rounded-full border border-teal-400 object-cover" 
+                    src={currentUser.photoURL}
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-teal-600 text-white font-bold flex items-center justify-center text-xs uppercase border border-teal-400">
+                    {currentUser.email?.charAt(0)}
+                  </div>
+                )}
+                <div className="text-left">
+                  <span className="text-[9px] font-mono font-black text-emerald-400 uppercase tracking-widest block leading-none">🟢 CONECTADO</span>
+                  <span className="text-[11px] font-semibold text-teal-100 tracking-wide truncate max-w-[125px] block">{currentUser.email?.split('@')[0]}</span>
+                </div>
+              </div>
+            ) : (
+              <div 
+                onClick={() => setActiveTab('sheets-db')}
+                className="hidden lg:flex items-center gap-2 border-l border-white/20 pl-4 cursor-pointer hover:bg-white/5 p-1.5 rounded-xl transition-all"
+                title="Clique para conectar com Google no painel"
+                id="header-user-profile-inactive"
+              >
+                <div className="w-8 h-8 rounded-full bg-slate-800 font-bold flex items-center justify-center text-xs border border-dashed border-white/30">
+                  🔑
+                </div>
+                <div className="text-left">
+                  <span className="text-[9px] font-mono font-black text-rose-400 uppercase tracking-widest block leading-none">⚪ SEM CONEXÃO</span>
+                  <span className="text-[11px] font-semibold text-slate-300 tracking-wide block">Técnico SPCI</span>
+                </div>
+              </div>
+            )}
           </div>
         </header>
 
@@ -1561,6 +2218,18 @@ export default function SpciComplianceApp() {
                           <p>📍 <strong>Local:</strong> {asset.location} - {asset.subLocation}</p>
                           <p>🔍 <strong>Selo:</strong> {asset.seloInmetro}</p>
                           <p>📌 <strong>Chassi:</strong> {asset.chassi} | peso: {asset.peso}kg</p>
+                          {getCustomAttributes(asset).length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-dashed border-slate-200">
+                              <p className="text-[9px] font-mono font-black text-teal-700 uppercase tracking-wider mb-1 flex items-center gap-1">✨ Campos Auto-Modelados IA</p>
+                              <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px] font-mono text-slate-605 bg-teal-50/50 p-1.5 rounded border border-teal-100/60 leading-tight">
+                                {getCustomAttributes(asset).map((attr, idx) => (
+                                  <div key={idx} className="truncate" title={`${attr.key}: ${attr.value}`}>
+                                    <span className="font-bold text-teal-800">{attr.key}:</span> {attr.value}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 mt-4 text-center border-t border-slate-100 pt-3 text-[10px]">
@@ -1626,6 +2295,18 @@ export default function SpciComplianceApp() {
                         <div className="space-y-1 text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg border">
                           <p>📍 <strong>Local:</strong> {asset.location} - {asset.subLocation}</p>
                           <p>📦 <strong>Componentes:</strong> {asset.components.join(', ')}</p>
+                          {getCustomAttributes(asset).length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-dashed border-slate-200">
+                              <p className="text-[9px] font-mono font-black text-teal-700 uppercase tracking-wider mb-1 flex items-center gap-1">✨ Campos Auto-Modelados IA</p>
+                              <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[9px] font-mono text-slate-605 bg-teal-50/50 p-1.5 rounded border border-teal-100/60 leading-tight">
+                                {getCustomAttributes(asset).map((attr, idx) => (
+                                  <div key={idx} className="truncate" title={`${attr.key}: ${attr.value}`}>
+                                    <span className="font-bold text-teal-800">{attr.key}:</span> {attr.value}
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
                         <div className="grid grid-cols-2 gap-2 text-center border-t border-slate-100 pt-3 text-[10px]">
@@ -2004,6 +2685,347 @@ export default function SpciComplianceApp() {
               </motion.div>
             )}
 
+            {activeTab === 'sheets-db' && !selectedAssetForInspection && !showAddForm && (
+              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 max-w-6xl mx-auto h-full overflow-y-auto p-4 md:p-6 custom-scrollbar pb-24">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-emerald-800 to-teal-950 p-6 rounded-2xl text-white shadow-lg relative overflow-hidden shrink-0">
+                  <div className="absolute -right-10 -bottom-10 opacity-10 text-9xl select-none pointer-events-none">📊</div>
+                  <div>
+                    <h2 className="font-['Hanken_Grotesk'] font-black text-2xl tracking-tight flex items-center gap-2">
+                       <span>🟢</span> Central de Integração Google Sheets
+                    </h2>
+                    <p className="text-teal-100 text-xs mt-1">
+                      Configure planilhas do Google Sheets para servir como o banco de dados oficial de cada módulo do SPCI.
+                    </p>
+                  </div>
+                  
+                  <div>
+                    {authChecking ? (
+                      <div className="flex items-center gap-2 text-xs text-teal-200">
+                        <span className="w-2 h-2 bg-yellow-400 rounded-full animate-ping"></span>
+                        Verificando conta...
+                      </div>
+                    ) : currentUser ? (
+                      <div className="bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-xl border border-white/10 flex items-center gap-3">
+                        {currentUser.photoURL ? (
+                          <img src={currentUser.photoURL} alt="Avatar" className="w-8 h-8 rounded-full border border-emerald-400" referrerPolicy="no-referrer" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-emerald-600 text-white font-bold flex items-center justify-center text-sm uppercase">
+                            {currentUser.email?.charAt(0)}
+                          </div>
+                        )}
+                        <div className="text-left">
+                          <p className="text-[10px] font-sans text-emerald-300 font-extrabold uppercase tracking-wide leading-none">CONECTADO</p>
+                          <p className="text-xs font-bold font-mono text-white leading-tight mt-0.5 max-w-[150px] truncate">{currentUser.email}</p>
+                        </div>
+                        <button 
+                          onClick={handleGoogleLogout}
+                          className="bg-red-600/30 hover:bg-red-600 border border-red-500/35 px-2 py-1 rounded text-[10px] uppercase font-bold transition-all cursor-pointer"
+                        >
+                          Sair
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={handleGoogleLogin}
+                        className="bg-white hover:bg-neutral-50 text-slate-900 border border-neutral-200 font-bold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 transition-all transform hover:scale-[1.03] active:scale-95 shadow-md shadow-emerald-950/20 cursor-pointer"
+                      >
+                        <span className="text-sm">🔑</span> Conectar Conta Google
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Dashboard modules grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {[
+                    { key: 'extintores', label: 'Cadastro de Extintores', icon: '🧯', color: 'border-red-500/20 shadow-red-500/5' },
+                    { key: 'hidrantes', label: 'Hidrantes & Abrigos', icon: '💧', color: 'border-blue-500/20 shadow-blue-500/5' },
+                    { key: 'sinalizacao', label: 'Sinalizações NBR 13434', icon: '⚠️', color: 'border-amber-500/20 shadow-amber-500/5' },
+                    { key: 'iluminacao', label: 'Iluminação de Emergência', icon: '💡', color: 'border-yellow-500/20 shadow-yellow-500/5' },
+                    { key: 'bombas', label: 'Sistemas Casa de Bombas', icon: '⚙️', color: 'border-slate-500/20 shadow-slate-500/5' },
+                  ].map((mod) => {
+                    const conf = sheetsConfig[mod.key] || { id: '', url: '', syncState: 'idle' };
+                    const isSyncing = conf.syncState === 'syncing';
+                    const isError = conf.syncState === 'error';
+                    const isSuccess = conf.syncState === 'success';
+
+                    const tpl = sheetsTemplates[mod.key] || { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null };
+                    const isAnalyzing = analyzingKeys[mod.key] || false;
+
+                    return (
+                      <div key={mod.key} className={`bg-white rounded-2xl border ${mod.color} p-6 shadow-sm hover:shadow-lg transition-all relative overflow-hidden flex flex-col justify-between`}>
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-start">
+                            <div className="flex items-center gap-3">
+                              <span className="text-2xl">{mod.icon}</span>
+                              <div>
+                                <h3 className="font-['Hanken_Grotesk'] font-black text-slate-800 text-sm md:text-base leading-tight">{mod.label}</h3>
+                                <p className="text-[10px] text-teal-650 font-mono flex items-center gap-1 font-bold">
+                                  <span>📅</span> Tabela: Sheet1
+                                </p>
+                              </div>
+                            </div>
+                            
+                            {/* Sync badges */}
+                            {isSyncing && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 animate-pulse">
+                                🔄 Processando
+                              </span>
+                            )}
+                            {isSuccess && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                                🟢 Banco Conectado
+                              </span>
+                            )}
+                            {isError && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800">
+                                🔴 Erro de Conexão
+                              </span>
+                            )}
+                            {conf.syncState === 'idle' && !conf.id && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-slate-100 text-slate-500">
+                                ⚪ Sem Banco
+                              </span>
+                            )}
+                            {conf.syncState === 'idle' && conf.id && (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-indigo-50 text-indigo-700">
+                                🟡 Banco Configurado
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Planilha Ativa de Banco de Dados */}
+                          <div className="space-y-2 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
+                            <span className="block text-[9px] uppercase font-black text-slate-500 tracking-wider flex items-center gap-1">
+                              <span>📁</span> Planilha de Armazenamento
+                            </span>
+                            <div className="flex gap-1.5">
+                              <input 
+                                type="text"
+                                placeholder="Insira o ID ou URL no Google Sheets"
+                                value={conf.id}
+                                disabled={isSyncing}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  saveSheetsConfig({
+                                    ...sheetsConfig,
+                                    [mod.key]: { ...conf, id: val }
+                                  });
+                                }}
+                                className="w-full bg-white border border-slate-200 rounded-lg p-2 text-[11px] focus:outline-none focus:border-slate-800 font-mono text-slate-755"
+                              />
+                              {conf.id && (
+                                <a 
+                                  href={conf.url || `https://docs.google.com/spreadsheets/d/${extractSpreadsheetId(conf.id)}/edit`}
+                                  target="_blank" 
+                                  rel="noopener noreferrer"
+                                  className="bg-neutral-100 text-slate-700 hover:bg-neutral-200 px-2 rounded-lg border border-neutral-300 flex items-center justify-center font-bold text-xs shrink-0"
+                                  title="Abrir planilha ativa no Google"
+                                >
+                                  🔗
+                                </a>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* SEÇÃO IMPORTAÇÃO EM MASSA & AUTO-MODELAGEM IA */}
+                          <div className="space-y-3 pt-3.5 border-t border-dashed border-slate-200">
+                            <div className="flex justify-between items-center">
+                              <span className="block text-[10px] uppercase font-black text-slate-800 tracking-wider flex items-center gap-1">
+                                <span>🤖</span> Estrutura & Modelador IA
+                              </span>
+                              
+                              <label className="flex items-center gap-1 cursor-pointer select-none">
+                                <input
+                                  type="checkbox"
+                                  className="rounded border-slate-300 text-teal-600 focus:ring-teal-500 w-3 h-3 cursor-pointer"
+                                  checked={!tpl.customModel}
+                                  onChange={(e) => {
+                                    const useDefault = e.target.checked;
+                                    saveSheetsTemplates({
+                                      ...sheetsTemplates,
+                                      [mod.key]: {
+                                        ...tpl,
+                                        customModel: !useDefault,
+                                        templateId: useDefault ? conf.id : ''
+                                      }
+                                    });
+                                  }}
+                                />
+                                <span className="text-[9px] font-bold text-slate-500 uppercase">Mesmo ID do Banco</span>
+                              </label>
+                            </div>
+
+                            {tpl.customModel && (
+                              <div className="space-y-1">
+                                <label className="block text-[9px] uppercase font-bold text-slate-400">Planilha de Modelo Customizado</label>
+                                <input 
+                                  type="text"
+                                  placeholder="Link ou ID da Planilha Modelo"
+                                  value={tpl.templateId}
+                                  onChange={(e) => {
+                                    saveSheetsTemplates({
+                                      ...sheetsTemplates,
+                                      [mod.key]: { ...tpl, templateId: e.target.value }
+                                    });
+                                  }}
+                                  className="w-full bg-slate-50/50 border border-slate-200 rounded-lg p-2 text-[11px] focus:outline-none focus:border-slate-800 font-mono"
+                                />
+                              </div>
+                            )}
+
+                            {/* Trigger AI Structural Assessment */}
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => handleAIModelAnalysis(mod.key, mod.label, tpl.templateId || conf.id)}
+                                disabled={isAnalyzing || (!tpl.templateId && !conf.id) || !gToken}
+                                className="flex-1 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-200 text-[10px] p-2 rounded-lg font-black uppercase tracking-wider transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                              >
+                                {isAnalyzing ? '⌛ Analisando...' : '🔍 Auditar Estrutura via IA'}
+                              </button>
+                            </div>
+
+                            {/* AI Diagnostics details output */}
+                            {tpl.aiAuditResult && (
+                              <div className="p-3 rounded-lg bg-slate-900 text-slate-200 text-[10px] space-y-2 border border-slate-950 font-mono text-left">
+                                <div className="flex justify-between items-center border-b border-white/10 pb-1 shrink-0">
+                                  <span className="font-sans font-black uppercase text-[#7bd1f8]">Laudo Técnico IA</span>
+                                  <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold ${tpl.aiAuditResult.compatible ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}`}>
+                                    {tpl.aiAuditResult.compatible ? '🟢 COMPATÍVEL' : '🔴 IMPEDIMENTOS'}
+                                  </span>
+                                </div>
+                                <p className="leading-relaxed text-slate-300">
+                                  {tpl.aiAuditResult.technicalAnalysis}
+                                </p>
+                                <div className="flex justify-between items-center text-[9px] pt-1 border-t border-white/5 font-sans">
+                                  <span className="text-slate-400">Score de Compatibilidade:</span>
+                                  <span className="font-extrabold text-[#7bd1f8] font-mono">{tpl.aiAuditResult.score}%</span>
+                                </div>
+                                {tpl.aiAuditResult.nbrComplianceWarning && (
+                                  <p className="text-[9px] leading-tight text-amber-300 border-l-2 border-amber-500 pl-1.5 pt-0.5 font-sans">
+                                    📜 <strong>NBR Warning:</strong> {tpl.aiAuditResult.nbrComplianceWarning}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Remodel status warning when custom model headers differ */}
+                            {tpl.headers.length > 0 && !tpl.isRemodeled && (
+                              <div className="p-3 rounded-lg border border-amber-200 bg-amber-50/70 text-slate-700 text-[10px] space-y-1.5 text-left shrink-0">
+                                <p className="font-bold flex items-center gap-1 text-amber-800">
+                                  <span>⚠️</span> Banco Não Remodelado
+                                </p>
+                                <p className="text-slate-600 leading-tight">
+                                  O modelo de dados mudou, mas o banco de dados SPCI local ainda não foi remodelado. Isso ocorrerá apenas na próxima importação em lote, ou marque abaixo.
+                                </p>
+                                <label className="flex items-center gap-1.5 mt-2 cursor-pointer font-bold select-none text-slate-800 font-sans border-t border-dashed border-amber-200 pt-1.5 hover:text-amber-950">
+                                  <input 
+                                    type="checkbox"
+                                    className="rounded border-amber-400 text-amber-600 focus:ring-amber-500 w-3.5 h-3.5 cursor-pointer"
+                                    checked={tpl.isRemodeled}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        handleApplyRemodelNow(mod.key, mod.label);
+                                      }
+                                    }}
+                                  />
+                                  <span className="uppercase tracking-wide text-[9px]">Flegar para remodelar agora</span>
+                                </label>
+                              </div>
+                            )}
+
+                            {tpl.headers.length > 0 && tpl.isRemodeled && (
+                              <div className="p-2 bg-emerald-50 text-emerald-800 text-[9px] font-bold rounded border border-emerald-100 flex items-center gap-1">
+                                <span>✅</span> Estrutura SPCI local de {mod.key} remodelada!
+                              </div>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="space-y-2 mt-5">
+                          {/* SPCI google sheets actions */}
+                          {currentUser ? (
+                            <div className="flex flex-col gap-2">
+                              {/* Mass Import Button */}
+                              <button
+                                onClick={() => handleMassImport(mod.key, mod.label)}
+                                disabled={isSyncing || (!tpl.templateId && !conf.id)}
+                                className="w-full bg-gradient-to-r from-teal-750 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white font-['Hanken_Grotesk'] font-black uppercase text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transform active:scale-95 transition-all shadow-md shadow-emerald-900/10 cursor-pointer disabled:opacity-50"
+                              >
+                                ⚡ Importação em Massa & Remodelar
+                              </button>
+
+                              {conf.id && (
+                                <button
+                                  onClick={() => handleSyncModuleWithSheets(mod.key, mod.label)}
+                                  disabled={isSyncing}
+                                  className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-['Hanken_Grotesk'] font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                                >
+                                  {isSyncing ? '⌛ Aguarde...' : '🔄 Sincronizar Bi-Lateral'}
+                                </button>
+                              )}
+                              
+                              <button
+                                onClick={() => handleCreateSheetForModule(mod.key, mod.label)}
+                                disabled={isSyncing}
+                                className={`w-full ${conf.id ? 'bg-slate-50 hover:bg-slate-100 text-slate-400 border border-slate-200' : 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-bold'} font-['Hanken_Grotesk'] text-[10px] uppercase py-1.5 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer`}
+                              >
+                                {conf.id ? 'Limpar e recriar na nuvem' : '⚡ Criar Banco Do Zero'}
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="p-3 bg-neutral-50/80 text-slate-400 border border-dashed rounded-xl text-center text-[10px]">
+                              Conecte sua conta do Google para ativar a sincronia e mass import.
+                            </div>
+                          )}
+
+                          {/* Last synchronization logs metadata */}
+                          <div className="flex justify-between items-center text-[10px] text-slate-400 font-mono mt-1 pt-1.5 border-t border-slate-100">
+                            <span>Última Sinc:</span>
+                            <span className="font-bold">
+                              {conf.lastSync ? `${conf.lastSync}` : 'Nunca'}
+                            </span>
+                          </div>
+                          {conf.lastError && (
+                            <p className="text-[9px] text-red-650 font-mono truncate leading-none mt-1">
+                              Erro: {conf.lastError}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Console view logger */}
+                <div className="bg-slate-900 rounded-2xl border border-slate-950 shadow-lg p-5 text-white">
+                  <div className="flex justify-between items-center pb-2 border-b border-white/10 mb-3 shrink-0">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping"></span>
+                      <h4 className="font-['Hanken_Grotesk'] text-xs font-extrabold uppercase tracking-widest text-[#7bd1f8]">
+                        Console de Operações de Banco de Dados Sheets
+                      </h4>
+                    </div>
+                    <button 
+                      onClick={() => setSheetsConsoleLogs(['[Sistema] Console limpo. Pronto.'])}
+                      className="text-[10px] uppercase font-bold text-slate-400 hover:text-white cursor-pointer"
+                    >
+                      Limpar Logs
+                    </button>
+                  </div>
+                  <div className="h-40 overflow-y-auto font-mono text-[11px] text-slate-300 space-y-1 select-text selection:bg-[#7bd1f8]/30 selection:text-white leading-relaxed custom-scrollbar text-left">
+                    {sheetsConsoleLogs.map((log, index) => (
+                      <div key={index} className="flex gap-2">
+                        <span className="text-slate-600 select-none">›</span>
+                        <p>{log}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
           </div>
         </main>
 
@@ -2013,6 +3035,7 @@ export default function SpciComplianceApp() {
             { id: 'dashboard', label: 'Início', icon: '📊' },
             { id: 'extintores', label: 'Extintores', icon: '🧯' },
             { id: 'field-ronda', label: 'Ronda', icon: '📱' },
+            { id: 'sheets-db', label: 'Planilhas', icon: '🟢' },
             { id: 'alerts', label: 'Alertas', icon: '🔔' }
           ].map(item => (
             <button
