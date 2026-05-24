@@ -255,10 +255,37 @@ export async function createSpreadsheet(accessToken: string, title: string): Pro
 }
 
 /**
+ * Resolves the actual first sheet name of a spreadsheet to avoid "Unable to parse range" error with default "Sheet1"
+ */
+export async function getFirstSheetName(accessToken: string, spreadsheetId: string): Promise<string> {
+  try {
+    const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties.title`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`
+      }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.sheets && data.sheets.length > 0) {
+        return data.sheets[0].properties.title || 'Sheet1';
+      }
+    }
+  } catch (err) {
+    console.error('getFirstSheetName error:', err);
+  }
+  return 'Sheet1';
+}
+
+/**
  * Reads all rows from a spreadsheet
  */
 export async function readSpreadsheet(accessToken: string, spreadsheetId: string, range = 'Sheet1!A1:Z500'): Promise<any[][] | null> {
   try {
+    if (range.includes('Sheet1')) {
+      const actualFirstSheet = await getFirstSheetName(accessToken, spreadsheetId);
+      range = range.replace('Sheet1', actualFirstSheet);
+    }
     const res = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`, {
       method: 'GET',
       headers: {
@@ -285,8 +312,17 @@ export async function readSpreadsheet(accessToken: string, spreadsheetId: string
  */
 export async function writeSpreadsheet(accessToken: string, spreadsheetId: string, values: any[][], range = 'Sheet1!A1'): Promise<void> {
   try {
+    const actualFirstSheet = await getFirstSheetName(accessToken, spreadsheetId);
+    let clearRange = 'Sheet1!A1:Z500';
+    if (clearRange.includes('Sheet1')) {
+      clearRange = clearRange.replace('Sheet1', actualFirstSheet);
+    }
+    if (range.includes('Sheet1')) {
+      range = range.replace('Sheet1', actualFirstSheet);
+    }
+
     // Clear the active grid first to ensure clean state
-    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent('Sheet1!A1:Z500')}:clear`, {
+    await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(clearRange)}:clear`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${accessToken}`,
