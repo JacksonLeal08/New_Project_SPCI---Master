@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "motion/react";
 import * as d3 from 'd3';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip } from 'recharts';
 
 // --- GOOGLE WORKSPACE IMPORTS ---
 import { initAuth, googleSignIn, logout, getAccessToken } from '../lib/firebaseAuth';
@@ -224,6 +225,72 @@ const D3SectorHeatmap = ({ data }: D3SectorHeatmapProps) => {
   );
 };
 
+const RechartsComplianceTrend = ({ currentPercentage }: { currentPercentage: number }) => {
+  const trendData = [
+    { month: 'Dez/25', compliance: 98, status: 'Conforme Estável' },
+    { month: 'Jan/26', compliance: 95, status: 'Declínio Sutil' },
+    { month: 'Fev/26', compliance: 91, status: 'Início Perdas' },
+    { month: 'Mar/26', compliance: 86, status: 'Degradação Alerta' },
+    { month: 'Abr/26', compliance: 82, status: 'Atenção Crítica' },
+    { month: 'Mai/26 (Atual)', compliance: currentPercentage, status: 'Mensuração Atual SPCI' }
+  ];
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm flex flex-col justify-between h-full">
+      <div>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b gap-2 mb-4">
+          <div>
+            <span className="text-[10px] bg-red-50 hover:bg-red-100 text-[#af101a] font-black uppercase font-mono px-2 py-0.5 rounded border border-red-200/60 font-mono tracking-wider">
+              📅 Mapeamento SPCI Histórico
+            </span>
+            <h3 className="font-['Hanken_Grotesk'] font-black text-lg text-slate-800 mt-1">
+              📈 Evolução Mensal da Conformidade
+            </h3>
+            <p className="text-xs text-slate-400 font-sans">
+              Mapeamento de degradação temporal e atrasos nas vistorias periódicas de campo.
+            </p>
+          </div>
+        </div>
+        <div className="h-[250px] w-full pt-2">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+              <defs>
+                <linearGradient id="colorCompliance" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#af101a" stopOpacity={0.35}/>
+                  <stop offset="95%" stopColor="#af101a" stopOpacity={0.0}/>
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F1F5F9" />
+              <XAxis dataKey="month" tick={{ fontSize: 9, fill: '#64748B', fontWeight: 'bold' }} stroke="#CBD5E1" axisLine={false} tickLine={false} />
+              <YAxis domain={[60, 100]} tick={{ fontSize: 9, fill: '#64748B', fontWeight: 'bold' }} stroke="#CBD5E1" axisLine={false} tickLine={false} />
+              <RechartsTooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-slate-900 text-white p-3 rounded-xl shadow-lg border border-slate-800 text-[11px] font-mono leading-relaxed">
+                        <p className="font-bold text-slate-400 font-sans text-xs">{data.month}</p>
+                        <p className="text-[#ff7878] font-black mt-1 text-sm leading-none">
+                          🎯 {data.compliance}% Conforme
+                        </p>
+                        <span className="inline-block mt-1.5 px-1.5 py-0.5 rounded text-[8px] uppercase font-bold tracking-wider bg-white/10 text-amber-200">
+                          {data.status}
+                        </span>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
+              <Area type="monotone" dataKey="compliance" stroke="#af101a" strokeWidth={3} fillOpacity={1} fill="url(#colorCompliance)" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function SpciComplianceApp() {
   const getCustomAttributes = (asset: any) => {
     const standardKeys = [
@@ -240,8 +307,7 @@ export default function SpciComplianceApp() {
   };
 
   // Navigation State
-  // Navigation State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'extintores' | 'hidrantes' | 'sinalizacao' | 'iluminacao' | 'bombas' | 'field-ronda' | 'alerts' | 'sheets-db'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'extintores' | 'hidrantes' | 'sinalizacao' | 'iluminacao' | 'bombas' | 'field-ronda' | 'alerts' | 'sheets-db' | 'chat-tecnico'>('dashboard');
 
   // --- GOOGLE SHEETS API INTEGRATION STATES ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -902,6 +968,106 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
   ]);
   const [userPrompt, setUserPrompt] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
+
+  // --- NATIVE TEAM CHAT STATES (Admin & Field Tech Integration) ---
+  const [teamChatMessages, setTeamChatMessages] = useState<any[]>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('spci_team_chat_messages');
+      if (stored) return JSON.parse(stored);
+    }
+    return [
+      {
+        id: 'm1',
+        sender: 'admin',
+        text: 'Atenção, o Extintor PAT-E-101 (Almoxarifado Setor B) está constando como VENCIDO no painel principal do Admin. Alguém do campo pode verificar e realizar a adequação e recarga legal conforme NBR 12962?',
+        timestamp: '24/05/2026, 09:30:15',
+        assetReference: {
+          id: '101',
+          idAtivo: 'PAT-E-101',
+          category: 'Extintor',
+          model: 'PQS ABC - 8KG',
+          status: 'Vencido',
+          location: 'Almoxarifado Central'
+        }
+      },
+      {
+        id: 'm2',
+        sender: 'tecnico',
+        text: 'Ciente! Estou nos arredores do Almoxarifado realizando a inspeção de rotina. Vou até o setor B avaliar o selo e o manômetro desse equipamento agora mesmo.',
+        timestamp: '24/05/2026, 09:35:40'
+      },
+      {
+        id: 'm3',
+        sender: 'tecnico',
+        text: 'Encontrei o extintor. Realmente a pressão do manômetro está na zona de risco vermelha (falha de selo). Estou anexando a imagem do painel técnico para comprovação técnica. Ele precisa ser enviado para recarga externa.',
+        timestamp: '24/05/2026, 09:41:00',
+        imageAttachment: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=500&auto=format&fit=crop&q=60'
+      }
+    ];
+  });
+  const [teamChatPersona, setTeamChatPersona] = useState<'admin' | 'tecnico'>('admin');
+  const [teamChatSelectedAssetId, setTeamChatSelectedAssetId] = useState<string>('');
+  const [teamChatInputText, setTeamChatInputText] = useState<string>('');
+  const [teamChatAttachedImage, setTeamChatAttachedImage] = useState<string | null>(null);
+  
+  // --- NATIVE BROWSER NOTIFICATION STATE ---
+  const [notificationPermission, setNotificationPermission] = useState<string>('default');
+
+  const saveTeamChatMessages = (messages: any[]) => {
+    setTeamChatMessages(messages);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('spci_team_chat_messages', JSON.stringify(messages));
+    }
+  };
+
+  const isCriticalStatus = (status?: string) => {
+    if (!status) return false;
+    const s = status.toLowerCase();
+    return s === 'vencido' || s === 'não conforme' || s === 'faltante' || s === 'falha carga' || s === 'manutenção req.';
+  };
+
+  const triggerNativeNotification = (title: string, body: string) => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission === 'granted') {
+        try {
+          new Notification(title, {
+            body,
+            icon: '/favicon.ico'
+          });
+        } catch (e) {
+          console.warn("Could not display native notification", e);
+        }
+      }
+    }
+  };
+
+  const requestNotificationPermission = () => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      Notification.requestPermission().then(perm => {
+        setNotificationPermission(perm);
+        if (perm === 'granted') {
+          triggerNativeNotification(
+            "SPCI Notificações Nativas 🟢",
+            "Permissão concedida. Você receberá alertas de vencimento diretamente em sua tela!"
+          );
+        }
+      });
+    } else {
+      triggerSuccessNotification(
+        "Aparelho incompatível",
+        "Este navegador de simulação não oferece suporte à API de Notificações nativas."
+      );
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      const timer = setTimeout(() => {
+        setNotificationPermission(Notification.permission);
+      }, 0);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Forms / Checklists States (Active Session)
   const [selectedAssetForInspection, setSelectedAssetForInspection] = useState<any | null>(null);
@@ -1595,6 +1761,7 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
             { id: 'iluminacao', label: 'Iluminação Emergência', icon: '💡' },
             { id: 'bombas', label: 'Casa de Bombas', icon: '⚙️' },
             { id: 'field-ronda', label: 'Extensão Ronda Campo', icon: '📱' },
+            { id: 'chat-tecnico', label: 'Chat Técnico Campo', icon: '💬' },
             { id: 'alerts', label: 'Disparo de Alertas', icon: '🔔' },
             { id: 'sheets-db', label: 'Google Sheets DB', icon: '🟢' }
           ].map(item => (
@@ -2049,8 +2216,15 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
 
                 </div>
 
-                {/* D3 Heatmap component with dynamic stats input */}
-                <D3SectorHeatmap data={sectorStats} />
+                {/* Visualizer Grid: Dual analytics monitors */}
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+                  <div className="bg-white border border-[#CFD8DC] rounded-3xl p-5 md:p-6 shadow-sm">
+                    <D3SectorHeatmap data={sectorStats} />
+                  </div>
+                  <div>
+                    <RechartsComplianceTrend currentPercentage={compliancePercentage} />
+                  </div>
+                </div>
 
                 {/* Dashboard Middle Section: Recent compliance alert list & QR mobile link */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -2199,8 +2373,28 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {extintores.map((asset) => (
-                    <div key={asset.id} className="bg-white rounded-2xl border border-[#CFD8DC] shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-lg transition-shadow group">
+                  {extintores.map((asset) => {
+                    const needsPulse = isCriticalStatus(asset.status);
+                    return (
+                      <motion.div 
+                        key={asset.id} 
+                        {...(needsPulse ? {
+                          animate: {
+                            scale: [1, 1.012, 1],
+                            boxShadow: [
+                              "0px 0px 0px rgba(239, 68, 68, 0)",
+                              "0px 0px 14px rgba(239, 68, 68, 0.22)",
+                              "0px 0px 0px rgba(239, 68, 68, 0)"
+                            ]
+                          },
+                          transition: {
+                            duration: 2.2,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }
+                        } : {})}
+                        className="bg-white rounded-2xl border border-[#CFD8DC] shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-lg transition-all group"
+                      >
                       <div className={`absolute top-0 left-0 bottom-0 w-2 ${asset.status === 'Conforme' ? 'bg-[#2E7D32]' : asset.status === 'Vencido' ? 'bg-[#D32F2F]' : 'bg-[#F57C00]'}`}></div>
                       
                       <div className="p-5 pl-7">
@@ -2257,8 +2451,9 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
                           }
                         }} className="bg-red-50 text-red-600 p-2 rounded-lg hover:bg-red-100" title="Excluir">❌</button>
                       </div>
-                    </div>
-                  ))}
+                    </motion.div>
+                  );
+                })}
                 </div>
               </motion.div>
             )}
@@ -2426,39 +2621,60 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {iluminacoes.map((asset) => (
-                    <div key={asset.id} className="bg-white rounded-2xl border border-[#CFD8DC] shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-lg transition-shadow group">
-                      <div className={`absolute top-0 left-0 bottom-0 w-2 ${asset.status === 'Operacional' ? 'bg-[#2E7D32]' : asset.status === 'Falha Carga' ? 'bg-[#D32F2F]' : 'bg-[#F57C00]'}`}></div>
-                      
-                      <div className="p-5 pl-7">
-                        <div className="flex justify-between items-start mb-4">
-                          <div>
-                            <span className="font-mono text-slate-400 text-xs">LUM: {asset.idAtivo}</span>
-                            <h3 className="font-['Hanken_Grotesk'] font-bold text-slate-800 text-base">{asset.model}</h3>
+                  {iluminacoes.map((asset) => {
+                    const needsPulse = isCriticalStatus(asset.status) || asset.status === 'Falha Carga';
+                    return (
+                      <motion.div 
+                        key={asset.id} 
+                        {...(needsPulse ? {
+                          animate: {
+                            scale: [1, 1.015, 1],
+                            boxShadow: [
+                              "0px 0px 0px rgba(239, 68, 68, 0)",
+                              "0px 0px 14px rgba(239, 68, 68, 0.22)",
+                              "0px 0px 0px rgba(239, 68, 68, 0)"
+                            ]
+                          },
+                          transition: {
+                            duration: 2.2,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }
+                        } : {})}
+                        className="bg-white rounded-2xl border border-[#CFD8DC] shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-lg transition-all group"
+                      >
+                        <div className={`absolute top-0 left-0 bottom-0 w-2 ${asset.status === 'Operacional' ? 'bg-[#2E7D32]' : asset.status === 'Falha Carga' ? 'bg-[#D32F2F]' : 'bg-[#F57C00]'}`}></div>
+                        
+                        <div className="p-5 pl-7">
+                          <div className="flex justify-between items-start mb-4">
+                            <div>
+                              <span className="font-mono text-slate-400 text-xs">LUM: {asset.idAtivo}</span>
+                              <h3 className="font-['Hanken_Grotesk'] font-bold text-slate-800 text-base">{asset.model}</h3>
+                            </div>
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${asset.status === 'Operacional' ? 'text-green-800 bg-green-100' : 'text-amber-800 bg-amber-100'}`}>
+                              {asset.status}
+                            </span>
                           </div>
-                          <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold ${asset.status === 'Operacional' ? 'text-green-800 bg-green-100' : 'text-amber-800 bg-amber-100'}`}>
-                            {asset.status}
-                          </span>
+
+                          <div className="space-y-1 text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg border">
+                            <p>📍 <strong>Local:</strong> {asset.location} - {asset.subLocation}</p>
+                            <p>⚡ <strong>Sistema:</strong> {asset.systemType}</p>
+                          </div>
+
+                          <div className="flex justify-between text-[11px] font-mono border-t pt-3">
+                            <span>🔋 Carga: <strong className="text-slate-800">{asset.battery}</strong></span>
+                            <span>⏲️ Autonomia: <strong className="text-slate-800">{asset.autonomy}</strong></span>
+                          </div>
                         </div>
 
-                        <div className="space-y-1 text-xs text-slate-600 mb-4 bg-slate-50 p-3 rounded-lg border">
-                          <p>📍 <strong>Local:</strong> {asset.location} - {asset.subLocation}</p>
-                          <p>⚡ <strong>Sistema:</strong> {asset.systemType}</p>
+                        <div className="border-t border-slate-100 bg-slate-50/50 p-3 flex justify-between gap-1 overflow-x-auto shrink-0">
+                          <button onClick={() => { setSelectedAssetForInspection(asset); }} className="flex-grow text-center bg-[#2E7D32] text-white text-xs font-bold uppercase py-2 tracking-wider rounded-lg hover:bg-green-700">📋 Inspecionar</button>
+                          <button onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'iluminacao' }); }} className="border border-slate-205 hover:bg-slate-100 text-slate-750 font-bold px-2 py-1 rounded-lg text-[10px] uppercase flex items-center gap-1 shrink-0" title="Ver Histórico NBR">📜 Histórico</button>
+                          <button onClick={() => handleOpenAlertCenter(asset)} className="bg-slate-100 text-slate-600 p-2 rounded-lg hover:bg-slate-200">🔔</button>
                         </div>
-
-                        <div className="flex justify-between text-[11px] font-mono border-t pt-3">
-                          <span>🔋 Carga: <strong className="text-slate-800">{asset.battery}</strong></span>
-                          <span>⏲️ Autonomia: <strong className="text-slate-800">{asset.autonomy}</strong></span>
-                        </div>
-                      </div>
-
-                      <div className="border-t border-slate-100 bg-slate-50/50 p-3 flex justify-between gap-1 overflow-x-auto shrink-0">
-                        <button onClick={() => { setSelectedAssetForInspection(asset); }} className="flex-grow text-center bg-[#2E7D32] text-white text-xs font-bold uppercase py-2 tracking-wider rounded-lg hover:bg-green-700">📋 Inspecionar</button>
-                        <button onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'iluminacao' }); }} className="border border-slate-200 hover:bg-slate-100 text-slate-750 font-bold px-2 py-1 rounded-lg text-[10px] uppercase flex items-center gap-1 shrink-0" title="Ver Histórico NBR">📜 Histórico</button>
-                        <button onClick={() => handleOpenAlertCenter(asset)} className="bg-slate-100 text-slate-600 p-2 rounded-lg hover:bg-slate-200">🔔</button>
-                      </div>
-                    </div>
-                  ))}
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </motion.div>
             )}
@@ -3026,6 +3242,404 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
               </motion.div>
             )}
 
+            {activeTab === 'chat-tecnico' && !selectedAssetForInspection && !showAddForm && (
+              <motion.div initial={{ opacity: 0, y: 15 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35 }} className="space-y-6 max-w-6xl mx-auto p-4 md:p-6 custom-scrollbar pb-24 h-full">
+                {/* Header Section with Premium Degradê */}
+                <div className="bg-gradient-to-r from-[#af101a] via-rose-700 to-[#1e293b] p-6 rounded-3xl text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shrink-0">
+                  <div className="absolute top-1/2 right-12 -translate-y-1/2 opacity-15 text-8xl pointer-events-none select-none">💬</div>
+                  <div>
+                    <span className="bg-white/20 select-none text-white text-[9px] uppercase tracking-widest font-black font-mono px-2.5 py-0.5 rounded border border-white/25">
+                      💬 Canal de Comunicação Homologado SPCI
+                    </span>
+                    <h2 className="font-['Hanken_Grotesk'] font-black text-2xl tracking-tight mt-1.5 flex items-center gap-2">
+                      Central de Comunicação Campo-Gerência
+                    </h2>
+                    <p className="text-rose-100 text-xs mt-1 font-sans font-medium">
+                      Troca instantânea de mensagens, fotos de conformidade e referências diretas a ativos entre Inspetores de Campo e Gestão Admin.
+                    </p>
+                  </div>
+
+                  {/* Persona Switcher Switch Element */}
+                  <div className="bg-black/30 p-1.5 rounded-2xl flex border border-white/10 shrink-0 select-none">
+                    <button 
+                      onClick={() => {
+                        setTeamChatPersona('admin');
+                        triggerSuccessNotification("Modo Admin Ativado 🏢", "Visualizando o chat sob perspectiva da Central de Controle.");
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold font-['Hanken_Grotesk'] uppercase transition-all duration-200 flex items-center gap-1 ${teamChatPersona === 'admin' ? 'bg-[#af101a] text-white shadow' : 'text-slate-300 hover:text-white'}`}
+                    >
+                      🏢 Admin (Gerente)
+                    </button>
+                    <button 
+                      onClick={() => {
+                        setTeamChatPersona('tecnico');
+                        triggerSuccessNotification("Modo Técnico Ativado 📱", "Visualizando o chat sob perspectiva do inspetor de campo.");
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold font-['Hanken_Grotesk'] uppercase transition-all duration-200 flex items-center gap-1 ${teamChatPersona === 'tecnico' ? 'bg-[#2E7D32] text-white shadow' : 'text-slate-300 hover:text-white'}`}
+                    >
+                      📱 Técnico (Campo)
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+                  
+                  {/* Left Column: Chat Area (8 Cols) */}
+                  <div className="lg:col-span-8 bg-white border border-slate-200 rounded-3xl shadow-sm flex flex-col justify-between overflow-hidden min-h-[500px]">
+                    {/* Active Conversation Banner info */}
+                    <div className="bg-slate-50 border-b border-slate-100 px-5 py-4 flex justify-between items-center shrink-0">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse"></span>
+                        <div>
+                          <p className="font-bold text-slate-800 text-xs uppercase tracking-wide">Fila de Atendimento Direta</p>
+                          <p className="text-[10px] text-slate-400">Tempo de Sincronia: Real-Time SPCI</p>
+                        </div>
+                      </div>
+                      
+                      <button 
+                        onClick={() => {
+                          if (confirm("Deseja limpar o histórico do chat local de testes?")) {
+                            saveTeamChatMessages([]);
+                          }
+                        }}
+                        className="text-[10px] uppercase font-bold text-red-600 hover:text-red-700 bg-red-50 hover:bg-red-100 px-2 py-1 rounded border border-red-200/50"
+                      >
+                        🗑️ Limpar Conversa
+                      </button>
+                    </div>
+
+                    {/* Messages Body */}
+                    <div className="p-5 flex-1 overflow-y-auto max-h-[380px] space-y-4 custom-scrollbar bg-slate-50/20 text-left">
+                      {teamChatMessages.length === 0 ? (
+                        <div className="h-full flex flex-col items-center justify-center p-12 text-center text-slate-400 font-sans space-y-2">
+                          <span className="text-4xl">💬</span>
+                          <p className="font-bold text-slate-600">Sem novas mensagens.</p>
+                          <p className="text-xs max-w-sm">Mande uma instrução ou dúvida em relação a conformidades técnicas de NBR.</p>
+                        </div>
+                      ) : (
+                        teamChatMessages.map((msg) => {
+                          const isAdmin = msg.sender === 'admin';
+                          return (
+                            <div key={msg.id} className={`flex flex-col ${isAdmin ? 'items-start' : 'items-end'} space-y-1`}>
+                              
+                              {/* Metadata/Sender Tag */}
+                              <div className="flex items-center gap-1.5 text-[9px] font-mono text-slate-400 px-1">
+                                <span className={`font-black uppercase tracking-wider ${isAdmin ? 'text-red-700' : 'text-green-800'}`}>
+                                  {isAdmin ? '🏢 CNC ADMIN' : '👷 CAMPO TÉCNICO'}
+                                </span>
+                                <span>•</span>
+                                <span>{msg.timestamp}</span>
+                              </div>
+
+                              {/* Message Box Card style */}
+                              <div className={`max-w-[85%] rounded-2xl px-4 py-3 shadow-sm border text-xs leading-relaxed transition-all ${
+                                isAdmin 
+                                  ? 'bg-white text-slate-850 rounded-tl-none border-slate-205' 
+                                  : 'bg-[#1e293b] text-slate-105 rounded-tr-none border-slate-850'
+                              }`}>
+                                <p>{msg.text}</p>
+
+                                {/* Rendering Asset Reference payload if exist */}
+                                {msg.assetReference && (
+                                  <div className={`mt-3 p-2.5 rounded-lg border text-[11px] flex flex-col justify-between ${
+                                    isAdmin 
+                                      ? 'bg-slate-50 border-slate-200 text-slate-700' 
+                                      : 'bg-slate-800 border-slate-700 text-slate-205'
+                                  }`}>
+                                    <div className="flex justify-between items-start shrink-0">
+                                      <span className="font-bold text-red-550 uppercase tracking-wide text-[9px] font-mono">
+                                        🔗 Ativo Referenciado
+                                      </span>
+                                      <span className={`px-1 rounded text-[8px] font-black uppercase ${
+                                        isCriticalStatus(msg.assetReference.status) 
+                                          ? 'bg-red-950 text-red-300' 
+                                          : 'bg-green-950 text-green-300'
+                                      }`}>
+                                        {msg.assetReference.status}
+                                      </span>
+                                    </div>
+                                    <p className="font-bold text-sm mt-1 font-['Hanken_Grotesk'] leading-tight">
+                                      {msg.assetReference.idAtivo} - {msg.assetReference.model}
+                                    </p>
+                                    <p className="text-[10px] text-slate-400 mt-1">
+                                      📍 {msg.assetReference.location} (Módulo: {msg.assetReference.category})
+                                    </p>
+                                  </div>
+                                )}
+
+                                {/* Image Attachment Display */}
+                                {msg.imageAttachment && (
+                                  <div className="mt-3 relative rounded-lg overflow-hidden border border-slate-705 max-w-sm shadow-inner group cursor-pointer" onClick={() => {
+                                    setPremiumAlert({
+                                      show: true,
+                                      title: 'Visualização Homologada SPCI',
+                                      message: `Comprovante fotográfico enviado pelo chat técnico em ${msg.timestamp}`,
+                                      type: 'info',
+                                      dispatchData: msg.imageAttachment
+                                    });
+                                  }}>
+                                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                                    <img src={msg.imageAttachment} alt="Imagens Anexada Campo SPCI" className="w-full h-auto object-cover hover:scale-105 transition-transform duration-300 pointer-events-auto" referrerPolicy="no-referrer" />
+                                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[10px] font-bold uppercase tracking-wider">
+                                      🔎 Expandir Comprovação
+                                    </div>
+                                  </div>
+                                )}
+
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Chat controller with options */}
+                    <div className="p-4 border-t border-slate-100 bg-white space-y-3 shrink-0">
+                      
+                      {/* Attached image preview indicator */}
+                      {teamChatAttachedImage && (
+                        <div className="flex items-center justify-between bg-slate-50 border border-slate-200/60 rounded-xl p-2 max-w-sm animate-fade-in text-xs leading-none shrink-0">
+                          <div className="flex items-center gap-2">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={teamChatAttachedImage} alt="Preview Anexo SPCI" className="w-10 h-10 object-cover rounded-md" referrerPolicy="no-referrer" />
+                            <div>
+                              <p className="font-bold text-slate-700">📸 Fotografia de Adequação</p>
+                              <p className="text-[8px] text-slate-400">Técnico/Gerenciamento</p>
+                            </div>
+                          </div>
+                          <button 
+                            onClick={() => setTeamChatAttachedImage(null)} 
+                            className="bg-red-50 hover:bg-red-100 text-red-600 font-bold p-1 rounded-full text-xs"
+                          >
+                            ❌
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Chat message text submission box */}
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          placeholder={`Responder conversa instantânea como ${teamChatPersona === 'admin' ? 'CNC ADMIN GERENTE' : 'CAMPO TÉCNICO INSPETOR'}...`}
+                          value={teamChatInputText}
+                          onChange={(e) => setTeamChatInputText(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              if (!teamChatInputText.trim() && !teamChatAttachedImage) return;
+                              
+                              let linkedAsset: any = null;
+                              if (teamChatSelectedAssetId) {
+                                const allAssets = [
+                                  ...extintores.map(x => ({ ...x, category: 'Extintor' })),
+                                  ...hidrantes.map(x => ({ ...x, category: 'Hidrante' })),
+                                  ...sinalizacoes.map(x => ({ ...x, category: 'Sinalização' })),
+                                  ...iluminacoes.map(x => ({ ...x, category: 'Iluminação' }))
+                                ];
+                                linkedAsset = allAssets.find(x => String(x.idAtivo) === String(teamChatSelectedAssetId));
+                              }
+
+                              const newMsg = {
+                                id: 'm_' + Date.now(),
+                                sender: teamChatPersona,
+                                text: teamChatInputText,
+                                timestamp: new Date().toLocaleString('pt-BR'),
+                                ...(linkedAsset ? { assetReference: linkedAsset } : {}),
+                                ...(teamChatAttachedImage ? { imageAttachment: teamChatAttachedImage } : {})
+                              };
+
+                              const updatedLogs = [...teamChatMessages, newMsg];
+                              saveTeamChatMessages(updatedLogs);
+                              setTeamChatInputText('');
+                              setTeamChatSelectedAssetId('');
+                              setTeamChatAttachedImage(null);
+
+                              triggerNativeNotification(
+                                `Novo Alerta de Chat SPCI: De ${teamChatPersona === 'admin' ? 'Gerência' : 'Campo'} 🟢`,
+                                newMsg.text || "Imagem de inspeção anexada para laudo técnico de NBR!"
+                              );
+                            }
+                          }}
+                          className="w-full bg-slate-50 border border-slate-205 rounded-xl p-3 text-xs focus:ring-2 focus:ring-slate-400 focus:outline-none"
+                        />
+                        <button 
+                          onClick={() => {
+                            if (!teamChatInputText.trim() && !teamChatAttachedImage) return;
+                            
+                            let linkedAsset: any = null;
+                            if (teamChatSelectedAssetId) {
+                              const allAssets = [
+                                ...extintores.map(x => ({ ...x, category: 'Extintor' })),
+                                ...hidrantes.map(x => ({ ...x, category: 'Hidrante' })),
+                                ...sinalizacoes.map(x => ({ ...x, category: 'Sinalização' })),
+                                ...iluminacoes.map(x => ({ ...x, category: 'Iluminação' }))
+                              ];
+                              linkedAsset = allAssets.find(x => String(x.idAtivo) === String(teamChatSelectedAssetId));
+                            }
+
+                            const newMsg = {
+                              id: 'm_' + Date.now(),
+                              sender: teamChatPersona,
+                              text: teamChatInputText,
+                              timestamp: new Date().toLocaleString('pt-BR'),
+                              ...(linkedAsset ? { assetReference: linkedAsset } : {}),
+                              ...(teamChatAttachedImage ? { imageAttachment: teamChatAttachedImage } : {})
+                            };
+
+                            const updatedLogs = [...teamChatMessages, newMsg];
+                            saveTeamChatMessages(updatedLogs);
+                            setTeamChatInputText('');
+                            setTeamChatSelectedAssetId('');
+                            setTeamChatAttachedImage(null);
+
+                            triggerNativeNotification(
+                              `Sincronia Canal SPCI 🟢`,
+                              newMsg.text || "Registros fotográficos anexados no campo técnico."
+                            );
+                          }}
+                          className="bg-[#af101a] hover:bg-neutral-800 text-white font-[#af101a] font-bold py-3 px-5 rounded-xl uppercase tracking-wider text-xs shadow-md transform active:scale-95 transition-all text-center"
+                        >
+                          Enviar ➕
+                        </button>
+                      </div>
+
+                    </div>
+                  </div>
+
+                  {/* Right Column: SPCI Dynamic Asset Reference Controls / Fast uploads Presets (4 Cols) */}
+                  <div className="lg:col-span-4 space-y-6 flex flex-col justify-start">
+                    
+                    {/* Presets Attachments Panel */}
+                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm text-left">
+                      <span className="text-[9px] bg-emerald-50 text-emerald-800 font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-emerald-200">
+                        Preset Upload Técnico
+                      </span>
+                      <h3 className="font-['Hanken_Grotesk'] font-bold text-slate-800 text-sm mt-1.5">
+                        📸 Vincular Comprovantes Visuais
+                      </h3>
+                      <p className="text-slate-400 text-[10px] mt-0.5 leading-tight">
+                        Simule a captura instantânea de campo anexando fotografias reais de conformidade do banco SPCI.
+                      </p>
+
+                      <div className="grid grid-cols-2 gap-2 mt-4">
+                        {[
+                          { title: 'Selo Inmetro NBR', url: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?w=500&auto=format&fit=crop&q=60', tag: 'Validade Extintor ABC' },
+                          { title: 'Mangueira Abrigo', url: 'https://images.unsplash.com/photo-1541888946425-d81bb19240f5?w=500&auto=format&fit=crop&q=60', tag: 'Vedação Hidrante' },
+                          { title: 'Placa NBR 13434', url: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=500&auto=format&fit=crop&q=60', tag: 'Fotoluminescente' },
+                          { title: 'Baterias Central', url: 'https://images.unsplash.com/photo-1520607162513-9027418515c1?w=500&auto=format&fit=crop&q=60', tag: 'Iluminação Emergência' }
+                        ].map((img, idx) => (
+                          <button 
+                            key={idx}
+                            onClick={() => {
+                              setTeamChatAttachedImage(img.url);
+                              triggerSuccessNotification("Fotografia Anexada 📸", `Preset "${img.title}" selecionada para envio.`);
+                            }}
+                            className="bg-slate-50 hover:bg-slate-100 border border-slate-200/50 rounded-xl p-2 flex flex-col items-center justify-between text-center transition-all group shrink-0 select-none text-[10.5px]"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={img.url} alt="Comprovação Preset SPCI" className="w-full h-11 object-cover rounded-md mb-1 border border-slate-202" referrerPolicy="no-referrer" />
+                            <span className="font-bold text-slate-755 line-clamp-1">{img.title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* SPCI Asset Direct Linker Selector */}
+                    <div className="bg-white border border-slate-200 rounded-3xl p-5 shadow-sm text-left">
+                      <span className="text-[9px] bg-red-50 text-red-800 font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-red-200/50">
+                        Referência de Ativos
+                      </span>
+                      <h3 className="font-['Hanken_Grotesk'] font-bold text-slate-800 text-sm mt-1.5">
+                        🔗 Vincular Ativo às Mensagens
+                      </h3>
+                      <p className="text-slate-400 text-[10px] mt-0.5 leading-tight">
+                        Selecione um ativo da rede para vincular metadados às mensagens enviadas, facilitando vistorias de campo.
+                      </p>
+
+                      <div className="mt-4 space-y-2">
+                        <label className="block text-[10px] font-bold text-slate-500 uppercase">Selecione Ativo Monitorado:</label>
+                        <select 
+                          value={teamChatSelectedAssetId}
+                          onChange={(e) => {
+                            setTeamChatSelectedAssetId(e.target.value);
+                            if (e.target.value) {
+                              triggerSuccessNotification("Ativo Vinculado 🔗", `Seu próximo post referenciará o patrimônio ${e.target.value}.`);
+                            }
+                          }}
+                          className="w-full bg-slate-50 border border-slate-200 rounded-xl p-2.5 text-xs focus:ring-2 focus:ring-slate-400 focus:outline-none text-slate-800 font-mono"
+                        >
+                          <option value="">-- Nenhum Ativo --</option>
+                          <optgroup label="🧯 Extintores Co-Relacionados">
+                            {extintores.map(ext => (
+                              <option key={ext.id} value={ext.idAtivo}>{ext.idAtivo} - {ext.model} ({ext.status})</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="💧 Hidrantes">
+                            {hidrantes.map(h => (
+                              <option key={h.id} value={h.idAtivo}>{h.idAtivo} - {h.status}</option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="⚠️ Sinalização Placas">
+                            {sinalizacoes.map(sin => (
+                              <option key={sin.id} value={sin.idAtivo}>{sin.idAtivo} - {sin.model}</option>
+                            ))}
+                          </optgroup>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Desktop Browser Notifications Control Premium widget */}
+                    <div className="bg-slate-900 border border-slate-950 rounded-3xl p-5 shadow-lg text-white text-left relative overflow-hidden">
+                      <div className="absolute -right-6 -bottom-6 opacity-5 text-7xl select-none">🔔</div>
+                      <span className="text-[8px] bg-red-950 text-red-400 font-bold uppercase tracking-wider px-2 py-0.5 rounded border border-red-910">
+                        Notificações de Sistema
+                      </span>
+                      <h3 className="font-['Hanken_Grotesk'] font-bold text-amber-100 text-sm mt-1.5 flex items-center gap-1.5">
+                        🔔 Alertas Nativos no Desktop
+                      </h3>
+                      <p className="text-slate-350 text-[10px] mt-1 pr-4 leading-relaxed">
+                        Receba notificações nativas de vencimento legal e comunicações críticas SPCI diretamente no celular ou desktop via Browser API.
+                      </p>
+
+                      <div className="mt-4 flex flex-col gap-2">
+                        <div className="flex justify-between items-center bg-slate-800/80 p-2 text-[10px] font-mono rounded border border-slate-700/50">
+                          <span>Status da Autorização:</span>
+                          <span className={`font-bold ${notificationPermission === 'granted' ? 'text-green-400' : 'text-amber-400 font-black'}`}>
+                            {notificationPermission === 'granted' ? '🟢 AUTORIZADO' : notificationPermission === 'denied' ? '🔴 BLOQUEADO' : '🟡 SOLICITAR'}
+                          </span>
+                        </div>
+
+                        <button 
+                          onClick={requestNotificationPermission}
+                          className="w-full bg-[#af101a] hover:bg-neutral-850 border-0 text-white font-['Hanken_Grotesk'] font-bold text-xs uppercase py-2 rounded-xl transition-all shadow-md transform active:scale-95 cursor-pointer text-center flex items-center justify-center gap-1.5 mt-1"
+                        >
+                          🔑 Fornecer Permissão Nativa
+                        </button>
+                        
+                        <button 
+                          onClick={() => {
+                            if (notificationPermission !== 'granted') {
+                              requestNotificationPermission();
+                            } else {
+                              triggerNativeNotification(
+                                "Teste Técnico de Conectividade SPCI ⚡",
+                                "O canal do Chat SPCI técnico local está se comunicando de forma bi-lateral de ponta-a-ponta!"
+                              );
+                            }
+                          }}
+                          className="w-full bg-slate-800 hover:bg-slate-750 text-slate-300 font-['Hanken_Grotesk'] font-bold text-[10px] uppercase py-1.5 rounded-lg border border-slate-700 transition"
+                        >
+                          🧪 Enviar Alerta Teste 🔔
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+
+                </div>
+
+              </motion.div>
+            )}
+
           </div>
         </main>
 
@@ -3035,6 +3649,7 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
             { id: 'dashboard', label: 'Início', icon: '📊' },
             { id: 'extintores', label: 'Extintores', icon: '🧯' },
             { id: 'field-ronda', label: 'Ronda', icon: '📱' },
+            { id: 'chat-tecnico', label: 'Chat', icon: '💬' },
             { id: 'sheets-db', label: 'Planilhas', icon: '🟢' },
             { id: 'alerts', label: 'Alertas', icon: '🔔' }
           ].map(item => (
