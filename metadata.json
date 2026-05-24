@@ -1,0 +1,6 @@
+{
+  "name": "SISTEMA SPCI",
+  "description": "Gestão e Inspeção Automática de Equipamentos e Ativos de Prevenção e Combate a Incêndio",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
