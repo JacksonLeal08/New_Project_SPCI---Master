@@ -1,7 +1,9 @@
+/* eslint-disable react-hooks/purity */
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from "motion/react";
+import * as d3 from 'd3';
 
 // --- SEED / SETUP STORAGE UTILS ---
 const INITIAL_EXTINTORES = [
@@ -36,6 +38,186 @@ const INITIAL_BOMBAS = [
   { id: 'B2', name: 'Bomba Elétrica', code: 'BMB-02', type: 'Principal (75 CV)', power: 'Network 380V / 45A', range: '100 - 125 PSI', starts: '1', status: 'Operacional' },
   { id: 'B3', name: 'Bomba Diesel', code: 'BMB-03', type: 'Combustão', power: 'Diesel (Tanque 45%)', range: 'Battery 26.2V', starts: 'Nível Óleo Baixo', status: 'Manutenção Req.' }
 ];
+
+interface SectorData {
+  sector: string;
+  nonConformingCount: number;
+  conformingCount: number;
+  totalCount: number;
+}
+
+interface D3SectorHeatmapProps {
+  data: SectorData[];
+}
+
+const D3SectorHeatmap = ({ data }: D3SectorHeatmapProps) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  useEffect(() => {
+    if (!containerRef.current || !svgRef.current) return;
+
+    // Clean any old artifacts
+    d3.select(svgRef.current).selectAll('*').remove();
+
+    const handleResize = (entries: ResizeObserverEntry[]) => {
+      if (!entries || entries.length === 0 || !svgRef.current) return;
+      const { width } = entries[0].contentRect;
+      const height = 360;
+      const margin = { top: 15, right: 30, bottom: 45, left: 140 };
+
+      const innerWidth = width - margin.left - margin.right;
+      const innerHeight = height - margin.top - margin.bottom;
+
+      if (innerWidth <= 0 || innerHeight <= 0) return;
+
+      const svg = d3.select(svgRef.current)
+        .attr('width', width)
+        .attr('height', height);
+
+      const g = svg.append('g')
+        .attr('transform', `translate(${margin.left},${margin.top})`);
+
+      const maxFalhas = d3.max(data, d => d.nonConformingCount) || 1;
+      
+      const xScale = d3.scaleLinear()
+        .domain([0, Math.max(maxFalhas, 3)])
+        .range([0, innerWidth]);
+
+      const yScale = d3.scaleBand()
+        .domain(data.map(d => d.sector))
+        .range([0, innerHeight])
+        .padding(0.2);
+
+      // Color interpolation: beautiful gradients of safety color
+      const colorScale = d3.scaleLinear<string>()
+        .domain([0, 1, 3])
+        .range(['#E8F5E9', '#FFE082', '#FFCDD2']);
+
+      // Draw background heatmap card rows
+      g.selectAll('.heatmap-bg-row')
+        .data(data)
+        .enter()
+        .append('rect')
+        .attr('class', 'heatmap-bg-row')
+        .attr('x', 0)
+        .attr('y', d => yScale(d.sector) || 0)
+        .attr('width', innerWidth)
+        .attr('height', yScale.bandwidth())
+        .attr('rx', 8)
+        .attr('ry', 8)
+        .attr('fill', d => colorScale(d.nonConformingCount))
+        .attr('opacity', 0.8)
+        .style('cursor', 'pointer')
+        .on('mouseover', function(event, d) {
+          d3.select(this)
+            .transition()
+            .duration(150)
+            .attr('opacity', 0.95)
+            .attr('stroke', '#af101a')
+            .attr('stroke-width', 1.5);
+        })
+        .on('mouseout', function(event, d) {
+          d3.select(this)
+            .transition()
+            .duration(150)
+            .attr('opacity', 0.8)
+            .attr('stroke', 'none');
+        });
+
+      // Draw inner solid indicators / progress level
+      g.selectAll('.heatmap-progress-bar')
+        .data(data)
+        .enter()
+        .append('rect')
+        .attr('class', 'heatmap-progress-bar')
+        .attr('x', 0)
+        .attr('y', d => (yScale(d.sector) || 0) + yScale.bandwidth() / 3)
+        .attr('width', 0)
+        .attr('height', yScale.bandwidth() / 3)
+        .attr('rx', 4)
+        .attr('ry', 4)
+        .attr('fill', d => d.nonConformingCount > 0 ? '#b71c1c' : '#2e7d32')
+        .attr('opacity', 0.85)
+        .transition()
+        .duration(800)
+        .attr('width', d => xScale(d.nonConformingCount));
+
+      // Draw Y axis labels text manually for perfect control and responsiveness
+      g.selectAll('.sector-label')
+        .data(data)
+        .enter()
+        .append('text')
+        .attr('class', 'font-sans font-black text-[10px] fill-slate-700')
+        .attr('x', -12)
+        .attr('y', d => (yScale(d.sector) || 0) + yScale.bandwidth() / 2 + 3.5)
+        .style('text-anchor', 'end')
+        .text(d => d.sector);
+
+      // Quantities / Labels representing Status
+      g.selectAll('.status-text-val')
+        .data(data)
+        .enter()
+        .append('text')
+        .attr('class', 'font-mono font-bold text-[10px]')
+        .attr('x', d => Math.max(xScale(d.nonConformingCount) + 10, 15))
+        .attr('y', d => (yScale(d.sector) || 0) + yScale.bandwidth() / 2 + 3.5)
+        .attr('fill', d => d.nonConformingCount > 0 ? '#c62828' : '#2e7d32')
+        .text(d => d.nonConformingCount > 0 ? `🛑 ${d.nonConformingCount} Falhas` : '🟢 100% OK');
+
+      // Simple gridlines
+      const xAxis = d3.axisBottom(xScale)
+        .ticks(Math.max(maxFalhas, 3))
+        .tickFormat(d3.format('d'));
+
+      g.append('g')
+        .attr('transform', `translate(0, ${innerHeight})`)
+        .attr('class', 'font-mono text-[9px] text-slate-400')
+        .call(xAxis)
+        .selectAll('.domain')
+        .attr('stroke', '#E2E8F0');
+    };
+
+    const resizeObserver = new ResizeObserver((entries) => {
+      window.requestAnimationFrame(() => {
+        handleResize(entries);
+      });
+    });
+
+    resizeObserver.observe(containerRef.current);
+
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, [data]);
+
+  return (
+    <div className="bg-white border border-slate-200 rounded-3xl p-5 md:p-6 shadow-sm">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b gap-2 mb-4">
+        <div>
+          <span className="text-[10px] bg-red-100 hover:bg-red-200 text-rose-800 font-extrabold uppercase font-mono px-2 py-0.5 rounded border border-red-200">
+            Mapeamento Térmico de Zonas de Risco
+          </span>
+          <h3 className="font-['Hanken_Grotesk'] font-black text-lg text-slate-800 mt-1">
+            🗺️ Mapa de Calor de Não Conformidade SPCI
+          </h3>
+          <p className="text-xs text-slate-400 font-sans">
+            Grau de criticidade e falha periódica indexados em tempo real por setor da planta.
+          </p>
+        </div>
+        <div className="flex items-center gap-2 text-[10px] font-sans font-bold text-slate-500">
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#E8F5E9] inline-block border"></span> OK</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#FFE082] inline-block border"></span> 1 Falha</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded-full bg-[#FFCDD2] inline-block border"></span> Crítico</span>
+        </div>
+      </div>
+
+      <div ref={containerRef} className="w-full relative overflow-hidden">
+        <svg ref={svgRef} className="mx-auto block overflow-visible" />
+      </div>
+    </div>
+  );
+};
 
 export default function SpciComplianceApp() {
   // Navigation State
@@ -185,6 +367,145 @@ export default function SpciComplianceApp() {
     iluminacoes.filter(x => x.status === 'Atenção').length;
 
   const compliancePercentage = totalAssets > 0 ? Math.round(((totalAssets - totalVencidos) / totalAssets) * 100) : 100;
+
+  // --- SECTOR MAP DATA COMPUTATION ---
+  const getNormalizedSector = (loc: string) => {
+    if (!loc) return 'OUTROS';
+    const l = loc.toUpperCase();
+    if (l.includes('MANGANÊS') || l.includes('MANGANESE')) return 'MANGANÊS';
+    if (l.includes('ALMOXARIFADO')) return 'ALMOXARIFADO';
+    if (l.includes('ELÉTRICA') || l.includes('ELETRICA') || l.includes('PAINEL') || l.includes('SALA ELÉTRICA')) return 'SALA ELÉTRICA';
+    if (l.includes('BARRAGEM')) return 'BARRAGEM DO AZUL';
+    if (l.includes('ROTA DE FUGA 01') || l.includes('FUGA 01')) return 'ROTA DE FUGA 01';
+    if (l.includes('ROTA DE FUGA 02') || l.includes('FUGA 02')) return 'ROTA DE FUGA 02';
+    if (l.includes('RECEPÇÃO') || l.includes('RECEPCAO') || l.includes('ADMINISTRATIVO') || l.includes('CORREDOR ADMINISTRATIVO')) return 'RECEPÇÃO';
+    if (l.includes('COBRE')) return 'COBRE';
+    if (l.includes('FERRO')) return 'FERRO';
+    if (l.includes('PRODUÇÃO') || l.includes('SETOR C') || l.includes('CASA DE MÁQUINAS')) return 'PRODUÇÃO';
+    if (l.includes('PÁTIO') || l.includes('PATIO') || l.includes('EXTERNA') || l.includes('LOGÍSTICA') || l.includes('LOGISTICA') || l.includes('SETOR B')) return 'LOGÍSTICA';
+    return 'OUTROS';
+  };
+
+  const allAssets = [
+    ...extintores.map(x => ({ ...x, category: 'Extintor' })),
+    ...hidrantes.map(x => ({ ...x, category: 'Hidrante' })),
+    ...sinalizacoes.map(x => ({ ...x, category: 'Sinalização' })),
+    ...iluminacoes.map(x => ({ ...x, category: 'Iluminação' }))
+  ];
+
+  const heatmapSectors = ['MANGANÊS', 'ALMOXARIFADO', 'SALA ELÉTRICA', 'BARRAGEM DO AZUL', 'ROTA DE FUGA 01', 'ROTA DE FUGA 02', 'RECEPÇÃO', 'COBRE', 'FERRO', 'PRODUÇÃO', 'LOGÍSTICA'];
+
+  const sectorStats = heatmapSectors.map(sector => {
+    const assetsInSector = allAssets.filter(asset => getNormalizedSector(asset.location) === sector);
+    const nonConformingCount = assetsInSector.filter(asset => {
+      const s = asset.status;
+      return s !== 'Conforme' && s !== 'Operacional' && s !== 'Cadastro Ativo' && s !== 'Standby';
+    }).length;
+    const conformingCount = assetsInSector.length - nonConformingCount;
+    
+    return {
+      sector,
+      nonConformingCount,
+      conformingCount,
+      totalCount: assetsInSector.length
+    };
+  });
+
+  // --- INSPECTION CSV EXPORT ENGINE ---
+  const handleExportInspectionCSV = () => {
+    if (complianceLogs.length === 0) {
+      triggerSuccessNotification('Sem Registros Ativos', 'Nenhum relatório de ronda ou inspeção foi registrado nesta sessão ainda.');
+      return;
+    }
+    
+    const headers = ['ID do Ativo', 'Equipamento', 'Laudo / Notas de Inspeção', 'Data', 'Hora', 'Status de Conformidade'];
+    const csvRows = [headers.join(';')];
+    
+    complianceLogs.forEach(log => {
+      const row = [
+        `"${log.assetId || ''}"`,
+        `"${(log.model || '').replace(/"/g, '""')}"`,
+        `"${(log.notes || '').replace(/"/g, '""')}"`,
+        `"${log.date || ''}"`,
+        `"${log.time || ''}"`,
+        `"${log.status || ''}"`
+      ];
+      csvRows.push(row.join(';'));
+    });
+    
+    const csvContent = '\uFEFF' + csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `relatorio_inspecoes_spci_${new Date().toISOString().substring(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    triggerSuccessNotification('Relatório Exportado ! 🚀', 'Seu arquivo CSV de inspeções foi estruturado para uso externo e baixado.');
+  };
+
+  // --- AI ASSISTANT AUTOPARECER GENERATOR ---
+  const handleGenerateIAParecer = async (asset: any) => {
+    if (!asset) return;
+    const assetId = asset.idAtivo || asset.id;
+    const events = getAssetTimeline(asset);
+    
+    setChatOpened(true);
+    setAiGenerating(true);
+    
+    setChatMessages(prev => [...prev, { 
+      sender: 'user', 
+      text: `Gere um rascunho de Parecer Técnico para o ativo ${assetId} (${asset.model || 'equipamento'}) baseado no seu histórico de ocorrências de campo.` 
+    }]);
+
+    try {
+      const historyText = events.map(e => `- [${e.date} ${e.time || ''}] ${e.title} (${e.status}): ${e.description}`).join('\n');
+      
+      const promptText = `Gere um rascunho de "Parecer Técnico de Engenharia de Incêndio" formal e detalhado para o seguinte ativo regulado pela ABNT:
+      
+      === ATIVO DA PLANTA ===
+      ID: ${assetId}
+      Tipo de Ativo: ${asset.type || 'Equipamento SPCI'}
+      Modelo Equipamento: ${asset.model || 'Padrão'}
+      Local: ${asset.location} ${asset.subLocation ? ' (Setor: ' + asset.subLocation + ')' : ''}
+      Status Atual Operacional: ${asset.status}
+      
+      === LINHA DO TEMPO / HISTÓRICO DE OCORRÊNCIAS ===
+      ${historyText || 'Nenhum histórico adicional de ocorrência encontrado além do cadastro inicial de operacionalidade.'}
+      
+      Diretrizes de Formatação e Tom para o Inspe IA SPCI:
+      1. Escreva 100% em português brasileiro, mantendo o tom elegante de um Engenheiro Inspetor Sênior de Incêndio.
+      2. Estruture em 4 blocos rigorosos:
+         - I. RESUMO DO ATIVO E SINTOMA ATUAL
+         - II. ANÁLISE DETALHADA DAS OCORRÊNCIAS (avaliar se o histórico aponta negligência, desgaste, ou padrão de falha)
+         - III. ENQUADRAMENTO E EMBASAMENTO NORMATIVO (citar normas como NBR 12779, NBR 13434, ou regulamentações do Corpo de Bombeiros / INMETRO correspondente à categoria)
+         - IV. RECONENDAÇÕES TÉCNICAS E CRONOGRAMA DE CORREÇÃO (indicar se precisa de recolhimento, novos ensaios, troca de peça ou treinamento)
+      3. Adicione emojis leves onde apropriado para realçar a sofisticação da interface.`;
+
+      const response = await fetch('/api/gemini', {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: promptText,
+          systemInstruction: "Você é o Inspe IA SPCI, assistente e consultor especialista em engenharia de segurança contra incêndios no Brasil. Forneça laudos estruturados, organizados e claros."
+        })
+      });
+
+      const data = await response.json();
+      const text = data.text || "Ops! A IA gerou um rascunho em branco. Verifique as credenciais do Gemini API Key.";
+      setChatMessages(prev => [...prev, { sender: 'assistant', text }]);
+      triggerSuccessNotification('Parecer Técnico Criado!', `Sintetizado com sucesso rascunho técnico do ativo ${assetId}.`);
+    } catch (err: any) {
+      setChatMessages(prev => [...prev, { 
+        sender: 'assistant', 
+        text: `PARECER TÉCNICO PREVENTIVO (Modo SPCI Offline) - Ativo ${assetId}.\n\nI. RESUMO\nAtivo apresenta status de conformidade de ${asset.status}.\n\nII. EMBASAMENTO NORMATIVO\nAvaliar conforme NBR correspondente ao tipo de ativo (${asset.type === 'extintor' ? 'NBR 12962' : asset.type === 'hidrante' ? 'NBR 12779' : 'NBR 13434'}).\n\nIII. CRONOGRAMA DE RECOMENDAÇÃO\nCoordenar vistoria técnica in-loco imediata para restabelecer os lacres e as pressões adequadas.` 
+      }]);
+    } finally {
+      setAiGenerating(false);
+    }
+  };
 
   // --- AI ASSISTANT CONNECTOR ---
   const handleAssistantSend = async () => {
@@ -1071,14 +1392,33 @@ export default function SpciComplianceApp() {
 
                 </div>
 
+                {/* D3 Heatmap component with dynamic stats input */}
+                <D3SectorHeatmap data={sectorStats} />
+
                 {/* Dashboard Middle Section: Recent compliance alert list & QR mobile link */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
                   
                   {/* Left Column (8 cols): Recent activities and warning logs */}
                   <div className="lg:col-span-8 bg-white border border-[#CFD8DC] rounded-2xl p-5 shadow-sm">
-                    <div className="flex justify-between items-center pb-4 border-b border-slate-100 mb-4">
-                      <h3 className="font-['Hanken_Grotesk'] font-bold text-lg text-[#37474F]">📋 Registros de Inspeção Recentes</h3>
-                      <button onClick={() => { setActiveTab('field-ronda'); }} className="text-[#af101a] text-xs font-bold hover:underline">Iniciar Nova Inspeção</button>
+                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center pb-4 border-b border-slate-100 mb-4 gap-4">
+                      <h3 className="font-['Hanken_Grotesk'] font-bold text-lg text-[#37474F] flex items-center gap-1.5">
+                        📋 Registros de Inspeção Recentes
+                      </h3>
+                      <div className="flex gap-2.5">
+                        <button 
+                          onClick={handleExportInspectionCSV} 
+                          className="bg-[#2E7D32] hover:bg-green-700 text-white font-['Hanken_Grotesk'] font-bold text-xs uppercase px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer shadow-sm active:scale-95 border-0"
+                          title="Exportar todos os registros para CSV"
+                        >
+                          📥 Exportar CSV
+                        </button>
+                        <button 
+                          onClick={() => { setActiveTab('field-ronda'); }} 
+                          className="bg-[#af101a] hover:bg-red-700 text-white font-['Hanken_Grotesk'] font-bold text-xs uppercase px-3 py-1.5 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                        >
+                          📝 Iniciar Ronda
+                        </button>
+                      </div>
                     </div>
 
                     <div className="overflow-x-auto">
@@ -2052,7 +2392,14 @@ export default function SpciComplianceApp() {
                         return true;
                       })
                       .map((event: any, index: number) => (
-                        <div key={event.id || index} className="relative group">
+                        <motion.div 
+                          key={event.id || index} 
+                          initial={{ opacity: 0, y: -20 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true, margin: "-10px" }}
+                          transition={{ duration: 0.35, ease: "easeOut", delay: Math.min(index * 0.04, 0.35) }}
+                          className="relative group"
+                        >
                           {/* Circle indicator */}
                           <div className={`absolute -left-[35px] top-1.5 w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-md border ${
                             event.status === 'Conforme' || event.status === 'Operacional' || event.status === 'Cadastro Ativo' || event.status === 'Standby'
@@ -2093,7 +2440,7 @@ export default function SpciComplianceApp() {
                               <span className="font-mono text-slate-350 select-none">#SPCI-{event.id?.slice(-4) || 'AUTO'}</span>
                             </div>
                           </div>
-                        </div>
+                        </motion.div>
                       ))}
 
                     {/* Fallback empty view */}
@@ -2115,7 +2462,14 @@ export default function SpciComplianceApp() {
                 </div>
 
                 {/* Footer action */}
-                <div className="p-4 bg-slate-100 border-t shrink-0 flex justify-end">
+                <div className="p-4 bg-slate-100 border-t shrink-0 flex justify-between items-center gap-4">
+                  <button 
+                    type="button"
+                    onClick={() => handleGenerateIAParecer(selectedAssetForHistory)} 
+                    className="px-4 py-2.5 bg-gradient-to-r from-[#af101a] to-amber-700 hover:from-red-800 hover:to-amber-800 text-white font-['Hanken_Grotesk'] font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-1.5"
+                  >
+                    🤖 Gerar Parecer Técnico IA
+                  </button>
                   <button 
                     type="button"
                     onClick={() => {
