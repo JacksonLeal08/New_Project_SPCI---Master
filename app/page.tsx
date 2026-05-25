@@ -9,6 +9,15 @@ import * as d3 from 'd3';
 import { initAuth, googleSignIn, logout, getAccessToken } from '../lib/firebaseAuth';
 import { SHEETS_MAPPINGS, createSpreadsheet, readSpreadsheet, writeSpreadsheet, extractSpreadsheetId } from '../lib/sheetsDatabase';
 import { User } from 'firebase/auth';
+import { 
+  registerOrLoginUserProfile, 
+  getUserProfile, 
+  updateUserLogo, 
+  updateUserRoleAndStatus, 
+  getAllUserProfiles, 
+  deleteUserProfileByAdmin,
+  UserProfile 
+} from '../lib/firebaseDb';
 
 // --- SEED / SETUP STORAGE UTILS ---
 const INITIAL_EXTINTORES = [
@@ -240,8 +249,15 @@ export default function SpciComplianceApp() {
   };
 
   // Navigation State
-  // Navigation State
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'extintores' | 'hidrantes' | 'sinalizacao' | 'iluminacao' | 'bombas' | 'field-ronda' | 'alerts' | 'sheets-db'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'extintores' | 'hidrantes' | 'sinalizacao' | 'iluminacao' | 'bombas' | 'field-ronda' | 'alerts' | 'sheets-db' | 'usuarios'>('dashboard');
+
+  // --- USER PROFILE AND ACCESS CONTROL ---
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [profileLogoUrlInput, setProfileLogoUrlInput] = useState('');
+  const [profileNameInput, setProfileNameInput] = useState('');
+  const [userList, setUserList] = useState<UserProfile[]>([]);
+  const [loadingUsersList, setLoadingUsersList] = useState(false);
 
   // --- GOOGLE SHEETS API INTEGRATION STATES ---
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -254,19 +270,19 @@ export default function SpciComplianceApp() {
     setSheetsConsoleLogs(prev => [`[${timestamp}] ${msg}`, ...prev.slice(0, 49)]);
   };
 
-  const [sheetsConfig, setSheetsConfig] = useState<Record<string, { id: string; url: string; syncState: 'idle' | 'syncing' | 'success' | 'error'; lastSync?: string; lastError?: string }>>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('spci_sheets_config');
-      if (stored) return JSON.parse(stored);
-    }
-    return {
-      extintores: { id: '', url: '', syncState: 'idle' },
-      hidrantes: { id: '', url: '', syncState: 'idle' },
-      sinalizacao: { id: '', url: '', syncState: 'idle' },
-      iluminacao: { id: '', url: '', syncState: 'idle' },
-      bombas: { id: '', url: '', syncState: 'idle' }
-    };
-  });
+  const defaultSheetsConfig = {
+    extintores: { id: '', url: '', syncState: 'idle' as const },
+    hidrantes: { id: '', url: '', syncState: 'idle' as const },
+    sinalizacao: { id: '', url: '', syncState: 'idle' as const },
+    iluminacao: { id: '', url: '', syncState: 'idle' as const },
+    bombas: { id: '', url: '', syncState: 'idle' as const }
+  };
+  const [sheetsConfig, setSheetsConfig] = useState<Record<string, { id: string; url: string; syncState: 'idle' | 'syncing' | 'success' | 'error'; lastSync?: string; lastError?: string }>>(defaultSheetsConfig);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('spci_sheets_config');
+    if (stored) setSheetsConfig(JSON.parse(stored));
+  }, []);
 
   const saveSheetsConfig = (newConfig: any) => {
     setSheetsConfig(newConfig);
@@ -276,6 +292,14 @@ export default function SpciComplianceApp() {
   };
 
   // --- AUTOMODELED TEMPLATES & AI AUDIT STATE ---
+  const defaultSheetsTemplates = {
+    extintores: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
+    hidrantes: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
+    sinalizacao: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
+    iluminacao: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
+    bombas: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null }
+  };
+  
   const [sheetsTemplates, setSheetsTemplates] = useState<Record<string, {
     customModel: boolean;
     templateId: string;
@@ -291,19 +315,12 @@ export default function SpciComplianceApp() {
       nbrComplianceWarning: string;
     } | null;
     isRemodeled: boolean;
-  }>>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('spci_sheets_templates');
-      if (stored) return JSON.parse(stored);
-    }
-    return {
-      extintores: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
-      hidrantes: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
-      sinalizacao: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
-      iluminacao: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null },
-      bombas: { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null }
-    };
-  });
+  }>>(defaultSheetsTemplates);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('spci_sheets_templates');
+    if (stored) setSheetsTemplates(JSON.parse(stored));
+  }, []);
 
   const saveSheetsTemplates = (newTemplates: any) => {
     setSheetsTemplates(newTemplates);
@@ -614,15 +631,33 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
   // Listen to Google Auth
   useEffect(() => {
     const unsubscribe = initAuth(
-      (user, token) => {
+      async (user, token) => {
         setCurrentUser(user);
         setGToken(token);
-        setAuthChecking(false);
-        addConsoleLog(`Autenticado com sucesso via Google! Login: ${user.email}`);
+        setAuthChecking(true);
+        try {
+          const profile = await registerOrLoginUserProfile({
+            uid: user.uid,
+            displayName: user.displayName,
+            email: user.email,
+            photoURL: user.photoURL
+          });
+          setUserProfile(profile);
+          // Set prefilled inputs for editing profile
+          setProfileNameInput(profile.name);
+          setProfileLogoUrlInput(profile.logoUrl || '');
+          addConsoleLog(`[Perfil] Login de ${profile.name} (${profile.role === 'admin' ? '🛡️ Administrador' : '👷 Técnico'})`);
+        } catch (err: any) {
+          console.error("Erro sincronizando perfil:", err);
+          addConsoleLog(`[Erro Perfil] Falha ao ler cadastro Firebase: ${err.message || err}`);
+        } finally {
+          setAuthChecking(false);
+        }
       },
       () => {
         setCurrentUser(null);
         setGToken(null);
+        setUserProfile(null);
         setAuthChecking(false);
       }
     );
@@ -633,6 +668,71 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
     };
   }, []);
 
+  // Fetch registered users for admin panel
+  useEffect(() => {
+    const fetchUsers = async () => {
+      if (activeTab === 'usuarios' && userProfile?.role === 'admin') {
+        setLoadingUsersList(true);
+        try {
+          const list = await getAllUserProfiles();
+          setUserList(list);
+          addConsoleLog(`[Admin] Sincronizados ${list.length} perfis de usuários cadastrados.`);
+        } catch (err: any) {
+          console.error("Erro listando usuários:", err);
+          addConsoleLog(`[Erro Admin] Falha ao listar usuários do sistema: ${err.message || err}`);
+        } finally {
+          setLoadingUsersList(false);
+        }
+      }
+    };
+    fetchUsers();
+  }, [activeTab, userProfile]);
+
+  const handleUpdateLogoAndProfile = async (logoUrl: string, name: string) => {
+    if (!currentUser || !userProfile) return;
+    try {
+      addConsoleLog(`[Meu Perfil] Salvando alterações...`);
+      // Update name locally in profile in Firestore and state
+      await updateUserLogo(currentUser.uid, logoUrl, name);
+      
+      // Update state without mutating the original state object
+      const updatedProfile = {
+        ...userProfile,
+        logoUrl: logoUrl,
+        name: name,
+        updatedAt: new Date().toISOString()
+      };
+      setUserProfile(updatedProfile);
+      
+      triggerSuccessNotification("Perfil Atualizado! 👑", "Seu logotipo personalizado e detalhes de perfil foram gravados no Firestore.");
+      setShowProfileModal(false);
+    } catch (err: any) {
+      triggerSuccessNotification("Falha no Perfil ❌", `Erro ao salvar alterações: ${err.message}`);
+    }
+  };
+
+  const handleAdminRoleStatusChange = async (uid: string, newRole: 'admin' | 'user', newStatus: 'active' | 'pending' | 'inactive') => {
+    try {
+      await updateUserRoleAndStatus(uid, newRole, newStatus);
+      // Update local list state
+      setUserList(prev => prev.map(u => u.uid === uid ? { ...u, role: newRole, status: newStatus, updatedAt: new Date().toISOString() } : u));
+      triggerSuccessNotification("Nível Alterado! ⚙️", "Permissão e status do usuário atualizados em tempo real.");
+    } catch (err: any) {
+      triggerSuccessNotification("Erro de Edição ❌", `Falha ao salvar acesso: ${err.message}`);
+    }
+  };
+
+  const handleAdminDeleteUser = async (uid: string) => {
+    if (!window.confirm("Tem certeza que deseja remover este usuário do sistema permanentemente?")) return;
+    try {
+      await deleteUserProfileByAdmin(uid);
+      setUserList(prev => prev.filter(u => u.uid !== uid));
+      triggerSuccessNotification("Usuário Removido 🗑️", "Cadastro do usuário removido dos registros de governança.");
+    } catch (err: any) {
+      triggerSuccessNotification("Erro ao Deletar ❌", `Falha: ${err.message}`);
+    }
+  };
+
   const handleGoogleLogin = async () => {
     setAuthChecking(true);
     try {
@@ -642,11 +742,34 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
         setCurrentUser(result.user);
         setGToken(result.accessToken);
         addConsoleLog(`Acesso concedido para: ${result.user.email}`);
-        triggerSuccessNotification("Acesso Concedido! 🟢", `Conexão efetuada para o banco de dados via planilhas do usuário ${result.user.displayName}`);
+
+        // Register profile in Firestore
+        const profile = await registerOrLoginUserProfile({
+          uid: result.user.uid,
+          displayName: result.user.displayName,
+          email: result.user.email,
+          photoURL: result.user.photoURL
+        });
+        setUserProfile(profile);
+        setProfileNameInput(profile.name);
+        setProfileLogoUrlInput(profile.logoUrl || '');
+
+        triggerSuccessNotification(
+          "Acesso Autorizado! 🟢", 
+          `Olá, ${profile.name}! Sessão ativa como ${profile.role === 'admin' ? '🛡️ Administrador' : '👷 Técnico de Campo'}.`
+        );
       }
     } catch (err: any) {
-      console.error(err);
-      addConsoleLog(`Falha ao conectar Google Account: ${err.message || err}`);
+      console.error("Erro no Login com Google:", err);
+      let errMsg = err.message || String(err);
+      
+      // Target specific domain verification error
+      if (errMsg.includes("auth/unauthorized-domain") || errMsg.includes("unauthorized-domain") || errMsg.includes("unauthorized")) {
+        errMsg = "Erro de Domínio Não Autorizado (auth/unauthorized-domain)! Adicione o domínio atual deste aplicativo no Firebase Console (Authentication -> Settings -> Authorized Domains).";
+      }
+      
+      addConsoleLog(`Falha ao conectar Google Account: ${errMsg}`);
+      triggerSuccessNotification("Falha no Login ❌", errMsg);
     } finally {
       setAuthChecking(false);
     }
@@ -657,6 +780,9 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
       await logout();
       setCurrentUser(null);
       setGToken(null);
+      setUserProfile(null);
+      setProfileNameInput('');
+      setProfileLogoUrlInput('');
       addConsoleLog("Sessão da conta do Google finalizada.");
       triggerSuccessNotification("Desconectado! ⚪", "Sessão finalizada. Acesso às planilhas em nuvem bloqueado.");
     } catch (err: any) {
@@ -837,53 +963,27 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
     }
   };
 
-  const [extintores, setExtintores] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('spci_extintores');
-      if (stored) return JSON.parse(stored);
-    }
-    return INITIAL_EXTINTORES;
-  });
+  const [extintores, setExtintores] = useState<any[]>(INITIAL_EXTINTORES);
+  const [hidrantes, setHidrantes] = useState<any[]>(INITIAL_HIDRANTES);
+  const [sinalizacoes, setSinalizacoes] = useState<any[]>(INITIAL_SINALIZACAO);
+  const [iluminacoes, setIluminacoes] = useState<any[]>(INITIAL_ILUMINACAO);
+  const [bombas, setBombas] = useState<any[]>(INITIAL_BOMBAS);
+  const [complianceLogs, setComplianceLogs] = useState<any[]>([]);
 
-  const [hidrantes, setHidrantes] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('spci_hidrantes');
-      if (stored) return JSON.parse(stored);
-    }
-    return INITIAL_HIDRANTES;
-  });
-
-  const [sinalizacoes, setSinalizacoes] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('spci_sinalizacoes');
-      if (stored) return JSON.parse(stored);
-    }
-    return INITIAL_SINALIZACAO;
-  });
-
-  const [iluminacoes, setIluminacoes] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('spci_iluminacao');
-      if (stored) return JSON.parse(stored);
-    }
-    return INITIAL_ILUMINACAO;
-  });
-
-  const [bombas, setBombas] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('spci_bombas');
-      if (stored) return JSON.parse(stored);
-    }
-    return INITIAL_BOMBAS;
-  });
-
-  const [complianceLogs, setComplianceLogs] = useState<any[]>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = localStorage.getItem('spci_logs');
-      if (stored) return JSON.parse(stored);
-    }
-    return [];
-  });
+  useEffect(() => {
+    const ext = localStorage.getItem('spci_extintores');
+    if (ext) setExtintores(JSON.parse(ext));
+    const hid = localStorage.getItem('spci_hidrantes');
+    if (hid) setHidrantes(JSON.parse(hid));
+    const sin = localStorage.getItem('spci_sinalizacoes');
+    if (sin) setSinalizacoes(JSON.parse(sin));
+    const ilu = localStorage.getItem('spci_iluminacao');
+    if (ilu) setIluminacoes(JSON.parse(ilu));
+    const bom = localStorage.getItem('spci_bombas');
+    if (bom) setBombas(JSON.parse(bom));
+    const log = localStorage.getItem('spci_logs');
+    if (log) setComplianceLogs(JSON.parse(log));
+  }, []);
 
   const [pressure, setPressure] = useState(125);
   const [isTestRunning, setIsTestRunning] = useState(false);
@@ -1563,18 +1663,94 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
   // CATEGORY DICTIONARIES
   const SECTORS_LIST = ['MANGANÊS', 'ALMOXARIFADO', 'SALA ELÉTRICA', 'BARRAGEM DO AZUL', 'ROTA DE FUGA 01', 'ROTA DE FUGA 02', 'RECEPÇÃO', 'COBRE', 'FERRO'];
 
+  if (currentUser && userProfile && userProfile.status !== 'active') {
+    return (
+      <div className="bg-[#121c21] min-h-screen text-white flex flex-col items-center justify-center p-6 text-center select-none font-sans relative overflow-hidden">
+        {/* Dynamic decorative visual glow */}
+        <div className="absolute -top-32 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-32 w-128 h-128 bg-[#7bd1f8]/5 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="max-w-md bg-white/5 border border-white/10 backdrop-blur-md p-8 md:p-10 rounded-3xl shadow-2xl space-y-6 relative">
+          <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-rose-500 to-amber-500"></div>
+          
+          <div className="w-20 h-20 bg-amber-500/10 rounded-2xl flex items-center justify-center text-4xl mx-auto border border-amber-500/30 animate-bounce">
+            {userProfile.status === 'pending' ? '⏳' : '🚫'}
+          </div>
+
+          <div className="space-y-4">
+            <h2 className="font-['Hanken_Grotesk'] font-black text-2xl tracking-normal text-amber-400 font-bold">
+              {userProfile.status === 'pending' ? 'Conta Aguardando Liberação' : 'Acesso Suspenso'}
+            </h2>
+            <p className="text-xs text-slate-300 leading-relaxed font-sans">
+              {userProfile.status === 'pending' 
+                ? `Olá, ${userProfile.name}! Seu cadastro foi mapeado no SPCI, mas requer liberação manual de um administrador para operar. Contate o administrador jackson602@gmail.com para ativar seu login.`
+                : `Olá, ${userProfile.name}! Seu perfil de acesso foi suspenso temporariamente pela administração do SPCI.`}
+            </p>
+          </div>
+
+          <div className="p-4 bg-white/5 rounded-2xl border border-white/5 text-left space-y-1">
+            <p className="text-[10px] text-slate-400 font-extrabold uppercase leading-none font-mono">Credencial Logada</p>
+            <p className="text-xs font-mono font-bold mt-1 text-slate-200 truncate">{userProfile.email}</p>
+            <p className="text-[10px] font-sans text-amber-500 font-bold mt-1">Status: {userProfile.status.toUpperCase()}</p>
+          </div>
+
+          <div className="flex gap-3">
+            <button 
+              onClick={handleGoogleLogout}
+              className="flex-1 py-3 text-xs uppercase font-['Hanken_Grotesk'] font-bold text-slate-300 border border-white/20 hover:bg-white/5 rounded-xl transition-all"
+            >
+              Sair da Conta ⚪
+            </button>
+            <button 
+              onClick={async () => {
+                addConsoleLog("[Acesso] Verificando se perfil foi liberado...");
+                const p = await getUserProfile(currentUser.uid);
+                if (p) {
+                  setUserProfile(p);
+                  if (p.status === 'active') {
+                    triggerSuccessNotification("Acesso Liberado! 🟢", `Sua conta foi ativada com sucesso como ${p.role === 'admin' ? 'Administrador' : 'Técnico'}.`);
+                  }
+                }
+              }}
+              className="flex-grow py-3 text-xs uppercase font-['Hanken_Grotesk'] font-bold text-white bg-gradient-to-r from-amber-500 to-orange-600 rounded-xl shadow-md hover:opacity-90 active:scale-95 transition-all text-center"
+            >
+              🔄 Verificar Status
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-neutral-100 min-h-screen text-slate-900 font-sans flex flex-col md:flex-row antialiased select-none">
       
       {/* --- DESKTOP PREMIUM SIDEBAR (Suppressed nested items to ensure scan and clarity) --- */}
       <aside className="hidden md:flex flex-col w-72 bg-gradient-to-b from-[#253238] to-[#121c21] text-white shrink-0 p-5 border-r border-[#37474F]/40 shadow-xl">
-        <div className="flex items-center gap-3 mb-8 mt-2 p-2">
-          <div className="w-11 h-11 bg-red-600 rounded-xl flex items-center justify-center text-xl shadow-lg border border-red-500 animate-pulse">
-            🧯
-          </div>
-          <div>
-            <h1 className="font-['Hanken_Grotesk'] text-xl font-bold tracking-tight text-white m-0">SISTEMA SPCI</h1>
-            <p className="font-mono text-[9px] text-[#7bd1f8] tracking-widest uppercase">Compliance & Field App</p>
+        <div 
+          onClick={() => { if (currentUser) { setShowProfileModal(true); } }}
+          className="flex items-center gap-3 mb-8 mt-2 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition-all group"
+          title="Clique para editar seu perfil e logo"
+        >
+          {userProfile?.logoUrl ? (
+            <img 
+              src={userProfile.logoUrl} 
+              alt="Logo Custom" 
+              className="w-11 h-11 rounded-xl object-contain border border-slate-500 bg-white p-1 shadow-md transition-transform group-hover:scale-105" 
+              referrerPolicy="no-referrer"
+            />
+          ) : (
+            <div className="w-11 h-11 bg-red-600 rounded-xl flex items-center justify-center text-xl shadow-lg border border-red-500 animate-pulse group-hover:scale-105 transition-transform">
+              🧯
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            <h1 className="font-['Hanken_Grotesk'] text-sm font-black tracking-tight text-white m-0 truncate group-hover:text-amber-200 transition-colors">
+              {userProfile?.name ? userProfile.name.toUpperCase() : 'SISTEMA SPCI'}
+            </h1>
+            <p className="font-mono text-[9px] text-slate-400 tracking-wider uppercase block leading-tight mt-0.5">
+              {userProfile ? `🛡️ ${userProfile.role === 'admin' ? 'ADMIN' : 'TÉCNICO'}` : 'Offline-first'}
+            </p>
           </div>
         </div>
 
@@ -1596,7 +1772,8 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
             { id: 'bombas', label: 'Casa de Bombas', icon: '⚙️' },
             { id: 'field-ronda', label: 'Extensão Ronda Campo', icon: '📱' },
             { id: 'alerts', label: 'Disparo de Alertas', icon: '🔔' },
-            { id: 'sheets-db', label: 'Google Sheets DB', icon: '🟢' }
+            { id: 'sheets-db', label: 'Google Sheets DB', icon: '🟢' },
+            ...(userProfile?.role === 'admin' ? [{ id: 'usuarios', label: 'Gestão de Usuários', icon: '👥' }] : [])
           ].map(item => (
             <button
               key={item.id}
@@ -1655,12 +1832,19 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
             {/* Profile photo matching templates */}
             {currentUser ? (
               <div 
-                onClick={() => setActiveTab('sheets-db')}
+                onClick={() => setShowProfileModal(true)}
                 className="hidden lg:flex items-center gap-2 border-l border-white/20 pl-4 cursor-pointer hover:bg-white/10 p-1.5 rounded-xl transition-all"
-                title={`Módulo Ativo do Técnico: ${currentUser.email}`}
+                title={`Editar Perfil Técnico: ${currentUser.email}`}
                 id="header-user-profile-active"
               >
-                {currentUser.photoURL ? (
+                {userProfile?.logoUrl ? (
+                  <img 
+                    alt="Logo Custom" 
+                    className="w-8 h-8 rounded-full border border-teal-400 object-cover bg-white p-0.5" 
+                    src={userProfile.logoUrl}
+                    referrerPolicy="no-referrer"
+                  />
+                ) : currentUser.photoURL ? (
                   <img 
                     alt="Foto do Técnico" 
                     className="w-8 h-8 rounded-full border border-teal-400 object-cover" 
@@ -1673,8 +1857,12 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
                   </div>
                 )}
                 <div className="text-left">
-                  <span className="text-[9px] font-mono font-black text-emerald-400 uppercase tracking-widest block leading-none">🟢 CONECTADO</span>
-                  <span className="text-[11px] font-semibold text-teal-100 tracking-wide truncate max-w-[125px] block">{currentUser.email?.split('@')[0]}</span>
+                  <span className="text-[9px] font-mono font-black text-emerald-400 uppercase tracking-widest block leading-none">
+                    🧭 {userProfile?.role === 'admin' ? 'ADMIN' : 'TÉCNICO'}
+                  </span>
+                  <span className="text-[11px] font-semibold text-teal-100 tracking-wide truncate max-w-[125px] block">
+                    {userProfile?.name || currentUser.displayName || currentUser.email?.split('@')[0]}
+                  </span>
                 </div>
               </div>
             ) : (
@@ -2685,6 +2873,172 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
               </motion.div>
             )}
 
+            {/* --- USER ADMINISTRATION PANEL (RESTRICTED TO ADMINS) --- */}
+            {activeTab === 'usuarios' && !selectedAssetForInspection && !showAddForm && (
+              <motion.div 
+                initial={{ opacity: 0, y: 15 }} 
+                animate={{ opacity: 1, y: 0 }} 
+                className="space-y-6 max-w-6xl mx-auto p-4 md:p-6 custom-scrollbar pb-24"
+              >
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-slate-800 via-slate-900 to-[#121c21] p-6 rounded-3xl text-white shadow-xl border border-white/5 relative overflow-hidden">
+                  <div className="absolute -right-6 -bottom-6 opacity-10 text-9xl select-none pointer-events-none">👥</div>
+                  <div>
+                    <h2 className="font-['Hanken_Grotesk'] font-black text-2xl tracking-tight flex items-center gap-2">
+                      <span>👥</span> Gestão Governamental de Usuários
+                    </h2>
+                    <p className="text-slate-300 text-xs mt-1">
+                      Defina níveis de acesso, mude perfis para Administrador ou Técnico de Campo, aprove ou suspenda contas registradas no Firestore SPCI.
+                    </p>
+                  </div>
+                  <div>
+                    <button 
+                      onClick={() => {
+                        addConsoleLog("[Admin] Recarregando lista de usuários...");
+                        getAllUserProfiles().then(setUserList);
+                      }}
+                      className="bg-white/10 hover:bg-white/20 text-white border border-white/20 font-['Hanken_Grotesk'] font-bold text-xs px-4 py-2 rounded-xl flex items-center gap-2 transition-all active:scale-95"
+                    >
+                      🔄 Recarregar Log
+                    </button>
+                  </div>
+                </div>
+
+                {/* Users Stat Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-white border rounded-2xl p-5 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center text-xl font-bold">🎯</div>
+                    <div>
+                      <h4 className="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest leading-none">Total Cadastrados</h4>
+                      <p className="font-['Hanken_Grotesk'] font-black text-2xl text-slate-800 mt-1">{userList.length}</p>
+                    </div>
+                  </div>
+                  <div className="bg-white border rounded-2xl p-5 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 bg-red-100 text-red-600 rounded-xl flex items-center justify-center text-xl font-bold">🛡️</div>
+                    <div>
+                      <h4 className="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest leading-none">Administradores</h4>
+                      <p className="font-['Hanken_Grotesk'] font-black text-2xl text-slate-800 mt-1 flex items-center gap-1.5">
+                        {userList.filter(u => u.role === 'admin').length}
+                        <span className="text-xs text-slate-400">(incl. jackson602)</span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="bg-white border rounded-2xl p-5 shadow-sm flex items-center gap-4">
+                    <div className="w-12 h-12 bg-amber-100 text-amber-600 rounded-xl flex items-center justify-center text-xl font-bold">⌛</div>
+                    <div>
+                      <h4 className="text-slate-400 text-[10px] font-extrabold uppercase tracking-widest leading-none">Pendentes / Inativos</h4>
+                      <p className="font-['Hanken_Grotesk'] font-black text-2xl text-slate-800 mt-1">
+                        {userList.filter(u => u.status !== 'active').length}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table Section */}
+                <div className="bg-white border rounded-2xl shadow-sm overflow-hidden">
+                  <div className="border-b p-4 bg-slate-50 flex justify-between items-center">
+                    <span className="text-xs font-bold text-slate-700 uppercase tracking-wider font-mono">Quadro de Acessos Real-time</span>
+                    <span className="text-[10px] font-mono font-bold text-slate-400">FIRESTORE BD ACTIVE</span>
+                  </div>
+
+                  {loadingUsersList ? (
+                    <div className="p-8 text-center text-xs text-slate-500 font-mono flex items-center justify-center gap-2">
+                      <span className="w-3.5 h-3.5 border-2 border-slate-700 border-t-transparent animate-spin rounded-full"></span>
+                      Sincronizando usuários...
+                    </div>
+                  ) : userList.length === 0 ? (
+                    <div className="p-8 text-center text-xs text-slate-400 font-mono">
+                      Nenhum usuário cadastrado além de você. Novas contas serão adicionadas conforme realizarem login no sistema.
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left text-xs">
+                        <thead>
+                          <tr className="bg-slate-100/50 border-b text-slate-400 uppercase tracking-wider text-[9px] font-bold">
+                            <th className="p-4">Colaborador</th>
+                            <th className="p-4">E-mail verificado</th>
+                            <th className="p-4">Nível de Conta</th>
+                            <th className="p-4">Status de Acesso</th>
+                            <th className="p-4 text-center">Ações</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                          {userList.map(u => (
+                            <tr key={u.uid} className="hover:bg-slate-50/80 transition-all">
+                              <td className="p-4 flex items-center gap-3">
+                                {u.logoUrl ? (
+                                  <img 
+                                    src={u.logoUrl} 
+                                    className="w-9 h-9 rounded-xl object-contain border bg-white p-0.5 shadow-sm" 
+                                    alt="Logo"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : u.photoURL ? (
+                                  <img 
+                                    src={u.photoURL} 
+                                    className="w-9 h-9 rounded-full border object-cover shadow-sm" 
+                                    alt="Avatar"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-full bg-slate-600 text-white font-bold flex items-center justify-center text-xs border uppercase">
+                                    {u.name.charAt(0)}
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="font-bold text-slate-800">{u.name}</p>
+                                  <p className="text-[10px] text-slate-400 font-sans mt-0.5">{u.email}</p>
+                                </div>
+                              </td>
+                              <td className="p-4 font-mono text-[10px] text-slate-500">
+                                {u.email.toLowerCase() === 'jackson602@gmail.com' ? (
+                                  <span className="text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded-full font-bold font-mono">🛡️ SUPER ADMIN</span>
+                                ) : (
+                                  <span className="text-emerald-300 bg-slate-800 px-2 py-0.5 rounded-md font-extrabold font-mono text-[9px]">✓ GOOGLE VERIFIED</span>
+                                )}
+                              </td>
+                              <td className="p-4">
+                                <select 
+                                  value={u.role} 
+                                  disabled={u.email.toLowerCase() === 'jackson602@gmail.com'}
+                                  onChange={(e) => handleAdminRoleStatusChange(u.uid, e.target.value as any, u.status)}
+                                  className="bg-slate-50 border border-slate-200 rounded-lg p-1.5 font-bold text-xs focus:outline-none focus:border-slate-500 cursor-pointer"
+                                >
+                                  <option value="user">👷 Técnico de Campo</option>
+                                  <option value="admin">🛡️ Administrador</option>
+                                </select>
+                              </td>
+                              <td className="p-4">
+                                <select 
+                                  value={u.status} 
+                                  disabled={u.email.toLowerCase() === 'jackson602@gmail.com'}
+                                  onChange={(e) => handleAdminRoleStatusChange(u.uid, u.role, e.target.value as any)}
+                                  className={`border rounded-lg p-1.5 font-bold text-xs focus:outline-none cursor-pointer ${u.status === 'active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : u.status === 'pending' ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-rose-50 text-rose-700 border-rose-200'}`}
+                                >
+                                  <option value="active">🟢 Ativo (Acesso Liberado)</option>
+                                  <option value="pending">🟡 Pendente (Sem Acesso)</option>
+                                  <option value="inactive">🔴 Inativo / Suspenso</option>
+                                </select>
+                              </td>
+                              <td className="p-4 text-center">
+                                <button 
+                                  onClick={() => handleAdminDeleteUser(u.uid)}
+                                  disabled={u.email.toLowerCase() === 'jackson602@gmail.com'}
+                                  className="text-slate-400 hover:text-red-600 p-2 rounded-lg bg-slate-50 hover:bg-rose-50 active:scale-95 transition-all text-sm disabled:opacity-30 disabled:pointer-events-none"
+                                  title="Remover Cadastro Permanentemente"
+                                >
+                                  🗑️
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </motion.div>
+            )}
+
             {activeTab === 'sheets-db' && !selectedAssetForInspection && !showAddForm && (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 max-w-6xl mx-auto h-full overflow-y-auto p-4 md:p-6 custom-scrollbar pb-24">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-gradient-to-r from-emerald-800 to-teal-950 p-6 rounded-2xl text-white shadow-lg relative overflow-hidden shrink-0">
@@ -3138,6 +3492,135 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
                 <div className="flex gap-2">
                   <button onClick={() => setScanModal(false)} className="flex-1 py-2 text-xs uppercase font-bold text-slate-500 border rounded-lg">Cancelar</button>
                   <button onClick={handleSimulateQuickScan} className="flex-1 py-2 text-xs uppercase font-bold text-white bg-red-700 hover:bg-red-800 rounded-lg shadow-sm">Buscar Ativo</button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* --- PREMIUM PORTAL - MEU PERFIL & ESCOLHA DE LOGOTIPO MODAL --- */}
+        <AnimatePresence>
+          {showProfileModal && currentUser && (
+            <div className="fixed inset-0 bg-black/60 backdrop-blur-md z-50 flex items-center justify-center p-4">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95, y: 15 }} 
+                animate={{ opacity: 1, scale: 1, y: 0 }} 
+                exit={{ opacity: 0, scale: 0.95, y: 15 }} 
+                className="bg-white rounded-3xl border border-slate-300 p-6 shadow-2xl max-w-md w-full relative overflow-hidden space-y-5"
+                id="my-profile-logo-modal"
+              >
+                {/* Visual degradê effect banner decoration */}
+                <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-red-600 via-rose-500 to-amber-500"></div>
+
+                <div className="flex justify-between items-start pt-1">
+                  <div>
+                    <h3 className="font-['Hanken_Grotesk'] font-black text-xl text-slate-800 flex items-center gap-1.5">
+                      <span>⚙️</span> Meu Perfil & Logo Custom
+                    </h3>
+                    <p className="text-slate-400 text-xs mt-0.5">Customizar assinatura de marca e logotipo do SPCI</p>
+                  </div>
+                  <button 
+                    onClick={() => setShowProfileModal(false)} 
+                    className="p-1.5 rounded-lg bg-slate-100 text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition-all text-xs font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Current login identity stat block */}
+                  <div className="bg-slate-50 p-3 rounded-2xl border border-slate-100 flex items-center gap-3">
+                    {userProfile?.logoUrl ? (
+                      <img 
+                        src={userProfile.logoUrl} 
+                        alt="Logo" 
+                        className="w-12 h-12 rounded-xl object-contain border bg-white p-1"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-12 h-12 rounded-xl bg-slate-200 text-slate-500 font-bold flex items-center justify-center text-sm uppercase font-mono">
+                        {userProfile?.name.charAt(0) || 'U'}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-[10px] text-slate-400 font-extrabold uppercase tracking-wider leading-none">Credencial Logada</p>
+                      <p className="text-xs font-bold text-slate-800 font-mono truncate mt-1">{currentUser.email}</p>
+                      <p className="text-[10px] text-slate-500 font-sans mt-0.5 font-bold">
+                        Acesso: {userProfile?.role === 'admin' ? '🛡️ Administrador do Sistema' : '👷 Técnico Autorizado'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Input field for User Name */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Seu Nome / Razão Social</label>
+                    <input 
+                      type="text" 
+                      value={profileNameInput}
+                      onChange={(e) => setProfileNameInput(e.target.value)}
+                      placeholder="Nome do Técnico ou Nome Estratégico"
+                      className="w-full bg-slate-50 border border-slate-200 focus:border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-slate-800 font-bold font-sans"
+                    />
+                  </div>
+
+                  {/* Input field for Custom Logo URL */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-500 tracking-wider">Link URL do seu Logotipo (.png / .jpg)</label>
+                    <input 
+                      type="text" 
+                      value={profileLogoUrlInput}
+                      onChange={(e) => setProfileLogoUrlInput(e.target.value)}
+                      placeholder="Cole o endereço de link da sua imagem ou logomarca"
+                      className="w-full bg-slate-50 border border-slate-200 focus:border-slate-800 rounded-xl p-3 text-xs focus:outline-none focus:ring-1 focus:ring-slate-800 font-mono text-[11px]"
+                    />
+                  </div>
+
+                  {/* Beautiful Predefined High-Quality Brands Preset */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-400 tracking-wider">Ou escolha um de nossos Emojis/Logos Premium</label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {[
+                        { name: '🔥 Incêndio SPCI', url: 'https://images.unsplash.com/photo-1516216621161-8a5021e11e2f?w=100&auto=format&fit=crop&q=80' },
+                        { name: '🏢 Torre Segura', url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=100&auto=format&fit=crop&q=80' },
+                        { name: '🌳 EcoSegurança', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=100&auto=format&fit=crop&q=80' }
+                      ].map(preset => (
+                        <button
+                          key={preset.name}
+                          type="button"
+                          onClick={() => setProfileLogoUrlInput(preset.url)}
+                          className={`border rounded-xl p-1.5 text-center bg-slate-50 hover:bg-slate-100 flex flex-col items-center gap-1 cursor-pointer transition-all ${profileLogoUrlInput === preset.url ? 'border-indigo-600 bg-indigo-50/50' : 'border-slate-200'}`}
+                        >
+                          <img 
+                            src={preset.url} 
+                            alt={preset.name} 
+                            className="w-8 h-8 rounded-lg object-cover shadow-xs bg-white" 
+                            referrerPolicy="no-referrer"
+                          />
+                          <span className="text-[8px] font-bold text-slate-700 leading-none truncate max-w-full block">{preset.name}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Save and Cancel buttons in modal */}
+                <div className="flex gap-2.5 pt-2 border-t">
+                  <button 
+                    onClick={() => {
+                      setShowProfileModal(false);
+                      setProfileNameInput(userProfile?.name || '');
+                      setProfileLogoUrlInput(userProfile?.logoUrl || '');
+                    }} 
+                    className="flex-1 py-3 text-xs uppercase font-['Hanken_Grotesk'] font-bold text-slate-500 border rounded-xl hover:bg-slate-50 transition-all font-mono"
+                  >
+                    Cancelar
+                  </button>
+                  <button 
+                    onClick={() => handleUpdateLogoAndProfile(profileLogoUrlInput, profileNameInput)}
+                    className="flex-1 py-3 text-xs uppercase font-['Hanken_Grotesk'] font-bold text-white bg-gradient-to-r from-red-700 via-rose-600 to-rose-700 rounded-xl shadow-md hover:opacity-95 transition-all"
+                  >
+                    Salvar Logo 💾
+                  </button>
                 </div>
               </motion.div>
             </div>
