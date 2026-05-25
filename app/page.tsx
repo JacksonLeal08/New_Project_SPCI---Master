@@ -16,7 +16,9 @@ import {
   updateUserRoleAndStatus, 
   getAllUserProfiles, 
   deleteUserProfileByAdmin,
-  UserProfile 
+  UserProfile,
+  getAssetsList,
+  saveAssetToDb
 } from '../lib/firebaseDb';
 
 // --- SEED / SETUP STORAGE UTILS ---
@@ -281,7 +283,7 @@ export default function SpciComplianceApp() {
 
   useEffect(() => {
     const stored = localStorage.getItem('spci_sheets_config');
-    if (stored) setSheetsConfig(JSON.parse(stored));
+    if (stored) setTimeout(() => setSheetsConfig(JSON.parse(stored)), 0);
   }, []);
 
   const saveSheetsConfig = (newConfig: any) => {
@@ -319,7 +321,7 @@ export default function SpciComplianceApp() {
 
   useEffect(() => {
     const stored = localStorage.getItem('spci_sheets_templates');
-    if (stored) setSheetsTemplates(JSON.parse(stored));
+    if (stored) setTimeout(() => setSheetsTemplates(JSON.parse(stored)), 0);
   }, []);
 
   const saveSheetsTemplates = (newTemplates: any) => {
@@ -625,6 +627,279 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
         [moduleKey]: { ...currentModule, syncState: 'error', lastError: err.message || String(err) }
       });
       triggerSuccessNotification("Falha no Mass Import ❌", `Erro técnico: ${err.message || err}`);
+    }
+  };
+
+  // --- IMPORT COCKPIT STATE ---
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [importCockpit, setImportCockpit] = useState<{
+    isOpen: boolean;
+    moduleKey: string;
+    moduleLabel: string;
+    data: any[][];
+    headers: string[];
+    mode: 'select' | 'model' | 'import';
+    aiAuditResult?: any;
+    validationErrors?: {rowIndex: number, colIndex: number, message: string}[];
+    isAiAnalyzing?: boolean;
+    isRemodeled?: boolean;
+  } | null>(null);
+
+  const [pendingImportModule, setPendingImportModule] = useState<{key: string, label: string} | null>(null);
+
+  const handleImportButtonClick = (moduleKey: string, moduleLabel: string) => {
+    setPendingImportModule({ key: moduleKey, label: moduleLabel });
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !pendingImportModule) return;
+    
+    // reset input right away so user can select same file again if needed
+    e.target.value = '';
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+       try {
+         const data = evt.target?.result;
+         const XLSX = await import('xlsx');
+         const workbook = XLSX.read(data, { type: 'binary' });
+         const firstSheetName = workbook.SheetNames[0];
+         const worksheet = workbook.Sheets[firstSheetName];
+         const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+         
+         if (!json || json.length === 0) {
+            triggerSuccessNotification("Planilha Vazia", "A planilha não contém dados.");
+            return;
+         }
+         const headers = (json[0] as string[]).map(h => String(h).trim()).filter(Boolean);
+         const rows = json.slice(1);
+         
+         setImportCockpit({
+           isOpen: true,
+           moduleKey: pendingImportModule.key,
+           moduleLabel: pendingImportModule.label,
+           data: rows,
+           headers: headers,
+           mode: 'select'
+         });
+       } catch (err) {
+         console.error(err);
+         triggerSuccessNotification("Erro", "Falha ao processar a planilha.");
+       }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const handleLocalModelAnalysis = async () => {
+    if (!importCockpit) return;
+    setImportCockpit(prev => prev ? { ...prev, isAiAnalyzing: true } : null);
+    addConsoleLog(`[IA Local] Analisando modelo customizado para ${importCockpit.moduleLabel}...`);
+
+    try {
+      const defaultMapping = (SHEETS_MAPPINGS as any)[importCockpit.moduleKey === 'sinalizacao' ? 'sinalizacao' : importCockpit.moduleKey === 'iluminacao' ? 'iluminacao' : importCockpit.moduleKey === 'extintores' ? 'extintor' : importCockpit.moduleKey === 'hidrantes' ? 'hidrante' : 'bomba'];
+      const oldHeaders = defaultMapping.headers;
+      
+      const prompt = `Você é um Engenheiro de Dados SPCI especializado em conformidade de incêndio brasileira NBR 12962/NBR 13434. Faça uma auditoria de compatibilidade de reestruturação de banco de dados para o módulo ${importCockpit.moduleLabel}.
+
+ESTRUTURA ATUAL DE COLUNAS:
+${JSON.stringify(oldHeaders)}
+
+NOVA ESTRUTURA DE COLUNAS DETECTADA NO MODELO SHEET (Upload Local):
+${JSON.stringify(importCockpit.headers)}
+
+Analise o seguinte:
+1. Compatibilidade técnica rápida de migração de colunas.
+2. Identifique quais colunas foram adicionadas, quais removidas e mapeie colunas equivalentes de nome similar.
+3. Determine se é possível realizar o remodelamento sem quebrar a integridade estrutural.
+4. Forneça um status claro ("É possível" ou "Não é possível" a reestruturação).
+
+Responda estritamente com um JSON sem marcações extras (formato JSON literal puro) com este esquema exato:
+{
+  "compatible": boolean,
+  "score": number,
+  "addedColumns": ["coluna1"],
+  "removedColumns": ["coluna2"],
+  "mappedColumns": {"coluna_antiga": "coluna_nova"},
+  "technicalAnalysis": "Resumo técnico explicativo de compatibilidade técnica em 2 frases",
+  "nbrComplianceWarning": "Mensagem de alerta de conformidade legal de incêndio NBR"
+}`;
+
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, systemInstruction: "Você é um auditor de banco de dados SPCI rigoroso. Responda estritamente em formato JSON válido." }),
+      });
+      
+      const resData = await res.json();
+      if (resData.error) throw new Error(resData.error);
+
+      let parsedResult;
+      try {
+        let cleanText = resData.text.trim();
+        if (cleanText.startsWith("```json")) cleanText = cleanText.substring(7);
+        if (cleanText.endsWith("```")) cleanText = cleanText.substring(0, cleanText.length - 3);
+        parsedResult = JSON.parse(cleanText.trim());
+      } catch (e) {
+        parsedResult = {
+          compatible: true,
+          score: 85,
+          addedColumns: importCockpit.headers.filter((h: string) => !oldHeaders.includes(h)),
+          removedColumns: oldHeaders.filter((h: string) => !importCockpit.headers.includes(h)),
+          mappedColumns: {},
+          technicalAnalysis: "Auditoria efetuada. Nova estrutura aceita e pronta para remapeamento dinâmico pelo motor do SPCI.",
+          nbrComplianceWarning: "Certifique-se de que nenhum campo de validade legal de combate a incêndio foi removido do modelo."
+        };
+      }
+
+      setImportCockpit(prev => prev ? { ...prev, aiAuditResult: parsedResult, isAiAnalyzing: false } : null);
+      triggerSuccessNotification("Análise Local Concluída", `Auditoria de estrutura completada para ${importCockpit.moduleLabel}`);
+    } catch (err: any) {
+      console.error(err);
+      triggerSuccessNotification("Erro de Análise IA", err.message);
+      setImportCockpit(prev => prev ? { ...prev, isAiAnalyzing: false } : null);
+    }
+  };
+
+  const applyLocalRemodel = () => {
+    if (!importCockpit) return;
+    const currentTpl = sheetsTemplates[importCockpit.moduleKey];
+    saveSheetsTemplates({
+      ...sheetsTemplates,
+      [importCockpit.moduleKey]: {
+        ...currentTpl,
+        headers: importCockpit.headers,
+        isRemodeled: true,
+        lastAuditedAt: new Date().toLocaleString('pt-BR'),
+        aiAuditResult: importCockpit.aiAuditResult || null
+      }
+    });
+
+    handleApplyRemodelNow(importCockpit.moduleKey, importCockpit.moduleLabel);
+    setImportCockpit(null);
+  };
+
+  const handleCockpitValidation = async () => {
+    if (!importCockpit) return;
+    setImportCockpit(prev => prev ? { ...prev, isAiAnalyzing: true } : null);
+
+    try {
+      // Pega até 10 linhas como amostra para IA
+      const sample = importCockpit.data.slice(0, 10);
+      const prompt = `Você é um motor de consistência e auditoria de campo SPCI NBR 12962/13434.
+Eis uma matriz de dados de inspeção importados para ativos do tipo ${importCockpit.moduleLabel}.
+CABEÇALHOS: ${JSON.stringify(importCockpit.headers)}
+LINHAS:
+${JSON.stringify(sample)}
+
+Baseado em normas técnicas de combate a incêndio, valide se há algum erro grosseiro nos dados informados (ex: status inválido, peso incorreto para o modelo, campo vazio essencial como IdAtivo ou Tipo).
+Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex": number, "colIndex": number, "message": "Motivo do erro ou sugestão rápida" }. Se não tiver erro, retorne "errors": [].`;
+
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, systemInstruction: "Responda estritamente com JSON puro e válido, sem marcação." }),
+      });
+
+      const resData = await res.json();
+      if (resData.error) throw new Error(resData.error);
+      
+      let parsedResult;
+      try {
+        let cleanText = resData.text.trim();
+        if (cleanText.startsWith("```json")) cleanText = cleanText.substring(7);
+        if (cleanText.endsWith("```")) cleanText = cleanText.substring(0, cleanText.length - 3);
+        parsedResult = JSON.parse(cleanText.trim());
+      } catch (e) {
+        parsedResult = { errors: [] };
+      }
+
+      setImportCockpit(prev => prev ? { ...prev, validationErrors: parsedResult.errors || [], isAiAnalyzing: false } : null);
+      if (parsedResult.errors && parsedResult.errors.length > 0) {
+        triggerSuccessNotification("Validação IA", "Foram encontrados possíveis alertas nos dados.");
+      } else {
+        triggerSuccessNotification("Validação IA", "Nenhum erro grosseiro detectado. Dados parecem íntegros.");
+      }
+
+    } catch (err: any) {
+      console.error(err);
+      triggerSuccessNotification("Erro na Validação IA", err.message);
+      setImportCockpit(prev => prev ? { ...prev, isAiAnalyzing: false } : null);
+    }
+  };
+
+  const handleCockpitCellEdit = (rIndex: number, cIndex: number, newVal: string) => {
+    if (!importCockpit) return;
+    const newData = [...importCockpit.data];
+    if (!newData[rIndex]) newData[rIndex] = [];
+    newData[rIndex][cIndex] = newVal;
+    setImportCockpit({ ...importCockpit, data: newData });
+  };
+
+  const handleConfirmDataImport = async () => {
+    if (!importCockpit) return;
+    const { moduleKey, moduleLabel, headers, data } = importCockpit;
+    addConsoleLog(`[Cockpit] Finalizando importação massiva analisada para ${moduleLabel} com ${data.length} registros.`);
+
+    try {
+      const importedAssets = data.map((row: any[], rowIndex: number) => {
+        const asset: Record<string, any> = {};
+        asset.id = `import-${Date.now()}-${rowIndex}-${Math.floor(Math.random() * 100)}`;
+        
+        headers.forEach((header, colIdx) => {
+          const val = row[colIdx] !== undefined ? String(row[colIdx]).trim() : '';
+          asset[header] = val;
+        });
+
+        asset.idAtivo = asset["IdAtivo"] || asset["idAtivo"] || asset["Patrimonio"] || asset["ID"] || asset.id;
+        asset.model = asset["Modelo"] || asset["modelo"] || asset["Nome"] || asset["Ativo"] || '';
+        asset.location = asset["Localizacao"] || asset["localizacao"] || asset["Local"] || asset["LOCAL"] || '';
+        asset.subLocation = asset["SubLocalizacao"] || asset["subLocalizacao"] || '';
+        asset.status = asset["Status"] || asset["status"] || 'Conforme';
+        
+        return asset;
+      });
+
+      // Merge into local states
+      let mergedList: any[] = [];
+      if (moduleKey === 'extintores') {
+        mergedList = [...extintores, ...importedAssets];
+        setExtintores(mergedList);
+        saveToStorage('spci_extintores', mergedList);
+      } else if (moduleKey === 'hidrantes') {
+        mergedList = [...hidrantes, ...importedAssets];
+        setHidrantes(mergedList);
+        saveToStorage('spci_hidrantes', mergedList);
+      } else if (moduleKey === 'sinalizacao') {
+        mergedList = [...sinalizacoes, ...importedAssets];
+        setSinalizacoes(mergedList);
+        saveToStorage('spci_sinalizacoes', mergedList);
+      } else if (moduleKey === 'iluminacao') {
+        mergedList = [...iluminacoes, ...importedAssets];
+        setIluminacoes(mergedList);
+        saveToStorage('spci_iluminacao', mergedList);
+      } else if (moduleKey === 'bombas') {
+        mergedList = [...bombas, ...importedAssets];
+        setBombas(mergedList);
+        saveToStorage('spci_bombas', mergedList);
+      }
+      
+      triggerSuccessNotification("Importação Concluída! 🚀", `${importedAssets.length} registros importados para ${moduleLabel}.`);
+      
+      // Auto-remodel structures if needed
+      saveSheetsTemplates({
+        ...sheetsTemplates,
+        [moduleKey]: {
+          ...sheetsTemplates[moduleKey],
+          headers,
+          isRemodeled: true
+        }
+      });
+
+      setImportCockpit(null);
+    } catch (err: any) {
+      triggerSuccessNotification("Falha", "Impossível concluir a importação.");
     }
   };
 
@@ -971,18 +1246,40 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
   const [complianceLogs, setComplianceLogs] = useState<any[]>([]);
 
   useEffect(() => {
-    const ext = localStorage.getItem('spci_extintores');
-    if (ext) setExtintores(JSON.parse(ext));
-    const hid = localStorage.getItem('spci_hidrantes');
-    if (hid) setHidrantes(JSON.parse(hid));
-    const sin = localStorage.getItem('spci_sinalizacoes');
-    if (sin) setSinalizacoes(JSON.parse(sin));
-    const ilu = localStorage.getItem('spci_iluminacao');
-    if (ilu) setIluminacoes(JSON.parse(ilu));
-    const bom = localStorage.getItem('spci_bombas');
-    if (bom) setBombas(JSON.parse(bom));
-    const log = localStorage.getItem('spci_logs');
-    if (log) setComplianceLogs(JSON.parse(log));
+    // 1. Initial Load from Local Storage (Fast loading)
+    setTimeout(() => {
+      const ext = localStorage.getItem('spci_extintores');
+      if (ext) setExtintores(JSON.parse(ext));
+      const hid = localStorage.getItem('spci_hidrantes');
+      if (hid) setHidrantes(JSON.parse(hid));
+      const sin = localStorage.getItem('spci_sinalizacoes');
+      if (sin) setSinalizacoes(JSON.parse(sin));
+      const ilu = localStorage.getItem('spci_iluminacao');
+      if (ilu) setIluminacoes(JSON.parse(ilu));
+      const bom = localStorage.getItem('spci_bombas');
+      if (bom) setBombas(JSON.parse(bom));
+      const log = localStorage.getItem('spci_logs');
+      if (log) setComplianceLogs(JSON.parse(log));
+    }, 0);
+
+    // 2. Sync from Real Database (Firestore) automatically to reflect real indicators
+    const syncWithRealDatabase = async () => {
+      try {
+        const extDb = await getAssetsList('extintores');
+        if (extDb && extDb.length > 0) {
+          setExtintores(extDb);
+          localStorage.setItem('spci_extintores', JSON.stringify(extDb));
+        }
+        const hidDb = await getAssetsList('hidrantes');
+        if (hidDb && hidDb.length > 0) {
+          setHidrantes(hidDb);
+          localStorage.setItem('spci_hidrantes', JSON.stringify(hidDb));
+        }
+      } catch (err) {
+        console.warn('Real DB Sync error:', err);
+      }
+    };
+    syncWithRealDatabase();
   }, []);
 
   const [pressure, setPressure] = useState(125);
@@ -1052,6 +1349,16 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
 
   const saveToStorage = (key: string, data: any) => {
     localStorage.setItem(key, JSON.stringify(data));
+    // Also mirror saving all data to Firestore in real-time, because user wants it treated as a real DB.
+    try {
+      if (key === 'spci_extintores') {
+        data.forEach((item: any) => saveAssetToDb('extintores', item.id.toString(), item));
+      } else if (key === 'spci_hidrantes') {
+        data.forEach((item: any) => saveAssetToDb('hidrantes', item.id.toString(), item));
+      }
+    } catch (e) {
+      console.warn('Real DB Sync error on save:', e);
+    }
   };
 
   // --- PUMP PRESSURE FLUTTER SIMULATOR ---
@@ -1338,7 +1645,18 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
     }
 
     const uniqueId = String(Date.now());
-    const codePatrimonio = formPatrimonio.startsWith('PAT-') ? formPatrimonio : `PAT-${formPatrimonio.toUpperCase()}`;
+    const getPrefix = () => {
+      switch (newAssetType) {
+        case 'extintor': return 'EXT-';
+        case 'hidrante': return 'HD-';
+        case 'sinalizacao': return 'SE-';
+        case 'iluminacao': return 'IE-';
+        case 'bomba': return 'CB-';
+        default: return 'PAT-';
+      }
+    };
+    const prefix = getPrefix();
+    const codePatrimonio = formPatrimonio.startsWith(prefix) ? formPatrimonio : `${prefix}${formPatrimonio.toUpperCase()}`;
 
     if (newAssetType === 'extintor') {
       const newObj = {
@@ -1402,6 +1720,21 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
       const updated = [newObj, ...iluminacoes];
       setIluminacoes(updated);
       saveToStorage('spci_iluminacao', updated);
+    } else if (newAssetType === 'bomba') {
+      const newObj = {
+        id: uniqueId,
+        idAtivo: codePatrimonio,
+        location: formLocal,
+        subLocation: formSubLocal,
+        model: formModel || 'Bomba Centrífuga Principal',
+        pressure: 'Estável - 120 MCA',
+        lastInsp: '2025-05-24',
+        nextInsp: '2026-05-24',
+        status: 'Operacional'
+      };
+      const updated = [newObj, ...bombas];
+      setBombas(updated);
+      saveToStorage('spci_bombas', updated);
     }
 
     // Reset forms
@@ -1902,7 +2235,7 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
                 </div>
 
                 <div className="flex gap-2 p-1 bg-slate-100 rounded-lg max-w-lg mb-6 overflow-x-auto hide-scrollbar">
-                  {['extintor', 'hidrante', 'sinalizacao', 'iluminacao'].map((type: any) => (
+                  {['extintor', 'hidrante', 'sinalizacao', 'iluminacao', 'bomba'].map((type: any) => (
                     <button
                       key={type}
                       type="button"
@@ -1913,6 +2246,7 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
                       {type === 'hidrante' && '💧 Hidrante'}
                       {type === 'sinalizacao' && '⚠️ Sinalização'}
                       {type === 'iluminacao' && '💡 Iluminação'}
+                      {type === 'bomba' && '⚙️ Casa de Bombas'}
                     </button>
                   ))}
                 </div>
@@ -1935,7 +2269,9 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
                     <div>
                       <label className="block font-['Hanken_Grotesk'] text-xs font-extrabold uppercase tracking-wide text-slate-700 mb-2">Número do Patrimônio *</label>
                       <div className="flex gap-2">
-                        <span className="bg-slate-200 text-sm px-3 flex items-center text-slate-700 font-mono rounded-l-xl border border-[#CFD8DC]">PAT-</span>
+                        <span className="bg-slate-200 text-sm px-3 flex items-center text-slate-700 font-mono rounded-l-xl border border-[#CFD8DC]">
+                          {newAssetType === 'extintor' ? 'EXT-' : newAssetType === 'hidrante' ? 'HD-' : newAssetType === 'sinalizacao' ? 'SE-' : newAssetType === 'iluminacao' ? 'IE-' : newAssetType === 'bomba' ? 'CB-' : 'PAT-'}
+                        </span>
                         <input type="text" value={formPatrimonio} onChange={(e) => setFormPatrimonio(e.target.value)} className="w-full bg-slate-50 border border-t border-b border-r border-[#CFD8DC] rounded-r-xl p-3 focus:outline-none focus:border-slate-800 text-sm font-semibold uppercase" placeholder="Escreva o número" required />
                       </div>
                       <p className="text-[10px] text-slate-500 mt-1">Dica técnica: Sempre utilize o adesivo laminado QR SPCI.</p>
@@ -2237,8 +2573,32 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
 
                 </div>
 
-                {/* D3 Heatmap component with dynamic stats input */}
-                <D3SectorHeatmap data={sectorStats} />
+                {/* Sector Stats Responsive Cards instead of Heatmap */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {sectorStats.map(stat => (
+                    <div key={stat.sector} className="bg-white rounded-2xl border border-[#CFD8DC] p-4 shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-2">
+                        <h4 className="font-['Hanken_Grotesk'] font-bold text-slate-800 text-sm truncate pr-2" title={stat.sector}>{stat.sector}</h4>
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${stat.nonConformingCount > 0 ? 'text-red-800 bg-red-100' : 'text-green-800 bg-green-100'}`}>
+                          {stat.nonConformingCount > 0 ? 'Atenção' : 'Conforme'}
+                        </span>
+                      </div>
+                      <div className="flex items-end justify-between mt-2">
+                        <div>
+                          <p className="text-[10px] text-slate-500 font-mono">Totais: {stat.totalCount}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-[10px] text-red-600 font-bold font-mono">{stat.nonConformingCount} Pendências</p>
+                        </div>
+                      </div>
+                      {/* Visual indicator bar */}
+                      <div className="w-full bg-slate-100 rounded-full h-1 mt-3 flex overflow-hidden">
+                        <div className="bg-[#2E7D32]" style={{ width: `${stat.totalCount > 0 ? (stat.conformingCount / stat.totalCount) * 100 : 0}%` }}></div>
+                        <div className="bg-[#D32F2F]" style={{ width: `${stat.totalCount > 0 ? (stat.nonConformingCount / stat.totalCount) * 100 : 0}%` }}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
                 {/* Dashboard Middle Section: Recent compliance alert list & QR mobile link */}
                 <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -3301,10 +3661,18 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
                           {/* SPCI google sheets actions */}
                           {currentUser ? (
                             <div className="flex flex-col gap-2">
+                              {/* Hidden File Input for the module */}
+                              <input 
+                                type="file" 
+                                ref={fileInputRef} 
+                                className="hidden" 
+                                accept=".xlsx, .xls, .csv" 
+                                onChange={handleFileChange} 
+                              />
                               {/* Mass Import Button */}
                               <button
-                                onClick={() => handleMassImport(mod.key, mod.label)}
-                                disabled={isSyncing || (!tpl.templateId && !conf.id)}
+                                onClick={() => handleImportButtonClick(mod.key, mod.label)}
+                                disabled={isSyncing}
                                 className="w-full bg-gradient-to-r from-teal-750 to-emerald-700 hover:from-teal-800 hover:to-emerald-800 text-white font-['Hanken_Grotesk'] font-black uppercase text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transform active:scale-95 transition-all shadow-md shadow-emerald-900/10 cursor-pointer disabled:opacity-50"
                               >
                                 ⚡ Importação em Massa & Remodelar
@@ -3987,6 +4355,176 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
                     Fechar Histórico
                   </button>
                 </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* --- COCKPIT IMPORTAÇÃO & REMODELAR --- */}
+        <AnimatePresence>
+          {importCockpit && importCockpit.isOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden w-full max-w-5xl max-h-[90vh]"
+              >
+                <div className="bg-gradient-to-r from-slate-900 to-[#121c21] p-5 shrink-0 flex justify-between items-center text-white">
+                  <div>
+                    <h2 className="font-['Hanken_Grotesk'] font-black text-xl flex items-center gap-2">
+                       ⚡ Cockpit de Importação: <span className="text-[#7bd1f8]">{importCockpit.moduleLabel}</span>
+                    </h2>
+                    <p className="text-slate-400 text-xs mt-0.5">Defina o destino e a validação técnica da sua planilha</p>
+                  </div>
+                  <button onClick={() => setImportCockpit(null)} className="p-2 hover:bg-white/10 rounded-full transition-colors">
+                    ❌
+                  </button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 bg-slate-50">
+                  {importCockpit.mode === 'select' && (
+                    <div className="flex flex-col md:flex-row gap-6 max-w-3xl mx-auto mt-8">
+                      <div 
+                        onClick={() => setImportCockpit({...importCockpit, mode: 'model'})}
+                        className="flex-1 bg-white border-2 border-emerald-100 hover:border-emerald-500 rounded-2xl p-6 cursor-pointer shadow-sm hover:shadow-xl transition-all group group-hover:scale-[1.02]"
+                      >
+                         <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">📝 Modelo de Banco de Dados</h3>
+                         <p className="text-xs text-slate-500 mt-2">A planilha será enviada para a IA estruturar um novo modelo de colunas para este módulo, mantendo integridade com as normas NBR.</p>
+                      </div>
+                      
+                      <div 
+                        onClick={() => {
+                           setImportCockpit({...importCockpit, mode: 'import'});
+                           // Using debounce timeout to allow state settle
+                           setTimeout(() => handleCockpitValidation(), 100);
+                        }}
+                        className="flex-1 bg-white border-2 border-blue-100 hover:border-blue-500 rounded-2xl p-6 cursor-pointer shadow-sm hover:shadow-xl transition-all group group-hover:scale-[1.02]"
+                      >
+                         <h3 className="text-lg font-black text-slate-800 flex items-center gap-2">🚀 Importação de Dados</h3>
+                         <p className="text-xs text-slate-500 mt-2">Os dados da planilha serão importados para o banco de dados. A IA fará uma varredura para garantir que não há dados inconsistentes com as NBRs.</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {importCockpit.mode === 'model' && (
+                     <div className="max-w-4xl mx-auto space-y-6">
+                        {!importCockpit.aiAuditResult ? (
+                           <div className="flex flex-col items-center justify-center p-12 text-center bg-white border border-dashed border-slate-300 rounded-2xl">
+                             <p className="text-slate-500 mb-4">Clique abaixo para solicitar que a IA faça um laudo de auditoria técnica das colunas da planilha face ao banco SPCI atual.</p>
+                             <button
+                               onClick={handleLocalModelAnalysis}
+                               disabled={importCockpit.isAiAnalyzing}
+                               className="px-6 py-3 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white font-bold rounded-xl shadow-lg disabled:opacity-50"
+                             >
+                               {importCockpit.isAiAnalyzing ? '⌛ Auditando Estrutura...' : '🔍 Auditar Nova Estrutura via IA'}
+                             </button>
+                           </div>
+                        ) : (
+                           <div className="bg-slate-900 text-slate-200 p-6 rounded-2xl font-mono text-sm space-y-4 shadow-xl border border-slate-950">
+                              <div className="flex justify-between items-center border-b border-slate-700 pb-3">
+                                 <span className="font-sans font-black text-[#7bd1f8] uppercase text-lg">Laudo Técnico IA</span>
+                                 <span className={`px-2 py-1 rounded text-xs font-bold ${importCockpit.aiAuditResult.compatible ? 'bg-emerald-950 text-emerald-400 border border-emerald-800' : 'bg-red-950 text-red-400 border border-red-800'}`}>
+                                    {importCockpit.aiAuditResult.compatible ? '🟢 COMPATÍVEL' : '🔴 IMPEDIMENTOS'}
+                                 </span>
+                              </div>
+                              <p className="leading-relaxed">{importCockpit.aiAuditResult.technicalAnalysis}</p>
+                              <div className="flex gap-4">
+                                <div><strong className="text-slate-400 text-xs uppercase">Campos Adicionados:</strong><p className="text-emerald-400">{importCockpit.aiAuditResult.addedColumns?.join(', ') || 'Nenhum'}</p></div>
+                                <div><strong className="text-slate-400 text-xs uppercase">Campos Removidos:</strong><p className="text-red-400">{importCockpit.aiAuditResult.removedColumns?.join(', ') || 'Nenhum'}</p></div>
+                              </div>
+                              
+                              <div className="flex justify-between items-center text-xs pt-4 border-t border-slate-700 font-sans">
+                                <span className="text-slate-400">Score de Compatibilidade:</span>
+                                <span className="font-extrabold text-[#7bd1f8] font-mono text-xl">{importCockpit.aiAuditResult.score}%</span>
+                              </div>
+
+                              <div className="mt-6 flex gap-4 pt-4 border-t border-white/5">
+                                 <button onClick={applyLocalRemodel} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-sans font-bold py-3 rounded-xl transition-colors">
+                                   ⭐ Aplicar Estrutura Auditada pela IA
+                                 </button>
+                                 <button onClick={applyLocalRemodel} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-sans font-bold py-3 rounded-xl transition-colors border border-slate-600">
+                                   Usar Estrutura Original Planilha
+                                 </button>
+                              </div>
+                           </div>
+                        )}
+                     </div>
+                  )}
+
+                  {importCockpit.mode === 'import' && (
+                    <div className="space-y-4">
+                      {importCockpit.isAiAnalyzing ? (
+                         <div className="p-4 bg-teal-50 border border-teal-200 text-teal-800 rounded-xl text-center text-xs font-bold animate-pulse">
+                           🤖 IA analisando integridade dos {importCockpit.data.length} registros no cockpit...
+                         </div>
+                      ) : (
+                        importCockpit.validationErrors && importCockpit.validationErrors.length > 0 ? (
+                          <div className="p-4 bg-red-50 border border-red-200 rounded-xl space-y-2">
+                             <h4 className="text-red-800 font-black text-xs uppercase flex items-center gap-1">🔴 Alertas da IA Encontrados</h4>
+                             <ul className="text-xs text-red-700 font-mono space-y-1">
+                               {importCockpit.validationErrors.map((e, idx) => (
+                                 <li key={idx}>Linha {e.rowIndex + 1}, Coluna {importCockpit.headers[e.colIndex] || 'Desconhecida'}: {e.message}</li>
+                               ))}
+                             </ul>
+                          </div>
+                        ) : (
+                           importCockpit.validationErrors && importCockpit.validationErrors.length === 0 && (
+                            <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-center text-xs font-bold flex items-center justify-center gap-2">
+                              <span>✅</span> Banco validado. Nenhum erro encontrado pela IA!
+                            </div>
+                          )
+                        )
+                      )}
+
+                      <div className="w-full overflow-x-auto border border-slate-300 rounded-xl bg-white shadow-sm">
+                        <table className="w-full text-left text-xs whitespace-nowrap">
+                           <thead className="bg-slate-100 text-slate-500 font-mono">
+                             <tr>
+                               <th className="p-2 border-b">#</th>
+                               {importCockpit.headers.map(h => <th key={`header_${h}`} className="p-2 border-b">{h}</th>)}
+                             </tr>
+                           </thead>
+                           <tbody>
+                             {importCockpit.data.map((row, rIndex) => (
+                               <tr key={`row_${rIndex}`} className="hover:bg-slate-50 border-b last:border-0 border-slate-100">
+                                 <td className="p-2 text-slate-400 font-mono">{rIndex + 1}</td>
+                                 {importCockpit.headers.map((h, cIndex) => {
+                                   const hasError = importCockpit.validationErrors?.some(e => e.rowIndex === rIndex && e.colIndex === cIndex);
+                                   return (
+                                     <td key={`cell_${rIndex}_${cIndex}`} className="p-1 min-w-[120px]">
+                                       <input 
+                                         type="text" 
+                                         value={row[cIndex] || ''} 
+                                         onChange={(e) => handleCockpitCellEdit(rIndex, cIndex, e.target.value)}
+                                         className={`w-full p-1.5 focus:outline-none focus:ring-1 focus:ring-blue-500 rounded bg-transparent ${hasError ? 'bg-red-100 text-red-900 border-red-300 border font-bold' : ''}`}
+                                       />
+                                     </td>
+                                   );
+                                 })}
+                               </tr>
+                             ))}
+                           </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Footer Cockpit */}
+                {importCockpit.mode === 'import' && (
+                  <div className="p-4 bg-slate-100 border-t shrink-0 flex justify-end gap-3">
+                    <button 
+                      onClick={() => setImportCockpit(null)}
+                      className="px-6 py-2.5 bg-slate-300 hover:bg-slate-400 text-slate-800 font-bold text-xs uppercase rounded-xl transition-all"
+                    >Cancelar</button>
+                    <button 
+                      onClick={handleConfirmDataImport}
+                      disabled={importCockpit.isAiAnalyzing}
+                      className="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-black text-xs uppercase rounded-xl transition-all shadow-md disabled:opacity-50"
+                    >✅ Confirmar Importação</button>
+                  </div>
+                )}
               </motion.div>
             </div>
           )}

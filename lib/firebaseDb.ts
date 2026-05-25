@@ -87,8 +87,29 @@ export async function testConnection() {
 }
 
 /**
- * Interface representing a User Profile in Firestore
+ * Generic Asset operations for Extintores, Hidrantes, etc
  */
+export async function getAssetsList(collectionName: string): Promise<any[]> {
+  try {
+    const colSnap = await getDocs(collection(db, collectionName));
+    const list: any[] = [];
+    colSnap.forEach(docSnap => {
+      list.push(docSnap.data());
+    });
+    return list;
+  } catch (error) {
+    console.warn(`Could not get ${collectionName} from Firebase.`, error);
+    return [];
+  }
+}
+
+export async function saveAssetToDb(collectionName: string, id: string, asset: any): Promise<void> {
+  try {
+    await setDoc(doc(db, collectionName, id), asset);
+  } catch (error) {
+    console.warn(`Could not save asset to ${collectionName} in Firebase.`, error);
+  }
+}
 export interface UserProfile {
   uid: string;
   name: string;
