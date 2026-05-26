@@ -265,11 +265,14 @@ export default function SpciComplianceApp() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [gToken, setGToken] = useState<any>(null);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
-  const [sheetsConsoleLogs, setSheetsConsoleLogs] = useState<string[]>(['[Sistema] Inicializado central de dados local SPCI. Ready.']);
+  const [sheetsConsoleLogs, setSheetsConsoleLogs] = useState<string[]>(['[INFO] [Sistema] Inicializado central de dados local SPCI. Ready.']);
+  const [logFilter, setLogFilter] = useState<'ALL' | 'ERRO' | 'SUCESSO' | 'INFO'>('ALL');
+  const [unlinkDbConfirm, setUnlinkDbConfirm] = useState<{key: string, label: string} | null>(null);
+  const [isAiPreValidating, setIsAiPreValidating] = useState(false);
 
-  const addConsoleLog = (msg: string) => {
+  const addConsoleLog = (msg: string, type: 'ERRO' | 'SUCESSO' | 'INFO' = 'INFO') => {
     const timestamp = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-    setSheetsConsoleLogs(prev => [`[${timestamp}] ${msg}`, ...prev.slice(0, 49)]);
+    setSheetsConsoleLogs(prev => [`[${type}] [${timestamp}] ${msg}`, ...prev.slice(0, 199)]);
   };
 
   const defaultSheetsConfig = {
@@ -280,6 +283,9 @@ export default function SpciComplianceApp() {
     bombas: { id: '', url: '', syncState: 'idle' as const }
   };
   const [sheetsConfig, setSheetsConfig] = useState<Record<string, { id: string; url: string; syncState: 'idle' | 'syncing' | 'success' | 'error'; lastSync?: string; lastError?: string }>>(defaultSheetsConfig);
+
+  // Derive global connected state for the premium indicator
+  const isAnyDbConnected = Object.values(sheetsConfig || {}).some((conf: any) => conf?.id && conf?.syncState !== 'error');
 
   useEffect(() => {
     const stored = localStorage.getItem('spci_sheets_config');
@@ -638,11 +644,12 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
     moduleLabel: string;
     data: any[][];
     headers: string[];
-    mode: 'select' | 'model' | 'import';
+    mode: 'select' | 'model' | 'import' | 'download-template';
     aiAuditResult?: any;
     validationErrors?: {rowIndex: number, colIndex: number, message: string}[];
     isAiAnalyzing?: boolean;
     isRemodeled?: boolean;
+    retainedFields?: string[];
   } | null>(null);
 
   const [pendingImportModule, setPendingImportModule] = useState<{key: string, label: string} | null>(null);
@@ -674,8 +681,47 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
             return;
          }
          const headers = (json[0] as string[]).map(h => String(h).trim()).filter(Boolean);
-         const rows = json.slice(1);
+         const rows = json.slice(1) as any[][];
          
+         setIsAiPreValidating(true);
+         try {
+           const prompt = `Você é um validador NBR da SPCI. Estou tentando importar uma planilha para o módulo ${pendingImportModule.label}.
+Verifique se estes cabeçalhos fornecidos contêm o mínimo de informações que possam se mapear aos campos essenciais de NBR para este ativo (ex: identificação, localização).
+Cabeçalhos encontrados na planilha: ${JSON.stringify(headers)}
+
+Se houver uma base aceitável, retorne: {"valid": true, "message": "Campos mínimos detectados para importação."}
+Caso a planilha não tenha NADA a ver com os dados esperados, retorne: {"valid": false, "message": "A planilha não possui os campos essenciais de NBR para ${pendingImportModule.label}. Não prossiga."}
+Responda estritamente com JSON válido sem marcação.`;
+
+           const res = await fetch("/api/gemini", {
+             method: "POST",
+             headers: { "Content-Type": "application/json" },
+             body: JSON.stringify({ prompt, systemInstruction: "Você é um auditor rigoroso, retorne APENAS um JSON válido." })
+           });
+           const resData = await res.json();
+           let parsedRes = { valid: true, message: '' };
+           if (!resData.error) {
+             let cleanText = resData.text.trim();
+             if (cleanText.startsWith("```json")) cleanText = cleanText.substring(7);
+             if (cleanText.endsWith("```")) cleanText = cleanText.substring(0, cleanText.length - 3);
+             try {
+                parsedRes = JSON.parse(cleanText.trim());
+             } catch(e) {}
+           }
+           
+           if (!parsedRes.valid) {
+             triggerSuccessNotification("Bloqueio IA 🔴", parsedRes.message || "A planilha não atende aos requisitos mínimos.");
+             addConsoleLog(`Pré-validação IA bloqueou a importação para ${pendingImportModule.label}. Tabela inválida.`, 'ERRO');
+             setIsAiPreValidating(false);
+             return; // block
+           }
+           addConsoleLog(`Pré-validação IA aprovada para a planilha inserida em ${pendingImportModule.label}.`, 'SUCESSO');
+         } catch(e) {
+           addConsoleLog(`Pré-validação IA falhou, prosseguindo com risco.`, 'ERRO');
+         } finally {
+           setIsAiPreValidating(false);
+         }
+
          setImportCockpit({
            isOpen: true,
            moduleKey: pendingImportModule.key,
@@ -700,20 +746,22 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
     try {
       const defaultMapping = (SHEETS_MAPPINGS as any)[importCockpit.moduleKey === 'sinalizacao' ? 'sinalizacao' : importCockpit.moduleKey === 'iluminacao' ? 'iluminacao' : importCockpit.moduleKey === 'extintores' ? 'extintor' : importCockpit.moduleKey === 'hidrantes' ? 'hidrante' : 'bomba'];
       const oldHeaders = defaultMapping.headers;
+      const finalHeaders = [...new Set([...importCockpit.headers, ...(importCockpit.retainedFields || [])])];
       
       const prompt = `Você é um Engenheiro de Dados SPCI especializado em conformidade de incêndio brasileira NBR 12962/NBR 13434. Faça uma auditoria de compatibilidade de reestruturação de banco de dados para o módulo ${importCockpit.moduleLabel}.
 
 ESTRUTURA ATUAL DE COLUNAS:
 ${JSON.stringify(oldHeaders)}
 
-NOVA ESTRUTURA DE COLUNAS DETECTADA NO MODELO SHEET (Upload Local):
-${JSON.stringify(importCockpit.headers)}
+NOVA ESTRUTURA DE COLUNAS DETECTADA NO MODELO SHEET (Upload + Campos Retidos):
+${JSON.stringify(finalHeaders)}
 
 Analise o seguinte:
 1. Compatibilidade técnica rápida de migração de colunas.
 2. Identifique quais colunas foram adicionadas, quais removidas e mapeie colunas equivalentes de nome similar.
 3. Determine se é possível realizar o remodelamento sem quebrar a integridade estrutural.
 4. Forneça um status claro ("É possível" ou "Não é possível" a reestruturação).
+5. ATENÇÃO: Campos considerados "Primary Key" (como ID, Identificação, etc) e "Estrangeiras" são INVIOLÁVEIS e vitais para o relacionamento interno do sistema. Se a NOVA ESTRUTURA não os contiver, a compatibilidade deve ser nula (compatible: false) e destaque o erro na \`technicalAnalysis\`.
 
 Responda estritamente com um JSON sem marcações extras (formato JSON literal puro) com este esquema exato:
 {
@@ -764,12 +812,15 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
 
   const applyLocalRemodel = () => {
     if (!importCockpit) return;
-    const currentTpl = sheetsTemplates[importCockpit.moduleKey];
+    
+    const finalHeaders = [...new Set([...importCockpit.headers, ...(importCockpit.retainedFields || [])])];
+    const currentTpl = sheetsTemplates[importCockpit.moduleKey] || { customModel: false, templateId: '', headers: [], isRemodeled: false };
+    
     saveSheetsTemplates({
       ...sheetsTemplates,
       [importCockpit.moduleKey]: {
         ...currentTpl,
-        headers: importCockpit.headers,
+        headers: finalHeaders,
         isRemodeled: true,
         lastAuditedAt: new Date().toLocaleString('pt-BR'),
         aiAuditResult: importCockpit.aiAuditResult || null
@@ -777,7 +828,25 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
     });
 
     handleApplyRemodelNow(importCockpit.moduleKey, importCockpit.moduleLabel);
-    setImportCockpit(null);
+    
+    setImportCockpit(prev => prev ? { ...prev, mode: 'download-template', headers: finalHeaders } : null);
+  };
+
+  const handleUnlinkDb = (moduleKey: string, moduleLabel: string) => {
+    saveSheetsConfig({
+      ...sheetsConfig,
+      [moduleKey]: { id: '', url: '', syncState: 'idle' }
+    });
+    
+    const currentTpl = sheetsTemplates[moduleKey] || { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null };
+    saveSheetsTemplates({
+      ...sheetsTemplates,
+      [moduleKey]: { ...currentTpl, customModel: false, templateId: '', aiAuditResult: null }
+    });
+    
+    setUnlinkDbConfirm(null);
+    addConsoleLog(`Banco de Dados do módulo [${moduleLabel}] desvinculado com sucesso. Operando em offline isolado.`, 'SUCESSO');
+    triggerSuccessNotification("Banco Desvinculado", `O sistema foi convertido para modo offline isolado em ${moduleLabel}.`);
   };
 
   const handleCockpitValidation = async () => {
@@ -2526,6 +2595,36 @@ Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex"
                   </div>
                 </div>
 
+                {/* CONNECTION STATE Premium Indicator */}
+                {!isAnyDbConnected ? (
+                  <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+                    <div className="flex items-start gap-4">
+                      <div className="text-3xl bg-white p-2 rounded-xl shadow-sm border border-orange-100">⚠️</div>
+                      <div>
+                        <h4 className="font-['Hanken_Grotesk'] font-black text-orange-950 text-lg uppercase tracking-tight">Modo Offline Isolado</h4>
+                        <p className="text-orange-800 text-xs mt-1">Conecte uma Planilha no menu &quot;Planilhas&quot; para ativar relatórios avançados, backups em nuvem e a IA Generativa do SPCI.</p>
+                      </div>
+                    </div>
+                    <button 
+                      onClick={() => setActiveTab('sheets-db')}
+                      className="shrink-0 px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold uppercase text-[10px] tracking-widest rounded-xl transition-colors shadow-md"
+                    >
+                      Conectar Banco 🔗
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+                     <div className="flex items-center gap-3">
+                       <span className="flex h-3 w-3 relative">
+                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                         <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+                       </span>
+                       <span className="font-['Hanken_Grotesk'] font-black text-emerald-900 uppercase tracking-widest text-xs">Sistema Online & Sincronizado</span>
+                     </div>
+                     <span className="text-emerald-700 text-[10px] font-mono font-bold bg-white px-3 py-1 rounded border border-emerald-100">Conexão Premium Ativa</span>
+                  </div>
+                )}
+
                 {/* Bento Grid layout with premium informational cards */}
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                   
@@ -3688,13 +3787,25 @@ Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex"
                                 </button>
                               )}
                               
-                              <button
-                                onClick={() => handleCreateSheetForModule(mod.key, mod.label)}
-                                disabled={isSyncing}
-                                className={`w-full ${conf.id ? 'bg-slate-50 hover:bg-slate-100 text-slate-400 border border-slate-200' : 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-bold'} font-['Hanken_Grotesk'] text-[10px] uppercase py-1.5 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer`}
-                              >
-                                {conf.id ? 'Limpar e recriar na nuvem' : '⚡ Criar Banco Do Zero'}
-                              </button>
+                              <div className="flex gap-2 w-full mt-1">
+                                <button
+                                  onClick={() => handleCreateSheetForModule(mod.key, mod.label)}
+                                  disabled={isSyncing}
+                                  className={`flex-1 ${conf.id ? 'bg-slate-50 hover:bg-slate-100 text-slate-400 border border-slate-200' : 'bg-gradient-to-r from-emerald-600 to-emerald-700 text-white font-bold'} font-['Hanken_Grotesk'] text-[10px] uppercase py-1.5 rounded-lg flex items-center justify-center gap-2 transition-all cursor-pointer`}
+                                >
+                                  {conf.id ? 'Limpar e recriar' : '⚡ Criar Banco Do Zero'}
+                                </button>
+                                
+                                {conf.id && (
+                                  <button
+                                    onClick={() => setUnlinkDbConfirm({key: mod.key, label: mod.label})}
+                                    disabled={isSyncing}
+                                    className="flex-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 font-bold font-['Hanken_Grotesk'] text-[10px] uppercase py-1.5 rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer"
+                                  >
+                                    Desvincular Banco
+                                  </button>
+                                )}
+                              </div>
                             </div>
                           ) : (
                             <div className="p-3 bg-neutral-50/80 text-slate-400 border border-dashed rounded-xl text-center text-[10px]">
@@ -3721,28 +3832,66 @@ Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex"
                 </div>
 
                 {/* Console view logger */}
-                <div className="bg-slate-900 rounded-2xl border border-slate-950 shadow-lg p-5 text-white">
-                  <div className="flex justify-between items-center pb-2 border-b border-white/10 mb-3 shrink-0">
+                <div className="bg-slate-900 rounded-2xl border border-slate-950 shadow-lg p-5 text-white flex flex-col h-[500px]">
+                  <div className="flex justify-between items-center pb-3 border-b border-white/10 shrink-0">
                     <div className="flex items-center gap-2">
-                      <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-ping"></span>
+                       <span className="flex h-2.5 w-2.5 relative">
+                         <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                         <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500"></span>
+                       </span>
                       <h4 className="font-['Hanken_Grotesk'] text-xs font-extrabold uppercase tracking-widest text-[#7bd1f8]">
                         Console de Operações de Banco de Dados Sheets
                       </h4>
                     </div>
-                    <button 
-                      onClick={() => setSheetsConsoleLogs(['[Sistema] Console limpo. Pronto.'])}
-                      className="text-[10px] uppercase font-bold text-slate-400 hover:text-white cursor-pointer"
-                    >
-                      Limpar Logs
-                    </button>
+                    <div className="flex gap-2">
+                      <button 
+                         onClick={() => {
+                           const raw = sheetsConsoleLogs.join('\n');
+                           const blob = new Blob([raw], { type: 'text/plain' });
+                           const u = URL.createObjectURL(blob);
+                           const a = document.createElement('a');
+                           a.href = u;
+                           a.download = `SPCI_Logs_de_Operacao_${new Date().toISOString().split('T')[0]}.txt`;
+                           a.click();
+                           URL.revokeObjectURL(u);
+                         }}
+                         className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase font-bold text-slate-300 transition-colors"
+                      >
+                         📄 Exportar .TXT
+                      </button>
+                      <button 
+                        onClick={() => setSheetsConsoleLogs(['[INFO] [Sistema] Console limpo. Pronto.'])}
+                        className="px-2 py-1 bg-white/5 hover:bg-white/10 rounded text-[10px] uppercase font-bold text-slate-400 hover:text-white cursor-pointer transition-colors"
+                      >
+                        Limpar
+                      </button>
+                    </div>
                   </div>
-                  <div className="h-40 overflow-y-auto font-mono text-[11px] text-slate-300 space-y-1 select-text selection:bg-[#7bd1f8]/30 selection:text-white leading-relaxed custom-scrollbar text-left">
-                    {sheetsConsoleLogs.map((log, index) => (
-                      <div key={index} className="flex gap-2">
-                        <span className="text-slate-600 select-none">›</span>
-                        <p>{log}</p>
-                      </div>
+                  
+                  <div className="flex gap-2 py-3 shrink-0 border-b border-white/5">
+                    {['ALL', 'INFO', 'SUCESSO', 'ERRO'].map(t => (
+                      <button 
+                        key={t}
+                        onClick={() => setLogFilter(t as any)}
+                        className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${logFilter === t ? 'bg-[#7bd1f8] text-slate-900' : 'bg-slate-800 text-slate-500 hover:bg-slate-700'}`}
+                      >
+                        {t === 'ALL' ? 'TUDO' : t}
+                      </button>
                     ))}
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto font-mono text-[11px] text-slate-300 space-y-1.5 select-text selection:bg-[#7bd1f8]/30 selection:text-white leading-relaxed custom-scrollbar text-left mt-3">
+                    {sheetsConsoleLogs.filter(l => logFilter === 'ALL' || l.includes(`[${logFilter}]`)).map((log, index) => {
+                       const isError = log.includes('[ERRO]');
+                       const isSuccess = log.includes('[SUCESSO]');
+                       const isInfo = log.includes('[INFO]');
+                       return (
+                        <div key={index} className={`flex gap-2 items-start py-0.5 rounded px-2 ${isError ? 'bg-red-950/30 text-red-300 border-l border-red-500/30' : isSuccess ? 'bg-emerald-950/30 text-emerald-300 border-l border-emerald-500/30' : 'hover:bg-white/5 text-slate-400'}`}>
+                          <span className="text-slate-600 select-none font-sans font-bold leading-none mt-0.5">›</span>
+                          <p className="break-words">{log}</p>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
               </motion.div>
@@ -4429,26 +4578,98 @@ Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex"
                                  </span>
                               </div>
                               <p className="leading-relaxed">{importCockpit.aiAuditResult.technicalAnalysis}</p>
-                              <div className="flex gap-4">
+                              <div className="flex flex-col gap-4">
                                 <div><strong className="text-slate-400 text-xs uppercase">Campos Adicionados:</strong><p className="text-emerald-400">{importCockpit.aiAuditResult.addedColumns?.join(', ') || 'Nenhum'}</p></div>
-                                <div><strong className="text-slate-400 text-xs uppercase">Campos Removidos:</strong><p className="text-red-400">{importCockpit.aiAuditResult.removedColumns?.join(', ') || 'Nenhum'}</p></div>
+                                <div>
+                                   <strong className="text-slate-400 text-xs uppercase mb-2 block">Campos Removidos (Selecione para manter no sistema):</strong>
+                                   {importCockpit.aiAuditResult.removedColumns?.length > 0 ? (
+                                      <div className="flex flex-wrap gap-2">
+                                         {importCockpit.aiAuditResult.removedColumns.map((col: string) => (
+                                           <label key={col} className="flex items-center gap-1.5 bg-slate-800 border border-slate-700 px-3 py-1.5 rounded-lg cursor-pointer hover:bg-slate-700">
+                                              <input 
+                                                type="checkbox" 
+                                                checked={importCockpit.retainedFields?.includes(col) || false}
+                                                onChange={(e) => {
+                                                   setImportCockpit(prev => {
+                                                      if (!prev) return null;
+                                                      const currentRetained = prev.retainedFields || [];
+                                                      const newRetained = e.target.checked 
+                                                         ? [...currentRetained, col]
+                                                         : currentRetained.filter(c => c !== col);
+                                                      return { ...prev, retainedFields: newRetained };
+                                                   });
+                                                }}
+                                                className="accent-[#7bd1f8]"
+                                              />
+                                              <span className="text-red-400 text-xs">{col}</span>
+                                           </label>
+                                         ))}
+                                      </div>
+                                   ) : (
+                                      <p className="text-red-400">Nenhum</p>
+                                   )}
+                                </div>
                               </div>
                               
                               <div className="flex justify-between items-center text-xs pt-4 border-t border-slate-700 font-sans">
-                                <span className="text-slate-400">Score de Compatibilidade:</span>
-                                <span className="font-extrabold text-[#7bd1f8] font-mono text-xl">{importCockpit.aiAuditResult.score}%</span>
+                                <div>
+                                   <button 
+                                     onClick={handleLocalModelAnalysis}
+                                     disabled={importCockpit.isAiAnalyzing}
+                                     className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-[#7bd1f8] rounded border border-slate-700 disabled:opacity-50"
+                                   >
+                                      {importCockpit.isAiAnalyzing ? '⌛ Reavaliando...' : '🔄 Reavaliar Estrutura com Campos Selecionados'}
+                                   </button>
+                                </div>
+                                <div className="text-right">
+                                  <span className="text-slate-400 block mb-1">Score de Compatibilidade:</span>
+                                  <span className="font-extrabold text-[#7bd1f8] font-mono text-xl">{importCockpit.aiAuditResult.score}%</span>
+                                </div>
                               </div>
 
                               <div className="mt-6 flex gap-4 pt-4 border-t border-white/5">
                                  <button onClick={applyLocalRemodel} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-sans font-bold py-3 rounded-xl transition-colors">
-                                   ⭐ Aplicar Estrutura Auditada pela IA
+                                   ⭐ Aplicar Confirmar Modelo Final da IA
                                  </button>
-                                 <button onClick={applyLocalRemodel} className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-sans font-bold py-3 rounded-xl transition-colors border border-slate-600">
+                                 <button onClick={() => setImportCockpit(null)} className="flex-1 bg-transparent border border-slate-700 text-slate-400 hover:text-white hover:bg-slate-800 font-sans font-bold py-3 rounded-xl transition-colors">
                                    Usar Estrutura Original Planilha
                                  </button>
                               </div>
                            </div>
                         )}
+                     </div>
+                  )}
+
+                  {importCockpit.mode === 'download-template' && (
+                     <div className="flex flex-col items-center justify-center p-12 text-center bg-white border border-dashed border-emerald-300 rounded-2xl w-full max-w-2xl mx-auto space-y-6">
+                        <div className="text-5xl">✅</div>
+                        <div>
+                           <h3 className="text-2xl font-black text-emerald-800 mb-2 font-['Hanken_Grotesk']">Estrutura Validada com Sucesso!</h3>
+                           <p className="text-slate-500">O banco de dados foi preparado. Agora você pode fazer o download do modelo em branco (CSV) gerado pela IA com todos os campos necessários devidamente mapeados e auditados.</p>
+                        </div>
+                        <div className="flex gap-4 w-full pt-6">
+                           <button 
+                             onClick={() => {
+                               const csvContent = importCockpit.headers.join(",") + "\n";
+                               const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+                               const url = URL.createObjectURL(blob);
+                               const a = document.createElement('a');
+                               a.href = url;
+                               a.download = `Modelo_SPCI_${importCockpit.moduleKey.toUpperCase()}_v1.csv`;
+                               a.click();
+                               URL.revokeObjectURL(url);
+                             }}
+                             className="flex-1 px-6 py-4 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl shadow-lg transition-colors flex items-center justify-center gap-2"
+                           >
+                             📥 Fazer Download do Modelo (.csv)
+                           </button>
+                           <button 
+                             onClick={() => setImportCockpit(null)}
+                             className="px-6 py-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl border border-slate-300 transition-colors"
+                           >
+                             Concluir
+                           </button>
+                        </div>
                      </div>
                   )}
 
@@ -4527,6 +4748,48 @@ Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex"
                 )}
               </motion.div>
             </div>
+          )}
+        </AnimatePresence>
+
+        {/* --- DESVINCULAR BANCO MODAL --- */}
+        <AnimatePresence>
+          {unlinkDbConfirm && (
+            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+              <motion.div 
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden w-full max-w-sm"
+              >
+                <div className="p-6 text-center">
+                  <div className="text-4xl mb-4">⚠️</div>
+                  <h3 className="font-['Hanken_Grotesk'] font-black text-xl text-slate-800">Desvincular Banco?</h3>
+                  <p className="text-slate-500 text-sm mt-2">Deseja desconectar o módulo <b>{unlinkDbConfirm.label}</b> do Google Sheets? Todos os dados em nuvem ficarão órfãos e o sistema passará a operar em modo local offline.</p>
+                </div>
+                <div className="flex bg-slate-50 border-t border-slate-200 p-4 gap-3">
+                  <button onClick={() => setUnlinkDbConfirm(null)} className="flex-1 bg-white border border-slate-300 text-slate-700 py-2.5 rounded-xl text-xs uppercase font-extrabold tracking-wider hover:bg-slate-100 transition-colors">
+                    Cancelar
+                  </button>
+                  <button onClick={() => handleUnlinkDb(unlinkDbConfirm.key, unlinkDbConfirm.label)} className="flex-1 bg-red-600 text-white py-2.5 rounded-xl text-xs uppercase font-extrabold tracking-wider hover:bg-red-700 transition-colors shadow-md">
+                    Confirmar
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* --- LOADING PRE-VALIDATION MODAL --- */}
+        <AnimatePresence>
+          {isAiPreValidating && (
+             <div className="fixed inset-0 z-[120] flex flex-col items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm">
+               <span className="flex h-12 w-12 relative mb-4">
+                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#7bd1f8] opacity-75"></span>
+                 <span className="relative inline-flex rounded-full h-12 w-12 bg-[#7bd1f8]"></span>
+               </span>
+               <h3 className="text-white font-['Hanken_Grotesk'] text-xl font-bold uppercase tracking-widest">IA Validando Planilha...</h3>
+               <p className="font-mono text-[10px] text-slate-400 mt-2">Buscando campos mínimos obrigatórios NBR</p>
+             </div>
           )}
         </AnimatePresence>
 
