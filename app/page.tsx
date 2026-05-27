@@ -650,6 +650,8 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
     isAiAnalyzing?: boolean;
     isRemodeled?: boolean;
     retainedFields?: string[];
+    isAiFixing?: boolean;
+    aiFixReport?: string;
   } | null>(null);
 
   const [pendingImportModule, setPendingImportModule] = useState<{key: string, label: string} | null>(null);
@@ -862,7 +864,8 @@ CABEÇALHOS: ${JSON.stringify(importCockpit.headers)}
 LINHAS:
 ${JSON.stringify(sample)}
 
-Baseado em normas técnicas de combate a incêndio, valide se há algum erro grosseiro nos dados informados (ex: status inválido, peso incorreto para o modelo, campo vazio essencial como IdAtivo ou Tipo).
+Baseado em normas técnicas de combate a incêndio, valide se há algum erro grosseiro nos dados informados (ex: status inválido, peso incorreto para o modelo, campo vazio essencial). 
+ATENÇÃO (Inviolabilidade): Campos que representam "Primary Key" (ID, Identificacao, etc) e chaves "Estrangeiras" são estruturalmente invioláveis para o relacionamento interno do sistema. Acuse erro em caráter impeditivo caso essas colunas base estejam vazias, ausentes ou manifestadamente incorretas em sua sintaxe.
 Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex": number, "colIndex": number, "message": "Motivo do erro ou sugestão rápida" }. Se não tiver erro, retorne "errors": [].`;
 
       const res = await fetch("/api/gemini", {
@@ -895,6 +898,69 @@ Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex"
       console.error(err);
       triggerSuccessNotification("Erro na Validação IA", err.message);
       setImportCockpit(prev => prev ? { ...prev, isAiAnalyzing: false } : null);
+    }
+  };
+
+  const handleCockpitFixAI = async () => {
+    if (!importCockpit || !importCockpit.validationErrors || importCockpit.validationErrors.length === 0) return;
+    setImportCockpit(prev => prev ? { ...prev, isAiFixing: true } : null);
+
+    try {
+      const prompt = `Você é uma IA de tratamento e correção de dados especializada em NBR 12962/13434. 
+Aqui estão os CABEÇALHOS da planilha: ${JSON.stringify(importCockpit.headers)}
+Aqui estão as LINHAS atuais que precisam de correção (amostra com erro ou contexto total dependendo do tamanho):
+${JSON.stringify(importCockpit.data)}
+
+Os seguintes ALERTAS FORAM ENCONTRADOS por você anteriormente:
+${JSON.stringify(importCockpit.validationErrors)}
+
+Sua tarefa:
+Corrija automaticamente os erros apontados nos dados (LINHAS) com base nas normativas brasileiras (ex: ajustando status para conformidade, preenchendo tipos vazios). 
+As colunas de "Primary Key" (ex: ID) e chaves Estrangeiras NÃO PODEM ser alteradas de forma a perder sua unicidade. O campo deve continuar coerente para o banco.
+
+Retorne estritamente um objeto JSON com 2 chaves:
+- "correctedData": A matriz completa (array de arrays) com as LINHAS corrigidas. IMPORTANTE: ela deve ter exatamente o mesmo número de linhas da original (preserve as que não tinham erro também) e colunas na mesma ordem.
+- "fixReport": Uma breve mensagem (string) resumindo de forma Premium as correções estruturais que foram aplicadas na integridade do banco (ex: "Foram ajustados valores de pressão de X extintores e categorizados N status ausentes para adequação a NBR 12962.").
+
+Formato esperado:
+{
+  "correctedData": [["...", "..."], ["...", "..."]],
+  "fixReport": "Sua mensagem aqui."
+}`;
+
+      const res = await fetch("/api/gemini", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt, systemInstruction: "Retorne ESTRITAMENTE um objeto JSON puro, sem formatação markdown." }),
+      });
+
+      const resData = await res.json();
+      let parsed = { correctedData: importCockpit.data, fixReport: "Não foi possível realizar correções automatizadas completas." };
+      
+      try {
+        let cleanText = resData.text.trim();
+        if (cleanText.startsWith("```json")) cleanText = cleanText.substring(7);
+        if (cleanText.endsWith("```")) cleanText = cleanText.substring(0, cleanText.length - 3);
+        parsed = JSON.parse(cleanText.trim());
+      } catch (e) {
+        console.error("Falha ao analisar resposta de correção", resData.text);
+      }
+
+      setImportCockpit(prev => prev ? {
+        ...prev,
+        data: parsed.correctedData && Array.isArray(parsed.correctedData) && parsed.correctedData.length === prev.data.length ? parsed.correctedData : prev.data,
+        aiFixReport: parsed.fixReport,
+        validationErrors: [], // clear errors as we assume it's fixed, we can re-evaluate
+        isAiFixing: false
+      } : null);
+      
+      triggerSuccessNotification("Correções Aplicadas", parsed.fixReport || "A IA aplicou os ajustes solicitados.");
+      
+      // We could optionally re-trigger validation immediately, but for UX let's leave it to user
+    } catch (error: any) {
+      console.error(error);
+      triggerSuccessNotification("Erro na Correção", error.message);
+      setImportCockpit(prev => prev ? { ...prev, isAiFixing: false } : null);
     }
   };
 
@@ -2303,21 +2369,41 @@ Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex"
                   <button onClick={() => setShowAddForm(false)} className="text-slate-400 hover:text-slate-900 border border-slate-200 rounded-lg p-2 text-xs">Fechar ×</button>
                 </div>
 
-                <div className="flex gap-2 p-1 bg-slate-100 rounded-lg max-w-lg mb-6 overflow-x-auto hide-scrollbar">
-                  {['extintor', 'hidrante', 'sinalizacao', 'iluminacao', 'bomba'].map((type: any) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => setNewAssetType(type)}
-                      className={`flex-1 px-4 py-2 text-xs uppercase font-['Hanken_Grotesk'] font-bold rounded-md whitespace-nowrap ${newAssetType === type ? 'bg-gradient-to-r from-[#af101a] to-rose-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-200'}`}
-                    >
-                      {type === 'extintor' && '🧯 Extintor'}
-                      {type === 'hidrante' && '💧 Hidrante'}
-                      {type === 'sinalizacao' && '⚠️ Sinalização'}
-                      {type === 'iluminacao' && '💡 Iluminação'}
-                      {type === 'bomba' && '⚙️ Casa de Bombas'}
-                    </button>
-                  ))}
+                <div className="mb-2">
+                  <label className="block font-['Hanken_Grotesk'] text-xs font-extrabold uppercase tracking-wide text-slate-500 mb-3 ml-1">Selecione a Categoria do Ativo</label>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-8">
+                    {[
+                      { id: 'extintor', label: 'Extintor', icon: '🧯', desc: 'Combate Primário', color: 'from-orange-50' },
+                      { id: 'hidrante', label: 'Hidrante', icon: '💧', desc: 'Maca & Abrigo', color: 'from-blue-50' },
+                      { id: 'sinalizacao', label: 'Sinalização', icon: '⚠️', desc: 'Rotas e Placas', color: 'from-amber-50' },
+                      { id: 'iluminacao', label: 'Iluminação', icon: '💡', desc: 'Rotas de Fuga', color: 'from-yellow-50' },
+                      { id: 'bomba', label: 'Casa de Bombas', icon: '⚙️', desc: 'Sistema Hidráulico', color: 'from-slate-100' }
+                    ].map((item: any) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setNewAssetType(item.id)}
+                        className={`relative flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-300 overflow-hidden group ${
+                          newAssetType === item.id 
+                            ? `border-[#af101a] ${item.color} to-white bg-gradient-to-br shadow-md shadow-red-900/10 scale-105 z-10` 
+                            : 'border-slate-100 bg-white hover:border-slate-300 hover:shadow-xl hover:scale-[1.03] hover:-translate-y-1 z-0'
+                        }`}
+                      >
+                        {newAssetType === item.id && (
+                          <div className="absolute top-2 right-2 bg-gradient-to-r from-red-600 to-rose-500 text-white rounded-full p-0.5 shadow-sm">
+                            <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" /></svg>
+                          </div>
+                        )}
+                        <span className={`text-4xl mb-3 transition-transform duration-500 ${newAssetType === item.id ? 'scale-110' : 'group-hover:scale-125 group-hover:-rotate-3'}`}>{item.icon}</span>
+                        <span className={`text-xs uppercase font-black font-['Hanken_Grotesk'] text-center ${newAssetType === item.id ? 'text-[#af101a]' : 'text-slate-700'}`}>
+                          {item.label}
+                        </span>
+                        <span className={`text-[9px] mt-1 uppercase font-bold tracking-wider text-center transition-all duration-300 ${newAssetType === item.id ? 'text-red-700/60' : 'text-slate-400 opacity-0 group-hover:opacity-100'}`}>
+                          {item.desc}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
 
                 {/* Submitting form */}
@@ -4676,26 +4762,64 @@ Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex"
                   {importCockpit.mode === 'import' && (
                     <div className="space-y-4">
                       {importCockpit.isAiAnalyzing ? (
-                         <div className="p-4 bg-teal-50 border border-teal-200 text-teal-800 rounded-xl text-center text-xs font-bold animate-pulse">
-                           🤖 IA analisando integridade dos {importCockpit.data.length} registros no cockpit...
+                         <div className="p-4 bg-teal-50 border-2 border-teal-200 text-teal-800 rounded-2xl text-center text-sm font-black animate-pulse shadow-inner">
+                           🤖 SPCI Agent analisando integridade dos {importCockpit.data.length} registros no cockpit...
+                         </div>
+                      ) : importCockpit.isAiFixing ? (
+                         <div className="p-6 bg-indigo-50 border-2 border-indigo-200 text-indigo-800 rounded-2xl text-center text-sm font-black animate-pulse shadow-inner">
+                           ✨ SPCI Agent está aplicando correções matemáticas e normativas nos registros...
                          </div>
                       ) : (
-                        importCockpit.validationErrors && importCockpit.validationErrors.length > 0 ? (
-                          <div className="p-4 bg-red-50 border border-red-200 rounded-xl space-y-2">
-                             <h4 className="text-red-800 font-black text-xs uppercase flex items-center gap-1">🔴 Alertas da IA Encontrados</h4>
-                             <ul className="text-xs text-red-700 font-mono space-y-1">
-                               {importCockpit.validationErrors.map((e, idx) => (
-                                 <li key={idx}>Linha {e.rowIndex + 1}, Coluna {importCockpit.headers[e.colIndex] || 'Desconhecida'}: {e.message}</li>
-                               ))}
-                             </ul>
-                          </div>
-                        ) : (
-                           importCockpit.validationErrors && importCockpit.validationErrors.length === 0 && (
-                            <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-center text-xs font-bold flex items-center justify-center gap-2">
-                              <span>✅</span> Banco validado. Nenhum erro encontrado pela IA!
+                        <>
+                          {importCockpit.aiFixReport && (
+                            <div className="p-6 bg-gradient-to-r from-indigo-900 to-slate-900 border border-indigo-500 rounded-2xl space-y-3 shadow-xl relative overflow-hidden">
+                               <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl">✨</div>
+                               <h4 className="text-indigo-300 font-black text-sm uppercase flex items-center gap-2 mb-2 font-['Hanken_Grotesk'] tracking-widest">
+                                 <span>✨</span> Correção Automática Concluída
+                               </h4>
+                               <p className="text-white text-sm font-mono leading-relaxed relative z-10">{importCockpit.aiFixReport}</p>
                             </div>
-                          )
-                        )
+                          )}
+                          {importCockpit.validationErrors && importCockpit.validationErrors.length > 0 ? (
+                            <div className="p-6 bg-white border border-red-200 rounded-2xl shadow-xl flex flex-col md:flex-row gap-6 relative overflow-hidden">
+                              <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
+                              <div className="flex-1 space-y-3">
+                                <h4 className="text-red-600 font-black text-sm uppercase flex items-center gap-2 font-['Hanken_Grotesk'] tracking-widest">
+                                  <span>🔴</span> Alertas da IA Encontrados
+                                </h4>
+                                <ul className="text-xs text-slate-600 font-mono space-y-2 max-h-32 overflow-y-auto pr-2 custom-scrollbar">
+                                  {importCockpit.validationErrors.map((e, idx) => (
+                                    <li key={idx} className="flex gap-2 p-2 bg-red-50/50 rounded-lg">
+                                      <span className="font-bold text-red-700 min-w-[70px]">L {e.rowIndex + 1} | C {importCockpit.headers[e.colIndex] || '?'}</span>
+                                      <span>{e.message}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              </div>
+                              <div className="w-full md:w-64 shrink-0 flex flex-col justify-center border-t md:border-t-0 md:border-l border-slate-100 pt-4 md:pt-0 md:pl-6 bg-slate-50/50 p-4 rounded-xl">
+                                <p className="text-xs text-slate-500 mb-3 text-center md:text-left leading-relaxed">
+                                  A inteligência artificial SPCI pode corrigir e preencher os dados inconsistentes automaticamente.
+                                </p>
+                                <button 
+                                  onClick={handleCockpitFixAI}
+                                  className="w-full relative group overflow-hidden rounded-xl bg-slate-900 border border-slate-700 shadow-md transition-all hover:shadow-indigo-500/20 hover:border-indigo-500"
+                                >
+                                  <div className="absolute inset-0 w-0 bg-gradient-to-r from-indigo-600 to-fuchsia-600 transition-all duration-300 ease-out group-hover:w-full"></div>
+                                  <div className="relative px-4 py-3 flex items-center justify-center gap-2">
+                                    <span className="text-white text-xs font-bold uppercase tracking-wider">✨ Corrigir com IA SPCI</span>
+                                  </div>
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                             importCockpit.validationErrors && importCockpit.validationErrors.length === 0 && !importCockpit.aiFixReport && (
+                              <div className="p-6 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl text-center text-sm font-black flex flex-col items-center justify-center gap-2 shadow-sm font-['Hanken_Grotesk'] tracking-wide">
+                                <span className="text-3xl mb-1">✅</span>
+                                Banco validado. Nenhum erro encontrado pela IA!
+                              </div>
+                            )
+                          )}
+                        </>
                       )}
 
                       <div className="w-full overflow-x-auto border border-slate-300 rounded-xl bg-white shadow-sm">
