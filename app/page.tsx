@@ -908,19 +908,19 @@ Retorne estritamente um JSON array ("errors": [...]) com o formato: { "rowIndex"
     try {
       const prompt = `Você é uma IA de tratamento e correção de dados especializada em NBR 12962/13434. 
 Aqui estão os CABEÇALHOS da planilha: ${JSON.stringify(importCockpit.headers)}
-Aqui estão as LINHAS atuais que precisam de correção:
+Aqui estão as LINHAS atuais que precisam de correção (amostra com erro ou contexto total dependendo do tamanho):
 ${JSON.stringify(importCockpit.data)}
 
 Os seguintes ALERTAS FORAM ENCONTRADOS por você anteriormente:
 ${JSON.stringify(importCockpit.validationErrors)}
 
 Sua tarefa:
-Corrija automaticamente os erros apontados nos dados (LINHAS) com base nas normativas brasileiras.
+Corrija automaticamente os erros apontados nos dados (LINHAS) com base nas normativas brasileiras (ex: ajustando status para conformidade, preenchendo tipos vazios). 
 As colunas de "Primary Key" (ex: ID) e chaves Estrangeiras NÃO PODEM ser alteradas de forma a perder sua unicidade. O campo deve continuar coerente para o banco.
 
 Retorne estritamente um objeto JSON com 2 chaves:
-- "correctedData": A matriz completa (array de arrays) com as LINHAS corrigidas. IMPORTANTE: preserve o exato número de linhas e colunas. Em erros, as linhas originais devem apenas ser atualizadas.
-- "fixReport": Uma breve mensagem (string) resumindo de forma Premium as correções que foram aplicadas.
+- "correctedData": A matriz completa (array de arrays) com as LINHAS corrigidas. IMPORTANTE: ela deve ter exatamente o mesmo número de linhas da original (preserve as que não tinham erro também) e colunas na mesma ordem.
+- "fixReport": Uma breve mensagem (string) resumindo de forma Premium as correções estruturais que foram aplicadas na integridade do banco (ex: "Foram ajustados valores de pressão de X extintores e categorizados N status ausentes para adequação a NBR 12962.").
 
 Formato esperado:
 {
@@ -950,11 +950,13 @@ Formato esperado:
         ...prev,
         data: parsed.correctedData && Array.isArray(parsed.correctedData) && parsed.correctedData.length === prev.data.length ? parsed.correctedData : prev.data,
         aiFixReport: parsed.fixReport,
-        validationErrors: [],
+        validationErrors: [], // clear errors as we assume it's fixed, we can re-evaluate
         isAiFixing: false
       } : null);
       
       triggerSuccessNotification("Correções Aplicadas", parsed.fixReport || "A IA aplicou os ajustes solicitados.");
+      
+      // We could optionally re-trigger validation immediately, but for UX let's leave it to user
     } catch (error: any) {
       console.error(error);
       triggerSuccessNotification("Erro na Correção", error.message);
@@ -2931,7 +2933,7 @@ Formato esperado:
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {extintores.map((asset) => (
-                    <div key={asset.id} className={`bg-white/80 backdrop-blur-md rounded-2xl border ${asset.status === 'Vencido' ? 'border-red-400/60 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-subtle-pulse' : 'border-white/60'} shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-xl transition-all group`}>
+                    <div key={asset.id} className="bg-white rounded-2xl border border-[#CFD8DC] shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-lg transition-shadow group">
                       <div className={`absolute top-0 left-0 bottom-0 w-2 ${asset.status === 'Conforme' ? 'bg-[#2E7D32]' : asset.status === 'Vencido' ? 'bg-[#D32F2F]' : 'bg-[#F57C00]'}`}></div>
                       
                       <div className="p-5 pl-7">
@@ -2975,11 +2977,10 @@ Formato esperado:
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-100 bg-slate-50/50 p-3 flex justify-between gap-1 overflow-x-auto shrink-0">
-                        <button onClick={() => { setSelectedAssetForInspection(asset); }} className="flex-1 text-center bg-[#2E7D32] text-white text-[10px] font-bold uppercase py-2 tracking-wider rounded-lg hover:bg-green-700 shadow-sm transition-all focus:ring-2 focus:ring-[#2E7D32]/50">📋 INSPECIONAR</button>
-                        <button onClick={() => triggerSuccessNotification("Relatório PDF Gerado", "Relatório simplificado baixado e pronto para envio.")} className="bg-gradient-to-r from-red-600 to-red-700 text-white font-bold p-1 w-8 h-8 rounded-lg text-xs flex items-center justify-center hover:from-red-700 hover:to-red-800 transition-all shadow-sm shrink-0" title="Ação Rápida: Relatório PDF">📄</button>
-                        <button onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'extintor' }); }} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold p-1 w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all shrink-0" title="Ver Histórico NBR">📜</button>
-                        <button onClick={() => handleOpenAlertCenter(asset)} className="bg-slate-200 text-slate-700 p-1 w-8 h-8 rounded-lg hover:bg-slate-300 flex items-center justify-center transition-all shrink-0" title="Alerta Corporativo">🔔</button>
+                      <div className="border-t border-slate-100 bg-slate-50/50 p-3 flex justify-between gap-2 overflow-x-auto shrink-0">
+                        <button onClick={() => { setSelectedAssetForInspection(asset); }} className="flex-1 text-center bg-[#2E7D32] text-white text-xs font-bold uppercase py-2 tracking-wider rounded-lg hover:bg-green-700">📋 Inspecionar</button>
+                        <button onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'extintor' }); }} className="border border-slate-200 hover:bg-slate-100 text-slate-750 font-bold px-2 py-1 rounded-lg text-[10px] uppercase flex items-center gap-1 shrink-0" title="Ver Histórico NBR">📜 Histórico</button>
+                        <button onClick={() => handleOpenAlertCenter(asset)} className="bg-slate-100 text-slate-600 p-2 rounded-lg hover:bg-slate-200" title="Alerta Corporativo">🔔</button>
                         <button onClick={() => {
                           const conf = confirm(`Remover ativo ${asset.idAtivo}?`);
                           if (conf) {
@@ -3010,7 +3011,7 @@ Formato esperado:
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {hidrantes.map((asset) => (
-                    <div key={asset.id} className={`bg-white/80 backdrop-blur-md rounded-2xl border ${asset.status === 'Vencido' ? 'border-red-400/60 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-subtle-pulse' : 'border-white/60'} shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-xl transition-all group`}>
+                    <div key={asset.id} className="bg-white rounded-2xl border border-[#CFD8DC] shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-lg transition-shadow group">
                       <div className={`absolute top-0 left-0 bottom-0 w-2 ${asset.status === 'Conforme' ? 'bg-[#2E7D32]' : asset.status === 'Vencido' ? 'bg-[#D32F2F]' : 'bg-[#F57C00]'}`}></div>
                       
                       <div className="p-5 pl-7">
@@ -3053,11 +3054,10 @@ Formato esperado:
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-100 bg-slate-50/50 p-3 flex justify-between gap-1 overflow-x-auto shrink-0">
-                        <button onClick={() => { setSelectedAssetForInspection(asset); }} className="flex-1 text-center bg-[#2E7D32] text-white text-[10px] font-bold uppercase py-2 tracking-wider rounded-lg hover:bg-green-700 shadow-sm transition-all focus:ring-2 focus:ring-[#2E7D32]/50">📋 INSPECIONAR</button>
-                        <button onClick={() => triggerSuccessNotification("Relatório PDF Gerado", "Relatório simplificado baixado e pronto para envio.")} className="bg-gradient-to-r from-red-600 to-red-700 text-white font-bold p-1 w-8 h-8 rounded-lg text-xs flex items-center justify-center hover:from-red-700 hover:to-red-800 transition-all shadow-sm shrink-0" title="Ação Rápida: Relatório PDF">📄</button>
-                        <button onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'hidrante' }); }} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold p-1 w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all shrink-0" title="Ver Histórico NBR">📜</button>
-                        <button onClick={() => handleOpenAlertCenter(asset)} className="bg-slate-200 text-slate-700 p-1 w-8 h-8 rounded-lg hover:bg-slate-300 flex items-center justify-center transition-all shrink-0" title="Alerta Corporativo">🔔</button>
+                      <div className="border-t border-slate-100 bg-slate-50/50 p-3 flex justify-between gap-2 overflow-x-auto shrink-0">
+                        <button onClick={() => { setSelectedAssetForInspection(asset); }} className="flex-1 text-center bg-[#2E7D32] text-white text-xs font-bold uppercase py-2 tracking-wider rounded-lg hover:bg-green-700">📋 Inspecionar</button>
+                        <button onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'hidrante' }); }} className="border border-slate-200 hover:bg-slate-100 text-slate-750 font-bold px-2 py-1 rounded-lg text-[10px] uppercase flex items-center gap-1 shrink-0" title="Ver Histórico NBR">📜 Histórico</button>
+                        <button onClick={() => handleOpenAlertCenter(asset)} className="bg-slate-100 text-slate-600 p-2 rounded-lg hover:bg-slate-200" title="Alerta Corporativo">🔔</button>
                         <button onClick={() => {
                           const conf = confirm(`Remover hidrante ${asset.idAtivo}?`);
                           if (conf) {
@@ -3088,7 +3088,7 @@ Formato esperado:
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {sinalizacoes.map((asset) => (
-                    <div key={asset.id} className={`bg-white/80 backdrop-blur-md rounded-2xl border ${asset.status === 'Vencido' ? 'border-red-400/60 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-subtle-pulse' : 'border-white/60'} shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-xl transition-all group`}>
+                    <div key={asset.id} className="bg-white rounded-2xl border border-[#CFD8DC] shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-lg transition-shadow group">
                       <div className={`absolute top-0 left-0 bottom-0 w-2 ${asset.status === 'Conforme' ? 'bg-[#2E7D32]' : 'bg-[#D32F2F]'}`}></div>
                       
                       <div className="p-5 pl-7">
@@ -3108,11 +3108,10 @@ Formato esperado:
                         </div>
                       </div>
 
-                      <div className="border-t border-slate-100 bg-slate-50/50 p-3 flex justify-between gap-1 overflow-x-auto shrink-0 font-['Hanken_Grotesk'] font-bold uppercase">
-                        <button onClick={() => { setSelectedAssetForInspection(asset); }} className="flex-1 text-center bg-[#2E7D32] text-white text-[10px] py-2 tracking-wider rounded-lg hover:bg-green-700 shadow-sm transition-all focus:ring-2 focus:ring-[#2E7D32]/50">📋 INSPECIONAR</button>
-                        <button onClick={() => triggerSuccessNotification("Relatório PDF Gerado", "Relatório simplificado baixado e pronto para envio.")} className="bg-gradient-to-r from-red-600 to-red-700 text-white font-bold p-1 w-8 h-8 rounded-lg text-xs flex items-center justify-center hover:from-red-700 hover:to-red-800 transition-all shadow-sm shrink-0" title="Ação Rápida: Relatório PDF">📄</button>
-                        <button onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'sinalizacao' }); }} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold p-1 w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all shrink-0" title="Ver Histórico NBR">📜</button>
-                        <button onClick={() => handleOpenAlertCenter(asset)} className="bg-slate-200 text-slate-700 p-1 w-8 h-8 rounded-lg hover:bg-slate-300 flex items-center justify-center transition-all shrink-0" title="Alerta Corporativo">🔔</button>
+                      <div className="border-t border-slate-100 bg-slate-50/50 p-3 flex justify-between gap-2 overflow-x-auto shrink-0 font-['Hanken_Grotesk'] font-bold uppercase">
+                        <button onClick={() => { setSelectedAssetForInspection(asset); }} className="flex-1 text-center bg-[#2E7D32] text-white text-xs py-2 tracking-wider rounded-lg hover:bg-green-700">📋 Inspecionar</button>
+                        <button onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'sinalizacao' }); }} className="border border-slate-200 hover:bg-slate-100 text-slate-750 font-bold px-2 py-1 rounded-lg text-[10px] uppercase flex items-center gap-1 shrink-0" title="Ver Histórico NBR">📜 Histórico</button>
+                        <button onClick={() => handleOpenAlertCenter(asset)} className="bg-slate-100 text-slate-600 p-2 rounded-lg hover:bg-slate-200" title="Alerta Corporativo">🔔</button>
                         <button onClick={() => {
                           const conf = confirm(`Remover placa ${asset.idAtivo}?`);
                           if (conf) {
@@ -3161,7 +3160,7 @@ Formato esperado:
 
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {iluminacoes.map((asset) => (
-                    <div key={asset.id} className={`bg-white/80 backdrop-blur-md rounded-2xl border ${asset.status === 'Vencido' ? 'border-red-400/60 shadow-[0_0_15px_rgba(239,68,68,0.2)] animate-subtle-pulse' : 'border-white/60'} shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-xl transition-all group`}>
+                    <div key={asset.id} className="bg-white rounded-2xl border border-[#CFD8DC] shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-lg transition-shadow group">
                       <div className={`absolute top-0 left-0 bottom-0 w-2 ${asset.status === 'Operacional' ? 'bg-[#2E7D32]' : asset.status === 'Falha Carga' ? 'bg-[#D32F2F]' : 'bg-[#F57C00]'}`}></div>
                       
                       <div className="p-5 pl-7">
@@ -3187,10 +3186,9 @@ Formato esperado:
                       </div>
 
                       <div className="border-t border-slate-100 bg-slate-50/50 p-3 flex justify-between gap-1 overflow-x-auto shrink-0">
-                        <button onClick={() => { setSelectedAssetForInspection(asset); }} className="flex-grow text-center bg-[#2E7D32] text-white text-[10px] font-bold uppercase py-2 tracking-wider rounded-lg hover:bg-green-700 shadow-sm transition-all focus:ring-2 focus:ring-[#2E7D32]/50">📋 INSPECIONAR</button>
-                        <button onClick={() => triggerSuccessNotification("Relatório PDF Gerado", "Relatório simplificado baixado e pronto para envio.")} className="bg-gradient-to-r from-red-600 to-red-700 text-white font-bold p-1 w-8 h-8 rounded-lg text-xs flex items-center justify-center hover:from-red-700 hover:to-red-800 transition-all shadow-sm shrink-0" title="Ação Rápida: Relatório PDF">📄</button>
-                        <button onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'iluminacao' }); }} className="bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold p-1 w-8 h-8 rounded-lg text-xs flex items-center justify-center transition-all shrink-0" title="Ver Histórico NBR">📜</button>
-                        <button onClick={() => handleOpenAlertCenter(asset)} className="bg-slate-200 text-slate-700 p-1 w-8 h-8 rounded-lg hover:bg-slate-300 flex items-center justify-center transition-all shrink-0">🔔</button>
+                        <button onClick={() => { setSelectedAssetForInspection(asset); }} className="flex-grow text-center bg-[#2E7D32] text-white text-xs font-bold uppercase py-2 tracking-wider rounded-lg hover:bg-green-700">📋 Inspecionar</button>
+                        <button onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'iluminacao' }); }} className="border border-slate-200 hover:bg-slate-100 text-slate-750 font-bold px-2 py-1 rounded-lg text-[10px] uppercase flex items-center gap-1 shrink-0" title="Ver Histórico NBR">📜 Histórico</button>
+                        <button onClick={() => handleOpenAlertCenter(asset)} className="bg-slate-100 text-slate-600 p-2 rounded-lg hover:bg-slate-200">🔔</button>
                       </div>
                     </div>
                   ))}
@@ -4206,19 +4204,6 @@ Formato esperado:
                       ))}
                     </div>
                   </div>
-                  {/* QR Code Action Card */}
-                  <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100 flex items-center justify-between shadow-sm">
-                    <div>
-                      <h4 className="font-bold text-xs uppercase text-slate-800 tracking-wider">Onboarding Rápido</h4>
-                      <p className="text-[10px] text-slate-500 mt-0.5 max-w-[200px]">Gere um QR Code para acesso rápido de novos técnicos nesta base.</p>
-                    </div>
-                    <button 
-                      onClick={() => triggerSuccessNotification("QR Code Gerado", "Código de acesso da base pronto para ser escaneado e compartilhado.")}
-                      className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-4 py-3 text-[10px] font-bold uppercase transition-all shadow-md ml-2 shrink-0 flex items-center gap-1 hover:scale-105 active:scale-95"
-                    >
-                      <span className="text-sm">📱</span> Gerar QR Code
-                    </button>
-                  </div>
                 </div>
 
                 {/* Save and Cancel buttons in modal */}
@@ -4787,7 +4772,7 @@ Formato esperado:
                       ) : (
                         <>
                           {importCockpit.aiFixReport && (
-                            <div className="p-6 bg-gradient-to-r from-indigo-900 to-slate-900 border border-indigo-500 rounded-2xl space-y-3 shadow-xl relative overflow-hidden mb-4">
+                            <div className="p-6 bg-gradient-to-r from-indigo-900 to-slate-900 border border-indigo-500 rounded-2xl space-y-3 shadow-xl relative overflow-hidden">
                                <div className="absolute top-0 right-0 p-4 opacity-10 text-6xl">✨</div>
                                <h4 className="text-indigo-300 font-black text-sm uppercase flex items-center gap-2 mb-2 font-['Hanken_Grotesk'] tracking-widest">
                                  <span>✨</span> Correção Automática Concluída
