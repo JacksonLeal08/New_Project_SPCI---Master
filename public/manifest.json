@@ -1,0 +1,23 @@
+{
+  "name": "Ronda & Monitoramento SPCI",
+  "short_name": "SPCI",
+  "description": "Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#1b2a32",
+  "theme_color": "#af101a",
+  "orientation": "portrait-primary",
+  "scope": "/",
+  "icons": [
+    {
+      "src": "https://lh3.googleusercontent.com/aida-public/AB6AXuCHivi8AubFRd57LyIxQ_UCpU0e5EZHM7CU3G0i5bllB8kOWe0yEs4_cvHEjTQldIXZ0yPUWT5hwkkTpWHR2G9Gjx98y4rPOGqxaYrFeEXeUwSRzxkhtGzh5--E207GrM5-Au-1AN5-u4BCViGJdZ6KqlR0cESE55hAr_EvCNv256E2_diaNV_n9I15GyoyVCIta-61ZT2s2Jcj4UQRvunu_9CEmB-1098iMlvEIZSql0OlnOTbn8TqoaPpDM5fG7loYuhMU8HKyWY",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://lh3.googleusercontent.com/aida-public/AB6AXuA4DtHkK9-zzGzyBO9bnX-acjae5qNr2WAE0yVLY2LLy5jx8sNjKh1eaCAzuJbV1yeEXNFAnrP1tInIJgPrMSEU3IPuOCOKFX-DCjmH3x3jwkc8nuoe6sVcpTdHjjqyZfI9PViUbPbGKGxOXROAtM_z4xIOGRtZ-KO5OHRUA3uf2H1izCUhtdsUhj0tL0IMKSdGTYxgpMUD8M6zLZrYRecX9Uqkth3zFIHctgDHx4RaleqwHOT9WngusjL4yqACCptwEZ57QlnDxSM",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+}
