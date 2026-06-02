@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '../context/SpciContext';
 import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
-import { getUserProfile } from '@/lib/firebaseDb';
+import { getUserProfile } from '@/lib/supabaseDb';
 import { idb } from '@/lib/indexedDb';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {

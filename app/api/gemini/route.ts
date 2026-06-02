@@ -28,11 +28,12 @@ export async function POST(req: NextRequest) {
     
     const client = getAiClient();
     const response = await client.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-2.0-flash",
       contents: prompt,
-      config: systemInstruction ? {
-        systemInstruction: systemInstruction
-      } : undefined
+      config: {
+        systemInstruction: systemInstruction || undefined,
+        responseMimeType: "application/json"
+      }
     });
 
     return NextResponse.json({ text: response.text });

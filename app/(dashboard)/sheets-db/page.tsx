@@ -323,15 +323,29 @@ Formato esperado:
       });
 
       const resData = await res.json();
+      if (resData.error) {
+        triggerSuccessNotification("Erro na Correção", resData.error);
+        setImportCockpit(prev => prev ? { ...prev, isAiFixing: false } : null);
+        return;
+      }
+
       let parsed = { correctedData: importCockpit.data, fixReport: "Não foi possível realizar correções automatizadas completas." };
       
       try {
+        if (!resData.text) {
+          triggerSuccessNotification("Erro na Correção", "Resposta vazia retornada pela IA.");
+          setImportCockpit(prev => prev ? { ...prev, isAiFixing: false } : null);
+          return;
+        }
         let cleanText = resData.text.trim();
         if (cleanText.startsWith("```json")) cleanText = cleanText.substring(7);
         if (cleanText.endsWith("```")) cleanText = cleanText.substring(0, cleanText.length - 3);
         parsed = JSON.parse(cleanText.trim());
-      } catch (e) {
-        console.error("Falha ao analisar resposta de correção", resData.text);
+      } catch (e: any) {
+        console.error("Falha ao analisar resposta de correção:", e);
+        triggerSuccessNotification("Erro na Correção", `Falha ao analisar resposta de correção: ${e.message}`);
+        setImportCockpit(prev => prev ? { ...prev, isAiFixing: false } : null);
+        return;
       }
 
       setImportCockpit(prev => prev ? {
