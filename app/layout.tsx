@@ -36,6 +36,11 @@ export const metadata: Metadata = {
   description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI',
   manifest: '/manifest.json',
   robots: 'index, follow',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'default',
+    title: 'SPCI Inspeções',
+  },
   openGraph: {
     title: 'SISTEMA SPCI - Gestão de Ativos e Inspeção',
     description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI',
@@ -56,6 +61,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <SpciProvider>
           {children}
         </SpciProvider>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              if ('serviceWorker' in navigator) {
+                window.addEventListener('load', function() {
+                  navigator.serviceWorker.register('/sw.js').then(
+                    function(reg) { console.log('PWA Service Worker registrado no escopo:', reg.scope); },
+                    function(err) { console.error('Erro ao registrar PWA Service Worker:', err); }
+                  );
+                });
+              }
+            `
+          }}
+        />
       </body>
     </html>
   );

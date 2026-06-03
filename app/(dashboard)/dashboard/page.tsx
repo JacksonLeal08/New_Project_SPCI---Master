@@ -20,6 +20,25 @@ export default function DashboardPage() {
     setSelectedAssetForHistory
   } = useSpci();
 
+  // Estados para geração de QR Code dinâmico de vistorias em campo
+  const [selectedAssetId, setSelectedAssetId] = React.useState<string>('');
+  const [copiedLink, setCopiedLink] = React.useState<boolean>(false);
+
+  // Lista unificada de opções de ativos para seleção
+  const assetsSelectOptions = [
+    ...extintores.map(x => ({ id: x.idAtivo || x.id, label: `🧯 Extintor - ${x.idAtivo || x.id} (${x.model})` })),
+    ...hidrantes.map(x => ({ id: x.idAtivo || x.id, label: `💧 Hidrante - ${x.idAtivo || x.id}` })),
+    ...sinalizacoes.map(x => ({ id: x.idAtivo || x.id, label: `🚸 Sinalização - ${x.idAtivo || x.id}` })),
+    ...iluminacoes.map(x => ({ id: x.idAtivo || x.id, label: `💡 Iluminação - ${x.idAtivo || x.id}` })),
+  ];
+
+  const getQrCodeUrl = (assetId: string) => {
+    if (typeof window === 'undefined') return '';
+    const link = `${window.location.origin}/inspecao/${assetId}`;
+    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&color=dc2626&data=${encodeURIComponent(link)}`;
+  };
+
+
   // --- COMPLIANCE KPI CALCULATORS ---
   const totalAssets = extintores.length + hidrantes.length + sinalizacoes.length + iluminacoes.length;
   const totalVencidos = 
@@ -298,18 +317,82 @@ export default function DashboardPage() {
 
         {/* Banner de Ronda Offline */}
         <div className="lg:col-span-4 space-y-6">
-          <div className="bg-gradient-to-tr from-[#253238] to-[#121c21] text-white p-6 rounded-2xl border border-[#CFD8DC]/20 shadow-xl relative overflow-hidden flex flex-col justify-between h-full">
+          <div className="bg-gradient-to-tr from-[#253238] to-[#121c21] text-white p-6 rounded-2xl border border-[#CFD8DC]/20 shadow-xl relative overflow-hidden flex flex-col justify-between h-full space-y-4">
             <div>
               <div className="flex gap-2 mb-2 items-center">
                 <span className="bg-[#af101a] text-white text-[9px] font-bold px-2 py-0.5 rounded uppercase">Extensão Campo</span>
                 <span className="text-xs">📱 Link Rápido</span>
               </div>
               <h3 className="font-['Hanken_Grotesk'] font-bold text-lg text-white">QR Ronda de Campo</h3>
-              <p className="text-xs text-slate-300 mt-2">Aponte a câmera para preencher vistorias com fotos offline sem precisar de login.</p>
+              <p className="text-[11px] text-slate-350 mt-1">Selecione um ativo para gerar o QR Code de vistoria e copiar o link de envio rápido.</p>
             </div>
-            <div className="flex justify-center bg-white p-4 rounded-xl mt-4">
-              <span className="text-6xl" role="img" aria-label="QR Code simulado">📱</span>
+
+            <div className="space-y-1.5">
+              <label className="text-[9px] text-slate-400 uppercase tracking-wider block font-mono">Despachar Ativo para Campo:</label>
+              <select
+                value={selectedAssetId}
+                onChange={(e) => {
+                  setSelectedAssetId(e.target.value);
+                  setCopiedLink(false);
+                }}
+                className="w-full bg-[#1c262c] text-white text-xs px-3 py-2.5 border border-slate-700 rounded-lg focus:outline-none focus:border-red-500 font-mono"
+              >
+                <option value="">-- Selecione o Ativo --</option>
+                {assetsSelectOptions.map((opt) => (
+                  <option key={opt.id} value={opt.id}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
             </div>
+
+            <div className="flex flex-col items-center justify-center bg-white p-4 rounded-xl min-h-[170px] relative border border-slate-200 shadow-inner">
+              {selectedAssetId ? (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={getQrCodeUrl(selectedAssetId)}
+                    alt="QR Code de Vistoria"
+                    width={130}
+                    height={130}
+                    className="object-contain animate-fade-in"
+                  />
+                  <span className="text-[8px] text-slate-400 font-mono mt-2 uppercase tracking-wider font-bold">Aponte o celular do Técnico</span>
+                </>
+              ) : (
+                <div className="text-center p-4">
+                  <span className="text-4xl block mb-2 animate-pulse">📱</span>
+                  <span className="text-[9px] text-slate-400 font-mono uppercase tracking-wider block">Aguardando Seleção de Ativo</span>
+                </div>
+              )}
+            </div>
+
+            {selectedAssetId && (
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => {
+                    const link = `${window.location.origin}/inspecao/${selectedAssetId}`;
+                    navigator.clipboard.writeText(link);
+                    setCopiedLink(true);
+                    setTimeout(() => setCopiedLink(false), 2000);
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all font-mono cursor-pointer border-none active:scale-[0.98] ${
+                    copiedLink ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'
+                  }`}
+                >
+                  {copiedLink ? 'Copiado! ✓' : 'Copiar Link'}
+                </button>
+                <button
+                  onClick={() => {
+                    router.push(`/inspecao/${selectedAssetId}`);
+                  }}
+                  className="py-2 px-3 bg-[#af101a] hover:bg-red-700 text-white text-[10px] font-bold uppercase tracking-wider font-mono cursor-pointer border-none rounded-lg active:scale-[0.98]"
+                  title="Abrir Inspeção"
+                >
+                  Abrir ↗
+                </button>
+              </div>
+            )}
           </div>
         </div>
       </div>

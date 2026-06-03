@@ -39,7 +39,7 @@ export const Sidebar = ({ onProfileClick }: SidebarProps) => {
     { id: 'sinalizacao', label: 'Sinalização NBR', icon: '⚠️', path: '/sinalizacao' },
     { id: 'iluminacao', label: 'Iluminação Emergência', icon: '💡', path: '/iluminacao' },
     { id: 'bombas', label: 'Casa de Bombas', icon: '⚙️', path: '/bombas' },
-    { id: 'ronda', label: 'Extensão Ronda Campo', icon: '📱', path: '/ronda' },
+    { id: 'ronda', label: 'Despacho & Ronda Campo', icon: '📱', path: '/ronda' },
     { id: 'alerts', label: 'Disparo de Alertas', icon: '🔔', path: '/alerts' },
     { id: 'sheets-db', label: 'Google Sheets DB', icon: '🟢', path: '/sheets-db' },
     ...(userProfile?.role === 'admin' ? [{ id: 'usuarios', label: 'Gestão de Usuários', icon: '👥', path: '/usuarios' }] : [])

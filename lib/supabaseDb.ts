@@ -1,4 +1,6 @@
 import { supabase } from './supabaseClient';
+import { InspecaoRealizada } from './types';
+
 
 export interface UserProfile {
   uid: string;
@@ -97,6 +99,37 @@ const deserializeAsset = (row: any) => {
     geolocation,
     category: row.category,
     ...row.details
+  };
+};
+
+const deserializeExtintor = (row: any) => {
+  const geolocation = (row.latitude !== null && row.longitude !== null) ? {
+    lat: Number(row.latitude),
+    lng: Number(row.longitude)
+  } : null;
+
+  return {
+    id: row.id,
+    idAtivo: row.id_ativo,
+    category: row.category,
+    location: row.location,
+    subLocation: row.sub_location || '',
+    status: row.status,
+    geolocation,
+    // Mapeamento específico de extintores
+    fabricante: row.fabricante || '',
+    model: row.modelo || '',
+    peso: row.peso_capacidade || '',
+    capacidadeExtintora: row.capacidade_extintora || '',
+    seloInmetro: row.selo_inmetro || '',
+    chassi: row.chassi || '',
+    anoFabricacao: row.ano_fabricacao || new Date().getFullYear(),
+    ultimoTesteHidro: row.ultimo_teste_hidro || new Date().getFullYear(),
+    lastRecarga: row.data_ultima_recarga || '',
+    validadeRecargaMeses: row.validade_recarga_meses || 12,
+    validadeRecarga: row.validade_recarga_data || '',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at
   };
 };
 
@@ -272,6 +305,16 @@ export async function deleteUserProfileByAdmin(uid: string): Promise<void> {
 export async function getAssetsList(collectionName: string): Promise<any[]> {
   try {
     const category = getNormalizedCategory(collectionName);
+    
+    if (category === 'extintores') {
+      const { data, error } = await supabase
+        .from('view_extintores')
+        .select('*');
+
+      if (error) throw error;
+      return (data || []).map(deserializeExtintor);
+    }
+
     const { data, error } = await supabase
       .from('assets')
       .select('*')
@@ -288,6 +331,51 @@ export async function getAssetsList(collectionName: string): Promise<any[]> {
 export async function saveAssetToDb(collectionName: string, id: string, asset: any): Promise<void> {
   try {
     const category = getNormalizedCategory(collectionName);
+
+    if (category === 'extintores') {
+      // 1. Salva na tabela assets
+      const assetPayload = {
+        id: id,
+        id_ativo: asset.idAtivo || id,
+        category: 'extintores',
+        location: asset.location || '',
+        sub_location: asset.subLocation || '',
+        status: asset.status || 'Conforme',
+        latitude: asset.geolocation?.lat || null,
+        longitude: asset.geolocation?.lng || null,
+        updated_at: new Date().toISOString()
+      };
+
+      const { error: assetErr } = await supabase
+        .from('assets')
+        .upsert(assetPayload);
+
+      if (assetErr) throw assetErr;
+
+      // 2. Salva na tabela cadastro_extintores
+      const extintorPayload = {
+        asset_id: id,
+        fabricante: asset.fabricante || 'N/A',
+        modelo: asset.model || asset.modelo || '',
+        peso_capacidade: asset.peso || asset.peso_capacidade || '',
+        capacidade_extintora: asset.capacidadeExtintora || 'N/A',
+        selo_inmetro: asset.seloInmetro || '',
+        chassi: asset.chassi || '',
+        ano_fabricacao: parseInt(asset.anoFabricacao || asset.ano_fabricacao || new Date().getFullYear().toString(), 10),
+        ultimo_teste_hidro: parseInt(asset.ultimoTesteHidro || asset.ultimo_teste_hidro || new Date().getFullYear().toString(), 10),
+        data_ultima_recarga: asset.lastRecarga || asset.data_ultima_recarga || new Date().toISOString().split('T')[0],
+        validade_recarga_meses: parseInt(asset.validadeRecargaMeses || '12', 10),
+        validade_recarga_data: asset.validadeRecarga || asset.validade_recarga_data || new Date().toISOString().split('T')[0]
+      };
+
+      const { error: extErr } = await supabase
+        .from('cadastro_extintores')
+        .upsert(extintorPayload);
+
+      if (extErr) throw extErr;
+      return;
+    }
+
     const serialized = serializeAsset(category, id, asset);
     
     const { error } = await supabase
@@ -299,3 +387,94 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
     console.warn(`Could not save asset to ${collectionName} in Supabase.`, error);
   }
 }
+
+/**
+ * Busca os dados de um Ativo específico pelo ID (UUID) ou Patrimônio (id_ativo) no Supabase.
+ */
+export async function fetchAtivoParaInspecao(idOrPatrimonio: string): Promise<any | null> {
+  try {
+    const idUpper = idOrPatrimonio.toUpperCase().trim();
+    const isExtintor = idUpper.startsWith('EXT-');
+
+    if (isExtintor) {
+      const query = supabase.from('view_extintores').select('*');
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idUpper);
+      if (isUuid) {
+        query.eq('id', idUpper);
+      } else {
+        query.eq('id_ativo', idUpper);
+      }
+      const { data, error } = await query.maybeSingle();
+      if (error) throw error;
+      if (data) return deserializeExtintor(data);
+    }
+
+    // Fallback/Outras categorias
+    const query = supabase.from('assets').select('*');
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idUpper);
+    if (isUuid) {
+      query.eq('id', idUpper);
+    } else {
+      query.eq('id_ativo', idUpper);
+    }
+
+    const { data, error } = await query.maybeSingle();
+    if (error) throw error;
+    if (!data) return null;
+
+    if (data.category === 'extintores') {
+      const { data: extData, error: extErr } = await supabase
+        .from('view_extintores')
+        .select('*')
+        .eq('id', data.id)
+        .maybeSingle();
+      if (!extErr && extData) return deserializeExtintor(extData);
+    }
+
+    return deserializeAsset(data);
+  } catch (error: any) {
+    console.error('Erro em fetchAtivoParaInspecao:', error);
+    return null;
+  }
+}
+
+/**
+ * Registra o laudo técnico da vistoria na tabela inspecoes_realizadas e atualiza o status do ativo no Supabase.
+ */
+export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada): Promise<{ success: boolean; error?: string }> {
+  try {
+    const payload = {
+      asset_id: inspecao.asset_id,
+      asset_patrimonio: inspecao.asset_patrimonio,
+      status: inspecao.status,
+      observacoes: inspecao.observacoes || null,
+      tecnico_nome: inspecao.tecnico_nome,
+      data_inspecao: inspecao.data_inspecao || new Date().toISOString(),
+      details: inspecao.details,
+    };
+
+    const { error } = await supabase
+      .from('inspecoes_realizadas')
+      .insert([payload]);
+
+    if (error) throw error;
+
+    const { error: updateErr } = await supabase
+      .from('assets')
+      .update({
+        status: inspecao.status,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', inspecao.asset_id);
+
+    if (updateErr) {
+      console.warn('Aviso: laudo de vistoria salvo, mas erro ao atualizar status principal do ativo:', updateErr);
+    }
+
+    return { success: true };
+  } catch (error: any) {
+    console.error('Erro ao salvar laudo de inspeção no Supabase:', error);
+    return { success: false, error: error.message || 'Erro de conexão com o banco' };
+  }
+}
+

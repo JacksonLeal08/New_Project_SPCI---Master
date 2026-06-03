@@ -25,6 +25,8 @@ import {
   extractSpreadsheetId 
 } from '@/lib/sheetsDatabase';
 import { idb } from '@/lib/indexedDb';
+import { SyncQueue } from '@/lib/syncQueue';
+
 
 // --- INITIAL SEED DATA ---
 const INITIAL_EXTINTORES = [
@@ -247,20 +249,42 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  // Sync to database lists
+  // Sync to database lists with offline resilience
   const saveAssetsList = useCallback(async (moduleKey: string, data: any[]) => {
     try {
+      // Salva no IndexedDB local de forma imediata (garante visual rápido)
       await idb.setAll(moduleKey, data);
       
-      if (moduleKey === 'extintores') {
-        await Promise.all(data.map(item => saveAssetToDb('extintores', item.id.toString(), item)));
-      } else if (moduleKey === 'hidrantes') {
-        await Promise.all(data.map(item => saveAssetToDb('hidrantes', item.id.toString(), item)));
+      const isOnline = typeof window !== 'undefined' && navigator.onLine;
+      
+      if (isOnline) {
+        addConsoleLog(`[Offline-Sync] Conexão ativa. Sincronizando lote de [${moduleKey}] no Supabase...`);
+        
+        // Tenta sincronizar todos os itens
+        await Promise.all(
+          data.map(async (item) => {
+            try {
+              await saveAssetToDb(moduleKey, item.id.toString(), item);
+            } catch (err) {
+              // Se falhar o envio de algum ativo individual, enfileira
+              console.warn(`Erro na sincronização de item ${item.id}. Enfileirando.`, err);
+              await SyncQueue.enqueue(moduleKey, item.id.toString(), item);
+            }
+          })
+        );
+      } else {
+        addConsoleLog(`[Offline-Sync] Dispositivo Offline. Enfileirando lote de [${moduleKey}] para sincronismo posterior.`, 'INFO');
+        // Enfileira todos os itens na SyncQueue
+        for (const item of data) {
+          await SyncQueue.enqueue(moduleKey, item.id.toString(), item);
+        }
       }
-    } catch (e) {
-      console.warn(`Real DB Sync error on save assets list for ${moduleKey}:`, e);
+    } catch (e: any) {
+      console.warn(`Erro geral de sincronismo local para ${moduleKey}:`, e);
+      addConsoleLog(`Erro ao salvar dados locais de ${moduleKey}: ${e.message || e}`, 'ERRO');
     }
-  }, []);
+  }, [addConsoleLog]);
+
 
   // --- INITIAL DATABASE LOAD AND STORAGE MIGRATION ---
   useEffect(() => {
@@ -392,7 +416,35 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [addConsoleLog]);
 
+
+  // --- PROCESS OFFLINE SYNC QUEUE ON STARTUP / CONNECTION ---
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const processOfflineQueue = async () => {
+      // Sincroniza apenas se estiver autenticado e online (para respeitar RLS)
+      if (currentUser && navigator.onLine) {
+        addConsoleLog('[Offline-Sync] Conexão e autenticação ativas. Verificando fila de sincronia offline pendente...');
+        await SyncQueue.processQueue((task) => {
+          addConsoleLog(`[Offline-Sync] Sucesso ao sincronizar ativo ${task.assetId} (${task.moduleKey}) da fila pendente.`, 'SUCESSO');
+        });
+      }
+    };
+
+    processOfflineQueue();
+
+    const handleSyncOnReconnect = () => {
+      processOfflineQueue();
+    };
+
+    window.addEventListener('online', handleSyncOnReconnect);
+    return () => {
+      window.removeEventListener('online', handleSyncOnReconnect);
+    };
+  }, [currentUser, addConsoleLog]);
+
   // --- ADMIN FUNCTIONS ---
+
   const fetchUsers = useCallback(async () => {
     if (userProfile?.role === 'admin') {
       setLoadingUsersList(true);
