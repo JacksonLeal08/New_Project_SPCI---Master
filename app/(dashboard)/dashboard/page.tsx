@@ -15,7 +15,6 @@ export default function DashboardPage() {
     iluminacoes,
     bombas,
     complianceLogs,
-    sheetsConfig,
     setScanModal,
     setSelectedAssetForHistory
   } = useSpci();
@@ -98,7 +97,7 @@ export default function DashboardPage() {
     };
   });
 
-  const isAnyDbConnected = Object.values(sheetsConfig || {}).some((conf: any) => conf?.id && conf?.syncState !== 'error');
+
 
   const handleExportInspectionCSV = () => {
     if (complianceLogs.length === 0) {
@@ -152,35 +151,17 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Indicador de status de Conexão com Google Sheets */}
-      {!isAnyDbConnected ? (
-        <div className="bg-gradient-to-r from-orange-50 to-amber-50 border border-orange-200 rounded-2xl p-5 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
-          <div className="flex items-start gap-4">
-            <span className="text-3xl bg-white p-2 rounded-xl shadow-sm border border-orange-100" aria-hidden="true">⚠️</span>
-            <div>
-              <h4 className="font-['Hanken_Grotesk'] font-black text-orange-950 text-lg uppercase tracking-tight">Modo Offline Isolado</h4>
-              <p className="text-orange-800 text-xs mt-1">Conecte uma Planilha no menu &quot;Planilhas&quot; para ativar relatórios avançados, backups em nuvem e a IA Generativa do SPCI.</p>
-            </div>
-          </div>
-          <button 
-            onClick={() => router.push('/sheets-db')}
-            className="shrink-0 px-6 py-2.5 bg-orange-600 hover:bg-orange-700 text-white font-bold uppercase text-[10px] tracking-widest rounded-xl transition-colors shadow-md cursor-pointer border-none"
-          >
-            Conectar Banco 🔗
-          </button>
+      {/* Indicador de status de Conexão com o Supabase */}
+      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <span className="flex h-3 w-3 relative" aria-hidden="true">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
+          </span>
+          <span className="font-['Hanken_Grotesk'] font-black text-emerald-900 uppercase tracking-widest text-xs">Banco de Dados Supabase Conectado</span>
         </div>
-      ) : (
-        <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <span className="flex h-3 w-3 relative" aria-hidden="true">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-            </span>
-            <span className="font-['Hanken_Grotesk'] font-black text-emerald-900 uppercase tracking-widest text-xs">Sistema Online & Sincronizado</span>
-          </div>
-          <span className="text-emerald-700 text-[10px] font-mono font-bold bg-white px-3 py-1 rounded border border-emerald-100">Conexão Premium Ativa</span>
-        </div>
-      )}
+        <span className="text-emerald-700 text-[10px] font-mono font-bold bg-white px-3 py-1 rounded border border-emerald-100">Sessão Segura & Ativa</span>
+      </div>
 
       {/* Grid de KPIs */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

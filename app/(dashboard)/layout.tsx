@@ -195,35 +195,35 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   // --- VIEW DE ACESSO PENDENTE / SUSPENSO ---
   if (currentUser && userProfile && userProfile.status !== 'active') {
     return (
-      <div className="bg-slate-950 min-h-screen text-slate-100 flex flex-col items-center justify-center p-6 text-center select-none font-mono relative overflow-hidden">
-        <div className="max-w-md bg-slate-900 border border-slate-800 p-8 shadow-2xl space-y-6 relative rounded-none">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-red-600"></div>
+      <div className="bg-[#f4f6f8] min-h-screen text-slate-850 flex flex-col items-center justify-center p-6 text-center select-none font-mono relative overflow-hidden">
+        <div className="max-w-md bg-white border border-slate-200 p-8 shadow-2xl space-y-6 relative rounded-2xl">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-red-600 rounded-t-2xl"></div>
           
-          <div className="w-16 h-16 bg-red-950/40 text-red-500 border border-red-900/40 rounded-none flex items-center justify-center text-3xl mx-auto" aria-hidden="true">
+          <div className="w-16 h-16 bg-red-50 text-red-600 border border-red-100 rounded-xl flex items-center justify-center text-3xl mx-auto shadow-inner" aria-hidden="true">
             {userProfile.status === 'pending' ? '⏳' : '🚫'}
           </div>
 
           <div className="space-y-4">
-            <h2 className="text-lg font-bold tracking-wider text-red-400 uppercase">
+            <h2 className="text-lg font-bold tracking-wider text-red-600 uppercase">
               {userProfile.status === 'pending' ? 'Aguardando Liberação' : 'Acesso Suspenso'}
             </h2>
-            <p className="text-xs text-slate-400 leading-relaxed font-sans">
+            <p className="text-xs text-slate-600 leading-relaxed font-sans">
               {userProfile.status === 'pending' 
                 ? `Olá, ${userProfile.name}! Seu cadastro foi mapeado no SPCI, mas requer liberação manual de um administrador para operar. Contate o administrador jackson602@gmail.com para ativar seu login.`
                 : `Olá, ${userProfile.name}! Seu perfil de acesso foi suspenso temporariamente pela administração do SPCI.`}
             </p>
           </div>
 
-          <div className="p-4 bg-slate-950 border border-slate-850 text-left space-y-1">
-            <span className="text-[9px] text-slate-500 font-extrabold uppercase leading-none">Credencial Logada</span>
-            <p className="text-xs font-bold mt-1 text-slate-300 truncate">{userProfile.email}</p>
-            <p className="text-[9px] text-red-400 font-bold mt-1 uppercase">Status: {userProfile.status}</p>
+          <div className="p-4 bg-slate-50 border border-slate-150 text-left space-y-1 rounded-xl">
+            <span className="text-[9px] text-slate-500 font-extrabold uppercase leading-none block">Credencial Logada</span>
+            <p className="text-xs font-bold mt-1 text-slate-800 truncate">{userProfile.email}</p>
+            <p className="text-[9px] text-red-600 font-bold mt-1.5 uppercase">Status: {userProfile.status}</p>
           </div>
 
           <div className="flex gap-3">
             <button 
               onClick={handleGoogleLogout}
-              className="flex-1 py-2.5 text-[10px] uppercase font-bold text-slate-300 border border-slate-700 hover:bg-slate-800 transition-all cursor-pointer rounded-none"
+              className="flex-grow py-2.5 text-[10px] uppercase font-bold text-slate-600 border border-slate-200 hover:bg-slate-50 bg-white transition-all cursor-pointer rounded-xl"
             >
               Sair da Conta ⚪
             </button>
@@ -234,7 +234,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   window.location.reload();
                 }
               }}
-              className="flex-1 py-2.5 text-[10px] uppercase font-bold text-slate-950 bg-red-600 hover:bg-red-500 shadow-md transition-all cursor-pointer rounded-none"
+              className="flex-grow py-2.5 text-[10px] uppercase font-bold text-white bg-red-600 hover:bg-red-500 shadow-md transition-all cursor-pointer rounded-xl border-none"
             >
               🔄 Verificar Status
             </button>
@@ -245,7 +245,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex bg-slate-950 min-h-screen text-slate-200 relative overflow-hidden font-mono">
+    <div className="flex bg-[#f4f6f8] min-h-screen text-slate-800 relative overflow-hidden font-mono">
       
       {/* Menu lateral fixo com rotas Next.js */}
       <Sidebar onProfileClick={() => { if (currentUser) { setShowProfileModal(true); } }} />
@@ -260,7 +260,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
 
         {/* Área onde as subpáginas renderizam */}
-        <main className="flex-grow overflow-y-auto p-4 md:p-6 bg-slate-900/30 relative">
+        <main className="flex-grow overflow-y-auto p-4 md:p-6 bg-[#f8fafc] relative">
           <div className="max-w-6xl mx-auto pb-20">
             {children}
           </div>
@@ -319,73 +319,73 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               initial={{ opacity: 0, scale: 0.98, y: 15 }} 
               animate={{ opacity: 1, scale: 1, y: 0 }} 
               exit={{ opacity: 0, scale: 0.98, y: 15 }} 
-              className="bg-slate-900 border border-slate-800 p-6 shadow-2xl max-w-md w-full relative overflow-hidden space-y-5 rounded-none"
+              className="bg-white border border-slate-200 p-6 shadow-2xl max-w-md w-full relative overflow-hidden space-y-5 rounded-2xl text-slate-800"
               id="my-profile-logo-modal"
             >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-red-600" aria-hidden="true"></div>
+              <div className="absolute top-0 left-0 right-0 h-[3px] bg-red-600 rounded-t-2xl" aria-hidden="true"></div>
 
               <div className="flex justify-between items-start pt-1">
                 <div>
-                  <h3 className="font-bold text-sm text-slate-100 uppercase tracking-wider flex items-center gap-1.5">
+                  <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <span>⚙️</span> Configurações de Perfil
                   </h3>
-                  <p className="text-slate-400 text-[10px] mt-0.5 font-sans">Identificação de vistorias e logotipo SPCI</p>
+                  <p className="text-slate-500 text-[10px] mt-0.5 font-sans">Identificação de vistorias e logotipo SPCI</p>
                 </div>
                 <button 
                   onClick={() => setShowProfileModal(false)} 
-                  className="text-slate-400 hover:text-slate-100 border border-slate-800 hover:border-slate-700 bg-slate-850 px-2 py-0.5 text-xs font-bold cursor-pointer rounded-none"
+                  className="text-slate-500 hover:text-slate-800 border border-slate-200 hover:border-slate-350 bg-slate-50 px-2 py-0.5 text-xs font-bold cursor-pointer rounded-lg"
                 >
                   ✕
                 </button>
               </div>
 
               <div className="space-y-4">
-                <div className="bg-slate-950 border border-slate-850 p-3 flex items-center gap-3">
+                <div className="bg-slate-50 border border-slate-150 p-3 flex items-center gap-3 rounded-xl shadow-xs">
                   {userProfile?.logoUrl ? (
                     <img 
                       src={userProfile.logoUrl} 
                       alt={`Logo corporativo de ${userProfile.name}`} 
-                      className="w-10 h-10 object-contain border border-slate-800 bg-white p-0.5 rounded-none"
+                      className="w-10 h-10 object-contain border border-slate-200 bg-white p-0.5 rounded-lg"
                       referrerPolicy="no-referrer"
                     />
                   ) : (
-                    <div className="w-10 h-10 bg-slate-800 text-slate-400 font-bold flex items-center justify-center text-xs uppercase rounded-none" aria-hidden="true">
+                    <div className="w-10 h-10 bg-slate-200 text-slate-500 font-bold flex items-center justify-center text-xs uppercase rounded-lg" aria-hidden="true">
                       {userProfile?.name?.charAt(0) || 'U'}
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <span className="text-[9px] text-slate-500 font-extrabold uppercase leading-none block">Credencial Logada</span>
-                    <p className="text-xs font-bold text-slate-350 truncate mt-1">{currentUser.email}</p>
-                    <p className="text-[9px] text-slate-400 mt-0.5">
+                    <span className="text-[9px] text-slate-400 font-extrabold uppercase leading-none block">Credencial Logada</span>
+                    <p className="text-xs font-bold text-slate-700 truncate mt-1">{currentUser.email}</p>
+                    <p className="text-[9px] text-slate-500 mt-0.5">
                       Acesso: {userProfile?.role === 'admin' ? '🛡️ Administrador' : '👷 Técnico de Campo'}
                     </p>
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-400">Nome / Razão Social</label>
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Nome / Razão Social</label>
                   <input 
                     type="text" 
                     value={profileNameInput}
                     onChange={(e) => setProfileNameInput(e.target.value)}
                     placeholder="Nome do Técnico"
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-slate-750 rounded-none p-3 text-xs text-slate-300 focus:outline-none font-bold"
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold shadow-xs"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-400">Link URL do Logotipo (.png / .jpg)</label>
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Link URL do Logotipo (.png / .jpg)</label>
                   <input 
                     type="text" 
                     value={profileLogoUrlInput}
                     onChange={(e) => setProfileLogoUrlInput(e.target.value)}
                     placeholder="URL do logotipo da empresa"
-                    className="w-full bg-slate-950 border border-slate-850 focus:border-slate-750 rounded-none p-3 text-xs text-slate-300 focus:outline-none"
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none shadow-xs"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <span className="block text-[9px] font-bold uppercase text-slate-400">Logos Recomendadas</span>
+                  <span className="block text-[9px] font-bold uppercase text-slate-500">Logos Recomendadas</span>
                   <div className="grid grid-cols-3 gap-2">
                     {[
                       { name: '🔥 SPCI Corp', url: 'https://images.unsplash.com/photo-1516216621161-8a5021e11e2f?w=100&auto=format&fit=crop&q=80' },
@@ -396,37 +396,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                         key={preset.name}
                         type="button"
                         onClick={() => setProfileLogoUrlInput(preset.url)}
-                        className={`border rounded-none p-1.5 text-center bg-slate-950/40 hover:bg-slate-900 flex flex-col items-center gap-1 cursor-pointer transition-all ${
-                          profileLogoUrlInput === preset.url ? 'border-red-600' : 'border-slate-800'
+                        className={`border rounded-xl p-1.5 text-center bg-slate-50 hover:bg-slate-100 flex flex-col items-center gap-1 cursor-pointer transition-all ${
+                          profileLogoUrlInput === preset.url ? 'border-red-600' : 'border-slate-200'
                         }`}
                       >
                         <img 
                           src={preset.url} 
                           alt={preset.name} 
-                          className="w-6 h-6 object-cover bg-white shadow-xs rounded-none" 
+                          className="w-6 h-6 object-cover bg-white shadow-xs rounded-lg" 
                           referrerPolicy="no-referrer"
                         />
-                        <span className="text-[8px] font-bold text-slate-400 leading-none truncate max-w-full block">{preset.name}</span>
+                        <span className="text-[8px] font-bold text-slate-500 leading-none truncate max-w-full block">{preset.name}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               </div>
 
-              <div className="flex gap-2.5 pt-2 border-t border-slate-800">
+              <div className="flex gap-2.5 pt-2 border-t border-slate-150">
                 <button 
                   onClick={() => {
                     setShowProfileModal(false);
                     setProfileNameInput(userProfile?.name || '');
                     setProfileLogoUrlInput(userProfile?.logoUrl || '');
                   }} 
-                  className="flex-1 py-2 text-[10px] uppercase font-bold text-slate-400 border border-slate-800 hover:border-slate-700 bg-slate-850 cursor-pointer rounded-none"
+                  className="flex-1 py-2 text-[10px] uppercase font-bold text-slate-500 border border-slate-200 hover:bg-slate-50 bg-white cursor-pointer rounded-xl"
                 >
                   CANCELAR
                 </button>
                 <button 
                   onClick={() => handleUpdateLogoAndProfile(profileLogoUrlInput, profileNameInput)}
-                  className="flex-1 py-2 text-[10px] uppercase font-bold text-slate-950 bg-red-600 hover:bg-red-500 shadow-md transition-all cursor-pointer rounded-none"
+                  className="flex-1 py-2 text-[10px] uppercase font-bold text-white bg-red-600 hover:bg-red-500 shadow-md transition-all cursor-pointer rounded-xl border-none"
                 >
                   SALVAR LOGO
                 </button>
@@ -444,29 +444,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               initial={{ opacity: 0, y: 15 }} 
               animate={{ opacity: 1, y: 0 }} 
               exit={{ opacity: 0, y: 15 }} 
-              className="bg-slate-900 border border-slate-800 p-6 shadow-2xl max-w-lg w-full relative overflow-hidden rounded-none"
+              className="bg-white border border-slate-200 p-6 shadow-2xl max-w-lg w-full relative overflow-hidden rounded-2xl text-slate-800"
             >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-red-600" aria-hidden="true"></div>
+              <div className="absolute top-0 left-0 right-0 h-[3px] bg-red-600 rounded-t-2xl" aria-hidden="true"></div>
               
               <div className="flex gap-3 items-start mb-4">
                 <span className="text-2xl" aria-hidden="true">🚨</span>
                 <div>
-                  <h3 className="font-bold text-sm text-slate-100 uppercase tracking-wider">{premiumAlert.title}</h3>
-                  <p className="text-[10px] text-slate-400 mt-1 font-sans leading-relaxed">{premiumAlert.message}</p>
+                  <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">{premiumAlert.title}</h3>
+                  <p className="text-[10px] text-slate-500 mt-1 font-sans leading-relaxed">{premiumAlert.message}</p>
                 </div>
               </div>
 
-              <div className="space-y-4 pt-2 border-t border-slate-800/80 mt-4 text-xs">
+              <div className="space-y-4 pt-2 border-t border-slate-150 mt-4 text-xs">
                 <div>
-                  <span className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Selecione o Canal de Avisos</span>
+                  <span className="block text-[9px] font-bold uppercase text-slate-500 mb-1">Selecione o Canal de Avisos</span>
                   <div className="flex gap-2">
                     {['whatsapp', 'telegram', 'email'].map((channel: any) => (
                       <button
                         key={channel}
                         type="button"
                         onClick={() => setAlertFormChannel(channel)}
-                        className={`flex-grow py-2 text-[9px] uppercase font-bold text-center border transition-all cursor-pointer rounded-none ${
-                          alertFormChannel === channel ? 'bg-red-600 border-red-600 text-slate-950 font-bold' : 'bg-slate-950 border-slate-850 text-slate-400'
+                        className={`flex-grow py-2 text-[9px] uppercase font-bold text-center border transition-all cursor-pointer rounded-xl ${
+                          alertFormChannel === channel ? 'bg-red-600 border-red-600 text-white font-bold' : 'bg-slate-50 border-slate-200 text-slate-500 hover:bg-slate-100'
                         }`}
                       >
                         {channel === 'whatsapp' && '💬 WhatsApp'}
@@ -478,37 +478,37 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Contato de Destino</label>
+                  <label className="block text-[9px] font-bold uppercase text-slate-500 mb-1">Contato de Destino</label>
                   <input 
                     type="text" 
                     value={alertTargetContact}
                     onChange={(e) => setAlertTargetContact(e.target.value)}
                     placeholder={alertFormChannel === 'email' ? 'e-mail do gestor' : 'Nº com DDI (Ex: 5511999998888)'}
-                    className="w-full bg-slate-950 border border-slate-850 rounded-none p-2.5 text-xs font-mono text-slate-200"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-xs font-mono text-slate-800 focus:outline-none focus:border-red-650 shadow-xs"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-bold uppercase text-slate-400 mb-1">Preview do Alerta Despachado</label>
+                  <label className="block text-[9px] font-bold uppercase text-slate-500 mb-1">Preview do Alerta Despachado</label>
                   <textarea 
                     value={generatedReportText}
                     onChange={(e) => setGeneratedReportText(e.target.value)}
                     rows={4}
-                    className="w-full bg-slate-950 border border-slate-850 rounded-none p-2.5 text-[10px] font-mono leading-relaxed text-slate-350"
+                    className="w-full bg-white border border-slate-200 rounded-xl p-2.5 text-[10px] font-mono leading-relaxed text-slate-700 focus:outline-none focus:border-red-650 shadow-xs"
                   />
                 </div>
               </div>
 
-              <div className="flex gap-2 mt-6 justify-end border-t border-slate-800 pt-4">
+              <div className="flex gap-2 mt-6 justify-end border-t border-slate-150 pt-4">
                 <button 
                   onClick={() => setPremiumAlert(null)} 
-                  className="px-4 py-2 text-[10px] uppercase font-bold text-slate-400 border border-slate-800 hover:border-slate-700 bg-slate-850 cursor-pointer rounded-none"
+                  className="px-4 py-2 text-[10px] uppercase font-bold text-slate-500 border border-slate-200 hover:bg-slate-50 bg-white cursor-pointer rounded-xl"
                 >
                   CANCELAR
                 </button>
                 <button 
                   onClick={dispatchAlertNotification} 
-                  className="px-5 py-2 text-[10px] uppercase font-bold text-slate-950 bg-red-600 hover:bg-red-500 cursor-pointer rounded-none active:scale-95"
+                  className="px-5 py-2 text-[10px] uppercase font-bold text-white bg-red-600 hover:bg-red-500 cursor-pointer rounded-xl active:scale-95 border-none shadow-md"
                 >
                   DESPACHAR ALERTA 🚀
                 </button>

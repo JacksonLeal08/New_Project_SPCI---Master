@@ -5,7 +5,8 @@ import { CompatibleUser as User } from '@/lib/supabaseAuth';
 import { 
   initAuth, 
   googleSignIn, 
-  logout 
+  logout,
+  signInWithEmailOrUsername
 } from '@/lib/supabaseAuth';
 import { 
   registerOrLoginUserProfile, 
@@ -17,16 +18,9 @@ import {
   getAssetsList,
   saveAssetToDb
 } from '@/lib/supabaseDb';
-import { 
-  SHEETS_MAPPINGS, 
-  createSpreadsheet, 
-  readSpreadsheet, 
-  writeSpreadsheet, 
-  extractSpreadsheetId 
-} from '@/lib/sheetsDatabase';
+import { supabase } from '@/lib/supabaseClient';
 import { idb } from '@/lib/indexedDb';
 import { SyncQueue } from '@/lib/syncQueue';
-
 
 // --- INITIAL SEED DATA ---
 const INITIAL_EXTINTORES = [
@@ -69,27 +63,10 @@ export interface PremiumAlertInfo {
   dispatchData?: any;
 }
 
-export interface ImportCockpitInfo {
-  isOpen: boolean;
-  moduleKey: string;
-  moduleLabel: string;
-  data: any[][];
-  headers: string[];
-  mode: 'select' | 'model' | 'import' | 'download-template';
-  aiAuditResult?: any;
-  validationErrors?: {rowIndex: number, colIndex: number, message: string}[];
-  isAiAnalyzing?: boolean;
-  isRemodeled?: boolean;
-  retainedFields?: string[];
-  isAiFixing?: boolean;
-  aiFixReport?: string;
-}
-
 interface SpciContextType {
   // Auth
   currentUser: User | null;
   userProfile: any | null;
-  gToken: string | null;
   authChecking: boolean;
   userList: any[];
   loadingUsersList: boolean;
@@ -111,12 +88,6 @@ interface SpciContextType {
   setComplianceLogs: React.Dispatch<React.SetStateAction<any[]>>;
   
   saveAssetsList: (moduleKey: string, data: any[]) => Promise<void>;
-  
-  // Google Sheets integrations
-  sheetsConfig: Record<string, any>;
-  sheetsTemplates: Record<string, any>;
-  sheetsConsoleLogs: string[];
-  analyzingKeys: Record<string, boolean>;
   
   // Modals & UI States
   premiumAlert: PremiumAlertInfo | null;
@@ -154,22 +125,17 @@ interface SpciContextType {
   setUserPrompt: (prompt: string) => void;
   aiGenerating: boolean;
   setAiGenerating: (gen: boolean) => void;
-
-  importCockpit: ImportCockpitInfo | null;
-  setImportCockpit: React.Dispatch<React.SetStateAction<ImportCockpitInfo | null>>;
   
   // Handlers
   addConsoleLog: (msg: string, type?: 'ERRO' | 'SUCESSO' | 'INFO') => void;
-  saveSheetsConfig: (newConfig: any) => void;
-  saveSheetsTemplates: (newTemplates: any) => void;
-  handleAIModelAnalysis: (moduleKey: string, moduleTitle: string, rawInputId: string) => Promise<void>;
-  handleApplyRemodelNow: (moduleKey: string, moduleTitle: string) => Promise<void>;
-  handleMassImport: (moduleKey: string, moduleTitle: string) => Promise<void>;
   handleGoogleLogin: () => Promise<void>;
   handleGoogleLogout: () => Promise<void>;
   handleUpdateLogoAndProfile: (logoUrl: string, name: string) => Promise<void>;
-  handleAdminRoleStatusChange: (uid: string, newRole: 'admin' | 'user', newStatus: 'active' | 'pending' | 'inactive') => Promise<void>;
+  handleAdminRoleStatusChange: (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => Promise<void>;
   handleAdminDeleteUser: (uid: string) => Promise<void>;
+  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', daysValid?: number | null) => Promise<any>;
+  handleCredentialsLogin: (identifier: string, pass: string) => Promise<boolean>;
+  isGoogleUser: boolean;
   fetchUsers: () => Promise<void>;
 }
 
@@ -179,7 +145,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Auth
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any | null>(null);
-  const [gToken, setGToken] = useState<string | null>(null);
+  const [isGoogleUser, setIsGoogleUser] = useState<boolean>(false);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
   const [userList, setUserList] = useState<any[]>([]);
   const [loadingUsersList, setLoadingUsersList] = useState(false);
@@ -191,12 +157,6 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [iluminacoes, setIluminacoes] = useState<any[]>([]);
   const [bombas, setBombas] = useState<any[]>([]);
   const [complianceLogs, setComplianceLogs] = useState<any[]>([]);
-
-  // Config & Logs
-  const [sheetsConfig, setSheetsConfig] = useState<Record<string, any>>({});
-  const [sheetsTemplates, setSheetsTemplates] = useState<Record<string, any>>({});
-  const [sheetsConsoleLogs, setSheetsConsoleLogs] = useState<string[]>(['[INFO] [Sistema] Inicializado central de dados local SPCI. Ready.']);
-  const [analyzingKeys, setAnalyzingKeys] = useState<Record<string, boolean>>({});
 
   // Modals & UI States
   const [showAddForm, setShowAddForm] = useState(false);
@@ -219,11 +179,14 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userPrompt, setUserPrompt] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
 
-  const [importCockpit, setImportCockpit] = useState<ImportCockpitInfo | null>(null);
-
   const addConsoleLog = useCallback((msg: string, type: 'ERRO' | 'SUCESSO' | 'INFO' = 'INFO') => {
-    const timestamp = new Date().toLocaleTimeString('pt-BR', { hour12: false });
-    setSheetsConsoleLogs(prev => [`[${type}] [${timestamp}] ${msg}`, ...prev.slice(0, 199)]);
+    if (type === 'ERRO') {
+      console.error(`[SPCI-ERROR] ${msg}`);
+    } else if (type === 'SUCESSO') {
+      console.log(`[SPCI-SUCCESS] ${msg}`);
+    } else {
+      console.log(`[SPCI-INFO] ${msg}`);
+    }
   }, []);
 
   const triggerSuccessNotification = useCallback((title: string, message: string) => {
@@ -233,20 +196,6 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       message,
       type: 'success'
     });
-  }, []);
-
-  const saveSheetsConfig = useCallback((newConfig: any) => {
-    setSheetsConfig(newConfig);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('spci_sheets_config', JSON.stringify(newConfig));
-    }
-  }, []);
-
-  const saveSheetsTemplates = useCallback((newTemplates: any) => {
-    setSheetsTemplates(newTemplates);
-    if (typeof window !== 'undefined') {
-      localStorage.setItem('spci_sheets_templates', JSON.stringify(newTemplates));
-    }
   }, []);
 
   // Sync to database lists with offline resilience
@@ -322,13 +271,6 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           else if (item.store === 'bombas') setBombas(list);
           else if (item.store === 'logs') setComplianceLogs(list);
         }
-
-        const storedConfig = localStorage.getItem('spci_sheets_config');
-        if (storedConfig) setSheetsConfig(JSON.parse(storedConfig));
-
-        const storedTemplates = localStorage.getItem('spci_sheets_templates');
-        if (storedTemplates) setSheetsTemplates(JSON.parse(storedTemplates));
-
       } catch (err) {
         console.error('Falha ao carregar caches do IndexedDB:', err);
       }
@@ -337,7 +279,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadCachedData();
   }, []);
 
-  // --- AUTOMATIC FIREBASE SYNC ON AUTH ---
+  // --- AUTOMATIC SUPABASE SYNC ON AUTH ---
   useEffect(() => {
     const syncWithRealDatabase = async () => {
       try {
@@ -352,7 +294,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await idb.setAll('hidrantes', hidDb);
         }
       } catch (err) {
-        console.warn('Erro ao sincronizar com Firestore em tempo real:', err);
+        console.warn('Erro ao sincronizar com banco em tempo real:', err);
       }
     };
 
@@ -361,12 +303,11 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser]);
 
-  // --- GOOGLE AUTHENTICATION LISTENER ---
+  // --- AUTHENTICATION LISTENER ---
   useEffect(() => {
     const unsubscribe = initAuth(
-      async (user, token) => {
+      async (user) => {
         setCurrentUser(user);
-        setGToken(token);
         setAuthChecking(true);
         try {
           const profile = await registerOrLoginUserProfile({
@@ -378,34 +319,41 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           setUserProfile(profile);
           setProfileNameInput(profile.name);
           setProfileLogoUrlInput(profile.logoUrl || '');
-          addConsoleLog(`[Perfil] Login de ${profile.name} (${profile.role === 'admin' ? '🛡️ Administrador' : '👷 Técnico'})`);
+          
+          // Mapeia e grava o provedor
+          const { data: { session } } = await supabase.auth.getSession();
+          const token = session?.access_token || '';
+          const provider = session?.user?.app_metadata?.provider || 'email';
+          
+          // Grava cookies de segurança para o Middleware do servidor ler
+          document.cookie = `spci_session_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+          document.cookie = `spci_user_role=${profile.role}; path=/; max-age=86400; SameSite=Lax`;
+          document.cookie = `spci_user_provider=${provider}; path=/; max-age=86400; SameSite=Lax`;
+          setIsGoogleUser(provider === 'google');
+
+          if (profile.dataExpiracao) {
+            document.cookie = `spci_user_expires=${profile.dataExpiracao}; path=/; max-age=86400; SameSite=Lax`;
+          } else {
+            document.cookie = `spci_user_expires=; path=/; max-age=0; SameSite=Lax`;
+          }
         } catch (err: any) {
-          console.error("Erro sincronizando perfil:", err);
-          const isBootstrappedAdmin = user.email?.toLowerCase() === 'jackson602@gmail.com';
-          const fallbackProfile = {
-            uid: user.uid,
-            name: user.displayName || user.email?.split('@')[0] || 'Usuário SPCI',
-            email: user.email || '',
-            photoURL: user.photoURL || '',
-            logoUrl: '',
-            role: isBootstrappedAdmin ? 'admin' : 'user' as const,
-            status: 'active' as const,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          setUserProfile(fallbackProfile);
-          setProfileNameInput(fallbackProfile.name);
-          setProfileLogoUrlInput('');
-          addConsoleLog(`[Perfil] Login local offline executado para ${fallbackProfile.name}.`, 'INFO');
+          console.error("Erro ao sincronizar perfil do usuário:", err);
         } finally {
           setAuthChecking(false);
         }
       },
       () => {
+        // Auth failure callback
         setCurrentUser(null);
-        setGToken(null);
         setUserProfile(null);
+        setIsGoogleUser(false);
         setAuthChecking(false);
+        
+        // Limpa cookies de segurança
+        document.cookie = `spci_session_token=; path=/; max-age=0; SameSite=Lax`;
+        document.cookie = `spci_user_role=; path=/; max-age=0; SameSite=Lax`;
+        document.cookie = `spci_user_expires=; path=/; max-age=0; SameSite=Lax`;
+        document.cookie = `spci_user_provider=; path=/; max-age=0; SameSite=Lax`;
       }
     );
 
@@ -443,17 +391,39 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [currentUser, addConsoleLog]);
 
+  // --- LISTEN FOR SECURITY RLS SYNC ERRORS ---
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleSecurityError = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const errorMsg = customEvent.detail?.error || 'Acesso negado por diretivas RLS de segurança.';
+      
+      setPremiumAlert({
+        show: true,
+        title: "Bloqueio de Segurança 🔒",
+        message: `A sincronização de dados falhou: ${errorMsg}. Verifique se sua conta foi suspensa ou se o período de validade do seu acesso expirou.`,
+        type: 'critical'
+      });
+    };
+
+    window.addEventListener('spci_security_sync_error', handleSecurityError);
+    return () => {
+      window.removeEventListener('spci_security_sync_error', handleSecurityError);
+    };
+  }, []);
+
   // --- ADMIN FUNCTIONS ---
 
   const fetchUsers = useCallback(async () => {
-    if (userProfile?.role === 'admin') {
+    if (userProfile?.role === 'Administrador' || userProfile?.role === 'Desenvolvedor') {
       setLoadingUsersList(true);
       try {
         const list = await getAllUserProfiles();
         setUserList(list);
         addConsoleLog(`[Admin] Sincronizados ${list.length} perfis de usuários cadastrados.`);
       } catch (err: any) {
-        console.error("Erro listando usuários:", err);
+        console.error(err);
         addConsoleLog(`[Erro Admin] Falha ao listar usuários do sistema: ${err.message || err}`, 'ERRO');
       } finally {
         setLoadingUsersList(false);
@@ -462,93 +432,83 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [userProfile, addConsoleLog]);
 
   const handleUpdateLogoAndProfile = useCallback(async (logoUrl: string, name: string) => {
-    if (!currentUser || !userProfile) return;
-    try {
+    if (currentUser) {
       addConsoleLog(`[Meu Perfil] Salvando alterações...`);
-      await updateUserLogo(currentUser.uid, logoUrl, name);
-      
-      setUserProfile((prev: any) => ({
-        ...prev,
-        logoUrl,
-        name,
-        updatedAt: new Date().toISOString()
-      }));
-      
-      triggerSuccessNotification("Perfil Atualizado! 👑", "Seu logotipo personalizado e detalhes de perfil foram gravados no Firestore.");
-    } catch (err: any) {
-      triggerSuccessNotification("Falha no Perfil ❌", `Erro ao salvar alterações: ${err.message}`);
+      try {
+        await updateUserLogo(currentUser.uid, logoUrl, name);
+        
+        // Atualiza localmente
+        setUserProfile((prev: any) => prev ? { ...prev, name, logoUrl } : null);
+        
+        triggerSuccessNotification("Perfil Atualizado! 🟢", "Nome de exibição e logotipo atualizados com sucesso.");
+      } catch (err: any) {
+        console.error(err);
+        triggerSuccessNotification("Falha ao Atualizar ❌", err.message || "Erro desconhecido.");
+      }
     }
-  }, [currentUser, userProfile, triggerSuccessNotification, addConsoleLog]);
+  }, [currentUser, triggerSuccessNotification, addConsoleLog]);
 
-  const handleAdminRoleStatusChange = useCallback(async (uid: string, newRole: 'admin' | 'user', newStatus: 'active' | 'pending' | 'inactive') => {
+  const handleAdminRoleStatusChange = useCallback(async (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => {
     try {
       await updateUserRoleAndStatus(uid, newRole, newStatus);
-      setUserList(prev => prev.map(u => u.uid === uid ? { ...u, role: newRole, status: newStatus, updatedAt: new Date().toISOString() } : u));
-      triggerSuccessNotification("Nível Alterado! ⚙️", "Permissão e status do usuário atualizados em tempo real.");
+      await fetchUsers();
+      triggerSuccessNotification("Usuário Atualizado! 🟢", "Perfil de governança modificado com sucesso.");
     } catch (err: any) {
-      triggerSuccessNotification("Erro de Edição ❌", `Falha ao salvar acesso: ${err.message}`);
+      console.error(err);
+      triggerSuccessNotification("Falha na Alteração ❌", err.message || "Erro de permissão.");
     }
-  }, [triggerSuccessNotification]);
+  }, [fetchUsers, triggerSuccessNotification]);
 
   const handleAdminDeleteUser = useCallback(async (uid: string) => {
     try {
       await deleteUserProfileByAdmin(uid);
-      setUserList(prev => prev.filter(u => u.uid !== uid));
-      triggerSuccessNotification("Usuário Removido 🗑️", "Cadastro do usuário removido dos registros de governança.");
+      await fetchUsers();
+      triggerSuccessNotification("Excluído com Sucesso! 🗑️", "A credencial foi deletada de forma definitiva.");
     } catch (err: any) {
-      triggerSuccessNotification("Erro ao Deletar ❌", `Falha: ${err.message}`);
+      console.error(err);
+      triggerSuccessNotification("Falha ao Deletar ❌", err.message || "Permissão insuficiente.");
     }
-  }, [triggerSuccessNotification]);
+  }, [fetchUsers, triggerSuccessNotification]);
+
+  const handleInviteUser = useCallback(async (
+    email: string, 
+    username: string, 
+    name: string, 
+    role: 'Desenvolvedor' | 'Administrador' | 'Usuário', 
+    daysValid: number | null = null
+  ) => {
+    addConsoleLog(`[Onboarding] Enviando convite para ${name} (${role})...`);
+    try {
+      // RPC call create_new_user
+      const { data, error } = await supabase.rpc('create_new_user', {
+        p_email: email,
+        p_username: username,
+        p_name: name,
+        p_role: role,
+        p_days_valid: daysValid
+      });
+
+      if (error) throw error;
+      
+      addConsoleLog(`[Onboarding] Sucesso ao criar convite para ${name}.`, 'SUCESSO');
+      await fetchUsers();
+      return data;
+    } catch (err: any) {
+      console.error(err);
+      addConsoleLog(`[Erro Onboarding] Falha ao convidar usuário: ${err.message || err}`, 'ERRO');
+      throw err;
+    }
+  }, [fetchUsers, addConsoleLog]);
 
   // --- GOOGLE SIGNIN/LOGOUT ---
   const handleGoogleLogin = useCallback(async () => {
     setAuthChecking(true);
     try {
       addConsoleLog("Iniciando janela oficial de login com Google...");
-      const result = await googleSignIn();
-      if (result) {
-        setCurrentUser(result.user);
-        setGToken(result.accessToken);
-        addConsoleLog(`Acesso concedido para: ${result.user.email}`);
-
-        let profile;
-        try {
-          profile = await registerOrLoginUserProfile({
-            uid: result.user.uid,
-            displayName: result.user.displayName,
-            email: result.user.email,
-            photoURL: result.user.photoURL
-          });
-        } catch (dbErr: any) {
-          console.warn("Firestore profile save failed, falling back to local profile:", dbErr);
-          const isBootstrappedAdmin = result.user.email?.toLowerCase() === 'jackson602@gmail.com';
-          profile = {
-            uid: result.user.uid,
-            name: result.user.displayName || result.user.email?.split('@')[0] || 'Usuário SPCI',
-            email: result.user.email || '',
-            photoURL: result.user.photoURL || '',
-            logoUrl: '',
-            role: isBootstrappedAdmin ? 'admin' : 'user' as const,
-            status: 'active' as const,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          };
-          addConsoleLog("Aviso: Não foi possível salvar o perfil no Supabase. Operando em modo de perfil local.", 'INFO');
-        }
-
-        setUserProfile(profile);
-
-        triggerSuccessNotification(
-          "Acesso Autorizado! 🟢", 
-          `Olá, ${profile.name}! Sessão activa como ${profile.role === 'admin' ? '🛡️ Administrador' : '👷 Técnico de Campo'}.`
-        );
-      }
+      await googleSignIn();
     } catch (err: any) {
       console.error("Erro no Login com Google:", err);
-      let errMsg = err.message || String(err);
-      if (errMsg.includes("auth/unauthorized-domain") || errMsg.includes("unauthorized-domain")) {
-        errMsg = "Erro de Domínio Não Autorizado. Adicione o domínio atual nas configurações do console do Firebase.";
-      }
+      const errMsg = err.message || String(err);
       addConsoleLog(`Falha ao conectar Google Account: ${errMsg}`, 'ERRO');
       triggerSuccessNotification("Falha no Login ❌", errMsg);
     } finally {
@@ -560,325 +520,73 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       await logout();
       setCurrentUser(null);
-      setGToken(null);
       setUserProfile(null);
+      // Limpa cookies de segurança
+      document.cookie = `spci_session_token=; path=/; max-age=0; SameSite=Lax`;
+      document.cookie = `spci_user_role=; path=/; max-age=0; SameSite=Lax`;
+      document.cookie = `spci_user_expires=; path=/; max-age=0; SameSite=Lax`;
+      document.cookie = `spci_user_provider=; path=/; max-age=0; SameSite=Lax`;
+      setIsGoogleUser(false);
       addConsoleLog("Sessão da conta do Google finalizada.");
-      triggerSuccessNotification("Desconectado! ⚪", "Sessão finalizada. Acesso às planilhas em nuvem bloqueado.");
+      triggerSuccessNotification("Desconectado! ⚪", "Sessão finalizada com sucesso.");
     } catch (err: any) {
       console.error(err);
     }
   }, [triggerSuccessNotification, addConsoleLog]);
 
-  // --- AI MODEL ANALYSIS & REMODELLING ---
-  const handleAIModelAnalysis = useCallback(async (moduleKey: string, moduleTitle: string, rawInputId: string) => {
-    if (!gToken) {
-      triggerSuccessNotification("Requer Google Login 🔑", "Por favor, conecte sua conta Google no painel antes de analisar modelos.");
-      return;
-    }
-    if (!rawInputId) {
-      triggerSuccessNotification("Link Vazio ⚠️", "Insira o ID ou URL da planilha de modelo.");
-      return;
-    }
-
-    const templateId = extractSpreadsheetId(rawInputId);
-    setAnalyzingKeys(prev => ({ ...prev, [moduleKey]: true }));
-    addConsoleLog(`[IA] Iniciando Auditoria de Reestruturação para [${moduleTitle}]. Lendo cabeçalhos: ${templateId}...`);
-
+  const handleCredentialsLogin = useCallback(async (identifier: string, pass: string) => {
+    setAuthChecking(true);
     try {
-      const rows = await readSpreadsheet(gToken, templateId, 'Sheet1!A1:Z1');
-      if (!rows || rows.length === 0 || rows[0].length === 0) {
-        throw new Error("Não foi possível carregar as colunas. Verifique se o documento possui dados.");
-      }
-
-      const activeHeaders = rows[0].map((h: any) => String(h).trim()).filter(Boolean);
-      addConsoleLog(`[IA] Cabeçalhos encontrados: ${JSON.stringify(activeHeaders)}`);
-
-      const defaultMapping = (SHEETS_MAPPINGS as any)[
-        moduleKey === 'sinalizacao' ? 'sinalizacao' : 
-        moduleKey === 'iluminacao' ? 'iluminacao' : 
-        moduleKey === 'extintores' ? 'extintor' : 
-        moduleKey === 'hidrantes' ? 'hidrante' : 'bomba'
-      ];
-      const oldHeaders = defaultMapping.headers;
-
-      const cleanHeadersLower = activeHeaders.map((h: string) => h.toLowerCase());
-      const hasId = cleanHeadersLower.includes('id') || cleanHeadersLower.includes('identificacao') || cleanHeadersLower.includes('identificação') || cleanHeadersLower.includes('idativo') || cleanHeadersLower.includes('patrimonio') || cleanHeadersLower.includes('patrimônio');
-
-      if (!hasId) {
-        addConsoleLog(`[IA - Bloqueio] Planilha inválida para [${moduleTitle}]. Ausência de ID/Chave Primária de relacionamento!`, 'ERRO');
-        triggerSuccessNotification("Bloqueio de Migração 🔴", "A planilha modelo não contém uma coluna identificadora de ID ou Patrimônio necessária para o sincronismo.");
-        setAnalyzingKeys(prev => ({ ...prev, [moduleKey]: false }));
-        return;
-      }
-
-      addConsoleLog("[IA] Chamando cérebro artificial Gemini para auditoria de mapeamento SPCI...");
-      
-      const prompt = `Você é um Engenheiro de Dados SPCI especializado em conformidade de incêndio brasileira NBR 12962/NBR 13434. Faça uma auditoria de compatibilidade de reestruturação de banco de dados para o módulo ${moduleTitle}.
-
-ESTRUTURA ATUAL DE COLUNAS:
-${JSON.stringify(oldHeaders)}
-
-NOVA ESTRUTURA DE COLUNAS DETECTADA NO MODELO SHEET:
-${JSON.stringify(activeHeaders)}
-
-Analise o seguinte:
-1. Compatibilidade técnica rápida de migração de colunas.
-2. Identifique quais colunas foram adicionadas, quais removidas e mapeie colunas equivalentes de nome similar.
-3. Determine se é possível realizar o remodelamento sem quebrar a integridade estrutural.
-4. Forneça um status claro ("É possível" ou "Não é possível" a reestruturação).
-
-Responda estritamente com um JSON sem marcações extras (formato JSON literal puro) com este esquema exato:
-{
-  "compatible": boolean,
-  "score": number,
-  "addedColumns": ["coluna1"],
-  "removedColumns": ["coluna2"],
-  "mappedColumns": {"coluna_antiga": "coluna_nova"},
-  "technicalAnalysis": "Resumo técnico explicativo de compatibilidade técnica em 2 frases",
-  "nbrComplianceWarning": "Mensagem de alerta de conformidade legal de incêndio NBR"
-}`;
-
-      const res = await fetch("/api/gemini", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, systemInstruction: "Você é um auditor de banco de dados SPCI rigoroso. Responda estritamente em formato JSON válido." }),
-      });
-      
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      let parsedResult;
-      try {
-        let cleanText = data.text.trim();
-        if (cleanText.startsWith("```json")) cleanText = cleanText.substring(7);
-        if (cleanText.endsWith("```")) cleanText = cleanText.substring(0, cleanText.length - 3);
-        parsedResult = JSON.parse(cleanText.trim());
-      } catch (e) {
-        parsedResult = {
-          compatible: true,
-          score: 85,
-          addedColumns: activeHeaders.filter((h: string) => !oldHeaders.includes(h)),
-          removedColumns: oldHeaders.filter((h: string) => !activeHeaders.includes(h)),
-          mappedColumns: {},
-          technicalAnalysis: "Auditoria efetuada. Nova estrutura aceita e pronta para remapeamento dinâmico pelo motor do SPCI.",
-          nbrComplianceWarning: "Certifique-se de que nenhum campo de validade legal de combate a incêndio foi removido do modelo."
-        };
-      }
-
-      const currentTpl = sheetsTemplates[moduleKey] || { customModel: false, templateId: '', headers: [], isRemodeled: true, aiAuditResult: null };
-      const timestamp = new Date().toLocaleString('pt-BR');
-
-      saveSheetsTemplates({
-        ...sheetsTemplates,
-        [moduleKey]: {
-          ...currentTpl,
-          templateId,
-          headers: activeHeaders,
-          isRemodeled: false,
-          lastAuditedAt: timestamp,
-          aiAuditResult: parsedResult
-        }
-      });
-
-      addConsoleLog(`[IA] Auditoria concluída para [${moduleTitle}]. Score Compatibilidade: ${parsedResult.score}%.`, 'SUCESSO');
-      
-      triggerSuccessNotification(
-        parsedResult.compatible ? "Análise IA: Compatível! 🟢" : "Análise IA: Alerta de Risco! 🔴",
-        `Estrutura avaliada com Score de ${parsedResult.score}% para ${moduleTitle}.`
-      );
-
-    } catch (err: any) {
-      console.error(err);
-      addConsoleLog(`[IA] Falha na auditoria para [${moduleTitle}]: ${err.message || err}`, 'ERRO');
-      triggerSuccessNotification("Erro de Análise ❌", `Falha técnica ao auditar: ${err.message || err}`);
-    } finally {
-      setAnalyzingKeys(prev => ({ ...prev, [moduleKey]: false }));
-    }
-  }, [gToken, sheetsTemplates, saveSheetsTemplates, addConsoleLog, triggerSuccessNotification]);
-
-  const handleApplyRemodelNow = useCallback(async (moduleKey: string, moduleTitle: string) => {
-    const tpl = sheetsTemplates[moduleKey];
-    if (!tpl || tpl.headers.length === 0) {
-      triggerSuccessNotification("Sem Modelo Ativo ⚠️", "Por favor, determine uma planilha de modelo primeiro.");
-      return;
-    }
-
-    addConsoleLog(`[Remodelamento] Iniciando reestruturação imediata do banco de dados para [${moduleTitle}]...`);
-    
-    saveSheetsTemplates({
-      ...sheetsTemplates,
-      [moduleKey]: {
-        ...tpl,
-        isRemodeled: true
-      }
-    });
-
-    const config = sheetsConfig[moduleKey];
-    if (gToken && config && config.id) {
-      try {
-        addConsoleLog(`[Remodelamento] Atualizando estrutura de colunas do Google Sheets ativo ${config.id}...`);
-        await writeSpreadsheet(gToken, config.id, [tpl.headers]);
-        addConsoleLog("[Remodelamento] Estrutura gravada com sucesso!", 'SUCESSO');
-      } catch (err: any) {
-        addConsoleLog(`[Remodelamento] Nota: O arquivo remoto não pôde ser limpo com a nova estrutura ainda: ${err.message || err}`, 'ERRO');
-      }
-    }
-
-    triggerSuccessNotification("Banco Remodelado! 🔵", `A estrutura do banco local do módulo ${moduleTitle} foi atualizada para os novos campos.`);
-  }, [gToken, sheetsConfig, sheetsTemplates, saveSheetsTemplates, addConsoleLog, triggerSuccessNotification]);
-
-  const handleMassImport = useCallback(async (moduleKey: string, moduleTitle: string) => {
-    const tpl = sheetsTemplates[moduleKey];
-    if (!gToken) {
-      triggerSuccessNotification("Requer Google Login 🔑", "Por favor, entre com sua conta Google no topo para permitir imports em nuvem.");
-      return;
-    }
-    if (!tpl || !tpl.templateId) {
-      triggerSuccessNotification("Defina o Link 📝", "Insira o ID ou link do modelo de importação.");
-      return;
-    }
-
-    const tplId = extractSpreadsheetId(tpl.templateId);
-    addConsoleLog(`[Massa] Iniciando Importação em Massa & Remodelagem de Dados para [${moduleTitle}]. Conectando ao Sheets: ${tplId}`);
-    
-    const currentModule = sheetsConfig[moduleKey] || { id: '', url: '', syncState: 'idle' };
-    saveSheetsConfig({
-      ...sheetsConfig,
-      [moduleKey]: { ...currentModule, syncState: 'syncing' }
-    });
-
-    try {
-      const rows = await readSpreadsheet(gToken, tplId, 'Sheet1!A1:Z500');
-      if (!rows || rows.length === 0) {
-        throw new Error("A planilha fornecida está vazia ou inacessível.");
-      }
-
-      const headers = rows[0].map((h: any) => String(h).trim()).filter(Boolean);
-      addConsoleLog(`[Massa] Importando com os novos cabeçalhos: ${JSON.stringify(headers)}`);
-
-      const headersLower = headers.map(h => h.toLowerCase());
-      const hasId = headersLower.includes('id') || headersLower.includes('identificacao') || headersLower.includes('identificação') || headersLower.includes('idativo') || headersLower.includes('patrimonio') || headersLower.includes('patrimônio');
-
-      if (!hasId) {
-        throw new Error("A planilha não possui coluna identificadora de chaves primárias (ID, Patrimônio ou Identificação). Importação cancelada.");
-      }
-
-      const importedAssets = rows.slice(1).map((row: any[], rowIndex: number) => {
-        const asset: Record<string, any> = {};
-        asset.id = `import-${Date.now()}-${rowIndex}-${Math.floor(Math.random() * 100)}`;
+      addConsoleLog(`[Autenticação] Autenticando credenciais do usuário...`);
+      const user = await signInWithEmailOrUsername(identifier, pass);
+      if (user) {
+        setCurrentUser(user);
         
-        headers.forEach((header, colIdx) => {
-          const val = row[colIdx] !== undefined ? String(row[colIdx]).trim() : '';
-          asset[header] = val;
+        const profile = await registerOrLoginUserProfile({
+          uid: user.uid,
+          displayName: user.displayName,
+          email: user.email,
+          photoURL: user.photoURL
         });
+        
+        setUserProfile(profile);
+        setProfileNameInput(profile.name);
+        setProfileLogoUrlInput(profile.logoUrl || '');
+        
+        // Pega a sessão para resgatar o JWT token
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token || '';
 
-        asset.idAtivo = asset["IdAtivo"] || asset["idAtivo"] || asset["Patrimonio"] || asset["ID"] || asset.id;
-        asset.model = asset["Modelo"] || asset["modelo"] || asset["Nome"] || asset["Ativo"] || '';
-        asset.location = asset["Localizacao"] || asset["localizacao"] || asset["Local"] || asset["LOCAL"] || '';
-        asset.subLocation = asset["SubLocalizacao"] || asset["subLocalizacao"] || '';
-        asset.seloInmetro = asset["SeloInmetro"] || asset["seloInmetro"] || '';
-        asset.chassi = asset["Chassi"] || asset["chassi"] || '';
-        asset.peso = asset["Peso_KG"] || asset["peso"] || '';
-        asset.lastRecarga = asset["UltimaRecarga"] || asset["ultimaRecarga"] || '';
-        asset.validadeRecarga = asset["ValidadeRecarga"] || asset["validadeRecarga"] || '';
-        asset.status = asset["Status"] || asset["status"] || 'Conforme';
-        asset.components = asset["Componentes"] ? asset["Componentes"].split(',').map((s: string) => s.trim()) : [];
-        asset.lastInsp = asset["UltimaInspecao"] || '';
-        asset.nextInsp = asset["ProximaInspecao"] || '';
-        asset.group = asset["Grupo"] || '';
-        asset.systemType = asset["TipoSistema"] || '';
-        asset.qty = parseInt(asset["Quantidade"]) || 1;
-        asset.battery = asset["Bateria"] || '';
-        asset.autonomy = asset["Autonomia"] || '';
-        asset.name = asset["Nome"] || '';
-        asset.code = asset["Codigo"] || '';
-        asset.type = asset["Tipo"] || '';
-        asset.power = asset["Power"] || '';
-        asset.range = asset["Pressao_Range"] || '';
-        asset.starts = asset["Partidas"] || '0';
-        asset.geolocation = {
-          lat: parseFloat(asset["Latitude"] || asset["latitude"]) || -20.1245,
-          lng: parseFloat(asset["Longitude"] || asset["longitude"]) || -44.5668
-        };
-
-        return asset;
-      });
-
-      addConsoleLog(`[Massa] Remapeamento concluído. Importados ${importedAssets.length} registros.`, 'SUCESSO');
-
-      if (moduleKey === 'extintores') {
-        setExtintores(importedAssets);
-        await idb.setAll('extintores', importedAssets);
-      } else if (moduleKey === 'hidrantes') {
-        setHidrantes(importedAssets);
-        await idb.setAll('hidrantes', importedAssets);
-      } else if (moduleKey === 'sinalizacao') {
-        setSinalizacoes(importedAssets);
-        await idb.setAll('sinalizacoes', importedAssets);
-      } else if (moduleKey === 'iluminacao') {
-        setIluminacoes(importedAssets);
-        await idb.setAll('iluminacao', importedAssets);
-      } else if (moduleKey === 'bombas') {
-        setBombas(importedAssets);
-        await idb.setAll('bombas', importedAssets);
-      }
-
-      const activeDbId = currentModule.id ? extractSpreadsheetId(currentModule.id) : null;
-      if (activeDbId) {
-        addConsoleLog(`[Massa] Gravando registros no banco de dados ativo: ${activeDbId}...`);
-        const rowsToWrite = [
-          headers,
-          ...importedAssets.map((asset: any) => {
-            return headers.map(h => String(asset[h] !== undefined ? asset[h] : ''));
-          })
-        ];
-        await writeSpreadsheet(gToken, activeDbId, rowsToWrite);
-        addConsoleLog("[Massa] Google Sheets atualizado remotamente com sucesso!", 'SUCESSO');
-      }
-
-      const timestamp = new Date().toLocaleString('pt-BR');
-      
-      saveSheetsConfig({
-        ...sheetsConfig,
-        [moduleKey]: {
-          ...currentModule,
-          syncState: 'success',
-          lastSync: timestamp
+        // Grava cookies de segurança
+        document.cookie = `spci_session_token=${token}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `spci_user_role=${profile.role}; path=/; max-age=86400; SameSite=Lax`;
+        document.cookie = `spci_user_provider=email; path=/; max-age=86400; SameSite=Lax`;
+        setIsGoogleUser(false);
+        
+        if (profile.dataExpiracao) {
+          document.cookie = `spci_user_expires=${profile.dataExpiracao}; path=/; max-age=86400; SameSite=Lax`;
+        } else {
+          document.cookie = `spci_user_expires=; path=/; max-age=0; SameSite=Lax`;
         }
-      });
 
-      saveSheetsTemplates({
-        ...sheetsTemplates,
-        [moduleKey]: {
-          ...tpl,
-          headers,
-          isRemodeled: true
-        }
-      });
-
-      setPremiumAlert({
-        show: true,
-        title: "Importação e Remodelagem por IA! 🟢",
-        message: `Sua importação em lote foi um sucesso! O banco do módulo [${moduleTitle}] foi estruturado com sucesso para ${importedAssets.length} registros.`,
-        type: 'success'
-      });
-
+        addConsoleLog(`[Autenticação] Login com sucesso de ${profile.name} (${profile.role})`, 'SUCESSO');
+        triggerSuccessNotification("Login Realizado! 🟢", `Bem-vindo de volta, ${profile.name}!`);
+        return true;
+      }
+      return false;
     } catch (err: any) {
-      console.error(err);
-      addConsoleLog(`[Massa] Falha no importador em lote para [${moduleTitle}]: ${err.message || err}`, 'ERRO');
-      saveSheetsConfig({
-        ...sheetsConfig,
-        [moduleKey]: { ...currentModule, syncState: 'error', lastError: err.message || String(err) }
-      });
-      triggerSuccessNotification("Falha no Mass Import ❌", `Erro técnico: ${err.message || err}`);
+      console.error("Erro ao autenticar por credenciais:", err);
+      addConsoleLog(`[Erro Autenticação] Falha no login: ${err.message || err}`, 'ERRO');
+      throw err;
+    } finally {
+      setAuthChecking(false);
     }
-  }, [gToken, sheetsConfig, sheetsTemplates, saveSheetsConfig, saveSheetsTemplates, addConsoleLog, triggerSuccessNotification]);
+  }, [addConsoleLog, triggerSuccessNotification]);
 
   return (
     <SpciContext.Provider value={{
       currentUser,
       userProfile,
-      gToken,
       authChecking,
       userList,
       loadingUsersList,
@@ -895,10 +603,6 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
       setBombas,
       setComplianceLogs,
       saveAssetsList,
-      sheetsConfig,
-      sheetsTemplates,
-      sheetsConsoleLogs,
-      analyzingKeys,
       premiumAlert,
       setPremiumAlert,
       triggerSuccessNotification,
@@ -928,19 +632,15 @@ Responda estritamente com um JSON sem marcações extras (formato JSON literal p
       setUserPrompt,
       aiGenerating,
       setAiGenerating,
-      importCockpit,
-      setImportCockpit,
       addConsoleLog,
-      saveSheetsConfig,
-      saveSheetsTemplates,
-      handleAIModelAnalysis,
-      handleApplyRemodelNow,
-      handleMassImport,
       handleGoogleLogin,
       handleGoogleLogout,
       handleUpdateLogoAndProfile,
       handleAdminRoleStatusChange,
       handleAdminDeleteUser,
+      handleInviteUser,
+      handleCredentialsLogin,
+      isGoogleUser,
       fetchUsers
     }}>
       {children}

@@ -6,10 +6,12 @@ export interface UserProfile {
   uid: string;
   name: string;
   email: string;
+  userName: string;
   photoURL: string;
   logoUrl: string;
-  role: 'admin' | 'user';
-  status: 'active' | 'pending' | 'inactive';
+  role: 'Desenvolvedor' | 'Administrador' | 'Usuário';
+  status: string;
+  dataExpiracao?: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -20,10 +22,12 @@ const serializeProfile = (profile: UserProfile) => {
     id: profile.uid,
     name: profile.name,
     email: profile.email,
+    user_name: profile.userName,
     photo_url: profile.photoURL || null,
     logo_url: profile.logoUrl || null,
     role: profile.role,
     status: profile.status,
+    data_expiracao: profile.dataExpiracao || null,
     created_at: profile.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
@@ -34,10 +38,12 @@ const deserializeProfile = (row: any): UserProfile => {
     uid: row.id,
     name: row.name,
     email: row.email,
+    userName: row.user_name || '',
     photoURL: row.photo_url || '',
     logoUrl: row.logo_url || '',
-    role: row.role as 'admin' | 'user',
-    status: row.status as 'active' | 'pending' | 'inactive',
+    role: row.role as 'Desenvolvedor' | 'Administrador' | 'Usuário',
+    status: row.status || 'active',
+    dataExpiracao: row.data_expiracao || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -137,12 +143,12 @@ const deserializeExtintor = (row: any) => {
 
 /**
  * Recovers or registers a user profile on login.
- * If the user's email matches 'jackson602@gmail.com', they are bootstrapped as an 'admin'.
+ * If the user's email matches 'jackson602@gmail.com', they are bootstrapped as a 'Desenvolvedor'.
  */
 export async function registerOrLoginUserProfile(user: { uid: string; displayName: string | null; email: string | null; photoURL: string | null }): Promise<UserProfile> {
   try {
     const { data: profileRow, error: selectErr } = await supabase
-      .from('profiles')
+      .from('usuarios')
       .select('*')
       .eq('id', user.uid)
       .maybeSingle();
@@ -154,22 +160,29 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
     }
 
     const isBootstrappedAdmin = user.email?.toLowerCase() === 'jackson602@gmail.com';
-    const initialRole = isBootstrappedAdmin ? 'admin' : 'user';
+    const initialRole = isBootstrappedAdmin ? 'Desenvolvedor' : 'Usuário';
+
+    const getSafeUserName = (email: string | null) => {
+      const prefix = email?.split('@')[0] || 'usuario';
+      return prefix.length >= 3 ? prefix : `${prefix}_usr`;
+    };
 
     const newProfile: UserProfile = {
       uid: user.uid,
       name: user.displayName || user.email?.split('@')[0] || 'Usuário SPCI',
       email: user.email || '',
+      userName: getSafeUserName(user.email),
       photoURL: user.photoURL || '',
       logoUrl: '',
       role: initialRole,
       status: 'active',
+      dataExpiracao: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 
     const { error: insertErr } = await supabase
-      .from('profiles')
+      .from('usuarios')
       .insert(serializeProfile(newProfile));
 
     if (insertErr) throw insertErr;
@@ -178,14 +191,20 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
     console.error('Error in registerOrLoginUserProfile:', error);
     // Return local profile fallback as a safety net to prevent runtime crash
     const isBootstrappedAdmin = user.email?.toLowerCase() === 'jackson602@gmail.com';
+    const getSafeUserName = (email: string | null) => {
+      const prefix = email?.split('@')[0] || 'usuario';
+      return prefix.length >= 3 ? prefix : `${prefix}_usr`;
+    };
     return {
       uid: user.uid,
       name: user.displayName || user.email?.split('@')[0] || 'Usuário SPCI',
       email: user.email || '',
+      userName: getSafeUserName(user.email),
       photoURL: user.photoURL || '',
       logoUrl: '',
-      role: isBootstrappedAdmin ? 'admin' : 'user',
+      role: isBootstrappedAdmin ? 'Desenvolvedor' : 'Usuário',
       status: 'active',
+      dataExpiracao: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
@@ -198,7 +217,7 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   try {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('usuarios')
       .select('*')
       .eq('id', uid)
       .maybeSingle();
@@ -225,7 +244,7 @@ export async function updateUserLogo(uid: string, logoUrl: string, name?: string
     }
 
     const { error } = await supabase
-      .from('profiles')
+      .from('usuarios')
       .update(updatePayload)
       .eq('id', uid);
 
@@ -239,10 +258,14 @@ export async function updateUserLogo(uid: string, logoUrl: string, name?: string
 /**
  * Admin updates a user's role and/or status
  */
-export async function updateUserRoleAndStatus(uid: string, role: 'admin' | 'user', status: 'active' | 'pending' | 'inactive'): Promise<void> {
+export async function updateUserRoleAndStatus(
+  uid: string, 
+  role: 'Desenvolvedor' | 'Administrador' | 'Usuário', 
+  status: string
+): Promise<void> {
   try {
     const { error } = await supabase
-      .from('profiles')
+      .from('usuarios')
       .update({
         role,
         status,
@@ -263,7 +286,7 @@ export async function updateUserRoleAndStatus(uid: string, role: 'admin' | 'user
 export async function getAllUserProfiles(): Promise<UserProfile[]> {
   try {
     const { data, error } = await supabase
-      .from('profiles')
+      .from('usuarios')
       .select('*');
 
     if (error) throw error;
@@ -271,7 +294,11 @@ export async function getAllUserProfiles(): Promise<UserProfile[]> {
     
     // Sort by role then name
     return list.sort((a, b) => {
-      if (a.role !== b.role) return a.role === 'admin' ? -1 : 1;
+      if (a.role !== b.role) {
+        if (a.role === 'Desenvolvedor') return -1;
+        if (b.role === 'Desenvolvedor') return 1;
+        return a.role === 'Administrador' ? -1 : 1;
+      }
       return a.name.localeCompare(b.name);
     });
   } catch (error: any) {
@@ -286,7 +313,7 @@ export async function getAllUserProfiles(): Promise<UserProfile[]> {
 export async function deleteUserProfileByAdmin(uid: string): Promise<void> {
   try {
     const { error } = await supabase
-      .from('profiles')
+      .from('usuarios')
       .delete()
       .eq('id', uid);
 

@@ -30,6 +30,24 @@ export class SyncQueue {
   private static MAX_ATTEMPTS = 5;
 
   /**
+   * Identifica se o erro é uma falha definitiva de autorização/segurança (ex: RLS, token vencido).
+   */
+  private static isPermanentSecurityError(err: any): boolean {
+    const msg = (err?.message || String(err)).toLowerCase();
+    return (
+      msg.includes('row level security') ||
+      msg.includes('violates row level security') ||
+      msg.includes('permission denied') ||
+      msg.includes('jwt expired') ||
+      msg.includes('invalid token') ||
+      msg.includes('auth/invalid') ||
+      msg.includes('jwt signature') ||
+      msg.includes('não autorizado') ||
+      msg.includes('acesso negado')
+    );
+  }
+
+  /**
    * Enfileira uma nova tarefa de sincronização de ativo se estiver offline.
    */
   static async enqueue(moduleKey: string, assetId: string, payload: any): Promise<void> {
@@ -121,12 +139,22 @@ export class SyncQueue {
           onSuccessTask(currentTask);
         }
       } catch (err: any) {
+        const isSecurityErr = SyncQueue.isPermanentSecurityError(err);
         console.error(`[SyncQueue] Erro ao sincronizar ativo ${currentTask.assetId} (Tentativa ${currentTask.attempts}/${this.MAX_ATTEMPTS}):`, err);
         currentTask.error = err.message || String(err);
         
-        if (currentTask.attempts >= this.MAX_ATTEMPTS) {
+        if (isSecurityErr || currentTask.attempts >= this.MAX_ATTEMPTS) {
           currentTask.status = 'failed';
-          console.warn(`[SyncQueue] Ativo ${currentTask.assetId} atingiu limite máximo de tentativas e foi marcado como FALHADO.`);
+          console.warn(`[SyncQueue] Ativo ${currentTask.assetId} marcado como falhado devido a ${isSecurityErr ? 'Erro de RLS/Segurança' : 'limite de tentativas'}.`);
+          
+          if (isSecurityErr && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('spci_security_sync_error', { detail: { error: err.message || String(err) } }));
+          }
+        }
+
+        if (isSecurityErr) {
+          console.warn('[SyncQueue] Abortando processamento da fila devido a erro crítico de segurança.');
+          break; // Aborta o processamento da fila de ativos
         }
       }
     }
@@ -221,12 +249,22 @@ export class SyncQueue {
           onSuccessTask(currentTask);
         }
       } catch (err: any) {
+        const isSecurityErr = SyncQueue.isPermanentSecurityError(err);
         console.error(`[SyncQueue] Erro ao enviar vistoria do ativo ${currentTask.inspecao.asset_patrimonio} (Tentativa ${currentTask.attempts}/${this.MAX_ATTEMPTS}):`, err);
         currentTask.error = err.message || String(err);
 
-        if (currentTask.attempts >= this.MAX_ATTEMPTS) {
+        if (isSecurityErr || currentTask.attempts >= this.MAX_ATTEMPTS) {
           currentTask.status = 'failed';
-          console.warn(`[SyncQueue] Vistoria do ativo ${currentTask.inspecao.asset_patrimonio} atingiu limite máximo de tentativas e foi marcada como FALHADA.`);
+          console.warn(`[SyncQueue] Vistoria do ativo ${currentTask.inspecao.asset_patrimonio} marcada como falhada devido a ${isSecurityErr ? 'Erro de RLS/Segurança' : 'limite de tentativas'}.`);
+          
+          if (isSecurityErr && typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('spci_security_sync_error', { detail: { error: err.message || String(err) } }));
+          }
+        }
+
+        if (isSecurityErr) {
+          console.warn('[SyncQueue] Abortando processamento da fila de vistorias devido a erro crítico de segurança.');
+          break; // Aborta o processamento da fila de vistorias
         }
       }
     }

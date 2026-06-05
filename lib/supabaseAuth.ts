@@ -7,11 +7,6 @@ export interface CompatibleUser {
   photoURL: string | null;
 }
 
-let cachedAccessToken: string | null = null;
-if (typeof window !== 'undefined') {
-  cachedAccessToken = sessionStorage.getItem('spci_google_token');
-}
-
 export const mapSupabaseUser = (sbUser: any): CompatibleUser => {
   return {
     uid: sbUser.id,
@@ -22,47 +17,24 @@ export const mapSupabaseUser = (sbUser: any): CompatibleUser => {
 };
 
 export const initAuth = (
-  onAuthSuccess?: (user: CompatibleUser, token: string) => void,
+  onAuthSuccess?: (user: CompatibleUser) => void,
   onAuthFailure?: () => void
 ) => {
   // Listen for auth state changes
   const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
     if (session && session.user) {
-      if (session.provider_token) {
-        cachedAccessToken = session.provider_token;
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('spci_google_token', session.provider_token);
-        }
-      }
-      
-      if (cachedAccessToken) {
-        if (onAuthSuccess) {
-          onAuthSuccess(mapSupabaseUser(session.user), cachedAccessToken);
-        }
-      } else {
-        if (onAuthFailure) onAuthFailure();
+      if (onAuthSuccess) {
+        onAuthSuccess(mapSupabaseUser(session.user));
       }
     } else {
-      cachedAccessToken = null;
-      if (typeof window !== 'undefined') {
-        sessionStorage.removeItem('spci_google_token');
-      }
       if (onAuthFailure) onAuthFailure();
     }
   });
 
   // Check current session immediately on startup
   supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session && session.user) {
-      if (session.provider_token) {
-        cachedAccessToken = session.provider_token;
-        if (typeof window !== 'undefined') {
-          sessionStorage.setItem('spci_google_token', session.provider_token);
-        }
-      }
-      if (cachedAccessToken && onAuthSuccess) {
-        onAuthSuccess(mapSupabaseUser(session.user), cachedAccessToken);
-      }
+    if (session && session.user && onAuthSuccess) {
+      onAuthSuccess(mapSupabaseUser(session.user));
     }
   });
 
@@ -71,19 +43,17 @@ export const initAuth = (
   };
 };
 
-export const googleSignIn = async (): Promise<{ user: CompatibleUser; accessToken: string } | null> => {
+export const googleSignIn = async (): Promise<null> => {
   try {
-    const redirectToUrl = typeof window !== 'undefined' ? `${window.location.origin}/sheets-db` : '';
+    const redirectToUrl = typeof window !== 'undefined' ? `${window.location.origin}/dashboard` : '';
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        scopes: 'https://www.googleapis.com/auth/spreadsheets',
         redirectTo: redirectToUrl
       }
     });
 
     if (error) throw error;
-    // OAuth flow redirects the page, so it returns null in this invocation
     return null;
   } catch (error: any) {
     console.error('Erro de Autenticação Supabase:', error);
@@ -91,14 +61,44 @@ export const googleSignIn = async (): Promise<{ user: CompatibleUser; accessToke
   }
 };
 
-export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
+/**
+ * Efetua login hibrido aceitando tanto o e-mail quanto o user_name do usuario.
+ */
+export const signInWithEmailOrUsername = async (identifier: string, password: string): Promise<CompatibleUser | null> => {
+  try {
+    let email = identifier.trim();
+
+    // Se nao for um e-mail valido (nao contem '@'), busca o e-mail pelo user_name na tabela public.usuarios
+    if (!email.includes('@')) {
+      const { data, error: lookupError } = await supabase
+        .from('usuarios')
+        .select('email')
+        .eq('user_name', email)
+        .maybeSingle();
+
+      if (lookupError) throw lookupError;
+      if (!data || !data.email) {
+        throw new Error('Nome de usuário não cadastrado no sistema.');
+      }
+      email = data.email;
+    }
+
+    // Efetua autenticacao tradicional por email/senha no Supabase Auth
+    const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+
+    if (authError) throw authError;
+    if (!authData.user) throw new Error('Não foi possível obter dados do usuário autenticado.');
+
+    return mapSupabaseUser(authData.user);
+  } catch (error: any) {
+    console.error('Erro em signInWithEmailOrUsername:', error);
+    throw error;
+  }
 };
 
 export const logout = async () => {
   await supabase.auth.signOut();
-  cachedAccessToken = null;
-  if (typeof window !== 'undefined') {
-    sessionStorage.removeItem('spci_google_token');
-  }
 };
