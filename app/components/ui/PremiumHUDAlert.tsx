@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface PremiumHUDAlertProps {
@@ -10,6 +10,7 @@ interface PremiumHUDAlertProps {
   onConfirm?: () => void;
   confirmLabel?: string;
   dismissLabel?: string;
+  autoDismissMs?: number;
 }
 
 export default function PremiumHUDAlert({
@@ -20,8 +21,20 @@ export default function PremiumHUDAlert({
   onClose,
   onConfirm,
   confirmLabel = 'CONFIRMAR',
-  dismissLabel = 'FECHAR'
+  dismissLabel = 'FECHAR',
+  autoDismissMs
 }: PremiumHUDAlertProps) {
+  // Auto-dismiss para alertas de sucesso e info (4s por padrão)
+  useEffect(() => {
+    if (!isOpen) return;
+    const shouldAutoDismiss = autoDismissMs !== undefined ? autoDismissMs > 0 : (type === 'success' || type === 'info');
+    if (!shouldAutoDismiss) return;
+    const timeout = setTimeout(() => {
+      onClose();
+    }, autoDismissMs || 4000);
+    return () => clearTimeout(timeout);
+  }, [isOpen, type, onClose, autoDismissMs]);
+
   if (!isOpen) return null;
 
   const colorMap = {

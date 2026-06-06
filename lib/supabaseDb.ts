@@ -572,6 +572,9 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         .upsert(payload, { onConflict: 'numero_patrimonio' });
 
       if (extErr) throw extErr;
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('spci_sync_success', { detail: { type: 'asset', id, category: 'extintores' } }));
+      }
       return;
     }
 
@@ -582,6 +585,9 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
       .upsert(serialized);
 
     if (error) throw error;
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('spci_sync_success', { detail: { type: 'asset', id, category } }));
+    }
   } catch (error: any) {
     console.warn(`Could not save asset to ${collectionName} in Supabase.`, error);
     throw error;
@@ -703,10 +709,20 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada): Pro
       }
     }
 
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('spci_sync_success', { detail: { type: 'inspecao', patrimonio: inspecao.asset_patrimonio } }));
+    }
+
     return { success: true };
   } catch (error: any) {
-    console.error('Erro ao salvar laudo de inspeção no Supabase:', error);
-    return { success: false, error: error.message || 'Erro de conexão com o banco' };
+    console.error('Erro ao salvar laudo de inspeção no Supabase:', {
+      message: error?.message || error,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+      error
+    });
+    return { success: false, error: error?.message || 'Erro de conexão com o banco' };
   }
 }
 
@@ -732,8 +748,14 @@ export async function deleteAssetFromDb(collectionName: string, id: string): Pro
       .eq('id', id);
     if (error) throw error;
   } catch (error: any) {
-    console.error('Erro ao deletar ativo do Supabase:', error);
-    throw new Error(`Erro ao deletar ativo: ${error.message || error}`);
+    console.error('Erro ao deletar ativo do Supabase:', {
+      message: error?.message || error,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+      error
+    });
+    throw new Error(`Erro ao deletar ativo: ${error?.message || error}`);
   }
 }
 
@@ -759,7 +781,13 @@ export async function fetchInspecoesByAssetId(assetIdOrPatrimonio: string): Prom
     const { data, error } = await query;
 
     if (error) {
-      console.warn('Erro ao buscar inspeções do Supabase:', error);
+      console.warn('Erro ao buscar inspeções do Supabase:', {
+        message: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code,
+        error
+      });
       return [];
     }
 
@@ -775,7 +803,49 @@ export async function fetchInspecoesByAssetId(assetIdOrPatrimonio: string): Prom
       created_at: row.created_at
     }));
   } catch (error: any) {
-    console.error('Erro ao buscar inspeções:', error);
+    console.error('Erro ao buscar inspeções:', {
+      message: error?.message || error,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+      error
+    });
+    return [];
+  }
+}
+
+/**
+ * Busca todas as inspeções recentes realizadas no Supabase.
+ */
+export async function fetchRecentInspecoes(): Promise<InspecaoRealizada[]> {
+  try {
+    const { data, error } = await supabase
+      .from('inspecoes_realizadas')
+      .select('*')
+      .order('data_inspecao', { ascending: false })
+      .limit(100);
+
+    if (error) throw error;
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      asset_id: row.asset_id,
+      asset_patrimonio: row.asset_patrimonio,
+      status: row.status,
+      observacoes: row.observacoes,
+      tecnico_nome: row.tecnico_nome,
+      data_inspecao: row.data_inspecao,
+      details: row.details || {},
+      created_at: row.created_at
+    }));
+  } catch (error: any) {
+    console.error('Erro ao buscar inspeções recentes do Supabase:', {
+      message: error?.message || error,
+      details: error?.details,
+      hint: error?.hint,
+      code: error?.code,
+      error
+    });
     return [];
   }
 }

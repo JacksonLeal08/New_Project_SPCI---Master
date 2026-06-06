@@ -17,6 +17,7 @@ import AssetHistoryModal from '../components/AssetHistoryModal';
 import SpciChatIa from '../components/SpciChatIa';
 import PremiumHUDAlert from '../components/ui/PremiumHUDAlert';
 import QrCameraScanner from '../components/QrCameraScanner';
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -299,6 +300,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       {/* 4. Assistente de Inteligência Artificial Flutuante */}
       <SpciChatIa />
+
+      {/* 7. Modal de Confirmação de Exclusão Premium */}
+      <DeleteConfirmationModal />
 
       {/* 5. Leitor Óptico de QR Code Real via Câmera */}
       <AnimatePresence>

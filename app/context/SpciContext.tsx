@@ -17,7 +17,8 @@ import {
   deleteUserProfileByAdmin,
   getAssetsList,
   saveAssetToDb,
-  deleteAssetFromDb
+  deleteAssetFromDb,
+  fetchRecentInspecoes
 } from '@/lib/supabaseDb';
 import { supabase } from '@/lib/supabaseClient';
 import { idb } from '@/lib/indexedDb';
@@ -110,6 +111,8 @@ interface SpciContextType {
   setSelectedAssetForDetail: (asset: any | null) => void;
   updateExtintorAsset: (updatedAsset: any) => Promise<void>;
   deleteExtintorAsset: (assetId: string) => Promise<void>;
+  updateAsset: (category: string, updatedAsset: any) => Promise<void>;
+  deleteAsset: (category: string, assetId: string) => Promise<void>;
   
   showProfileModal: boolean;
   setShowProfileModal: (show: boolean) => void;
@@ -143,6 +146,17 @@ interface SpciContextType {
   handleCredentialsLogin: (identifier: string, pass: string) => Promise<boolean>;
   isGoogleUser: boolean;
   fetchUsers: () => Promise<void>;
+  syncWithRealDatabase: () => Promise<void>;
+  deleteConfirmation: {
+    show: boolean;
+    asset: any;
+    assetType: string;
+    onConfirm: () => Promise<void> | void;
+  } | null;
+  setDeleteConfirmation: React.Dispatch<React.SetStateAction<any | null>>;
+  deletingAssetId: string | null;
+  setDeletingAssetId: (id: string | null) => void;
+  requestAssetDeletion: (asset: any, assetType: string, onConfirm: () => Promise<void> | void) => void;
 }
 
 const SpciContext = createContext<SpciContextType | undefined>(undefined);
@@ -177,6 +191,19 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [profileLogoUrlInput, setProfileLogoUrlInput] = useState('');
 
   const [scanModal, setScanModal] = useState(false);
+
+  // States & callbacks for Premium Deletion Popup
+  const [deleteConfirmation, setDeleteConfirmation] = useState<any | null>(null);
+  const [deletingAssetId, setDeletingAssetId] = useState<string | null>(null);
+
+  const requestAssetDeletion = useCallback((asset: any, assetType: string, onConfirm: () => Promise<void> | void) => {
+    setDeleteConfirmation({
+      show: true,
+      asset,
+      assetType,
+      onConfirm
+    });
+  }, []);
   const [scanCode, setScanCode] = useState('');
 
   const [chatOpened, setChatOpened] = useState(false);
@@ -186,6 +213,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userPrompt, setUserPrompt] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
   const isSyncingRef = React.useRef(false);
+  const syncTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+  const lastNotificationTimeRef = React.useRef<number>(0);
 
   const addConsoleLog = useCallback((msg: string, type: 'ERRO' | 'SUCESSO' | 'INFO' = 'INFO') => {
     if (type === 'ERRO') {
@@ -287,29 +316,124 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadCachedData();
   }, []);
 
+  // --- MEMOIZED SUPABASE SYNC FUNCTION ---
+  const syncWithRealDatabase = useCallback(async () => {
+    try {
+      addConsoleLog(`[Sincronia] Carregando dados atualizados do Supabase...`, 'INFO');
+      
+      const extDb = await getAssetsList('extintores');
+      if (extDb && extDb.length > 0) {
+        setExtintores(extDb);
+        await idb.setAll('extintores', extDb);
+      }
+      const hidDb = await getAssetsList('hidrantes');
+      if (hidDb && hidDb.length > 0) {
+        setHidrantes(hidDb);
+        await idb.setAll('hidrantes', hidDb);
+      }
+      const sinDb = await getAssetsList('sinalizacoes');
+      if (sinDb && sinDb.length > 0) {
+        setSinalizacoes(sinDb);
+        await idb.setAll('sinalizacoes', sinDb);
+      }
+      const lumDb = await getAssetsList('iluminacao');
+      if (lumDb && lumDb.length > 0) {
+        setIluminacoes(lumDb);
+        await idb.setAll('iluminacao', lumDb);
+      }
+      const bomDb = await getAssetsList('bombas');
+      if (bomDb && bomDb.length > 0) {
+        setBombas(bomDb);
+        await idb.setAll('bombas', bomDb);
+      }
+      
+      const recentInspections = await fetchRecentInspecoes();
+      if (recentInspections && recentInspections.length > 0) {
+        const mappedLogs = recentInspections.map(inspecao => {
+          const dateObj = new Date(inspecao.data_inspecao);
+          const dateStr = dateObj.toISOString().split('T')[0];
+          const timeStr = dateObj.toLocaleTimeString('pt-BR');
+          
+          const allAssetsList = [
+            ...extDb.map(x => ({ ...x, category: 'Extintor' })),
+            ...hidDb.map(x => ({ ...x, category: 'Hidrante' })),
+            ...(sinDb || []).map(x => ({ ...x, category: 'Sinalização' })),
+            ...(lumDb || []).map(x => ({ ...x, category: 'Iluminação' })),
+            ...(bomDb || []).map(x => ({ ...x, category: 'Bomba' }))
+          ];
+          
+          const asset = allAssetsList.find(x => x.idAtivo === inspecao.asset_patrimonio || x.id === inspecao.asset_id);
+          const model = asset?.model || asset?.modelo || (inspecao.asset_patrimonio.startsWith('EXT-') ? 'Extintor' : 'Equipamento');
+          
+          return {
+            date: dateStr,
+            time: timeStr,
+            assetId: inspecao.asset_patrimonio,
+            model: model,
+            notes: inspecao.observacoes || 'Inspeção periódica efetuada.',
+            status: inspecao.status
+          };
+        });
+        
+        setComplianceLogs(mappedLogs);
+        await idb.setAll('logs', mappedLogs);
+      }
+      
+      addConsoleLog(`[Sincronia] Dados do Supabase sincronizados com sucesso!`, 'SUCESSO');
+    } catch (err) {
+      console.warn('Erro ao sincronizar com banco em tempo real:', err);
+      addConsoleLog(`[Sincronia] Erro ao sincronizar com Supabase.`, 'ERRO');
+    }
+  }, [addConsoleLog]);
+
   // --- AUTOMATIC SUPABASE SYNC ON AUTH ---
   useEffect(() => {
-    const syncWithRealDatabase = async () => {
-      try {
-        const extDb = await getAssetsList('extintores');
-        if (extDb && extDb.length > 0) {
-          setExtintores(extDb);
-          await idb.setAll('extintores', extDb);
-        }
-        const hidDb = await getAssetsList('hidrantes');
-        if (hidDb && hidDb.length > 0) {
-          setHidrantes(hidDb);
-          await idb.setAll('hidrantes', hidDb);
-        }
-      } catch (err) {
-        console.warn('Erro ao sincronizar com banco em tempo real:', err);
+    if (currentUser) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      syncWithRealDatabase();
+    }
+  }, [currentUser, syncWithRealDatabase]);
+
+  // --- AUTOMATIC REAL-TIME SYNC ON SUCCESS EVENT ---
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleSyncSuccess = (e: any) => {
+      console.log('[SpciContext] Evento de sincronia capturado:', e.detail);
+      
+      // Debounce na execução da sincronização com o Supabase para evitar chamadas duplicadas
+      // Delay de 2s agrupa múltiplos eventos em sequência rápida (ex: importação em lote)
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+      syncTimeoutRef.current = setTimeout(() => {
+        syncWithRealDatabase();
+      }, 2000);
+      
+      // Controla a frequência de exibição das notificações para evitar flood de toasts na tela
+      const now = Date.now();
+      if (e.detail?.type === 'inspecao') {
+        triggerSuccessNotification(
+          "Vistoria Sincronizada! 🔄",
+          `A inspeção do ativo ${e.detail.patrimonio} foi salva e os indicadores foram atualizados.`
+        );
+      } else if (now - lastNotificationTimeRef.current > 2500) {
+        lastNotificationTimeRef.current = now;
+        triggerSuccessNotification(
+          "Ativo Sincronizado! 🔄",
+          `O ativo foi sincronizado com o Supabase e o cache foi atualizado.`
+        );
       }
     };
 
-    if (currentUser) {
-      syncWithRealDatabase();
-    }
-  }, [currentUser]);
+    window.addEventListener('spci_sync_success', handleSyncSuccess);
+    return () => {
+      if (syncTimeoutRef.current) {
+        clearTimeout(syncTimeoutRef.current);
+      }
+      window.removeEventListener('spci_sync_success', handleSyncSuccess);
+    };
+  }, [syncWithRealDatabase, triggerSuccessNotification]);
 
   // --- AUTHENTICATION LISTENER ---
   useEffect(() => {
@@ -467,33 +591,106 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser, triggerSuccessNotification, addConsoleLog]);
 
-  const updateExtintorAsset = useCallback(async (updatedAsset: any) => {
+  const updateAsset = useCallback(async (category: string, updatedAsset: any) => {
     try {
-      await saveAssetToDb('extintores', updatedAsset.id.toString(), updatedAsset);
-      setExtintores((prev: any[]) => prev.map(a => a.id === updatedAsset.id ? { ...a, ...updatedAsset } : a));
-      triggerSuccessNotification('Ativo Atualizado! 🟢', `Extintor ${updatedAsset.idAtivo} atualizado com sucesso.`);
+      await saveAssetToDb(category, updatedAsset.id.toString(), updatedAsset);
+      
+      const normalizedCat = category.trim().toLowerCase();
+      if (normalizedCat === 'extintores') {
+        setExtintores((prev: any[]) => {
+          const next = prev.map(a => a.id === updatedAsset.id ? { ...a, ...updatedAsset } : a);
+          idb.setAll('extintores', next).catch(console.error);
+          return next;
+        });
+      } else if (normalizedCat === 'hidrantes') {
+        setHidrantes((prev: any[]) => {
+          const next = prev.map(a => a.id === updatedAsset.id ? { ...a, ...updatedAsset } : a);
+          idb.setAll('hidrantes', next).catch(console.error);
+          return next;
+        });
+      } else if (normalizedCat === 'sinalizacoes' || normalizedCat === 'sinalizacao') {
+        setSinalizacoes((prev: any[]) => {
+          const next = prev.map(a => a.id === updatedAsset.id ? { ...a, ...updatedAsset } : a);
+          idb.setAll('sinalizacoes', next).catch(console.error);
+          return next;
+        });
+      } else if (normalizedCat === 'iluminacao') {
+        setIluminacoes((prev: any[]) => {
+          const next = prev.map(a => a.id === updatedAsset.id ? { ...a, ...updatedAsset } : a);
+          idb.setAll('iluminacao', next).catch(console.error);
+          return next;
+        });
+      } else if (normalizedCat === 'bombas') {
+        setBombas((prev: any[]) => {
+          const next = prev.map(a => a.id === updatedAsset.id ? { ...a, ...updatedAsset } : a);
+          idb.setAll('bombas', next).catch(console.error);
+          return next;
+        });
+      }
+
+      triggerSuccessNotification('Ativo Atualizado! 🟢', `O ativo ${updatedAsset.idAtivo || updatedAsset.id} foi atualizado com sucesso.`);
     } catch (err: any) {
-      console.error('Erro ao atualizar extintor:', err);
-      triggerSuccessNotification('Falha na Atualização ❌', err.message || 'Erro desconhecido.');
+      console.error(`Erro ao atualizar ativo (${category}):`, err);
+      triggerSuccessNotification('Falha na Atualização ❌', err.message || 'Erro de conexão.');
       throw err;
     }
   }, [triggerSuccessNotification]);
 
-  const deleteExtintorAsset = useCallback(async (assetId: string) => {
+  const deleteAsset = useCallback(async (category: string, assetId: string) => {
     try {
-      const asset = extintores.find(a => a.id === assetId);
-      await deleteAssetFromDb('extintores', assetId);
-      const updated = extintores.filter(a => a.id !== assetId);
-      setExtintores(updated);
-      await idb.setAll('extintores', updated);
+      await deleteAssetFromDb(category, assetId);
+      
+      const normalizedCat = category.trim().toLowerCase();
+      if (normalizedCat === 'extintores') {
+        setExtintores((prev: any[]) => {
+          const next = prev.filter(a => a.id !== assetId);
+          idb.setAll('extintores', next).catch(console.error);
+          return next;
+        });
+      } else if (normalizedCat === 'hidrantes') {
+        setHidrantes((prev: any[]) => {
+          const next = prev.filter(a => a.id !== assetId);
+          idb.setAll('hidrantes', next).catch(console.error);
+          return next;
+        });
+      } else if (normalizedCat === 'sinalizacoes' || normalizedCat === 'sinalizacao') {
+        setSinalizacoes((prev: any[]) => {
+          const next = prev.filter(a => a.id !== assetId);
+          idb.setAll('sinalizacoes', next).catch(console.error);
+          return next;
+        });
+      } else if (normalizedCat === 'iluminacao') {
+        setIluminacoes((prev: any[]) => {
+          const next = prev.filter(a => a.id !== assetId);
+          idb.setAll('iluminacao', next).catch(console.error);
+          return next;
+        });
+      } else if (normalizedCat === 'bombas') {
+        setBombas((prev: any[]) => {
+          const next = prev.filter(a => a.id !== assetId);
+          idb.setAll('bombas', next).catch(console.error);
+          return next;
+        });
+      }
+
       setSelectedAssetForDetail(null);
-      triggerSuccessNotification('Ativo Excluído! 🗑️', `Extintor ${asset?.idAtivo || assetId} foi removido permanentemente.`);
+      // Bloqueia popup de "Ativo Sincronizado" por 5s após exclusão para evitar duplicidade
+      lastNotificationTimeRef.current = Date.now() + 5000;
+      triggerSuccessNotification('Ativo Excluído! 🗑️', 'O ativo foi removido de forma definitiva.');
     } catch (err: any) {
-      console.error('Erro ao deletar extintor:', err);
+      console.error(`Erro ao deletar ativo (${category}):`, err);
       triggerSuccessNotification('Falha na Exclusão ❌', err.message || 'Erro de permissão.');
       throw err;
     }
-  }, [extintores, triggerSuccessNotification]);
+  }, [triggerSuccessNotification]);
+
+  const updateExtintorAsset = useCallback(async (updatedAsset: any) => {
+    await updateAsset('extintores', updatedAsset);
+  }, [updateAsset]);
+
+  const deleteExtintorAsset = useCallback(async (assetId: string) => {
+    await deleteAsset('extintores', assetId);
+  }, [deleteAsset]);
 
   const handleAdminRoleStatusChange = useCallback(async (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => {
     try {
@@ -665,6 +862,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSelectedAssetForDetail,
       updateExtintorAsset,
       deleteExtintorAsset,
+      updateAsset,
+      deleteAsset,
       showProfileModal,
       setShowProfileModal,
       profileNameInput,
@@ -692,7 +891,13 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       handleInviteUser,
       handleCredentialsLogin,
       isGoogleUser,
-      fetchUsers
+      fetchUsers,
+      syncWithRealDatabase,
+      deleteConfirmation,
+      setDeleteConfirmation,
+      deletingAssetId,
+      setDeletingAssetId,
+      requestAssetDeletion
     }}>
       {children}
     </SpciContext.Provider>

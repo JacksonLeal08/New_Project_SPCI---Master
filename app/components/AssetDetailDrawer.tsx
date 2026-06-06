@@ -43,6 +43,8 @@ export default function AssetDetailDrawer() {
     deleteExtintorAsset,
     userProfile,
     complianceLogs,
+    requestAssetDeletion,
+    setDeletingAssetId,
   } = useSpci();
 
   const [activeTab, setActiveTab] = useState<TabKey>('dados');
@@ -61,6 +63,7 @@ export default function AssetDetailDrawer() {
   // Sync form data when asset changes
   useEffect(() => {
     if (asset) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({ ...asset });
       setActiveTab('dados');
     }
@@ -82,6 +85,7 @@ export default function AssetDetailDrawer() {
 
   useEffect(() => {
     if (activeTab === 'inspecoes' && asset) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadInspecoes();
     }
   }, [activeTab, asset, loadInspecoes]);
@@ -102,13 +106,27 @@ export default function AssetDetailDrawer() {
 
   const handleDelete = async () => {
     if (!asset) return;
-    const confirm = window.confirm(`⚠️ Deseja excluir permanentemente o ativo ${asset.idAtivo}?\n\nEsta ação não pode ser desfeita.`);
-    if (!confirm) return;
-    setIsDeleting(true);
-    try {
-      await deleteExtintorAsset(asset.id);
-    } catch { /* handled by context */ }
-    finally { setIsDeleting(false); }
+    
+    requestAssetDeletion(asset, 'extintor', async () => {
+      setIsDeleting(true);
+      try {
+        // 1. Close detail drawer first so the user can see the card disintegrate in the list
+        setSelectedAssetForDetail(null);
+        
+        // 2. Trigger particle disintegration animation on the card
+        setDeletingAssetId(asset.id);
+        
+        // 3. Wait for the particle animation (1.2s)
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        
+        // 4. Perform actual database/state deletion
+        await deleteExtintorAsset(asset.id);
+      } catch { /* handled by context */ }
+      finally { 
+        setIsDeleting(false); 
+        setDeletingAssetId(null);
+      }
+    });
   };
 
   // Merge session logs + DB inspections for this asset
