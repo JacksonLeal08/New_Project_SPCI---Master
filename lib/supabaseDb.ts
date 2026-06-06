@@ -139,6 +139,82 @@ const deserializeExtintor = (row: any) => {
   };
 };
 
+const getMonthsDiff = (d1Str: string, d2Str: string): number => {
+  if (!d1Str || !d2Str) return 12;
+  try {
+    const d1 = new Date(d1Str);
+    const d2 = new Date(d2Str);
+    if (isNaN(d1.getTime()) || isNaN(d2.getTime())) return 12;
+    const years = d2.getFullYear() - d1.getFullYear();
+    const months = d2.getMonth() - d1.getMonth();
+    return years * 12 + months;
+  } catch (e) {
+    return 12;
+  }
+};
+
+const normalizeToIsoDate = (val: any): string => {
+  if (!val) return new Date().toISOString().split('T')[0];
+  if (typeof val === 'number') {
+    // Excel date serial number
+    const date = new Date((val - 25569) * 86400 * 1000);
+    return date.toISOString().split('T')[0];
+  }
+  const dateStr = String(val).trim();
+  const ddMmYyyy = /^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/;
+  if (ddMmYyyy.test(dateStr)) {
+    const [, d, m, y] = dateStr.match(ddMmYyyy) || [];
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  const yyyyMmDd = /^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/;
+  if (yyyyMmDd.test(dateStr)) {
+    const [, y, m, d] = dateStr.match(yyyyMmDd) || [];
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  const parsed = Date.parse(dateStr);
+  if (!isNaN(parsed)) {
+    return new Date(parsed).toISOString().split('T')[0];
+  }
+  return new Date().toISOString().split('T')[0];
+};
+
+const deserializeNewExtintor = (row: any) => {
+  // Map status_conformidade to display status: 'VENCIDO' -> 'Vencido', 'NO PRAZO' -> 'Conforme', 'A VENCER' -> 'Atenção'
+  let displayStatus = 'Conforme';
+  if (row.status_conformidade === 'VENCIDO') {
+    displayStatus = 'Vencido';
+  } else if (row.status_conformidade === 'A VENCER') {
+    displayStatus = 'Atenção';
+  }
+
+  const recargaDate = row.data_ultima_recarga || '';
+  const limiteRecargaDate = row.data_limite_recarga || '';
+
+  return {
+    id: row.id,
+    idAtivo: row.numero_patrimonio,
+    qr_code_hash: row.qr_code_hash,
+    category: 'extintores',
+    location: row.local_instalacao || '',
+    subLocation: row.sub_local_instalacao || '',
+    status: displayStatus,
+    // specific fields
+    model: row.modelo_tipo || '',
+    peso: row.peso_capacidade || '',
+    seloInmetro: row.selo_inmetro || '',
+    chassi: row.numero_serie || '',
+    lastRecarga: recargaDate,
+    anoUltimoTesteHidro: row.ano_ultimo_teste_hidro || new Date().getFullYear(),
+    ultimoTesteHidro: row.ano_ultimo_teste_hidro || new Date().getFullYear(),
+    fotoUrl: row.foto_url || '',
+    validadeRecarga: limiteRecargaDate,
+    validadeTesteHidro: row.data_limite_hidro || '',
+    statusConformidade: row.status_conformidade,
+    validadeRecargaMeses: getMonthsDiff(recargaDate, limiteRecargaDate),
+    anoFabricacao: row.ano_ultimo_teste_hidro || new Date().getFullYear() // fallback since not in db
+  };
+};
+
 // --- PROFILE DATABASE FUNCTIONS ---
 
 /**
@@ -335,11 +411,18 @@ export async function getAssetsList(collectionName: string): Promise<any[]> {
     
     if (category === 'extintores') {
       const { data, error } = await supabase
-        .from('view_extintores')
+        .from('vw_extintores_publico')
         .select('*');
 
-      if (error) throw error;
-      return (data || []).map(deserializeExtintor);
+      if (error) {
+        console.warn('Erro ao buscar de vw_extintores_publico, tentando view_extintores...', error);
+        const { data: oldData, error: oldErr } = await supabase
+          .from('view_extintores')
+          .select('*');
+        if (oldErr) throw oldErr;
+        return (oldData || []).map(deserializeExtintor);
+      }
+      return (data || []).map(deserializeNewExtintor);
     }
 
     const { data, error } = await supabase
@@ -360,44 +443,133 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
     const category = getNormalizedCategory(collectionName);
 
     if (category === 'extintores') {
-      // 1. Salva na tabela assets
-      const assetPayload = {
-        id: id,
-        id_ativo: asset.idAtivo || id,
-        category: 'extintores',
-        location: asset.location || '',
-        sub_location: asset.subLocation || '',
-        status: asset.status || 'Conforme',
-        latitude: asset.geolocation?.lat || null,
-        longitude: asset.geolocation?.lng || null,
+      let localId = asset.local_id;
+      let subLocalId = asset.sub_local_id;
+      let modeloId = asset.modelo_id;
+
+      // Se local_id não estiver presente, resolvemos pelo nome do local
+      if (!localId && asset.location) {
+        const { data: locData } = await supabase
+          .from('locais')
+          .select('id')
+          .eq('nome', asset.location.toUpperCase())
+          .maybeSingle();
+        
+        if (locData) {
+          localId = locData.id;
+        } else {
+          // Insere ou obtém o local se não existir (upsert seguro contra concorrência paralela)
+          const { data: newLoc, error: locErr } = await supabase
+            .from('locais')
+            .upsert({ nome: asset.location.toUpperCase() }, { onConflict: 'nome' })
+            .select('id')
+            .single();
+          if (locErr) {
+            const detailMsg = locErr.message || JSON.stringify(locErr);
+            console.error(`[saveAssetToDb] Erro ao cadastrar local "${asset.location}": ${detailMsg}`, locErr);
+            throw new Error(`Erro ao cadastrar local "${asset.location}": ${detailMsg}`);
+          }
+          if (newLoc) {
+            localId = newLoc.id;
+          }
+        }
+      }
+
+      // Se modelo_id não estiver presente, resolvemos pelo nome
+      if (!modeloId && asset.model) {
+        const { data: modData } = await supabase
+          .from('modelos_extintores')
+          .select('id')
+          .eq('nome', asset.model.toUpperCase())
+          .maybeSingle();
+        
+        if (modData) {
+          modeloId = modData.id;
+        } else {
+          // Insere ou obtém o modelo se não existir (upsert seguro contra concorrência paralela)
+          const { data: newMod, error: modErr } = await supabase
+            .from('modelos_extintores')
+            .upsert({ nome: asset.model.toUpperCase() }, { onConflict: 'nome' })
+            .select('id')
+            .single();
+          if (modErr) {
+            const detailMsg = modErr.message || JSON.stringify(modErr);
+            console.error(`[saveAssetToDb] Erro ao cadastrar modelo "${asset.model}": ${detailMsg}`, modErr);
+            throw new Error(`Erro ao cadastrar modelo "${asset.model}": ${detailMsg}`);
+          }
+          if (newMod) {
+            modeloId = newMod.id;
+          }
+        }
+      }
+
+      // Se sub_local_id não estiver presente e tivermos localId, resolve pelo nome
+      if (!subLocalId && asset.subLocation && localId) {
+        const { data: subData } = await supabase
+          .from('sub_locais')
+          .select('id')
+          .eq('local_id', localId)
+          .eq('nome', asset.subLocation.toUpperCase())
+          .maybeSingle();
+        
+        if (subData) {
+          subLocalId = subData.id;
+        } else {
+          // Insere ou obtém o sub_local se não existir (upsert seguro contra concorrência paralela)
+          const { data: newSub, error: subErr } = await supabase
+            .from('sub_locais')
+            .upsert({ local_id: localId, nome: asset.subLocation.toUpperCase() }, { onConflict: 'local_id,nome' })
+            .select('id')
+            .single();
+          if (subErr) {
+            const detailMsg = subErr.message || JSON.stringify(subErr);
+            console.error(`[saveAssetToDb] Erro ao cadastrar sub-local "${asset.subLocation}": ${detailMsg}`, subErr);
+            throw new Error(`Erro ao cadastrar sub-local "${asset.subLocation}": ${detailMsg}`);
+          }
+          if (newSub) {
+            subLocalId = newSub.id;
+          }
+        }
+      }
+
+      // Garantir localId e modeloId padrão se nada resolveu
+      if (!localId) {
+        const { data: defLoc } = await supabase.from('locais').select('id').limit(1).maybeSingle();
+        localId = defLoc?.id;
+      }
+      if (!modeloId) {
+        const { data: defMod } = await supabase.from('modelos_extintores').select('id').limit(1).maybeSingle();
+        modeloId = defMod?.id;
+      }
+
+      if (!localId || !modeloId) {
+        throw new Error('Não foi possível resolver local_id ou modelo_id para o extintor. Certifique-se de que a migração SQL foi aplicada no Supabase e de que existem registros nas tabelas.');
+      }
+
+      const payload: any = {
+        local_id: localId,
+        sub_local_id: subLocalId || null,
+        numero_patrimonio: asset.idAtivo || id,
+        selo_inmetro: asset.seloInmetro || null,
+        chassi: asset.chassi || null,
+        modelo_id: modeloId,
+        peso_capacidade: asset.peso || asset.peso_capacidade || '6KG',
+        data_ultima_recarga: normalizeToIsoDate(asset.lastRecarga || asset.data_ultima_recarga),
+        meses_validade_recarga: parseInt(asset.validadeRecargaMeses || asset.meses_validade_recarga || '12', 10),
+        ano_ultimo_teste_hidro: parseInt(asset.ultimoTesteHidro || asset.ano_ultimo_teste_hidro || new Date().getFullYear().toString(), 10),
+        data_pesagem_co2: asset.data_pesagem_co2 ? normalizeToIsoDate(asset.data_pesagem_co2) : null,
+        foto_url: asset.fotoUrl || asset.foto_url || null,
         updated_at: new Date().toISOString()
       };
 
-      const { error: assetErr } = await supabase
-        .from('assets')
-        .upsert(assetPayload);
-
-      if (assetErr) throw assetErr;
-
-      // 2. Salva na tabela cadastro_extintores
-      const extintorPayload = {
-        asset_id: id,
-        fabricante: asset.fabricante || 'N/A',
-        modelo: asset.model || asset.modelo || '',
-        peso_capacidade: asset.peso || asset.peso_capacidade || '',
-        capacidade_extintora: asset.capacidadeExtintora || 'N/A',
-        selo_inmetro: asset.seloInmetro || '',
-        chassi: asset.chassi || '',
-        ano_fabricacao: parseInt(asset.anoFabricacao || asset.ano_fabricacao || new Date().getFullYear().toString(), 10),
-        ultimo_teste_hidro: parseInt(asset.ultimoTesteHidro || asset.ultimo_teste_hidro || new Date().getFullYear().toString(), 10),
-        data_ultima_recarga: asset.lastRecarga || asset.data_ultima_recarga || new Date().toISOString().split('T')[0],
-        validade_recarga_meses: parseInt(asset.validadeRecargaMeses || '12', 10),
-        validade_recarga_data: asset.validadeRecarga || asset.validade_recarga_data || new Date().toISOString().split('T')[0]
-      };
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
+      if (isUuid) {
+        payload.id = id;
+      }
 
       const { error: extErr } = await supabase
-        .from('cadastro_extintores')
-        .upsert(extintorPayload);
+        .from('ativos_extintores')
+        .upsert(payload, { onConflict: 'numero_patrimonio' });
 
       if (extErr) throw extErr;
       return;
@@ -412,6 +584,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
     if (error) throw error;
   } catch (error: any) {
     console.warn(`Could not save asset to ${collectionName} in Supabase.`, error);
+    throw error;
   }
 }
 
@@ -424,16 +597,27 @@ export async function fetchAtivoParaInspecao(idOrPatrimonio: string): Promise<an
     const isExtintor = idUpper.startsWith('EXT-');
 
     if (isExtintor) {
-      const query = supabase.from('view_extintores').select('*');
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idUpper);
+      const query = supabase.from('vw_extintores_publico').select('*');
       if (isUuid) {
         query.eq('id', idUpper);
       } else {
-        query.eq('id_ativo', idUpper);
+        query.eq('numero_patrimonio', idUpper);
       }
       const { data, error } = await query.maybeSingle();
-      if (error) throw error;
-      if (data) return deserializeExtintor(data);
+      if (error) {
+        console.warn('Erro ao buscar de vw_extintores_publico, tentando view_extintores...', error);
+        const oldQuery = supabase.from('view_extintores').select('*');
+        if (isUuid) {
+          oldQuery.eq('id', idUpper);
+        } else {
+          oldQuery.eq('id_ativo', idUpper);
+        }
+        const { data: oldData, error: oldErr } = await oldQuery.maybeSingle();
+        if (oldErr) throw oldErr;
+        if (oldData) return deserializeExtintor(oldData);
+      }
+      if (data) return deserializeNewExtintor(data);
     }
 
     // Fallback/Outras categorias
@@ -451,11 +635,18 @@ export async function fetchAtivoParaInspecao(idOrPatrimonio: string): Promise<an
 
     if (data.category === 'extintores') {
       const { data: extData, error: extErr } = await supabase
+        .from('vw_extintores_publico')
+        .select('*')
+        .eq('id', data.id)
+        .maybeSingle();
+      if (!extErr && extData) return deserializeNewExtintor(extData);
+
+      const { data: oldExtData, error: oldExtErr } = await supabase
         .from('view_extintores')
         .select('*')
         .eq('id', data.id)
         .maybeSingle();
-      if (!extErr && extData) return deserializeExtintor(extData);
+      if (!oldExtErr && oldExtData) return deserializeExtintor(oldExtData);
     }
 
     return deserializeAsset(data);
@@ -486,16 +677,30 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada): Pro
 
     if (error) throw error;
 
-    const { error: updateErr } = await supabase
-      .from('assets')
-      .update({
-        status: inspecao.status,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', inspecao.asset_id);
+    const isExtintor = inspecao.asset_patrimonio.toUpperCase().startsWith('EXT-');
+    if (isExtintor) {
+      const { error: updateErr } = await supabase
+        .from('ativos_extintores')
+        .update({
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', inspecao.asset_id);
 
-    if (updateErr) {
-      console.warn('Aviso: laudo de vistoria salvo, mas erro ao atualizar status principal do ativo:', updateErr);
+      if (updateErr) {
+        console.warn('Aviso: laudo de vistoria salvo, mas erro ao atualizar ativos_extintores:', updateErr);
+      }
+    } else {
+      const { error: updateErr } = await supabase
+        .from('assets')
+        .update({
+          status: inspecao.status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', inspecao.asset_id);
+
+      if (updateErr) {
+        console.warn('Aviso: laudo de vistoria salvo, mas erro ao atualizar status principal do ativo:', updateErr);
+      }
     }
 
     return { success: true };
@@ -505,3 +710,72 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada): Pro
   }
 }
 
+/**
+ * Deleta um ativo do Supabase pelo ID e categoria.
+ */
+export async function deleteAssetFromDb(collectionName: string, id: string): Promise<void> {
+  try {
+    const category = getNormalizedCategory(collectionName);
+
+    if (category === 'extintores') {
+      const { error } = await supabase
+        .from('ativos_extintores')
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase
+      .from('assets')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+  } catch (error: any) {
+    console.error('Erro ao deletar ativo do Supabase:', error);
+    throw new Error(`Erro ao deletar ativo: ${error.message || error}`);
+  }
+}
+
+/**
+ * Busca inspeções realizadas para um ativo específico pelo asset_id ou patrimônio.
+ */
+export async function fetchInspecoesByAssetId(assetIdOrPatrimonio: string): Promise<InspecaoRealizada[]> {
+  try {
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(assetIdOrPatrimonio);
+
+    let query = supabase
+      .from('inspecoes_realizadas')
+      .select('*')
+      .order('data_inspecao', { ascending: false })
+      .limit(50);
+
+    if (isUuid) {
+      query = query.eq('asset_id', assetIdOrPatrimonio);
+    } else {
+      query = query.eq('asset_patrimonio', assetIdOrPatrimonio.toUpperCase());
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.warn('Erro ao buscar inspeções do Supabase:', error);
+      return [];
+    }
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      asset_id: row.asset_id,
+      asset_patrimonio: row.asset_patrimonio,
+      status: row.status,
+      observacoes: row.observacoes,
+      tecnico_nome: row.tecnico_nome,
+      data_inspecao: row.data_inspecao,
+      details: row.details || {},
+      created_at: row.created_at
+    }));
+  } catch (error: any) {
+    console.error('Erro ao buscar inspeções:', error);
+    return [];
+  }
+}

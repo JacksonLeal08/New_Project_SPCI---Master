@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
+import { supabase } from '@/lib/supabaseClient';
 import { 
   Flame, 
   Droplet, 
@@ -14,6 +15,16 @@ import {
 interface AssetAddModalProps {
   isOpen: boolean;
   onClose: () => void;
+}
+
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
 }
 
 export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
@@ -34,6 +45,13 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
     triggerSuccessNotification
   } = useSpci();
 
+  // --- ESTADOS PARA METADADOS DO SUPABASE ---
+  const [locaisList, setLocaisList] = useState<any[]>([]);
+  const [modelosList, setModelosList] = useState<any[]>([]);
+  const [loadingMetadata, setLoadingMetadata] = useState(false);
+  const [selectedLocalId, setSelectedLocalId] = useState('');
+  const [selectedModeloId, setSelectedModeloId] = useState('');
+
   // --- ESTADOS LOCAIS DO FORMULÁRIO ---
   const [formLocal, setFormLocal] = useState('MANGANÊS');
   const [formSubLocal, setFormSubLocal] = useState('BARRAGEM DO AZUL');
@@ -41,9 +59,99 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
   const [formModel, setFormModel] = useState('');
   const [formSelo, setFormSelo] = useState('');
   const [formChassi, setFormChassi] = useState('');
-  const [formWeight, setFormWeight] = useState('6');
   const [formSystemType, setFormSystemType] = useState('CONJUNTO DE BLOCO AUTÔNOMO');
   const [multiSelectModels, setMultiSelectModels] = useState<string[]>([]);
+
+  // Novos campos específicos de Extintores
+  const [formWeightCap, setFormWeightCap] = useState('6KG');
+  const [formDataRecarga, setFormDataRecarga] = useState(new Date().toISOString().substring(0, 10));
+  const [formValidadeRecargaMeses, setFormValidadeRecargaMeses] = useState('12');
+  const [formAnoTesteHidro, setFormAnoTesteHidro] = useState(new Date().getFullYear().toString());
+  const [formDataPesagemCo2, setFormDataPesagemCo2] = useState('');
+
+  // Upload de Imagem
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState(false);
+
+  // Carregar dados de locais e modelos de extintor do banco
+  useEffect(() => {
+    if (isOpen) {
+      const loadMetadata = async () => {
+        setLoadingMetadata(true);
+        try {
+          // 1. Buscar locais
+          const { data: locales, error: locErr } = await supabase
+            .from('locais')
+            .select('*')
+            .order('nome', { ascending: true });
+          
+          let loadedLocales = locales || [];
+          if (loadedLocales.length === 0) {
+            // Seed se vazio
+            const defaultLocales = [
+              { nome: 'MANGANÊS' },
+              { nome: 'ALMOXARIFADO' },
+              { nome: 'SALA ELÉTRICA' },
+              { nome: 'BARRAGEM DO AZUL' },
+              { nome: 'ROTA DE FUGA 01' },
+              { nome: 'ROTA DE FUGA 02' },
+              { nome: 'RECEPÇÃO' },
+              { nome: 'COBRE' },
+              { nome: 'FERRO' }
+            ];
+            const { data: seeded } = await supabase
+              .from('locais')
+              .insert(defaultLocales)
+              .select('*');
+            if (seeded) loadedLocales = seeded;
+          }
+          setLocaisList(loadedLocales);
+          if (loadedLocales.length > 0) {
+            setSelectedLocalId(loadedLocales[0].id);
+            setFormLocal(loadedLocales[0].nome);
+          }
+
+          // 2. Buscar modelos_extintores
+          const { data: models, error: modErr } = await supabase
+            .from('modelos_extintores')
+            .select('*')
+            .order('nome', { ascending: true });
+          
+          let loadedModels = models || [];
+          if (loadedModels.length === 0) {
+            const defaultModels = [
+              { nome: 'PQS ABC - 8KG' },
+              { nome: 'CO2 - 6KG' },
+              { nome: 'ÁGUA PRESSURIZADA - 10L' },
+              { nome: 'PQS BC - 4KG' }
+            ];
+            const { data: seeded } = await supabase
+              .from('modelos_extintores')
+              .insert(defaultModels)
+              .select('*');
+            if (seeded) loadedModels = seeded;
+          }
+          setModelosList(loadedModels);
+          if (loadedModels.length > 0) {
+            setSelectedModeloId(loadedModels[0].id);
+            setFormModel(loadedModels[0].nome);
+          }
+        } catch (e) {
+          console.error('Erro ao carregar metadados do Supabase:', e);
+        } finally {
+          setLoadingMetadata(false);
+        }
+      };
+      
+      loadMetadata();
+      // Reseta estados de upload de forma assíncrona para evitar renderização em cascata
+      setTimeout(() => {
+        setSelectedFile(null);
+        setPreviewUrl(null);
+      }, 0);
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -60,6 +168,32 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
     { id: 'iluminacao', label: 'Iluminação', sublabel: 'Blocos Emerg.', icon: Lightbulb },
     { id: 'bomba', label: 'Bombas', sublabel: 'Casa de Bombas', icon: Sliders }
   ];
+
+  // Helper to detect if selected model is CO2
+  const selectedModelName = modelosList.find(m => m.id === selectedModeloId)?.nome || formModel || '';
+  const isCo2 = selectedModelName.toUpperCase().includes('CO2');
+
+  const handleLocalChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setSelectedLocalId(val);
+    const locName = locaisList.find(l => l.id === val)?.nome || '';
+    setFormLocal(locName);
+  };
+
+  const handleModeloChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    setSelectedModeloId(val);
+    const modName = modelosList.find(m => m.id === val)?.nome || '';
+    setFormModel(modName);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    }
+  };
 
   // Helper to dynamically calculate next inspection MM/YYYY
   const getNextInspectionDateStr = () => {
@@ -91,7 +225,6 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       return;
     }
 
-    const uniqueId = String(Date.now());
     const getPrefix = () => {
       switch (newAssetType) {
         case 'extintor': return 'EXT-';
@@ -107,23 +240,78 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       ? formPatrimonio.toUpperCase() 
       : `${prefix}${formPatrimonio.toUpperCase()}`;
 
+    // Upload da foto para o Supabase Storage se houver arquivo
+    let uploadedFotoUrl = '';
+    if (selectedFile) {
+      setUploadingImage(true);
+      try {
+        const fileExt = selectedFile.name.split('.').pop() || 'png';
+        const fileName = `ext_${codePatrimonio}_${Date.now()}.${fileExt}`;
+        
+        const { data: uploadData, error: uploadErr } = await supabase.storage
+          .from('fotos_extintores')
+          .upload(fileName, selectedFile);
+
+        if (uploadErr) throw uploadErr;
+
+        // Recuperar a URL pública
+        const { data: { publicUrl } } = supabase.storage
+          .from('fotos_extintores')
+          .getPublicUrl(uploadData.path);
+
+        uploadedFotoUrl = publicUrl;
+      } catch (err: any) {
+        console.error('Erro no upload de foto:', err);
+        alert('Erro ao enviar imagem ao storage: ' + (err.message || err));
+      } finally {
+        setUploadingImage(false);
+      }
+    }
+
+    // Gerar UUID para persistência no banco relacional
+    const uniqueId = generateUUID();
+
     if (newAssetType === 'extintor') {
+      const selectedLocalObj = locaisList.find(l => l.id === selectedLocalId);
+      const selectedModeloObj = modelosList.find(m => m.id === selectedModeloId);
+
+      // Calcular data de validade da recarga localmente para exibir rápido
+      const recargaDate = new Date(formDataRecarga);
+      const validityMonths = parseInt(formValidadeRecargaMeses, 10) || 12;
+      recargaDate.setMonth(recargaDate.getMonth() + validityMonths);
+      const validadeRecargaStr = recargaDate.toISOString().substring(0, 10);
+
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
-        model: formModel || 'PQS ABC - 8KG',
-        location: formLocal,
+        category: 'extintores',
+        location: selectedLocalObj?.nome || formLocal,
         subLocation: formSubLocal,
-        seloInmetro: formSelo || 'S-' + Math.floor(Math.random() * 100000),
-        chassi: formChassi || 'C-' + Math.floor(Math.random() * 100000),
-        peso: formWeight,
-        lastRecarga: new Date().toISOString().substring(0, 10),
-        recurrenceInterval: '1 Ano',
-        validadeRecarga: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
-        validadeTesteHidro: '2031',
-        status: 'Conforme',
-        category: 'extintores'
+        status: 'Conforme', // Será recalculado pela View do banco
+        
+        // Chaves estrangeiras relacionais
+        local_id: selectedLocalId || null,
+        sub_local_id: null, // Resolvido no backend via nome
+        modelo_id: selectedModeloId || null,
+        
+        // Mapeamento específico e de compatibilidade
+        model: selectedModeloObj?.nome || formModel || 'PQS ABC - 8KG',
+        peso_capacidade: formWeightCap,
+        peso: formWeightCap.replace(/\D/g, ''), // Compatibilidade antiga
+        seloInmetro: formSelo,
+        chassi: formChassi,
+        data_ultima_recarga: formDataRecarga,
+        lastRecarga: formDataRecarga,
+        meses_validade_recarga: validityMonths,
+        validadeRecargaMeses: validityMonths,
+        ano_ultimo_teste_hidro: parseInt(formAnoTesteHidro, 10) || new Date().getFullYear(),
+        ultimoTesteHidro: parseInt(formAnoTesteHidro, 10) || new Date().getFullYear(),
+        data_pesagem_co2: isCo2 ? (formDataPesagemCo2 || null) : null,
+        fotoUrl: uploadedFotoUrl,
+        foto_url: uploadedFotoUrl,
+        validadeRecarga: validadeRecargaStr
       };
+
       const updated = [newObj, ...extintores];
       setExtintores(updated);
       await saveAssetsList('extintores', updated);
@@ -193,9 +381,14 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
     }
 
     setFormPatrimonio('');
-    setFormModel('');
     setFormSelo('');
     setFormChassi('');
+    setFormWeightCap('6KG');
+    setFormValidadeRecargaMeses('12');
+    setFormAnoTesteHidro(new Date().getFullYear().toString());
+    setFormDataPesagemCo2('');
+    setSelectedFile(null);
+    setPreviewUrl(null);
     setMultiSelectModels([]);
     onClose();
     triggerSuccessNotification('Equipamento Registrado!', `Ativo ${codePatrimonio} foi cadastrado no banco de dados SPCI.`);
@@ -227,7 +420,7 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
           </div>
           <button 
             onClick={onClose} 
-            className="text-slate-400 hover:text-slate-800 border border-slate-200 hover:border-slate-300 bg-white p-2 transition-all rounded-xl cursor-pointer shadow-xs"
+            className="text-slate-400 hover:text-slate-800 border border-slate-200 hover:border-slate-350 bg-white p-2 transition-all rounded-xl cursor-pointer shadow-xs"
             title="Fechar Modal"
           >
             <X className="w-4 h-4" />
@@ -273,156 +466,266 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
           </div>
 
           <form onSubmit={handleAddNewAssetSubmit} className="space-y-5 text-slate-700">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
-              {/* Local */}
-              <div>
-                <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Local da Instalação *</label>
-                <select 
-                  value={formLocal} 
-                  onChange={(e) => setFormLocal(e.target.value)} 
-                  className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs cursor-pointer"
-                >
-                  {SECTORS_LIST.map(sec => <option key={sec} value={sec}>{sec}</option>)}
-                </select>
+            {loadingMetadata ? (
+              <div className="flex flex-col items-center justify-center py-8 text-slate-400 gap-2">
+                <div className="w-6 h-6 border-2 border-slate-300 border-t-red-600 rounded-full animate-spin"></div>
+                <span>Carregando dados da planta...</span>
               </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                {/* Local */}
+                <div>
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Local da Instalação *</label>
+                  {locaisList.length > 0 ? (
+                    <select 
+                      value={selectedLocalId} 
+                      onChange={handleLocalChange} 
+                      className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs cursor-pointer"
+                    >
+                      {locaisList.map(loc => <option key={loc.id} value={loc.id}>{loc.nome}</option>)}
+                    </select>
+                  ) : (
+                    <select 
+                      value={formLocal} 
+                      onChange={(e) => setFormLocal(e.target.value)} 
+                      className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs cursor-pointer"
+                    >
+                      {SECTORS_LIST.map(sec => <option key={sec} value={sec}>{sec}</option>)}
+                    </select>
+                  )}
+                </div>
 
-              {/* Sub-Local */}
-              <div>
-                <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Sub Local (Sala / Doca) *</label>
-                <input 
-                  type="text" 
-                  value={formSubLocal} 
-                  onChange={(e) => setFormSubLocal(e.target.value)} 
-                  className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs" 
-                  placeholder="Ex: Sala de Geradores, Coluna 12" 
-                  required
-                />
-              </div>
-
-              {/* Patrimonio */}
-              <div>
-                <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Número do Patrimônio *</label>
-                <div className="flex shadow-xs rounded-xl overflow-hidden border border-slate-200 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600">
-                  <span className="bg-slate-100 text-slate-500 text-xs px-4 flex items-center border-r border-slate-200 select-none font-bold">
-                    {newAssetType === 'extintor' ? 'EXT-' : newAssetType === 'hidrante' ? 'HD-' : newAssetType === 'sinalizacao' ? 'SE-' : newAssetType === 'iluminacao' ? 'IE-' : newAssetType === 'bomba' ? 'CB-' : 'PAT-'}
-                  </span>
+                {/* Sub-Local */}
+                <div>
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Sub Local (Sala / Doca) *</label>
                   <input 
                     type="text" 
-                    value={formPatrimonio} 
-                    onChange={(e) => setFormPatrimonio(e.target.value)} 
-                    className="w-full bg-white p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold uppercase" 
-                    placeholder="Ex: 1042" 
-                    required 
+                    value={formSubLocal} 
+                    onChange={(e) => setFormSubLocal(e.target.value)} 
+                    className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs" 
+                    placeholder="Ex: Sala de Geradores, Coluna 12" 
+                    required
                   />
                 </div>
-              </div>
 
-              {/* EXTINTORES EXTRA FIELDS */}
-              {newAssetType === 'extintor' && (
-                <>
-                  <div>
-                    <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Modelo / Carga *</label>
+                {/* Patrimonio */}
+                <div>
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Número do Patrimônio *</label>
+                  <div className="flex shadow-xs rounded-xl overflow-hidden border border-slate-200 focus-within:border-red-600 focus-within:ring-1 focus-within:ring-red-600">
+                    <span className="bg-slate-100 text-slate-500 text-xs px-4 flex items-center border-r border-slate-200 select-none font-bold">
+                      {newAssetType === 'extintor' ? 'EXT-' : newAssetType === 'hidrante' ? 'HD-' : newAssetType === 'sinalizacao' ? 'SE-' : newAssetType === 'iluminacao' ? 'IE-' : newAssetType === 'bomba' ? 'CB-' : 'PAT-'}
+                    </span>
+                    <input 
+                      type="text" 
+                      value={formPatrimonio} 
+                      onChange={(e) => setFormPatrimonio(e.target.value)} 
+                      className="w-full bg-white p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold uppercase" 
+                      placeholder="Ex: 1042" 
+                      required 
+                    />
+                  </div>
+                </div>
+
+                {/* EXTINTORES EXTRA FIELDS */}
+                {newAssetType === 'extintor' && (
+                  <>
+                    <div>
+                      <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Modelo do Extintor *</label>
+                      {modelosList.length > 0 ? (
+                        <select 
+                          value={selectedModeloId} 
+                          onChange={handleModeloChange} 
+                          className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-850 outline-none font-bold shadow-xs cursor-pointer"
+                        >
+                          {modelosList.map(mod => <option key={mod.id} value={mod.id}>{mod.nome}</option>)}
+                        </select>
+                      ) : (
+                        <select 
+                          value={formModel} 
+                          onChange={(e) => setFormModel(e.target.value)} 
+                          className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-850 outline-none font-bold shadow-xs cursor-pointer"
+                        >
+                          <option value="PQS ABC - 8KG">Pós Químico ABC - 8KG</option>
+                          <option value="CO2 - 6KG">Gás Carbônico CO2 - 6KG</option>
+                          <option value="ÁGUA PRESSURIZADA - 10L">Água Pressurizada - 10L</option>
+                          <option value="PQS BC - 4KG">Pós Químico BC - 4KG</option>
+                        </select>
+                      )}
+                    </div>
+                    <div>
+                      <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Capacidade / Peso *</label>
+                      <input 
+                        type="text" 
+                        value={formWeightCap} 
+                        onChange={(e) => setFormWeightCap(e.target.value)} 
+                        className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-mono" 
+                        placeholder="Ex: 6KG, 8KG, 10L" 
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Selo Inmetro (Opcional)</label>
+                      <input 
+                        type="text" 
+                        value={formSelo} 
+                        onChange={(e) => setFormSelo(e.target.value)} 
+                        className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-mono" 
+                        placeholder="S-123456" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Chassi Corporativo</label>
+                      <input 
+                        type="text" 
+                        value={formChassi} 
+                        onChange={(e) => setFormChassi(e.target.value)} 
+                        className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none uppercase" 
+                        placeholder="E-4099" 
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Data da Última Recarga *</label>
+                      <input 
+                        type="date" 
+                        value={formDataRecarga} 
+                        onChange={(e) => setFormDataRecarga(e.target.value)} 
+                        className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold" 
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Validade da Recarga (Meses) *</label>
+                      <input 
+                        type="number" 
+                        value={formValidadeRecargaMeses} 
+                        onChange={(e) => setFormValidadeRecargaMeses(e.target.value)} 
+                        className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none" 
+                        min="1" 
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Ano do Último Teste Hidrostático *</label>
+                      <input 
+                        type="number" 
+                        value={formAnoTesteHidro} 
+                        onChange={(e) => setFormAnoTesteHidro(e.target.value)} 
+                        className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none" 
+                        min="1900" 
+                        max="2100" 
+                        required
+                      />
+                    </div>
+
+                    {/* Campo Condicional para Pesagem de CO2 */}
+                    {isCo2 && (
+                      <div>
+                        <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Data da Pesagem CO2 *</label>
+                        <input 
+                          type="date" 
+                          value={formDataPesagemCo2} 
+                          onChange={(e) => setFormDataPesagemCo2(e.target.value)} 
+                          className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold" 
+                          required={isCo2}
+                        />
+                      </div>
+                    )}
+
+                    {/* Foto Upload Picker */}
+                    <div className="col-span-1 md:col-span-2">
+                      <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Foto do Extintor</label>
+                      <div className="border-2 border-dashed border-slate-200 hover:border-red-650 transition-all rounded-xl p-4 flex flex-col items-center justify-center bg-slate-50/50 cursor-pointer relative group">
+                        <input 
+                          type="file" 
+                          accept="image/*" 
+                          onChange={handleFileChange} 
+                          className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                        />
+                        {previewUrl ? (
+                          <div className="flex flex-col items-center gap-2">
+                            <img src={previewUrl} alt="Preview" className="h-32 object-contain rounded-lg border border-slate-200" />
+                            <span className="text-[10px] text-slate-500 font-bold">Clique para alterar a imagem</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-1.5 text-center text-slate-400 group-hover:text-red-600">
+                            <span className="text-xl">📸</span>
+                            <span className="text-[10px] font-bold uppercase tracking-wider">Clique para selecionar foto</span>
+                            <span className="text-[8px] font-sans">PNG, JPG ou WEBP</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* SINALIZACOES EXTRA FIELDS */}
+                {newAssetType === 'sinalizacao' && (
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-3">Selecione os Modelos Visuais *</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {[
+                        { key: 'C3 Seta Esquerda', url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBNNbUfk2-mF0LxprKV2C7RKYXByvjbUXy_XWGbND3PaNoNkZwm1WPALDNXzWKlln0_0NhdfGno-XDTHgppxN_u_498yg03tdmYfiXnVOZmjdDfRjlduzDfLIZOdwrukwEBBsjFja9AeeWHamh8Oj6ix518U7tf8MlGGpDq_EoeNy-CpyAUiBoiAeQIdJ8TsTDvlPcjLNk61VGY7vOr1sIpD81yn4jzCVzqDrNzI9qIwa3kLdAva8y-52WbK7TegbKDD9z-fC8hNds', desc: 'Saída Esquerda' },
+                        { key: 'C2 Seta Escada', url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD4jlkr2uN2Tr6OJK6xOqq__Dmr4HqtdL80oYJ6xWONK9spyiKxm43StnH--3VPFVk3V2XvVl_oGmZF5F5Uckdfj_OMtvTldfCBdMMEs8kM6bKlsvNx4Dhk1iFXyYzAXZOs4XY-8L9NBBMOfMOj391GSo1Giw5N39-HB3gvS6RBY0QOmesGudZbE-gzJGedDPv9HK6BepGwGVEUC9sN4FqqkHlrCtabrdHhw-CcdWchRdmKVmkhJleznOXtmpaGQsIbLWLIQCOHztk', desc: 'Saída Descendo' },
+                        { key: 'C3 Seta Direita', url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDqRdNZ3PxX3jI5lZpnWd--u2m8jxVQqLaqU5vQ0pkiBWzfqr50eBZzbBsJKE85XpDbsDZEa31a6kA6sqnv8_Am4020bV21UWRP3xqBcxjHNQtlqgZ6cQI-s8sXNS25S4tlRyp4FgxG2ni9Wz4f5tlN28lxhNVEVU48Np-IXSp9m588pUkW-fDPGTsWVIglvkAXH9H2yl9Z7t9W71qZKjMsRzE4HCaRnTv6XkbI2BUqhUF5lx86aP3hEpAt7kez4KrFHpv8Tw3ieGM', desc: 'Saída Direita' }
+                      ].map(item => {
+                        const isChecked = multiSelectModels.includes(item.key);
+                        return (
+                          <label 
+                            key={item.key} 
+                            className={`relative border p-3 flex flex-col items-center cursor-pointer transition-all rounded-xl hover:bg-slate-50 ${
+                              isChecked ? 'border-red-600 bg-red-50/20' : 'border-slate-200 bg-white'
+                            }`}
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) setMultiSelectModels([...multiSelectModels, item.key]);
+                                else setMultiSelectModels(multiSelectModels.filter(g => g !== item.key));
+                              }}
+                              className="absolute top-2 left-2 cursor-pointer w-4.5 h-4.5 accent-red-650" 
+                            />
+                            <img src={item.url} alt={item.desc} className="h-12 w-full object-contain mb-2 brightness-95 saturate-50 mix-blend-multiply" />
+                            <span className="text-[9px] text-center font-black text-slate-600 uppercase leading-none">{item.desc}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* ILUMINACAO EXTRA FIELDS */}
+                {newAssetType === 'iluminacao' && (
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Tipo de Sistema *</label>
                     <select 
-                      value={formModel} 
-                      onChange={(e) => setFormModel(e.target.value)} 
-                      className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-850 outline-none font-bold shadow-xs cursor-pointer"
+                      value={formSystemType} 
+                      onChange={(e) => setFormSystemType(e.target.value)} 
+                      className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs cursor-pointer"
                     >
-                      <option value="PQS ABC - 8KG">Pós Químico ABC - 8KG</option>
-                      <option value="CO2 - 6KG">Gás Carbônico CO2 - 6KG</option>
-                      <option value="Água Pressurizada - 10L">Água Pressurizada - 10L</option>
-                      <option value="PQS BC - 4KG">Pós Químico BC - 4KG</option>
+                      <option value="CONJUNTO DE BLOCO AUTÔNOMO">CONJUNTO DE BLOCO AUTÔNOMO</option>
+                      <option value="SISTEMA CENTRALIZADO BATERIAS">SISTEMA CENTRALIZADO BATERIAS</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Selo Inmetro (Opcional)</label>
+                )}
+
+                {/* BOMBAS EXTRA FIELDS */}
+                {newAssetType === 'bomba' && (
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Modelo da Bomba *</label>
                     <input 
                       type="text" 
-                      value={formSelo} 
-                      onChange={(e) => setFormSelo(e.target.value)} 
-                      className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-mono" 
-                      placeholder="S-123456" 
+                      value={formModel} 
+                      onChange={(e) => setFormModel(e.target.value)} 
+                      className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs" 
+                      placeholder="Ex: Bomba Centrífuga Principal" 
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Chassi Corporativo</label>
-                    <input 
-                      type="text" 
-                      value={formChassi} 
-                      onChange={(e) => setFormChassi(e.target.value)} 
-                      className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none uppercase" 
-                      placeholder="E-4099" 
-                    />
-                  </div>
-                </>
-              )}
+                )}
 
-              {/* SINALIZACOES EXTRA FIELDS */}
-              {newAssetType === 'sinalizacao' && (
-                <div className="col-span-1 md:col-span-2">
-                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-3">Selecione os Modelos Visuais *</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {[
-                      { key: 'C3 Seta Esquerda', url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBNNbUfk2-mF0LxprKV2C7RKYXByvjbUXy_XWGbND3PaNoNkZwm1WPALDNXzWKlln0_0NhdfGno-XDTHgppxN_u_498yg03tdmYfiXnVOZmjdDfRjlduzDfLIZOdwrukwEBBsjFja9AeeWHamh8Oj6ix518U7tf8MlGGpDq_EoeNy-CpyAUiBoiAeQIdJ8TsTDvlPcjLNk61VGY7vOr1sIpD81yn4jzCVzqDrNzI9qIwa3kLdAva8y-52WbK7TegbKDD9z-fC8hNds', desc: 'Saída Esquerda' },
-                      { key: 'C2 Seta Escada', url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuD4jlkr2uN2Tr6OJK6xOqq__Dmr4HqtdL80oYJ6xWONK9spyiKxm43StnH--3VPFVk3V2XvVl_oGmZF5F5Uckdfj_OMtvTldfCBdMMEs8kM6bKlsvNx4Dhk1iFXyYzAXZOs4XY-8L9NBBMOfMOj391GSo1Giw5N39-HB3gvS6RBY0QOmesGudZbE-gzJGedDPv9HK6BepGwGVEUC9sN4FqqkHlrCtabrdHhw-CcdWchRdmKVmkhJleznOXtmpaGQsIbLWLIQCOHztk', desc: 'Saída Descendo' },
-                      { key: 'C3 Seta Direita', url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDqRdNZ3PxX3jI5lZpnWd--u2m8jxVQqLaqU5vQ0pkiBWzfqr50eBZzbBsJKE85XpDbsDZEa31a6kA6sqnv8_Am4020bV21UWRP3xqBcxjHNQtlqgZ6cQI-s8sXNS25S4tlRyp4FgxG2ni9Wz4f5tlN28lxhNVEVU48Np-IXSp9m588pUkW-fDPGTsWVIglvkAXH9H2yl9Z7t9W71qZKjMsRzE4HCaRnTv6XkbI2BUqhUF5lx86aP3hEpAt7kez4KrFHpv8Tw3ieGM', desc: 'Saída Direita' }
-                    ].map(item => {
-                      const isChecked = multiSelectModels.includes(item.key);
-                      return (
-                        <label 
-                          key={item.key} 
-                          className={`relative border p-3 flex flex-col items-center cursor-pointer transition-all rounded-xl hover:bg-slate-50 ${
-                            isChecked ? 'border-red-600 bg-red-50/20' : 'border-slate-200 bg-white'
-                          }`}
-                        >
-                          <input 
-                            type="checkbox" 
-                            checked={isChecked}
-                            onChange={(e) => {
-                              if (e.target.checked) setMultiSelectModels([...multiSelectModels, item.key]);
-                              else setMultiSelectModels(multiSelectModels.filter(g => g !== item.key));
-                            }}
-                            className="absolute top-2 left-2 cursor-pointer w-4.5 h-4.5 accent-red-650" 
-                          />
-                          <img src={item.url} alt={item.desc} className="h-12 w-full object-contain mb-2 brightness-95 saturate-50 mix-blend-multiply" />
-                          <span className="text-[9px] text-center font-black text-slate-600 uppercase leading-none">{item.desc}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {/* ILUMINACAO EXTRA FIELDS */}
-              {newAssetType === 'iluminacao' && (
-                <div className="col-span-1 md:col-span-2">
-                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Tipo de Sistema *</label>
-                  <select 
-                    value={formSystemType} 
-                    onChange={(e) => setFormSystemType(e.target.value)} 
-                    className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs cursor-pointer"
-                  >
-                    <option value="CONJUNTO DE BLOCO AUTÔNOMO">CONJUNTO DE BLOCO AUTÔNOMO</option>
-                    <option value="SISTEMA CENTRALIZADO BATERIAS">SISTEMA CENTRALIZADO BATERIAS</option>
-                  </select>
-                </div>
-              )}
-
-              {/* BOMBAS EXTRA FIELDS */}
-              {newAssetType === 'bomba' && (
-                <div className="col-span-1 md:col-span-2">
-                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Modelo da Bomba *</label>
-                  <input 
-                    type="text" 
-                    value={formModel} 
-                    onChange={(e) => setFormModel(e.target.value)} 
-                    className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs" 
-                    placeholder="Ex: Bomba Centrífuga Principal" 
-                  />
-                </div>
-              )}
-
-            </div>
+              </div>
+            )}
 
             {/* Dynamic Alert Banner */}
             <div className="border border-amber-300 bg-[#fff5f5] border-l-4 border-l-amber-500 rounded-xl p-4 transition-all">
@@ -449,9 +752,10 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
               </button>
               <button 
                 type="submit" 
-                className="px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-wider text-white bg-[#007F3E] hover:bg-[#006631] rounded-xl cursor-pointer shadow-sm transition-all active:scale-[0.97]"
+                disabled={uploadingImage}
+                className="px-6 py-3 text-[10px] sm:text-xs font-black uppercase tracking-wider text-white bg-[#007F3E] hover:bg-[#006631] rounded-xl cursor-pointer shadow-sm transition-all active:scale-[0.97] disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Salvar no Banco SPCI
+                {uploadingImage ? 'Enviando Foto...' : 'Salvar no Banco SPCI'}
               </button>
             </div>
           </form>

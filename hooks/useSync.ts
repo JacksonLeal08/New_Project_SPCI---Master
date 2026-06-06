@@ -2,7 +2,12 @@ import { useState, useEffect, useCallback } from 'react';
 import { SyncQueue } from '@/lib/syncQueue';
 
 export function useSync() {
-  const [isOnline, setIsOnline] = useState<boolean>(true);
+  const [isOnline, setIsOnline] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return navigator.onLine;
+    }
+    return true;
+  });
   const [pendingCount, setPendingCount] = useState<number>(0);
   const [syncing, setSyncing] = useState<boolean>(false);
 
@@ -30,6 +35,9 @@ export function useSync() {
     try {
       console.log('[useSync] Disparando sincronização de filas...');
       
+      // Reseta tarefas que falharam para que sejam tentadas novamente
+      await SyncQueue.resetFailedTasks();
+      
       // Processa a fila de ativos
       await SyncQueue.processQueue();
       // Processa a fila de vistorias
@@ -47,8 +55,6 @@ export function useSync() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    setIsOnline(navigator.onLine);
-
     const handleOnline = () => {
       setIsOnline(true);
       triggerSync();
@@ -62,7 +68,9 @@ export function useSync() {
     window.addEventListener('offline', handleOffline);
 
     // Carrega o contador inicial de tarefas pendentes
-    updatePendingCount();
+    const timer = setTimeout(() => {
+      updatePendingCount();
+    }, 0);
 
     // Loop discreto para atualizar o contador a cada 30 segundos
     const interval = setInterval(updatePendingCount, 30000);
@@ -70,6 +78,7 @@ export function useSync() {
     return () => {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      clearTimeout(timer);
       clearInterval(interval);
     };
   }, [triggerSync, updatePendingCount]);

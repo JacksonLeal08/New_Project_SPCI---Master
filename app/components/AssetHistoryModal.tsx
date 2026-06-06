@@ -36,6 +36,17 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
   const [customEventNotes, setCustomEventNotes] = useState('');
   const [historyFilter, setHistoryFilter] = useState<'all' | 'non_conforming' | 'manual'>('all');
 
+  const [prevAssetId, setPrevAssetId] = useState<string | null>(null);
+  const [localStatus, setLocalStatus] = useState<string>('');
+
+  const currentAssetId = asset ? (asset.idAtivo || asset.id) : null;
+  const currentAssetStatus = asset ? asset.status : '';
+
+  if (currentAssetId !== prevAssetId) {
+    setPrevAssetId(currentAssetId);
+    setLocalStatus(currentAssetStatus);
+  }
+
   if (!isOpen || !asset) return null;
 
   const assetId = asset.idAtivo || asset.id;
@@ -164,7 +175,7 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
     }
 
     // Se o status administrativo for diferente, atualizamos a lista de ativos correspondente
-    if (customEventStatus !== asset.status) {
+    if (customEventStatus !== localStatus) {
       if (extintores.some(x => (x.idAtivo || x.id) === assetId)) {
         const u = extintores.map(x => (x.idAtivo || x.id) === assetId ? { ...x, status: customEventStatus } : x);
         setExtintores(u);
@@ -185,7 +196,7 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
         setIluminacoes(u);
         await saveAssetsList('iluminacao', u);
       }
-      asset.status = customEventStatus; // atualiza objeto em tela
+      setLocalStatus(customEventStatus); // atualiza objeto em tela
     }
 
     triggerSuccessNotification('Histórico SPCI Atualizado!', `O evento "${customEventTitle}" foi gravado na linha do tempo.`);
@@ -211,7 +222,7 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
       Tipo: ${asset.category || 'Equipamento SPCI'}
       Modelo: ${(asset as any).model || 'Padrão'}
       Local: ${asset.location} ${asset.subLocation ? ' - ' + asset.subLocation : ''}
-      Status: ${asset.status}
+      Status: ${localStatus}
       Histórico:
       ${historyText}
       
@@ -237,7 +248,7 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
     } catch (err: any) {
       setChatMessages(prev => [...prev, { 
         sender: 'assistant', 
-        text: `PARECER TÉCNICO PREVENTIVO (Modo SPCI Offline) - Ativo ${assetId}.\n\nAtivo com status [${asset.status}]. Testes pendentes sob NBR correspondente.` 
+        text: `PARECER TÉCNICO PREVENTIVO (Modo SPCI Offline) - Ativo ${assetId}.\n\nAtivo com status [${localStatus}]. Testes pendentes sob NBR correspondente.` 
       }]);
     } finally {
       setAiGenerating(false);
@@ -297,9 +308,9 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
               <span className="text-[9px] text-slate-500 uppercase tracking-wider pb-1 border-b border-slate-850">Status Operacional</span>
               <div className="flex items-center gap-2 mt-2">
                 <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${
-                  asset.status === 'Conforme' || asset.status === 'Operacional' || asset.status === 'Standby' ? 'bg-emerald-500' : 'bg-red-500'
+                  localStatus === 'Conforme' || localStatus === 'Operacional' || localStatus === 'Standby' ? 'bg-emerald-500' : 'bg-red-500'
                 }`} aria-hidden="true"></span>
-                <p className="font-bold text-xs text-slate-100 uppercase">{asset.status}</p>
+                <p className="font-bold text-xs text-slate-100 uppercase">{localStatus}</p>
               </div>
             </div>
 

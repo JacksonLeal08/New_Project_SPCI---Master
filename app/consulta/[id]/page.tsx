@@ -126,8 +126,10 @@ export default function ConsultaAtivoPage() {
 
   useEffect(() => {
     if (!rawId) {
-      setError('Identificador do equipamento está ausente ou malformado.');
-      setLoading(false);
+      setTimeout(() => {
+        setError('Identificador do equipamento está ausente ou malformado.');
+        setLoading(false);
+      }, 0);
       return;
     }
 

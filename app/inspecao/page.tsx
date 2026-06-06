@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -44,6 +44,7 @@ export default function PortalTecnicoPage() {
 
   // Estados de Controle Geral e Tema
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  const [mounted, setMounted] = useState<boolean>(false);
   const [selectedCategory, setSelectedCategory] = useState<Categoria['key']>('extintores');
   const [assets, setAssets] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -55,19 +56,6 @@ export default function PortalTecnicoPage() {
   // Modal Scanner Câmera e Tutorial
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [showTutorial, setShowTutorial] = useState<boolean>(false);
-
-  // Inicializa o tema a partir do localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('spci_portal_theme') as 'light' | 'dark';
-      if (savedTheme) {
-        setTheme(savedTheme);
-      } else {
-        // Padrão escuro
-        setTheme('dark');
-      }
-    }
-  }, []);
 
   // Alterna o tema de forma fluida (Telegram Style)
   const toggleTheme = () => {
@@ -117,12 +105,7 @@ export default function PortalTecnicoPage() {
 
   // Sincronia automática gerenciada pelo hook useSync
 
-  // Recarrega lista de ativos ao trocar de categoria
-  useEffect(() => {
-    loadCategoryAssets();
-  }, [selectedCategory]);
-
-  const loadCategoryAssets = async () => {
+  const loadCategoryAssets = useCallback(async () => {
     try {
       setLoading(true);
       const list = await getAssetsList(selectedCategory);
@@ -142,7 +125,27 @@ export default function PortalTecnicoPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedCategory]);
+
+  // Sincroniza o tema preferido do usuário após a hidratação no cliente
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('spci_portal_theme') as 'light' | 'dark';
+    const timer = setTimeout(() => {
+      setMounted(true);
+      if (savedTheme) {
+        setTheme(savedTheme);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Recarrega lista de ativos ao trocar de categoria
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      loadCategoryAssets();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [loadCategoryAssets]);
 
   // Funções de processamento de fila delegadas ao useSync
 
@@ -172,6 +175,20 @@ export default function PortalTecnicoPage() {
   const borderBottomClass = isDark ? 'border-slate-900' : 'border-slate-100';
   const searchBgClass = isDark ? 'bg-slate-900 border-slate-850 text-slate-100' : 'bg-white border-slate-200 text-slate-900 shadow-sm';
   const buttonSecondaryClass = isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-850 text-slate-350' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 shadow-sm';
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center font-mono p-4">
+        <div className="flex flex-col items-center gap-3 max-w-xs text-center">
+          <div className="w-10 h-10 border-2 border-red-500 border-t-transparent animate-spin rounded-none" />
+          <div className="space-y-1">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-200">SPCI Ronda de Campo</h2>
+            <p className="text-[9px] uppercase tracking-wider text-slate-500">Sincronizando ambiente seguro...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen ${bgClass} flex flex-col justify-between font-mono relative antialiased transition-colors duration-300 selection:bg-red-655 selection:text-white`}>
@@ -563,13 +580,13 @@ export default function PortalTecnicoPage() {
                   1. **Selecione a Categoria:** Escolha o tipo de equipamento (Extintor, Hidrante, etc.) para visualizar os itens cadastrados.
                 </p>
                 <p>
-                  2. **Leitura Física:** Clique em "Ler QR Code" e aponte a câmera para o selo laminado QR SPCI do equipamento para carregar a vistoria imediatamente.
+                  2. **Leitura Física:** Clique em &quot;Ler QR Code&quot; e aponte a câmera para o selo laminado QR SPCI do equipamento para carregar a vistoria imediatamente.
                 </p>
                 <p>
-                  3. **Novo Equipamento:** Caso o ativo seja novo e não possua QR Code ainda, clique em "Novo Ativo" para imputar as características e salvá-lo na base central.
+                  3. **Novo Equipamento:** Caso o ativo seja novo e não possua QR Code ainda, clique em &quot;Novo Ativo&quot; para imputar as características e salvá-lo na base central.
                 </p>
                 <p>
-                  4. **Fila Offline:** Suas ações de campo são gravadas mesmo sem internet e enviadas automaticamente na aba "Sincronia" quando você voltar à rede.
+                  4. **Fila Offline:** Suas ações de campo são gravadas mesmo sem internet e enviadas automaticamente na aba &quot;Sincronia&quot; quando você voltar à rede.
                 </p>
               </div>
 

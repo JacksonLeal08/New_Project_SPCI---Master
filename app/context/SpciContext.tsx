@@ -16,7 +16,8 @@ import {
   getAllUserProfiles, 
   deleteUserProfileByAdmin,
   getAssetsList,
-  saveAssetToDb
+  saveAssetToDb,
+  deleteAssetFromDb
 } from '@/lib/supabaseDb';
 import { supabase } from '@/lib/supabaseClient';
 import { idb } from '@/lib/indexedDb';
@@ -105,6 +106,11 @@ interface SpciContextType {
   selectedAssetForHistory: any | null;
   setSelectedAssetForHistory: (asset: any | null) => void;
   
+  selectedAssetForDetail: any | null;
+  setSelectedAssetForDetail: (asset: any | null) => void;
+  updateExtintorAsset: (updatedAsset: any) => Promise<void>;
+  deleteExtintorAsset: (assetId: string) => Promise<void>;
+  
   showProfileModal: boolean;
   setShowProfileModal: (show: boolean) => void;
   profileNameInput: string;
@@ -163,6 +169,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [newAssetType, setNewAssetType] = useState<'extintor' | 'hidrante' | 'sinalizacao' | 'iluminacao' | 'bomba'>('extintor');
   const [selectedAssetForInspection, setSelectedAssetForInspection] = useState<any | null>(null);
   const [selectedAssetForHistory, setSelectedAssetForHistory] = useState<any | null>(null);
+  const [selectedAssetForDetail, setSelectedAssetForDetail] = useState<any | null>(null);
   const [premiumAlert, setPremiumAlert] = useState<PremiumAlertInfo | null>(null);
   
   const [showProfileModal, setShowProfileModal] = useState(false);
@@ -178,6 +185,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   ]);
   const [userPrompt, setUserPrompt] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
+  const isSyncingRef = React.useRef(false);
 
   const addConsoleLog = useCallback((msg: string, type: 'ERRO' | 'SUCESSO' | 'INFO' = 'INFO') => {
     if (type === 'ERRO') {
@@ -370,12 +378,23 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (typeof window === 'undefined') return;
 
     const processOfflineQueue = async () => {
-      // Sincroniza apenas se estiver autenticado e online (para respeitar RLS)
-      if (currentUser && navigator.onLine) {
-        addConsoleLog('[Offline-Sync] Conexão e autenticação ativas. Verificando fila de sincronia offline pendente...');
-        await SyncQueue.processQueue((task) => {
-          addConsoleLog(`[Offline-Sync] Sucesso ao sincronizar ativo ${task.assetId} (${task.moduleKey}) da fila pendente.`, 'SUCESSO');
-        });
+      // Sincroniza apenas se estiver autenticado e online (para respeitar RLS) e não estiver em andamento
+      if (currentUser && navigator.onLine && !isSyncingRef.current) {
+        isSyncingRef.current = true;
+        try {
+          addConsoleLog('[Offline-Sync] Conexão e autenticação ativas. Verificando fila de sincronia offline pendente...');
+          
+          // Reseta tarefas falhas anteriores para permitir reprocessamento automático na inicialização
+          await SyncQueue.resetFailedTasks();
+          
+          await SyncQueue.processQueue((task) => {
+            addConsoleLog(`[Offline-Sync] Sucesso ao sincronizar ativo ${task.assetId} (${task.moduleKey}) da fila pendente.`, 'SUCESSO');
+          });
+        } catch (err) {
+          console.error('[Offline-Sync] Erro no processamento automático da fila offline:', err);
+        } finally {
+          isSyncingRef.current = false;
+        }
       }
     };
 
@@ -447,6 +466,34 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
   }, [currentUser, triggerSuccessNotification, addConsoleLog]);
+
+  const updateExtintorAsset = useCallback(async (updatedAsset: any) => {
+    try {
+      await saveAssetToDb('extintores', updatedAsset.id.toString(), updatedAsset);
+      setExtintores((prev: any[]) => prev.map(a => a.id === updatedAsset.id ? { ...a, ...updatedAsset } : a));
+      triggerSuccessNotification('Ativo Atualizado! 🟢', `Extintor ${updatedAsset.idAtivo} atualizado com sucesso.`);
+    } catch (err: any) {
+      console.error('Erro ao atualizar extintor:', err);
+      triggerSuccessNotification('Falha na Atualização ❌', err.message || 'Erro desconhecido.');
+      throw err;
+    }
+  }, [triggerSuccessNotification]);
+
+  const deleteExtintorAsset = useCallback(async (assetId: string) => {
+    try {
+      const asset = extintores.find(a => a.id === assetId);
+      await deleteAssetFromDb('extintores', assetId);
+      const updated = extintores.filter(a => a.id !== assetId);
+      setExtintores(updated);
+      await idb.setAll('extintores', updated);
+      setSelectedAssetForDetail(null);
+      triggerSuccessNotification('Ativo Excluído! 🗑️', `Extintor ${asset?.idAtivo || assetId} foi removido permanentemente.`);
+    } catch (err: any) {
+      console.error('Erro ao deletar extintor:', err);
+      triggerSuccessNotification('Falha na Exclusão ❌', err.message || 'Erro de permissão.');
+      throw err;
+    }
+  }, [extintores, triggerSuccessNotification]);
 
   const handleAdminRoleStatusChange = useCallback(async (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => {
     try {
@@ -614,6 +661,10 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSelectedAssetForInspection,
       selectedAssetForHistory,
       setSelectedAssetForHistory,
+      selectedAssetForDetail,
+      setSelectedAssetForDetail,
+      updateExtintorAsset,
+      deleteExtintorAsset,
       showProfileModal,
       setShowProfileModal,
       profileNameInput,

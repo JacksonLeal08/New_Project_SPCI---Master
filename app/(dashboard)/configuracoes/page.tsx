@@ -45,8 +45,10 @@ export default function ConfiguracoesPage() {
   // Sync profile details locally on profile load
   useEffect(() => {
     if (userProfile) {
-      setProfileNameInput(userProfile.name || '');
-      setProfileLogoUrlInput(userProfile.logoUrl || '');
+      setTimeout(() => {
+        setProfileNameInput(userProfile.name || '');
+        setProfileLogoUrlInput(userProfile.logoUrl || '');
+      }, 0);
     }
   }, [userProfile]);
 

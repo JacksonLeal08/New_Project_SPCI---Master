@@ -163,46 +163,162 @@ export default function DashboardPage() {
         <span className="text-emerald-700 text-[10px] font-mono font-bold bg-white px-3 py-1 rounded border border-emerald-100">Sessão Segura & Ativa</span>
       </div>
 
-      {/* Grid de KPIs */}
+      {/* ═══ LINHA 1: KPIs de CONFORMIDADE DE ATIVOS (Melhorados) ═══ */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-white rounded-2xl border border-[#CFD8DC] p-5 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-          <span className="absolute top-4 right-4 text-3xl font-normal" aria-hidden="true">🛡️</span>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px]"
+        >
+          <span className="absolute top-4 right-4 text-3xl font-normal opacity-80" aria-hidden="true">🛡️</span>
           <div>
             <span className="text-[10px] text-slate-500 uppercase tracking-widest font-extrabold block">Índice Conformidade</span>
-            <h3 className="font-[#121c21] font-bold font-['Hanken_Grotesk'] text-4xl mt-1">{compliancePercentage}%</h3>
+            <h3 className="font-['Hanken_Grotesk'] font-extrabold text-4xl text-slate-900 mt-1">{compliancePercentage}%</h3>
           </div>
-          <div className="w-full bg-slate-100 rounded-full h-1.5 mt-3" aria-hidden="true">
-            <div className="bg-[#2E7D32] h-1.5 rounded-full" style={{ width: `${compliancePercentage}%` }}></div>
+          <div className="w-full bg-slate-100 rounded-full h-2 mt-3 overflow-hidden" aria-hidden="true">
+            <motion.div
+              initial={{ width: 0 }}
+              animate={{ width: `${compliancePercentage}%` }}
+              transition={{ duration: 1.2, ease: 'easeOut', delay: 0.4 }}
+              className="bg-gradient-to-r from-emerald-500 to-emerald-400 h-2 rounded-full"
+            />
           </div>
-        </div>
+        </motion.div>
 
-        <div className="bg-white rounded-2xl border border-[#CFD8DC] p-5 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-          <span className="absolute top-4 right-4 text-3xl font-normal" aria-hidden="true">⚠️</span>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="bg-white rounded-2xl border border-rose-200 p-5 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px]"
+        >
+          <span className="absolute top-4 right-4 text-3xl font-normal opacity-80" aria-hidden="true">⚠️</span>
+          {totalVencidos > 0 && <span className="absolute top-3 left-3 w-2 h-2 bg-rose-500 rounded-full animate-ping" />}
           <div>
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-extrabold block">Alertas Críticos / Vencidos</span>
-            <h3 className="font-[#121c21] font-bold font-['Hanken_Grotesk'] text-4xl mt-1 text-[#D32F2F]">{totalVencidos}</h3>
+            <span className="text-[10px] text-rose-500 uppercase tracking-widest font-extrabold block">Alertas Críticos / Vencidos</span>
+            <h3 className="font-['Hanken_Grotesk'] font-extrabold text-4xl mt-1 text-rose-600">{totalVencidos}</h3>
           </div>
           <p className="text-[10px] text-rose-600 font-mono mt-2 flex items-center gap-1">🛑 Requer manutenção imediata</p>
-        </div>
+        </motion.div>
 
-        <div className="bg-white rounded-2xl border border-[#CFD8DC] p-5 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-          <span className="absolute top-4 right-4 text-3xl font-normal" aria-hidden="true">🔧</span>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="bg-white rounded-2xl border border-amber-200 p-5 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px]"
+        >
+          <span className="absolute top-4 right-4 text-3xl font-normal opacity-80" aria-hidden="true">🔧</span>
           <div>
-            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-extrabold block">Atenção / Manutenção</span>
-            <h3 className="font-[#121c21] font-bold font-['Hanken_Grotesk'] text-4xl mt-1 text-[#F57C00]">{totalAtencao}</h3>
+            <span className="text-[10px] text-amber-600 uppercase tracking-widest font-extrabold block">Atenção / Manutenção</span>
+            <h3 className="font-['Hanken_Grotesk'] font-extrabold text-4xl mt-1 text-amber-600">{totalAtencao}</h3>
           </div>
           <p className="text-[10px] text-slate-500 font-mono mt-2">🛠️ Em análise periódica</p>
-        </div>
+        </motion.div>
 
-        <div className="bg-white rounded-2xl border border-[#CFD8DC] p-5 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px]">
-          <span className="absolute top-4 right-4 text-3xl font-normal" aria-hidden="true">📋</span>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="bg-white rounded-2xl border border-slate-200 p-5 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px]"
+        >
+          <span className="absolute top-4 right-4 text-3xl font-normal opacity-80" aria-hidden="true">📋</span>
           <div>
             <span className="text-[10px] text-slate-500 uppercase tracking-widest font-extrabold block">Total Ativos Monitorados</span>
-            <h3 className="font-[#121c21] font-bold font-['Hanken_Grotesk'] text-4xl mt-1">{totalAssets}</h3>
+            <h3 className="font-['Hanken_Grotesk'] font-extrabold text-4xl text-slate-900 mt-1">{totalAssets}</h3>
           </div>
           <p className="text-[10px] text-[#2E7D32] font-mono mt-2">🌱 Ativos homologados</p>
-        </div>
+        </motion.div>
       </div>
+
+      {/* ═══ LINHA 2: KPIs de INSPEÇÕES REALIZADAS ═══ */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.3 }}
+        className="bg-white border border-slate-200 rounded-2xl p-5 shadow-sm relative overflow-hidden"
+      >
+        <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-blue-600 via-cyan-500 to-teal-500 rounded-t-2xl" />
+
+        <h3 className="font-['Hanken_Grotesk'] font-bold text-sm text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
+          📊 Indicadores de Inspeções Realizadas
+        </h3>
+
+        <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          {/* Total Inspeções */}
+          <div className="p-4 bg-gradient-to-br from-blue-50 to-blue-100/40 rounded-xl border border-blue-200 relative overflow-hidden">
+            <span className="text-[9px] text-blue-600 uppercase tracking-widest font-extrabold block">Total Realizadas</span>
+            <h3 className="font-['Hanken_Grotesk'] font-extrabold text-3xl text-blue-700 mt-1">{complianceLogs.length}</h3>
+            <span className="absolute right-3 bottom-3 text-blue-200 text-2xl">📋</span>
+          </div>
+
+          {/* Conformes */}
+          <div className="p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/40 rounded-xl border border-emerald-200 relative overflow-hidden">
+            <span className="text-[9px] text-emerald-600 uppercase tracking-widest font-extrabold block">Conformes</span>
+            <h3 className="font-['Hanken_Grotesk'] font-extrabold text-3xl text-emerald-700 mt-1">
+              {complianceLogs.filter(l => l.status === 'Conforme' || l.status === 'Operacional').length}
+            </h3>
+            <span className="absolute right-3 bottom-3 text-emerald-200 text-2xl">✅</span>
+          </div>
+
+          {/* Não Conformes */}
+          <div className="p-4 bg-gradient-to-br from-rose-50 to-rose-100/40 rounded-xl border border-rose-200 relative overflow-hidden">
+            <span className="text-[9px] text-rose-600 uppercase tracking-widest font-extrabold block">Não Conformes</span>
+            <h3 className="font-['Hanken_Grotesk'] font-extrabold text-3xl text-rose-700 mt-1">
+              {complianceLogs.filter(l => l.status !== 'Conforme' && l.status !== 'Operacional').length}
+            </h3>
+            <span className="absolute right-3 bottom-3 text-rose-200 text-2xl">❌</span>
+          </div>
+
+          {/* Pendentes (ativos sem inspeção recente) */}
+          <div className="p-4 bg-gradient-to-br from-amber-50 to-amber-100/40 rounded-xl border border-amber-200 relative overflow-hidden">
+            <span className="text-[9px] text-amber-600 uppercase tracking-widest font-extrabold block">Pendentes</span>
+            <h3 className="font-['Hanken_Grotesk'] font-extrabold text-3xl text-amber-700 mt-1">
+              {(() => {
+                const inspectedIds = new Set(complianceLogs.map((l: any) => l.assetId));
+                const allIds = [
+                  ...extintores.map(x => x.idAtivo || x.id),
+                  ...hidrantes.map(x => x.idAtivo || x.id),
+                  ...sinalizacoes.map(x => x.idAtivo || x.id),
+                  ...iluminacoes.map(x => x.idAtivo || x.id),
+                ];
+                return allIds.filter(id => !inspectedIds.has(id)).length;
+              })()}
+            </h3>
+            <span className="absolute right-3 bottom-3 text-amber-200 text-2xl">⏳</span>
+          </div>
+
+          {/* Mini Gráfico de Barras - Inspeções por dia (últimos 7 dias) */}
+          <div className="p-4 bg-gradient-to-br from-slate-50 to-slate-100/60 rounded-xl border border-slate-200 relative overflow-hidden col-span-2 lg:col-span-1">
+            <span className="text-[9px] text-slate-500 uppercase tracking-widest font-extrabold block mb-2">Últimos 7 dias</span>
+            <div className="flex items-end gap-1 h-12">
+              {(() => {
+                const today = new Date();
+                const days: { label: string; count: number }[] = [];
+                for (let i = 6; i >= 0; i--) {
+                  const d = new Date(today);
+                  d.setDate(d.getDate() - i);
+                  const dateStr = d.toISOString().split('T')[0];
+                  const dayLabel = d.toLocaleDateString('pt-BR', { weekday: 'short' }).substring(0, 3);
+                  const count = complianceLogs.filter((l: any) => (l.date || '').startsWith(dateStr)).length;
+                  days.push({ label: dayLabel, count });
+                }
+                const maxCount = Math.max(...days.map(d => d.count), 1);
+                return days.map((day, i) => (
+                  <div key={i} className="flex flex-col items-center flex-1">
+                    <motion.div
+                      initial={{ height: 0 }}
+                      animate={{ height: `${(day.count / maxCount) * 100}%` }}
+                      transition={{ duration: 0.6, delay: 0.4 + i * 0.05 }}
+                      className={`w-full rounded-t-sm min-h-[2px] ${day.count > 0 ? 'bg-blue-500' : 'bg-slate-200'}`}
+                    />
+                    <span className="text-[6px] text-slate-400 mt-0.5 uppercase font-bold">{day.label}</span>
+                  </div>
+                ));
+              })()}
+            </div>
+          </div>
+        </div>
+      </motion.div>
 
       {/* Mapa Térmico D3 de Zonas de Risco */}
       <D3SectorHeatmap data={sectorStats} />

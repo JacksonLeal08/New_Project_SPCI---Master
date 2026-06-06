@@ -80,18 +80,7 @@ function InspecaoOuCadastroContent() {
 
   // Estado de Tema
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
-
-  // Inicializa o tema a partir do localStorage
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('spci_portal_theme') as 'light' | 'dark';
-      if (savedTheme) {
-        setTheme(savedTheme);
-      } else {
-        setTheme('dark');
-      }
-    }
-  }, []);
+  const [mounted, setMounted] = useState<boolean>(false);
 
   // Alterna o tema de forma fluida (Telegram Style)
   const toggleTheme = () => {
@@ -148,12 +137,14 @@ function InspecaoOuCadastroContent() {
   useEffect(() => {
     const idToFetch = isCadastro ? editId : rawId;
     if (!idToFetch) {
-      if (isCadastro) {
-        setLoading(false); // Cadastro limpo não busca nada
-      } else {
-        setError('Identificação do ativo ausente.');
-        setLoading(false);
-      }
+      setTimeout(() => {
+        if (isCadastro) {
+          setLoading(false); // Cadastro limpo não busca nada
+        } else {
+          setError('Identificação do ativo ausente.');
+          setLoading(false);
+        }
+      }, 0);
       return;
     }
 
@@ -265,6 +256,18 @@ function InspecaoOuCadastroContent() {
       }
     };
     fetchUniqueOptions();
+  }, []);
+
+  // Sincroniza o tema preferido do usuário após a hidratação no cliente
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('spci_portal_theme') as 'light' | 'dark';
+    const timer = setTimeout(() => {
+      setMounted(true);
+      if (savedTheme) {
+        setTheme(savedTheme);
+      }
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   // Métodos de sincronia manual delegados ao hook useSync
@@ -408,6 +411,14 @@ function InspecaoOuCadastroContent() {
     setLoading(true);
 
     try {
+      // Atualiza o cache local do ativo com o novo status e data de inspeção
+      const updatedAsset = {
+        ...ativo,
+        status: finalStatus,
+        lastInsp: new Date().toISOString().split('T')[0]
+      };
+      await idb.set(ativo.category || 'extintores', ativo.idAtivo || ativo.id_ativo || rawId, updatedAsset);
+
       if (isOnline) {
         const res = await salvarInspecaoNoSupabase(inspecao);
         if (res.success) {
@@ -441,6 +452,20 @@ function InspecaoOuCadastroContent() {
   const inputBgClass = isDark ? 'bg-slate-955 border-slate-850 text-slate-150 focus:border-red-500' : 'bg-white border-slate-250 text-slate-900 placeholder-slate-400 focus:border-red-600 shadow-sm';
   const selectBgClass = isDark ? 'bg-slate-955 border-slate-850 text-slate-150 focus:border-red-500' : 'bg-white border-slate-250 text-slate-900 placeholder-slate-400 focus:border-red-600 shadow-sm';
   const buttonSecondaryClass = isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-850 text-slate-350' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 shadow-sm';
+
+  if (!mounted) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center font-mono p-4">
+        <div className="flex flex-col items-center gap-3 max-w-xs text-center">
+          <div className="w-10 h-10 border-2 border-red-500 border-t-transparent animate-spin rounded-none" />
+          <div className="space-y-1">
+            <h2 className="text-xs font-bold uppercase tracking-widest text-slate-200">SPCI Ronda de Campo</h2>
+            <p className="text-[9px] uppercase tracking-wider text-slate-500">Sincronizando ambiente seguro...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen ${bgClass} flex flex-col justify-between font-mono relative antialiased selection:bg-red-655 selection:text-white transition-colors duration-300`}>
@@ -624,6 +649,9 @@ function InspecaoOuCadastroContent() {
                         onChange={(e) => setLocalInstalacao(e.target.value)}
                         className={`w-full px-3 py-2.5 text-xs focus:outline-none rounded-lg cursor-pointer ${selectBgClass}`}
                       >
+                        {localInstalacao && !["MANGANÊS", "ALMOXARIFADO", "SALA ELÉTRICA", "PRODUÇÃO", "LOGÍSTICA"].includes(localInstalacao) && (
+                          <option value={localInstalacao} className={isDark ? "bg-slate-900" : ""}>{localInstalacao}</option>
+                        )}
                         <option value="MANGANÊS" className={isDark ? "bg-slate-900" : ""}>MANGANÊS</option>
                         <option value="ALMOXARIFADO" className={isDark ? "bg-slate-900" : ""}>ALMOXARIFADO</option>
                         <option value="SALA ELÉTRICA" className={isDark ? "bg-slate-900" : ""}>SALA ELÉTRICA</option>
@@ -1169,7 +1197,7 @@ function InspecaoOuCadastroContent() {
                   <div className="space-y-1 font-sans">
                     <h4 className="text-[10px] font-bold text-amber-600 uppercase font-mono tracking-wider">Atenção Técnico:</h4>
                     <p className={`text-[10px] leading-snug ${isDark ? 'text-slate-400' : 'text-slate-650'}`}>
-                      Não limpe os dados do navegador até restabelecer internet e ver o botão superior de "Sincronia" zerar.
+                      Não limpe os dados do navegador até restabelecer internet e ver o botão superior de &quot;Sincronia&quot; zerar.
                     </p>
                   </div>
                 </div>

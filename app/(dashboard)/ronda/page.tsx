@@ -128,7 +128,9 @@ export default function RondaPage() {
 
   // Quando trocar a categoria, limpa o ativo selecionado
   useEffect(() => {
-    setSelectedAsset(null);
+    setTimeout(() => {
+      setSelectedAsset(null);
+    }, 0);
   }, [selectedCategory]);
 
   return (

@@ -43,7 +43,9 @@ export class SyncQueue {
       msg.includes('auth/invalid') ||
       msg.includes('jwt signature') ||
       msg.includes('não autorizado') ||
-      msg.includes('acesso negado')
+      msg.includes('acesso negado') ||
+      msg.includes('forbidden') ||
+      msg.includes('403')
     );
   }
 
@@ -105,61 +107,74 @@ export class SyncQueue {
     const pendingTasks = queue.filter(task => task.status !== 'failed');
     if (pendingTasks.length === 0) return;
 
-    console.log(`[SyncQueue] Processando ${pendingTasks.length} ativos pendentes de sincronismo...`);
-    const updatedQueue = [...queue];
+    console.log(`[SyncQueue] Processando ${pendingTasks.length} ativos pendentes de sincronismo em lote concorrente...`);
+    const succeededIds = new Set<string>();
+    const updatedTasks = [...queue];
 
-    for (const task of pendingTasks) {
-      const taskIndex = updatedQueue.findIndex(t => t.id === task.id);
-      if (taskIndex === -1) continue;
+    const batchSize = 15;
 
-      const currentTask = updatedQueue[taskIndex];
-      const attempts = currentTask.attempts || 0;
-      const lastAttempt = currentTask.lastAttempt || 0;
+    for (let i = 0; i < pendingTasks.length; i += batchSize) {
+      const batch = pendingTasks.slice(i, i + batchSize);
+      let abortRemaining = false;
 
-      // Cálculo de Backoff Exponencial: delay = 2^attempts * 1500ms
-      const delay = Math.pow(2, attempts) * 1500;
-      const now = Date.now();
+      await Promise.all(
+        batch.map(async (task) => {
+          if (abortRemaining) return;
 
-      if (lastAttempt > 0 && (now - lastAttempt < delay)) {
-        console.log(`[SyncQueue] Pulando ativo ${currentTask.assetId} (em espera de backoff exponencial: ${Math.round((delay - (now - lastAttempt)) / 1000)}s restantes)`);
-        continue;
-      }
+          const taskIndex = updatedTasks.findIndex(t => t.id === task.id);
+          if (taskIndex === -1) return;
 
-      currentTask.attempts = attempts + 1;
-      currentTask.lastAttempt = now;
+          const currentTask = updatedTasks[taskIndex];
+          const attempts = currentTask.attempts || 0;
+          const lastAttempt = currentTask.lastAttempt || 0;
 
-      try {
-        await saveAssetToDb(currentTask.moduleKey, currentTask.assetId, currentTask.payload);
-        console.log(`[SyncQueue] Sucesso ao sincronizar ativo ${currentTask.assetId} no Supabase.`);
-        
-        // Remove com sucesso a tarefa da fila
-        updatedQueue.splice(taskIndex, 1);
-        
-        if (onSuccessTask) {
-          onSuccessTask(currentTask);
-        }
-      } catch (err: any) {
-        const isSecurityErr = SyncQueue.isPermanentSecurityError(err);
-        console.error(`[SyncQueue] Erro ao sincronizar ativo ${currentTask.assetId} (Tentativa ${currentTask.attempts}/${this.MAX_ATTEMPTS}):`, err);
-        currentTask.error = err.message || String(err);
-        
-        if (isSecurityErr || currentTask.attempts >= this.MAX_ATTEMPTS) {
-          currentTask.status = 'failed';
-          console.warn(`[SyncQueue] Ativo ${currentTask.assetId} marcado como falhado devido a ${isSecurityErr ? 'Erro de RLS/Segurança' : 'limite de tentativas'}.`);
-          
-          if (isSecurityErr && typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('spci_security_sync_error', { detail: { error: err.message || String(err) } }));
+          // Cálculo de Backoff Exponencial: delay = 2^attempts * 1500ms
+          const delay = Math.pow(2, attempts) * 1500;
+          const now = Date.now();
+
+          if (lastAttempt > 0 && (now - lastAttempt < delay)) {
+            return;
           }
-        }
 
-        if (isSecurityErr) {
-          console.warn('[SyncQueue] Abortando processamento da fila devido a erro crítico de segurança.');
-          break; // Aborta o processamento da fila de ativos
-        }
+          currentTask.attempts = attempts + 1;
+          currentTask.lastAttempt = now;
+
+          try {
+            await saveAssetToDb(currentTask.moduleKey, currentTask.assetId, currentTask.payload);
+            console.log(`[SyncQueue] Sucesso ao sincronizar ativo ${currentTask.assetId} no Supabase.`);
+            succeededIds.add(currentTask.id);
+            if (onSuccessTask) {
+              onSuccessTask(task);
+            }
+          } catch (err: any) {
+            const isSecurityErr = SyncQueue.isPermanentSecurityError(err);
+            console.error(`[SyncQueue] Erro ao sincronizar ativo ${currentTask.assetId} (Tentativa ${currentTask.attempts}/${this.MAX_ATTEMPTS}):`, err);
+            currentTask.error = err.message || String(err);
+            
+            if (isSecurityErr || currentTask.attempts >= this.MAX_ATTEMPTS) {
+              currentTask.status = 'failed';
+              console.warn(`[SyncQueue] Ativo ${currentTask.assetId} marcado como falhado devido a ${isSecurityErr ? 'Erro de RLS/Segurança' : 'limite de tentativas'}.`);
+              
+              if (isSecurityErr && typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('spci_security_sync_error', { detail: { error: err.message || String(err) } }));
+              }
+            }
+
+            if (isSecurityErr) {
+              console.warn('[SyncQueue] Erro crítico de segurança detectado. Abortando lote.');
+              abortRemaining = true;
+            }
+          }
+        })
+      );
+
+      if (abortRemaining) {
+        break;
       }
     }
 
-    await idb.set('config', this.STORAGE_KEY, updatedQueue);
+    const finalQueue = updatedTasks.filter(t => !succeededIds.has(t.id));
+    await idb.set('config', this.STORAGE_KEY, finalQueue);
   }
 
   /**
@@ -212,64 +227,109 @@ export class SyncQueue {
     const pendingTasks = queue.filter(task => task.status !== 'failed');
     if (pendingTasks.length === 0) return;
 
-    console.log(`[SyncQueue] Processando ${pendingTasks.length} vistorias offline pendentes...`);
-    const updatedQueue = [...queue];
+    console.log(`[SyncQueue] Processando ${pendingTasks.length} vistorias offline pendentes em lote concorrente...`);
+    const succeededIds = new Set<string>();
+    const updatedTasks = [...queue];
 
-    for (const task of pendingTasks) {
-      const taskIndex = updatedQueue.findIndex(t => t.id === task.id);
-      if (taskIndex === -1) continue;
+    const batchSize = 15;
 
-      const currentTask = updatedQueue[taskIndex];
-      const attempts = currentTask.attempts || 0;
-      const lastAttempt = currentTask.lastAttempt || 0;
+    for (let i = 0; i < pendingTasks.length; i += batchSize) {
+      const batch = pendingTasks.slice(i, i + batchSize);
+      let abortRemaining = false;
 
-      // Cálculo de Backoff Exponencial: delay = 2^attempts * 1500ms
-      const delay = Math.pow(2, attempts) * 1500;
-      const now = Date.now();
+      await Promise.all(
+        batch.map(async (task) => {
+          if (abortRemaining) return;
 
-      if (lastAttempt > 0 && (now - lastAttempt < delay)) {
-        console.log(`[SyncQueue] Pulando vistoria do ativo ${currentTask.inspecao.asset_patrimonio} (em espera de backoff exponencial: ${Math.round((delay - (now - lastAttempt)) / 1000)}s restantes)`);
-        continue;
-      }
+          const taskIndex = updatedTasks.findIndex(t => t.id === task.id);
+          if (taskIndex === -1) return;
 
-      currentTask.attempts = attempts + 1;
-      currentTask.lastAttempt = now;
+          const currentTask = updatedTasks[taskIndex];
+          const attempts = currentTask.attempts || 0;
+          const lastAttempt = currentTask.lastAttempt || 0;
 
-      try {
-        const result = await salvarInspecaoNoSupabase(currentTask.inspecao);
-        if (!result.success) {
-          throw new Error(result.error || 'Erro desconhecido de banco');
-        }
-        console.log(`[SyncQueue] Sucesso ao sincronizar vistoria do ativo ${currentTask.inspecao.asset_patrimonio}.`);
-        
-        // Remove a tarefa concluída da fila
-        updatedQueue.splice(taskIndex, 1);
+          // Cálculo de Backoff Exponencial: delay = 2^attempts * 1500ms
+          const delay = Math.pow(2, attempts) * 1500;
+          const now = Date.now();
 
-        if (onSuccessTask) {
-          onSuccessTask(currentTask);
-        }
-      } catch (err: any) {
-        const isSecurityErr = SyncQueue.isPermanentSecurityError(err);
-        console.error(`[SyncQueue] Erro ao enviar vistoria do ativo ${currentTask.inspecao.asset_patrimonio} (Tentativa ${currentTask.attempts}/${this.MAX_ATTEMPTS}):`, err);
-        currentTask.error = err.message || String(err);
-
-        if (isSecurityErr || currentTask.attempts >= this.MAX_ATTEMPTS) {
-          currentTask.status = 'failed';
-          console.warn(`[SyncQueue] Vistoria do ativo ${currentTask.inspecao.asset_patrimonio} marcada como falhada devido a ${isSecurityErr ? 'Erro de RLS/Segurança' : 'limite de tentativas'}.`);
-          
-          if (isSecurityErr && typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('spci_security_sync_error', { detail: { error: err.message || String(err) } }));
+          if (lastAttempt > 0 && (now - lastAttempt < delay)) {
+            return;
           }
-        }
 
-        if (isSecurityErr) {
-          console.warn('[SyncQueue] Abortando processamento da fila de vistorias devido a erro crítico de segurança.');
-          break; // Aborta o processamento da fila de vistorias
-        }
+          currentTask.attempts = attempts + 1;
+          currentTask.lastAttempt = now;
+
+          try {
+            const result = await salvarInspecaoNoSupabase(currentTask.inspecao);
+            if (!result.success) {
+              throw new Error(result.error || 'Erro desconhecido de banco');
+            }
+            console.log(`[SyncQueue] Sucesso ao sincronizar vistoria do ativo ${currentTask.inspecao.asset_patrimonio}.`);
+            succeededIds.add(currentTask.id);
+            if (onSuccessTask) {
+              onSuccessTask(task);
+            }
+          } catch (err: any) {
+            const isSecurityErr = SyncQueue.isPermanentSecurityError(err);
+            console.error(`[SyncQueue] Erro ao enviar vistoria do ativo ${currentTask.inspecao.asset_patrimonio} (Tentativa ${currentTask.attempts}/${this.MAX_ATTEMPTS}):`, err);
+            currentTask.error = err.message || String(err);
+
+            if (isSecurityErr || currentTask.attempts >= this.MAX_ATTEMPTS) {
+              currentTask.status = 'failed';
+              console.warn(`[SyncQueue] Vistoria do ativo ${currentTask.inspecao.asset_patrimonio} marcada como falhada devido a ${isSecurityErr ? 'Erro de RLS/Segurança' : 'limite de tentativas'}.`);
+              
+              if (isSecurityErr && typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('spci_security_sync_error', { detail: { error: err.message || String(err) } }));
+              }
+            }
+
+            if (isSecurityErr) {
+              console.warn('[SyncQueue] Erro crítico de segurança detectado. Abortando lote.');
+              abortRemaining = true;
+            }
+          }
+        })
+      );
+
+      if (abortRemaining) {
+        break;
       }
     }
 
-    await idb.set('config', this.INSPECTION_STORAGE_KEY, updatedQueue);
+    const finalQueue = updatedTasks.filter(t => !succeededIds.has(t.id));
+    await idb.set('config', this.INSPECTION_STORAGE_KEY, finalQueue);
+  }
+
+  /**
+   * Reseta as tarefas falhas de volta para pending, permitindo nova tentativa de sincronismo.
+   */
+  static async resetFailedTasks(): Promise<void> {
+    try {
+      const queue = await this.getQueue();
+      if (queue.length > 0) {
+        const updatedQueue = queue.map(task => {
+          if (task.status === 'failed') {
+            return { ...task, status: 'pending', attempts: 0, lastAttempt: 0, error: undefined };
+          }
+          return task;
+        });
+        await idb.set('config', this.STORAGE_KEY, updatedQueue);
+      }
+
+      const inspectionQueue = await this.getInspectionQueue();
+      if (inspectionQueue.length > 0) {
+        const updatedInspections = inspectionQueue.map(task => {
+          if (task.status === 'failed') {
+            return { ...task, status: 'pending', attempts: 0, lastAttempt: 0, error: undefined };
+          }
+          return task;
+        });
+        await idb.set('config', this.INSPECTION_STORAGE_KEY, updatedInspections);
+      }
+      console.log('[SyncQueue] Todas as tarefas com falha foram resetadas para pendentes.');
+    } catch (e) {
+      console.error('[SyncQueue] Erro ao resetar tarefas falhas:', e);
+    }
   }
 }
 
