@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import { supabase } from '@/lib/supabaseClient';
+import { compressImage } from '@/lib/imageCompressor';
+import { MediaQueue } from '@/lib/mediaQueue';
 import { 
   Flame, 
   Droplet, 
@@ -73,6 +75,7 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [compressionDetails, setCompressionDetails] = useState<{ original: string; compressed: string; reduction: number } | null>(null);
 
   // Carregar dados de locais e modelos de extintor do banco
   useEffect(() => {
@@ -149,6 +152,7 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       setTimeout(() => {
         setSelectedFile(null);
         setPreviewUrl(null);
+        setCompressionDetails(null);
       }, 0);
     }
   }, [isOpen]);
@@ -187,11 +191,38 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
     setFormModel(modName);
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      setSelectedFile(file);
-      setPreviewUrl(URL.createObjectURL(file));
+      try {
+        const result = await compressImage(file);
+        setSelectedFile(result.file);
+        setPreviewUrl(result.previewUrl);
+        
+        const originalStr = result.originalSizeKb > 1024 
+          ? `${(result.originalSizeKb / 1024).toFixed(2)} MB` 
+          : `${result.originalSizeKb.toFixed(0)} KB`;
+          
+        const compressedStr = result.compressedSizeKb > 1024 
+          ? `${(result.compressedSizeKb / 1024).toFixed(2)} MB` 
+          : `${result.compressedSizeKb.toFixed(0)} KB`;
+
+        setCompressionDetails({
+          original: originalStr,
+          compressed: compressedStr,
+          reduction: result.reductionPercentage
+        });
+
+        triggerSuccessNotification(
+          "Imagem Otimizada! 📸",
+          `A imagem foi compactada com sucesso para economizar espaço.\nRedução: ${result.reductionPercentage}% (${originalStr} → ${compressedStr})`
+        );
+      } catch (err: any) {
+        console.error('Erro ao compactar imagem:', err);
+        // Fallback
+        setSelectedFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
+      }
     }
   };
 
@@ -240,36 +271,42 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       ? formPatrimonio.toUpperCase() 
       : `${prefix}${formPatrimonio.toUpperCase()}`;
 
+    // Gerar UUID para persistência no banco relacional
+    const uniqueId = generateUUID();
+
     // Upload da foto para o Supabase Storage se houver arquivo
     let uploadedFotoUrl = '';
     if (selectedFile) {
-      setUploadingImage(true);
-      try {
-        const fileExt = selectedFile.name.split('.').pop() || 'png';
-        const fileName = `ext_${codePatrimonio}_${Date.now()}.${fileExt}`;
-        
-        const { data: uploadData, error: uploadErr } = await supabase.storage
-          .from('fotos_extintores')
-          .upload(fileName, selectedFile);
+      const fileExt = selectedFile.name.split('.').pop() || 'jpg';
+      const fileName = `ext_${codePatrimonio}_${Date.now()}.${fileExt}`;
+      const isOnline = typeof window !== 'undefined' && navigator.onLine;
 
-        if (uploadErr) throw uploadErr;
+      if (isOnline) {
+        setUploadingImage(true);
+        try {
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('fotos_extintores')
+            .upload(fileName, selectedFile);
 
-        // Recuperar a URL pública
-        const { data: { publicUrl } } = supabase.storage
-          .from('fotos_extintores')
-          .getPublicUrl(uploadData.path);
+          if (uploadErr) throw uploadErr;
 
-        uploadedFotoUrl = publicUrl;
-      } catch (err: any) {
-        console.error('Erro no upload de foto:', err);
-        alert('Erro ao enviar imagem ao storage: ' + (err.message || err));
-      } finally {
-        setUploadingImage(false);
+          // Recuperar a URL pública
+          const { data: { publicUrl } } = supabase.storage
+            .from('fotos_extintores')
+            .getPublicUrl(uploadData.path);
+
+          uploadedFotoUrl = publicUrl;
+        } catch (err: any) {
+          console.warn('Erro ao enviar imagem ao storage online, enfileirando:', err);
+          await MediaQueue.enqueue(uniqueId, 'extintores', fileName, selectedFile);
+        } finally {
+          setUploadingImage(false);
+        }
+      } else {
+        console.log('[Offline] Enfileirando foto na MediaQueue...');
+        await MediaQueue.enqueue(uniqueId, 'extintores', fileName, selectedFile);
       }
     }
-
-    // Gerar UUID para persistência no banco relacional
-    const uniqueId = generateUUID();
 
     if (newAssetType === 'extintor') {
       const selectedLocalObj = locaisList.find(l => l.id === selectedLocalId);
@@ -646,6 +683,12 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
                           <div className="flex flex-col items-center gap-2">
                             <img src={previewUrl} alt="Preview" className="h-32 object-contain rounded-lg border border-slate-200" />
                             <span className="text-[10px] text-slate-500 font-bold">Clique para alterar a imagem</span>
+                            {compressionDetails && (
+                              <div className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-md font-sans font-bold flex flex-col items-center">
+                                <span>⚡ IMAGEM COMPACTADA ⚡</span>
+                                <span>Economia de {compressionDetails.reduction}% ({compressionDetails.original} → {compressionDetails.compressed})</span>
+                              </div>
+                            )}
                           </div>
                         ) : (
                           <div className="flex flex-col items-center gap-1.5 text-center text-slate-400 group-hover:text-red-600">

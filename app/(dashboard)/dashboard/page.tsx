@@ -29,6 +29,7 @@ export default function DashboardPage() {
     ...hidrantes.map(x => ({ id: x.idAtivo || x.id, label: `💧 Hidrante - ${x.idAtivo || x.id}` })),
     ...sinalizacoes.map(x => ({ id: x.idAtivo || x.id, label: `🚸 Sinalização - ${x.idAtivo || x.id}` })),
     ...iluminacoes.map(x => ({ id: x.idAtivo || x.id, label: `💡 Iluminação - ${x.idAtivo || x.id}` })),
+    ...bombas.map(x => ({ id: x.code || x.idAtivo || x.id, label: `⛽ Bomba - ${x.code || x.idAtivo || x.id} (${x.name || 'Bomba'})` }))
   ];
 
   const getQrCodeUrl = (assetId: string) => {
@@ -39,18 +40,20 @@ export default function DashboardPage() {
 
 
   // --- COMPLIANCE KPI CALCULATORS ---
-  const totalAssets = extintores.length + hidrantes.length + sinalizacoes.length + iluminacoes.length;
+  const totalAssets = extintores.length + hidrantes.length + sinalizacoes.length + iluminacoes.length + bombas.length;
   const totalVencidos = 
     extintores.filter(x => x.status === 'Vencido').length + 
     hidrantes.filter(x => x.status === 'Vencido').length +
     sinalizacoes.filter(x => x.status === 'Faltante').length +
-    iluminacoes.filter(x => x.status === 'Falha Carga').length;
+    iluminacoes.filter(x => x.status === 'Falha Carga').length +
+    bombas.filter(x => x.status === 'Manutenção Req.').length;
 
   const totalAtencao =
     extintores.filter(x => x.status === 'Em Manutenção').length +
     hidrantes.filter(x => x.status === 'Em Manutenção').length +
     sinalizacoes.filter(x => x.status === 'Não Conforme').length +
-    iluminacoes.filter(x => x.status === 'Atenção').length;
+    iluminacoes.filter(x => x.status === 'Atenção').length +
+    bombas.filter(x => x.status === 'Standby' || x.status === 'Atenção' || x.status === 'Nível Óleo Baixo').length;
 
   const compliancePercentage = totalAssets > 0 ? Math.round(((totalAssets - totalVencidos) / totalAssets) * 100) : 100;
 
@@ -67,7 +70,7 @@ export default function DashboardPage() {
     if (l.includes('RECEPÇÃO') || l.includes('RECEPCAO') || l.includes('ADMINISTRATIVO') || l.includes('CORREDOR ADMINISTRATIVO')) return 'RECEPÇÃO';
     if (l.includes('COBRE')) return 'COBRE';
     if (l.includes('FERRO')) return 'FERRO';
-    if (l.includes('PRODUÇÃO') || l.includes('SETOR C') || l.includes('CASA DE MÁQUINAS')) return 'PRODUÇÃO';
+    if (l.includes('PRODUÇÃO') || l.includes('SETOR C') || l.includes('CASA DE MÁQUINAS') || l.includes('CASA DE BOMBAS') || l.includes('BOMBA')) return 'PRODUÇÃO';
     if (l.includes('PÁTIO') || l.includes('PATIO') || l.includes('EXTERNA') || l.includes('LOGÍSTICA') || l.includes('LOGISTICA') || l.includes('SETOR B')) return 'LOGÍSTICA';
     return 'OUTROS';
   };
@@ -76,7 +79,8 @@ export default function DashboardPage() {
     ...extintores.map(x => ({ ...x, category: 'Extintor' })),
     ...hidrantes.map(x => ({ ...x, category: 'Hidrante' })),
     ...sinalizacoes.map(x => ({ ...x, category: 'Sinalização' })),
-    ...iluminacoes.map(x => ({ ...x, category: 'Iluminação' }))
+    ...iluminacoes.map(x => ({ ...x, category: 'Iluminação' })),
+    ...bombas.map(x => ({ ...x, category: 'Bomba', idAtivo: x.code || x.idAtivo || x.id, location: x.location || 'Casa de Bombas' }))
   ];
 
   const heatmapSectors = ['MANGANÊS', 'ALMOXARIFADO', 'SALA ELÉTRICA', 'BARRAGEM DO AZUL', 'ROTA DE FUGA 01', 'ROTA DE FUGA 02', 'RECEPÇÃO', 'COBRE', 'FERRO', 'PRODUÇÃO', 'LOGÍSTICA'];
@@ -190,7 +194,8 @@ export default function DashboardPage() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.15 }}
-          className="bg-white rounded-2xl border border-rose-200 p-5 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px]"
+          onClick={() => router.push('/alertas-criticos')}
+          className="bg-white rounded-2xl border border-rose-200 p-5 shadow-sm relative overflow-hidden flex flex-col justify-between min-h-[140px] cursor-pointer hover:shadow-md hover:border-rose-450 hover:bg-rose-50/20 transition-all duration-300"
         >
           <span className="absolute top-4 right-4 text-3xl font-normal opacity-80" aria-hidden="true">⚠️</span>
           {totalVencidos > 0 && <span className="absolute top-3 left-3 w-2 h-2 bg-rose-500 rounded-full animate-ping" />}
@@ -198,7 +203,7 @@ export default function DashboardPage() {
             <span className="text-[10px] text-rose-500 uppercase tracking-widest font-extrabold block">Alertas Críticos / Vencidos</span>
             <h3 className="font-['Hanken_Grotesk'] font-extrabold text-4xl mt-1 text-rose-600">{totalVencidos}</h3>
           </div>
-          <p className="text-[10px] text-rose-600 font-mono mt-2 flex items-center gap-1">🛑 Requer manutenção imediata</p>
+          <p className="text-[10px] text-rose-600 font-mono mt-2 flex items-center gap-1">🛑 Requer manutenção imediata (Clique para tratar)</p>
         </motion.div>
 
         <motion.div

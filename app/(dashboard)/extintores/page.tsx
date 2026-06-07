@@ -74,7 +74,9 @@ export default function ExtintoresPage() {
     userProfile,
     deletingAssetId,
     setDeletingAssetId,
-    requestAssetDeletion
+    requestAssetDeletion,
+    lastSyncTime,
+    syncWithRealDatabase
   } = useSpci();
 
   // --- ESTADOS DO COCKPIT DE IMPORTAÇÃO ---
@@ -83,6 +85,7 @@ export default function ExtintoresPage() {
   const [showOnlyErrors, setShowOnlyErrors] = useState<boolean>(false);
   const [dragActive, setDragActive] = useState<boolean>(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'CONFORME' | 'VENCIDO' | 'MANUTENCAO'>('ALL');
 
   const canDelete = userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Administrador';
 
@@ -95,19 +98,48 @@ export default function ExtintoresPage() {
 
   const maxBarValue = Math.max(conformes, vencidos, manutencao, 1);
 
-  // --- SEARCH FILTER ---
-  const filteredExtintores = searchTerm.trim()
-    ? extintores.filter(a => {
-        const term = searchTerm.toLowerCase();
-        return (
-          (a.idAtivo || '').toLowerCase().includes(term) ||
-          (a.model || '').toLowerCase().includes(term) ||
-          (a.location || '').toLowerCase().includes(term) ||
-          (a.chassi || '').toLowerCase().includes(term) ||
-          (a.seloInmetro || '').toLowerCase().includes(term)
-        );
-      })
-    : extintores;
+  // --- SEARCH & CARD STATUS FILTER ---
+  const filteredExtintores = extintores.filter(a => {
+    // 1. Term search filter
+    const matchesSearch = !searchTerm.trim() || (() => {
+      const term = searchTerm.toLowerCase();
+      return (
+        (a.idAtivo || '').toLowerCase().includes(term) ||
+        (a.model || '').toLowerCase().includes(term) ||
+        (a.location || '').toLowerCase().includes(term) ||
+        (a.chassi || '').toLowerCase().includes(term) ||
+        (a.seloInmetro || '').toLowerCase().includes(term)
+      );
+    })();
+
+    // 2. Status card filter
+    if (statusFilter === 'ALL') return matchesSearch;
+    if (statusFilter === 'CONFORME') {
+      return matchesSearch && (a.status === 'Conforme' || a.status === 'NO PRAZO');
+    }
+    if (statusFilter === 'VENCIDO') {
+      return matchesSearch && (a.status === 'Vencido' || a.status === 'VENCIDO');
+    }
+    if (statusFilter === 'MANUTENCAO') {
+      return matchesSearch && (a.status === 'Em Manutenção' || a.status === 'A VENCER');
+    }
+    return matchesSearch;
+  });
+
+  // --- NBR 12962 CLASS RESOLVER ---
+  const getExtinguisherIconAndClass = (model: string) => {
+    const m = (model || '').toUpperCase();
+    if (m.includes('ÁGUA') || m.includes('AGUA') || m.includes('AP')) {
+      return { icon: '💧', label: 'Água (AP)', desc: 'Classe A (Sólidos inflamáveis como papel, madeira, tecido)' };
+    }
+    if (m.includes('PÓ') || m.includes('PO') || m.includes('PQS') || m.includes('PÓ QUÍMICO') || m.includes('ABC') || m.includes('BC')) {
+      return { icon: '💨', label: 'Pó Químico (PQS)', desc: 'Classes A, B, C (Líquidos inflamáveis e equipamentos elétricos)' };
+    }
+    if (m.includes('CO2') || m.includes('GÁS CARBÔNICO') || m.includes('CARBONICO') || m.includes('DIÓXIDO')) {
+      return { icon: '⚡', label: 'Gás Carbônico (CO2)', desc: 'Classes B, C (Gases/líquidos inflamáveis e eletricidade)' };
+    }
+    return { icon: '🧯', label: 'Extintor', desc: 'Equipamento de extinção de incêndio NBR' };
+  };
 
   // --- CONFIGURAÇÕES DA BARRA DE FERRAMENTAS ---
   const TOOLBAR_CARDS = [
@@ -149,12 +181,16 @@ export default function ExtintoresPage() {
       'id', 'idAtivo', 'category', 'model', 'location', 'subLocation', 'seloInmetro', 'chassi', 'peso',
       'lastRecarga', 'recurrenceInterval', 'validadeRecarga', 'validadeTesteHidro', 'status', 'geolocation',
       'type', 'components', 'lastInsp', 'nextInsp', 'group', 'systemType', 'qty', 'battery', 'autonomy',
-      'name', 'code', 'power', 'range', 'starts'
+      'name', 'code', 'power', 'range', 'starts',
+      'qr_code_hash', 'qrCodeHash', 'statusConformidade', 'status_conformidade',
+      'fotoUrl', 'foto_url', 'ultimoTesteHidro', 'anoFabricacao', 'ano_ultimo_teste_hidro',
+      'created_at', 'updated_at', 'validadeRecargaMeses', 'data_pesagem_co2',
+      'data_ultima_recarga', 'meses_validade_recarga', 'peso_capacidade', 'validadeTesteHidro', 'anoUltimoTesteHidro'
     ];
     return Object.keys(asset).filter(k => {
       if (standardKeys.includes(k)) return false;
       if (standardKeys.some(sk => sk.toLowerCase() === k.toLowerCase())) return false;
-      return typeof asset[k] === 'string' && asset[k].trim() !== '';
+      return typeof asset[k] === 'string' && String(asset[k]).trim() !== '';
     }).map(k => ({ key: k, value: asset[k] }));
   };
 
@@ -651,7 +687,10 @@ export default function ExtintoresPage() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.15 }}
-                  className="p-4 bg-gradient-to-br from-slate-50 to-slate-100/60 rounded-xl border border-slate-200 relative overflow-hidden"
+                  onClick={() => setStatusFilter('ALL')}
+                  className={`p-4 bg-gradient-to-br from-slate-50 to-slate-100/60 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    statusFilter === 'ALL' ? 'border-slate-800 ring-2 ring-slate-100 shadow-md scale-102' : 'border-slate-200 hover:border-slate-300'
+                  }`}
                 >
                   <span className="text-[9px] text-slate-500 uppercase tracking-widest font-extrabold block">Total Cadastrado</span>
                   <h3 className="font-['Hanken_Grotesk'] font-extrabold text-3xl text-slate-900 mt-1">{totalExtintores}</h3>
@@ -663,7 +702,10 @@ export default function ExtintoresPage() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.2 }}
-                  className="p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/40 rounded-xl border border-emerald-200 relative overflow-hidden"
+                  onClick={() => setStatusFilter('CONFORME')}
+                  className={`p-4 bg-gradient-to-br from-emerald-50 to-emerald-100/40 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    statusFilter === 'CONFORME' ? 'border-emerald-500 ring-2 ring-emerald-100 shadow-md scale-102' : 'border-emerald-200 hover:border-emerald-300'
+                  }`}
                 >
                   <span className="text-[9px] text-emerald-600 uppercase tracking-widest font-extrabold block">Conformes</span>
                   <h3 className="font-['Hanken_Grotesk'] font-extrabold text-3xl text-emerald-700 mt-1">{conformes}</h3>
@@ -675,7 +717,10 @@ export default function ExtintoresPage() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.25 }}
-                  className="p-4 bg-gradient-to-br from-rose-50 to-rose-100/40 rounded-xl border border-rose-200 relative overflow-hidden"
+                  onClick={() => setStatusFilter('VENCIDO')}
+                  className={`p-4 bg-gradient-to-br from-rose-50 to-rose-100/40 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    statusFilter === 'VENCIDO' ? 'border-rose-500 ring-2 ring-rose-100 shadow-md scale-102' : 'border-rose-200 hover:border-rose-350'
+                  }`}
                 >
                   <span className="text-[9px] text-rose-600 uppercase tracking-widest font-extrabold block">Vencidos</span>
                   <h3 className="font-['Hanken_Grotesk'] font-extrabold text-3xl text-rose-700 mt-1">{vencidos}</h3>
@@ -688,7 +733,10 @@ export default function ExtintoresPage() {
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.3 }}
-                  className="p-4 bg-gradient-to-br from-amber-50 to-amber-100/40 rounded-xl border border-amber-200 relative overflow-hidden"
+                  onClick={() => setStatusFilter('MANUTENCAO')}
+                  className={`p-4 bg-gradient-to-br from-amber-50 to-amber-100/40 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    statusFilter === 'MANUTENCAO' ? 'border-amber-500 ring-2 ring-amber-100 shadow-md scale-102' : 'border-amber-200 hover:border-amber-300'
+                  }`}
                 >
                   <span className="text-[9px] text-amber-600 uppercase tracking-widest font-extrabold block">Manutenção / A Vencer</span>
                   <h3 className="font-['Hanken_Grotesk'] font-extrabold text-3xl text-amber-700 mt-1">{manutencao}</h3>
@@ -762,6 +810,26 @@ export default function ExtintoresPage() {
                 <p className="text-slate-500 text-xs mt-1 font-sans leading-relaxed">
                   Visão consolidada do controle de conformidades, validades de recarga e teste hidrostático da planta corporativa.
                 </p>
+                {/* Sync status widget */}
+                <div className="flex items-center gap-2 mt-2.5 bg-slate-50 border border-slate-150 px-3 py-1.5 rounded-xl w-fit">
+                  <span className="flex h-2 w-2 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-450 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                  <span className="text-[10px] text-slate-600 font-sans">
+                    Sincronizado em: {lastSyncTime ? `${lastSyncTime.toLocaleDateString('pt-BR')} às ${lastSyncTime.toLocaleTimeString('pt-BR')}` : 'Pendente de sincronização'}
+                  </span>
+                  <button 
+                    onClick={async () => {
+                      await syncWithRealDatabase();
+                      triggerSuccessNotification('Dados Atualizados! 🔄', 'O inventário de extintores foi sincronizado com o Supabase.');
+                    }}
+                    className="p-1 hover:bg-slate-200 rounded-md transition-colors border-none bg-transparent cursor-pointer flex items-center justify-center"
+                    title="Atualizar Dados"
+                  >
+                    <Activity className="w-3 h-3 text-slate-500 hover:text-slate-800" />
+                  </button>
+                </div>
               </div>
               <div className="flex items-center gap-3 shrink-0">
                 {/* Search */}
@@ -775,12 +843,6 @@ export default function ExtintoresPage() {
                     className="pl-9 pr-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:border-red-400 focus:ring-1 focus:ring-red-100 w-48 font-sans transition-all"
                   />
                 </div>
-                <button 
-                  onClick={() => { setShowAddForm(true); setNewAssetType('extintor'); }} 
-                  className="px-5 py-3 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer rounded-xl border-none active:scale-[0.97] flex items-center gap-2 shadow-xs shrink-0"
-                >
-                  <Plus className="w-3.5 h-3.5" /> Novo Extintor
-                </button>
               </div>
             </div>
 
@@ -812,6 +874,15 @@ export default function ExtintoresPage() {
                         <div>
                           <span className="font-mono text-slate-400 text-[10px] font-bold tracking-widest block uppercase">PATRIMÔNIO: {asset.idAtivo}</span>
                           <h3 className="font-extrabold text-slate-900 text-sm sm:text-base leading-tight uppercase mt-0.5">{asset.model}</h3>
+                          {(() => {
+                            const extInfo = getExtinguisherIconAndClass(asset.model);
+                            return (
+                              <div className="mt-1.5 flex items-center gap-1.5 bg-slate-50 border border-slate-150 px-2 py-0.5 rounded-lg text-[9px] text-slate-600 w-fit select-none" title={extInfo.desc}>
+                                <span>{extInfo.icon}</span>
+                                <span className="font-bold font-sans">{extInfo.label}</span>
+                              </div>
+                            );
+                          })()}
                         </div>
                         <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border shrink-0 ${
                           asset.status === 'Conforme' || asset.status === 'NO PRAZO'
@@ -827,9 +898,9 @@ export default function ExtintoresPage() {
                       <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs text-slate-700 font-medium">
                         <p className="flex items-center gap-1.5">
                           <span className="text-slate-400 font-bold uppercase text-[9px] w-12 tracking-wider shrink-0">Local:</span>
-                          <span className="text-slate-900 font-extrabold truncate max-w-[80px]">{asset.location}</span> 
+                          <span className="text-slate-900 font-extrabold truncate flex-1">{asset.location}</span> 
                           <span className="text-slate-400 font-sans">|</span> 
-                          <span className="text-slate-600 truncate">{asset.subLocation}</span>
+                          <span className="text-slate-600 truncate flex-1">{asset.subLocation}</span>
                         </p>
                         <p className="flex items-center gap-1.5">
                           <span className="text-slate-400 font-bold uppercase text-[9px] w-12 tracking-wider shrink-0">Selo:</span>
@@ -874,55 +945,61 @@ export default function ExtintoresPage() {
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-100 bg-slate-50/50 p-3 flex justify-between gap-2 overflow-x-auto shrink-0 scrollbar-none rounded-b-2xl">
-                      <button 
-                        onClick={() => { setSelectedAssetForInspection(asset); }} 
-                        className="flex-1 text-center bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase py-2.5 tracking-wider rounded-xl border-none cursor-pointer flex items-center justify-center gap-1 shadow-xs transition-all active:scale-95"
-                      >
-                        <CheckSquare className="w-3.5 h-3.5" /> Inspecionar
-                      </button>
-                      
-                      {/* CRUD Edit button - opens detail drawer */}
-                      <button 
-                        onClick={() => setSelectedAssetForDetail(asset)}
-                        className="border border-blue-200 hover:border-blue-400 hover:bg-blue-50 text-blue-700 font-extrabold px-3 py-2 rounded-xl text-[10px] uppercase flex items-center gap-1.5 bg-white cursor-pointer transition-all active:scale-95 shadow-xs" 
-                        title="Editar / Detalhes"
-                      >
-                        <Pencil className="w-3.5 h-3.5" /> Editar
-                      </button>
-
-                      <button 
-                        onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'extintor' }); }} 
-                        className="border border-slate-200 hover:border-slate-350 hover:bg-slate-50 text-slate-700 font-extrabold px-3 py-2 rounded-xl text-[10px] uppercase flex items-center gap-1.5 bg-white cursor-pointer transition-all active:scale-95 shadow-xs" 
-                        title="Ver Histórico NBR"
-                      >
-                        <History className="w-3.5 h-3.5" /> Histórico
-                      </button>
-                      
-                      <button 
-                        onClick={() => handleOpenAlertCenter(asset)} 
-                        className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2.5 rounded-xl border-none cursor-pointer transition-all active:scale-95 shadow-xs" 
-                        title="Alerta Corporativo"
-                      >
-                        <Bell className="w-3.5 h-3.5" />
-                      </button>
-                      
-                      {canDelete && (
+                    <div className="border-t border-slate-100 bg-slate-50/50 p-3.5 flex flex-col gap-2 rounded-b-2xl">
+                      {/* Row 1: Primary Actions */}
+                      <div className="flex gap-2">
                         <button 
-                          onClick={() => {
-                            requestAssetDeletion(asset, 'extintor', async () => {
-                              setDeletingAssetId(asset.id);
-                              await new Promise((resolve) => setTimeout(resolve, 1200));
-                              await deleteAsset('extintores', asset.id);
-                              setDeletingAssetId(null);
-                            });
-                          }} 
-                          className="bg-rose-50 hover:bg-rose-100 text-rose-600 p-2.5 rounded-xl border-none cursor-pointer transition-all active:scale-95 shadow-xs" 
-                          title="Excluir"
+                          onClick={() => { setSelectedAssetForInspection(asset); }} 
+                          className="flex-grow text-center bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black uppercase py-2.5 tracking-wider rounded-xl border-none cursor-pointer flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95"
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
+                          <CheckSquare className="w-3.5 h-3.5" /> Inspecionar
                         </button>
-                      )}
+                        
+                        {/* CRUD Edit button - opens detail drawer */}
+                        <button 
+                          onClick={() => setSelectedAssetForDetail(asset)}
+                          className="border border-blue-200 hover:border-blue-400 hover:bg-blue-50 text-blue-700 font-extrabold px-3 py-2.5 rounded-xl text-[10px] uppercase flex items-center gap-1.5 bg-white cursor-pointer transition-all active:scale-95 shadow-xs shrink-0" 
+                          title="Editar / Detalhes"
+                        >
+                          <Pencil className="w-3.5 h-3.5" /> Editar
+                        </button>
+                      </div>
+                      
+                      {/* Row 2: Secondary / Support Actions */}
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => { setSelectedAssetForHistory({ ...asset, type: 'extintor' }); }} 
+                          className="flex-grow border border-slate-200 hover:border-slate-350 hover:bg-slate-50 text-slate-700 font-extrabold py-2 rounded-xl text-[10px] uppercase flex items-center justify-center gap-1.5 bg-white cursor-pointer transition-all active:scale-95 shadow-xs" 
+                          title="Ver Histórico NBR"
+                        >
+                          <History className="w-3.5 h-3.5" /> Histórico
+                        </button>
+                        
+                        <button 
+                          onClick={() => handleOpenAlertCenter(asset)} 
+                          className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-2.5 rounded-xl border border-slate-200 cursor-pointer transition-all active:scale-95 shadow-xs flex items-center justify-center" 
+                          title="Alerta Corporativo"
+                        >
+                          <Bell className="w-3.5 h-3.5" />
+                        </button>
+                        
+                        {canDelete && (
+                          <button 
+                            onClick={() => {
+                              requestAssetDeletion(asset, 'extintor', async () => {
+                                setDeletingAssetId(asset.id);
+                                await new Promise((resolve) => setTimeout(resolve, 1200));
+                                await deleteAsset('extintores', asset.id);
+                                setDeletingAssetId(null);
+                              });
+                            }} 
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-600 p-2.5 rounded-xl border border-rose-250 cursor-pointer transition-all active:scale-95 shadow-xs flex items-center justify-center" 
+                            title="Excluir"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </motion.div>

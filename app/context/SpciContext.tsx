@@ -23,6 +23,8 @@ import {
 import { supabase } from '@/lib/supabaseClient';
 import { idb } from '@/lib/indexedDb';
 import { SyncQueue } from '@/lib/syncQueue';
+import { playTelemetryPingSound } from '@/lib/audio';
+import { MediaQueue } from '@/lib/mediaQueue';
 
 // --- INITIAL SEED DATA ---
 const INITIAL_EXTINTORES = [
@@ -157,7 +159,20 @@ interface SpciContextType {
   deletingAssetId: string | null;
   setDeletingAssetId: (id: string | null) => void;
   requestAssetDeletion: (asset: any, assetType: string, onConfirm: () => Promise<void> | void) => void;
+  lastSyncTime: Date | null;
+  auditLogs: any[];
+  logSystemAction: (action: string, tipoAtivo?: string, patrimonio?: string, detalhes?: string) => Promise<void>;
 }
+
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 const SpciContext = createContext<SpciContextType | undefined>(undefined);
 
@@ -177,6 +192,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [iluminacoes, setIluminacoes] = useState<any[]>([]);
   const [bombas, setBombas] = useState<any[]>([]);
   const [complianceLogs, setComplianceLogs] = useState<any[]>([]);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
   // Modals & UI States
   const [showAddForm, setShowAddForm] = useState(false);
@@ -215,6 +232,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isSyncingRef = React.useRef(false);
   const syncTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const lastNotificationTimeRef = React.useRef<number>(0);
+  const localActionRef = React.useRef(false);
 
   const addConsoleLog = useCallback((msg: string, type: 'ERRO' | 'SUCESSO' | 'INFO' = 'INFO') => {
     if (type === 'ERRO') {
@@ -238,6 +256,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Sync to database lists with offline resilience
   const saveAssetsList = useCallback(async (moduleKey: string, data: any[]) => {
     try {
+      localActionRef.current = true;
       // Salva no IndexedDB local de forma imediata (garante visual rápido)
       await idb.setAll(moduleKey, data);
       
@@ -282,7 +301,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           { local: 'spci_sinalizacoes', store: 'sinalizacoes', initial: INITIAL_SINALIZACAO },
           { local: 'spci_iluminacao', store: 'iluminacao', initial: INITIAL_ILUMINACAO },
           { local: 'spci_bombas', store: 'bombas', initial: INITIAL_BOMBAS },
-          { local: 'spci_logs', store: 'logs', initial: [] }
+          { local: 'spci_logs', store: 'logs', initial: [] },
+          { local: 'spci_audit_logs', store: 'audit_logs', initial: [] }
         ];
 
         for (const item of migrationKeys) {
@@ -307,6 +327,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           else if (item.store === 'iluminacao') setIluminacoes(list);
           else if (item.store === 'bombas') setBombas(list);
           else if (item.store === 'logs') setComplianceLogs(list);
+          else if (item.store === 'audit_logs') setAuditLogs(list);
         }
       } catch (err) {
         console.error('Falha ao carregar caches do IndexedDB:', err);
@@ -315,6 +336,55 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     loadCachedData();
   }, []);
+
+  const logSystemAction = useCallback(async (action: string, tipoAtivo?: string, patrimonio?: string, detalhes?: string) => {
+    try {
+      const activeUser = userProfile || currentUser;
+      const newLog = {
+        id: generateUUID(),
+        usuario_id: activeUser?.uid || null,
+        usuario_nome: activeUser?.name || activeUser?.displayName || 'Sistema/Técnico',
+        usuario_email: activeUser?.email || 'N/A',
+        acao: action,
+        tipo_ativo: tipoAtivo || null,
+        patrimonio: patrimonio || null,
+        detalhes: detalhes || '',
+        created_at: new Date().toISOString()
+      };
+
+      // 1. Atualizar localmente
+      setAuditLogs((prev) => {
+        const next = [newLog, ...prev];
+        idb.setAll('audit_logs', next).catch(console.error);
+        return next;
+      });
+
+      // 2. Tentar sincronizar online ou enfileirar offline
+      const isOnline = typeof window !== 'undefined' && navigator.onLine;
+      if (isOnline) {
+        try {
+          await supabase.from('logs_auditoria').insert([{
+            id: newLog.id,
+            usuario_id: newLog.usuario_id,
+            usuario_nome: newLog.usuario_nome,
+            usuario_email: newLog.usuario_email,
+            acao: newLog.acao,
+            tipo_ativo: newLog.tipo_ativo,
+            patrimonio: newLog.patrimonio,
+            detalhes: newLog.detalhes,
+            created_at: newLog.created_at
+          }]);
+        } catch (err) {
+          console.warn('Erro ao gravar log online, enfileirando:', err);
+          await SyncQueue.enqueue('audit_logs', newLog.id, newLog);
+        }
+      } else {
+        await SyncQueue.enqueue('audit_logs', newLog.id, newLog);
+      }
+    } catch (err) {
+      console.error('Erro em logSystemAction:', err);
+    }
+  }, [userProfile, currentUser]);
 
   // --- MEMOIZED SUPABASE SYNC FUNCTION ---
   const syncWithRealDatabase = useCallback(async () => {
@@ -379,6 +449,22 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await idb.setAll('logs', mappedLogs);
       }
       
+      // Sincronizar logs de auditoria
+      try {
+        const { data: auditDb, error: auditErr } = await supabase
+          .from('logs_auditoria')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (!auditErr && auditDb) {
+          setAuditLogs(auditDb);
+          await idb.setAll('audit_logs', auditDb);
+        }
+      } catch (err) {
+        console.warn('Erro ao carregar logs de auditoria:', err);
+      }
+
+      setLastSyncTime(new Date());
       addConsoleLog(`[Sincronia] Dados do Supabase sincronizados com sucesso!`, 'SUCESSO');
     } catch (err) {
       console.warn('Erro ao sincronizar com banco em tempo real:', err);
@@ -393,6 +479,84 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       syncWithRealDatabase();
     }
   }, [currentUser, syncWithRealDatabase]);
+
+  // --- SUPABASE REALTIME SUBSCRIPTION FOR AUTO SYNC ---
+  useEffect(() => {
+    if (!currentUser) return;
+
+    // Assina atualizações em tempo real das tabelas do banco de dados
+    const channel = supabase
+      .channel('spci_realtime_sync')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'inspecoes_realizadas' },
+        (payload) => {
+          console.log('[Realtime] Inspecao realizada mudou:', payload);
+          // Sincroniza dados e atualiza o estado
+          syncWithRealDatabase();
+
+          // Se for inserção externa (outro técnico), toca som e avisa
+          if (payload.eventType === 'INSERT') {
+            if (localActionRef.current) {
+              localActionRef.current = false;
+            } else {
+              playTelemetryPingSound();
+              triggerSuccessNotification(
+                "Nova Inspeção Registrada! 📋",
+                `O técnico cadastrou um laudo para o patrimônio ${payload.new.asset_patrimonio}.`
+              );
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'assets' },
+        (payload) => {
+          console.log('[Realtime] Asset mudou:', payload);
+          syncWithRealDatabase();
+
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            if (localActionRef.current) {
+              localActionRef.current = false;
+            } else {
+              playTelemetryPingSound();
+              triggerSuccessNotification(
+                "Ativo Sincronizado por Terceiro! 🔄",
+                `O ativo ${payload.new.id_ativo || 's/n'} foi atualizado remotamente.`
+              );
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'ativos_extintores' },
+        (payload) => {
+          console.log('[Realtime] Ativo extintor mudou:', payload);
+          syncWithRealDatabase();
+
+          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+            if (localActionRef.current) {
+              localActionRef.current = false;
+            } else {
+              playTelemetryPingSound();
+              triggerSuccessNotification(
+                "Extintor Sincronizado por Terceiro! 🧯",
+                `O extintor ${payload.new.numero_patrimonio || 's/n'} foi atualizado remotamente.`
+              );
+            }
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log(`[Realtime] Inscrição de canal de tempo real: ${status}`);
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser, syncWithRealDatabase, triggerSuccessNotification]);
 
   // --- AUTOMATIC REAL-TIME SYNC ON SUCCESS EVENT ---
   useEffect(() => {
@@ -463,6 +627,14 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           document.cookie = `spci_user_provider=${provider}; path=/; max-age=86400; SameSite=Lax`;
           setIsGoogleUser(provider === 'google');
 
+          // Registrar login se estiver pendente após redirecionamento
+          if (sessionStorage.getItem('spci_login_pending') === 'true') {
+            sessionStorage.removeItem('spci_login_pending');
+            setTimeout(() => {
+              logSystemAction('LOGIN', undefined, undefined, `Login efetuado com sucesso via autenticação Google.`);
+            }, 1000);
+          }
+
           if (profile.dataExpiracao) {
             document.cookie = `spci_user_expires=${profile.dataExpiracao}; path=/; max-age=86400; SameSite=Lax`;
           } else {
@@ -513,6 +685,10 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
           await SyncQueue.processQueue((task) => {
             addConsoleLog(`[Offline-Sync] Sucesso ao sincronizar ativo ${task.assetId} (${task.moduleKey}) da fila pendente.`, 'SUCESSO');
+          });
+
+          await MediaQueue.processQueue((task) => {
+            addConsoleLog(`[Offline-Sync] Sucesso ao fazer upload de foto pendente do ativo ${task.assetId}.`, 'SUCESSO');
           });
         } catch (err) {
           console.error('[Offline-Sync] Erro no processamento automático da fila offline:', err);
@@ -593,6 +769,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const updateAsset = useCallback(async (category: string, updatedAsset: any) => {
     try {
+      localActionRef.current = true;
       await saveAssetToDb(category, updatedAsset.id.toString(), updatedAsset);
       
       const normalizedCat = category.trim().toLowerCase();
@@ -638,6 +815,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteAsset = useCallback(async (category: string, assetId: string) => {
     try {
+      localActionRef.current = true;
       await deleteAssetFromDb(category, assetId);
       
       const normalizedCat = category.trim().toLowerCase();
@@ -749,6 +927,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthChecking(true);
     try {
       addConsoleLog("Iniciando janela oficial de login com Google...");
+      sessionStorage.setItem('spci_login_pending', 'true');
       await googleSignIn();
     } catch (err: any) {
       console.error("Erro no Login com Google:", err);
@@ -762,6 +941,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleGoogleLogout = useCallback(async () => {
     try {
+      await logSystemAction('LOGOUT', undefined, undefined, 'Sessão encerrada pelo usuário.');
       await logout();
       setCurrentUser(null);
       setUserProfile(null);
@@ -776,7 +956,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err: any) {
       console.error(err);
     }
-  }, [triggerSuccessNotification, addConsoleLog]);
+  }, [triggerSuccessNotification, addConsoleLog, logSystemAction]);
 
   const handleCredentialsLogin = useCallback(async (identifier: string, pass: string) => {
     setAuthChecking(true);
@@ -815,6 +995,11 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         addConsoleLog(`[Autenticação] Login com sucesso de ${profile.name} (${profile.role})`, 'SUCESSO');
         triggerSuccessNotification("Login Realizado! 🟢", `Bem-vindo de volta, ${profile.name}!`);
+        
+        setTimeout(() => {
+          logSystemAction('LOGIN', undefined, undefined, `Login efetuado com sucesso via credenciais.`);
+        }, 500);
+
         return true;
       }
       return false;
@@ -825,7 +1010,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setAuthChecking(false);
     }
-  }, [addConsoleLog, triggerSuccessNotification]);
+  }, [addConsoleLog, triggerSuccessNotification, logSystemAction]);
 
   return (
     <SpciContext.Provider value={{
@@ -897,7 +1082,10 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setDeleteConfirmation,
       deletingAssetId,
       setDeletingAssetId,
-      requestAssetDeletion
+      requestAssetDeletion,
+      lastSyncTime,
+      auditLogs,
+      logSystemAction
     }}>
       {children}
     </SpciContext.Provider>

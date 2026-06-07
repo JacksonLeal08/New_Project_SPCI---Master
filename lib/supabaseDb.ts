@@ -440,6 +440,24 @@ export async function getAssetsList(collectionName: string): Promise<any[]> {
 
 export async function saveAssetToDb(collectionName: string, id: string, asset: any): Promise<void> {
   try {
+    if (collectionName === 'audit_logs') {
+      const { error } = await supabase
+        .from('logs_auditoria')
+        .insert([{
+          id: asset.id,
+          usuario_id: asset.usuario_id || null,
+          usuario_nome: asset.usuario_nome,
+          usuario_email: asset.usuario_email,
+          acao: asset.acao,
+          tipo_ativo: asset.tipo_ativo || null,
+          patrimonio: asset.patrimonio || null,
+          detalhes: asset.detalhes || null,
+          created_at: asset.created_at || new Date().toISOString()
+        }]);
+      if (error) throw error;
+      return;
+    }
+
     const category = getNormalizedCategory(collectionName);
 
     if (category === 'extintores') {

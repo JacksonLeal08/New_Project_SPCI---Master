@@ -12,7 +12,8 @@ import {
   Smartphone, 
   Bell, 
   Settings, 
-  Plus 
+  Plus,
+  History
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -54,6 +55,7 @@ export const Sidebar = ({ onProfileClick }: SidebarProps) => {
     { id: 'bombas', label: 'Casa de Bombas', icon: <Sliders className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/bombas' },
     { id: 'ronda', label: 'Despacho & Ronda Campo', icon: <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/ronda' },
     { id: 'alerts', label: 'Disparo de Alertas', icon: <Bell className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/alerts' },
+    { id: 'logs', label: 'Logs do Sistema', icon: <History className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/logs' },
     ...(isAdmin && !isGoogleUser ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/configuracoes' }] : [])
   ];
 

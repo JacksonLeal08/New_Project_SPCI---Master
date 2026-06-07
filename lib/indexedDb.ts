@@ -4,7 +4,7 @@
  */
 
 const DB_NAME = 'SPCI_Local_Database';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 export interface IDBHelper {
   init(): Promise<IDBDatabase>;
@@ -44,7 +44,8 @@ export const getIndexedDB = (): Promise<IDBDatabase> => {
         'iluminacao',
         'bombas',
         'config', // Para sheetsConfig e templates
-        'logs'    // Para logs de console
+        'logs',   // Para logs de console
+        'audit_logs' // Para logs de auditoria
       ];
 
       stores.forEach(store => {

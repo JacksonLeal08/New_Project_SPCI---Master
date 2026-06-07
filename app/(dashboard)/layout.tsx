@@ -18,6 +18,7 @@ import SpciChatIa from '../components/SpciChatIa';
 import PremiumHUDAlert from '../components/ui/PremiumHUDAlert';
 import QrCameraScanner from '../components/QrCameraScanner';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
+import SyncStatusPanel from '../components/SyncStatusPanel';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     hidrantes,
     sinalizacoes,
     iluminacoes,
+    bombas,
     setExtintores,
     setHidrantes,
     setSinalizacoes,
@@ -69,6 +71,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [alertTargetContact, setAlertTargetContact] = useState('');
   const [generatedReportText, setGeneratedReportText] = useState('');
 
+  useEffect(() => {
+    if (premiumAlert?.show && premiumAlert?.dispatchData && !generatedReportText) {
+      const asset = premiumAlert.dispatchData;
+      const message = `Prezado Gestor,\n\nRelatamos uma falha de conformidade no ativo *${asset.idAtivo || asset.id}* (${asset.model || 'Ativo'}) localizado no setor *${asset.location || 'N/A'} - ${asset.subLocation || 'N/A'}*.\n\n*Inconformidade:* Equipamento com status de [${asset.status}]. Teste e recargas pendentes devem ser efetuados.\n\n_Responsável:_ SPCI Compliance`;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setGeneratedReportText(message);
+    } else if (!premiumAlert?.show && generatedReportText) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setGeneratedReportText('');
+    }
+  }, [premiumAlert, generatedReportText]);
+
   const SECTORS_LIST = ['MANGANÊS', 'ALMOXARIFADO', 'SALA ELÉTRICA', 'BARRAGEM DO AZUL', 'ROTA DE FUGA 01', 'ROTA DE FUGA 02', 'RECEPÇÃO', 'COBRE', 'FERRO'];
 
   // --- LAUDO FOTOGRÁFICO SIMULADO ---
@@ -81,17 +95,90 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     else setPhotoFrontal(demoImg);
   };
 
-  // --- SCANNER DE QR CODE ---
-  const handleQrScanSuccess = (code: string) => {
+  // --- SCANNER DE QR CODE OTIMIZADO ---
+  const handleQrScanSuccess = async (code: string) => {
     const uppercaseCode = code.toUpperCase().trim();
     if (!uppercaseCode) return;
     
-    const ext = extintores.find(x => x.idAtivo === uppercaseCode || x.chassi === uppercaseCode);
-    const hid = hidrantes.find(x => x.idAtivo === uppercaseCode);
-    const sin = sinalizacoes.find(x => x.idAtivo === uppercaseCode);
-    const lum = iluminacoes.find(x => x.idAtivo === uppercaseCode);
+    // 1. Busca rápida no estado do React
+    let ext = extintores.find(x => x.idAtivo === uppercaseCode || x.chassi === uppercaseCode);
+    let hid = hidrantes.find(x => x.idAtivo === uppercaseCode);
+    let sin = sinalizacoes.find(x => x.idAtivo === uppercaseCode);
+    let lum = iluminacoes.find(x => x.idAtivo === uppercaseCode);
+    let bom = (bombas as any[])?.find((x: any) => x.idAtivo === uppercaseCode || x.code === uppercaseCode);
 
-    const match = ext || hid || sin || lum;
+    let match = ext || hid || sin || lum || bom;
+
+    // 2. Se não encontrado no estado, busca local no IndexedDB
+    if (!match) {
+      try {
+        const localExts = await idb.getAll('extintores');
+        const foundExt = localExts.find(x => x.idAtivo === uppercaseCode || x.chassi === uppercaseCode);
+        if (foundExt) {
+          ext = foundExt;
+          match = foundExt;
+          setExtintores([foundExt, ...extintores]);
+        } else {
+          const localHids = await idb.getAll('hidrantes');
+          const foundHid = localHids.find(x => x.idAtivo === uppercaseCode);
+          if (foundHid) {
+            hid = foundHid;
+            match = foundHid;
+            setHidrantes([foundHid, ...hidrantes]);
+          } else {
+            const localSins = await idb.getAll('sinalizacoes');
+            const foundSin = localSins.find(x => x.idAtivo === uppercaseCode);
+            if (foundSin) {
+              sin = foundSin;
+              match = foundSin;
+              setSinalizacoes([foundSin, ...sinalizacoes]);
+            } else {
+              const localLums = await idb.getAll('iluminacao');
+              const foundLum = localLums.find(x => x.idAtivo === uppercaseCode);
+              if (foundLum) {
+                lum = foundLum;
+                match = foundLum;
+                setIluminacoes([foundLum, ...iluminacoes]);
+              }
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao buscar no IndexedDB:', e);
+      }
+    }
+
+    // 3. Se ainda não encontrado e online, busca remota no Supabase
+    if (!match && typeof window !== 'undefined' && navigator.onLine) {
+      try {
+        const { fetchAtivoParaInspecao } = await import('@/lib/supabaseDb');
+        const remoteAsset = await fetchAtivoParaInspecao(uppercaseCode);
+        if (remoteAsset) {
+          match = remoteAsset;
+          const cat = remoteAsset.category?.toLowerCase() || '';
+          if (cat.includes('extintor')) {
+            ext = remoteAsset;
+            setExtintores(prev => [remoteAsset, ...prev]);
+            idb.setAll('extintores', [remoteAsset, ...extintores]).catch(console.error);
+          } else if (cat.includes('hidrante')) {
+            hid = remoteAsset;
+            setHidrantes(prev => [remoteAsset, ...prev]);
+            idb.setAll('hidrantes', [remoteAsset, ...hidrantes]).catch(console.error);
+          } else if (cat.includes('sinaliza')) {
+            sin = remoteAsset;
+            setSinalizacoes(prev => [remoteAsset, ...prev]);
+            idb.setAll('sinalizacoes', [remoteAsset, ...sinalizacoes]).catch(console.error);
+          } else if (cat.includes('ilumina')) {
+            lum = remoteAsset;
+            setIluminacoes(prev => [remoteAsset, ...prev]);
+            idb.setAll('iluminacao', [remoteAsset, ...iluminacoes]).catch(console.error);
+          }
+        }
+      } catch (e) {
+        console.warn('Erro ao buscar ativo no Supabase:', e);
+      }
+    }
+
     setScanModal(false);
 
     if (match) {
@@ -101,6 +188,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       else if (hid) router.push('/hidrantes');
       else if (sin) router.push('/sinalizacao');
       else if (lum) router.push('/iluminacao');
+      else router.push('/bombas');
       triggerSuccessNotification('Equipamento Detectado', `Ativo ${uppercaseCode} carregado no cockpit de vistorias.`);
     } else {
       triggerSuccessNotification(
@@ -530,6 +618,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         type={premiumAlert?.type === 'success' ? 'success' : premiumAlert?.type === 'critical' ? 'critical' : 'warning'}
         onClose={() => setPremiumAlert(null)}
       />
+
+      <SyncStatusPanel />
     </div>
   );
 }
