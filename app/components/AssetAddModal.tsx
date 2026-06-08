@@ -44,7 +44,8 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
     bombas,
     setBombas,
     saveAssetsList,
-    triggerSuccessNotification
+    triggerSuccessNotification,
+    logSystemAction
   } = useSpci();
 
   // --- ESTADOS PARA METADADOS DO SUPABASE ---
@@ -416,6 +417,21 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       setBombas(updated);
       await saveAssetsList('bombas', updated);
     }
+
+    const categoryPlural = newAssetType === 'extintor' 
+      ? 'extintores' 
+      : (newAssetType === 'sinalizacao' 
+        ? 'sinalizacoes' 
+        : (newAssetType === 'iluminacao' 
+          ? 'iluminacao' 
+          : (newAssetType === 'bomba' ? 'bombas' : 'hidrantes')));
+    
+    await logSystemAction(
+      'CADASTRO_ATIVO', 
+      categoryPlural, 
+      codePatrimonio, 
+      `Ativo ${newAssetType} patrimônio ${codePatrimonio} cadastrado com sucesso.`
+    ).catch(console.error);
 
     setFormPatrimonio('');
     setFormSelo('');

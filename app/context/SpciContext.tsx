@@ -113,7 +113,7 @@ interface SpciContextType {
   setSelectedAssetForDetail: (asset: any | null) => void;
   updateExtintorAsset: (updatedAsset: any) => Promise<void>;
   deleteExtintorAsset: (assetId: string) => Promise<void>;
-  updateAsset: (category: string, updatedAsset: any) => Promise<void>;
+  updateAsset: (category: string, updatedAsset: any, silent?: boolean) => Promise<void>;
   deleteAsset: (category: string, assetId: string) => Promise<void>;
   
   showProfileModal: boolean;
@@ -253,8 +253,58 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
+  const logSystemAction = useCallback(async (action: string, tipoAtivo?: string, patrimonio?: string, detalhes?: string) => {
+    try {
+      const activeUser = userProfile || currentUser;
+      const newLog = {
+        id: generateUUID(),
+        usuario_id: activeUser?.uid || null,
+        usuario_nome: activeUser?.name || activeUser?.displayName || 'Sistema/Técnico',
+        usuario_email: activeUser?.email || 'N/A',
+        acao: action,
+        tipo_ativo: tipoAtivo || null,
+        patrimonio: patrimonio || null,
+        detalhes: detalhes || '',
+        created_at: new Date().toISOString()
+      };
+
+      // 1. Atualizar localmente
+      setAuditLogs((prev) => {
+        const next = [newLog, ...prev];
+        idb.setAll('audit_logs', next).catch(console.error);
+        return next;
+      });
+
+      // 2. Tentar sincronizar online ou enfileirar offline
+      const isOnline = typeof window !== 'undefined' && navigator.onLine;
+      if (isOnline) {
+        try {
+          const { error } = await supabase.from('logs_auditoria').insert([{
+            id: newLog.id,
+            usuario_id: newLog.usuario_id,
+            usuario_nome: newLog.usuario_nome,
+            usuario_email: newLog.usuario_email,
+            acao: newLog.acao,
+            tipo_ativo: newLog.tipo_ativo,
+            patrimonio: newLog.patrimonio,
+            detalhes: newLog.detalhes,
+            created_at: newLog.created_at
+          }]);
+          if (error) throw error;
+        } catch (err) {
+          console.warn('Erro ao gravar log online, enfileirando:', err);
+          await SyncQueue.enqueue('audit_logs', newLog.id, newLog);
+        }
+      } else {
+        await SyncQueue.enqueue('audit_logs', newLog.id, newLog);
+      }
+    } catch (err) {
+      console.error('Erro em logSystemAction:', err);
+    }
+  }, [userProfile, currentUser]);
+
   // Sync to database lists with offline resilience
-  const saveAssetsList = useCallback(async (moduleKey: string, data: any[]) => {
+  const saveAssetsList = useCallback(async (moduleKey: string, data: any[], isImport = false) => {
     try {
       localActionRef.current = true;
       // Salva no IndexedDB local de forma imediata (garante visual rápido)
@@ -284,11 +334,20 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           await SyncQueue.enqueue(moduleKey, item.id.toString(), item);
         }
       }
+
+      if (isImport) {
+        await logSystemAction(
+          'IMPORTACAO',
+          moduleKey,
+          undefined,
+          `Importação em lote de ${data.length} ativos do tipo ${moduleKey}.`
+        ).catch(console.error);
+      }
     } catch (e: any) {
       console.warn(`Erro geral de sincronismo local para ${moduleKey}:`, e);
       addConsoleLog(`Erro ao salvar dados locais de ${moduleKey}: ${e.message || e}`, 'ERRO');
     }
-  }, [addConsoleLog]);
+  }, [addConsoleLog, logSystemAction]);
 
 
   // --- INITIAL DATABASE LOAD AND STORAGE MIGRATION ---
@@ -337,54 +396,6 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     loadCachedData();
   }, []);
 
-  const logSystemAction = useCallback(async (action: string, tipoAtivo?: string, patrimonio?: string, detalhes?: string) => {
-    try {
-      const activeUser = userProfile || currentUser;
-      const newLog = {
-        id: generateUUID(),
-        usuario_id: activeUser?.uid || null,
-        usuario_nome: activeUser?.name || activeUser?.displayName || 'Sistema/Técnico',
-        usuario_email: activeUser?.email || 'N/A',
-        acao: action,
-        tipo_ativo: tipoAtivo || null,
-        patrimonio: patrimonio || null,
-        detalhes: detalhes || '',
-        created_at: new Date().toISOString()
-      };
-
-      // 1. Atualizar localmente
-      setAuditLogs((prev) => {
-        const next = [newLog, ...prev];
-        idb.setAll('audit_logs', next).catch(console.error);
-        return next;
-      });
-
-      // 2. Tentar sincronizar online ou enfileirar offline
-      const isOnline = typeof window !== 'undefined' && navigator.onLine;
-      if (isOnline) {
-        try {
-          await supabase.from('logs_auditoria').insert([{
-            id: newLog.id,
-            usuario_id: newLog.usuario_id,
-            usuario_nome: newLog.usuario_nome,
-            usuario_email: newLog.usuario_email,
-            acao: newLog.acao,
-            tipo_ativo: newLog.tipo_ativo,
-            patrimonio: newLog.patrimonio,
-            detalhes: newLog.detalhes,
-            created_at: newLog.created_at
-          }]);
-        } catch (err) {
-          console.warn('Erro ao gravar log online, enfileirando:', err);
-          await SyncQueue.enqueue('audit_logs', newLog.id, newLog);
-        }
-      } else {
-        await SyncQueue.enqueue('audit_logs', newLog.id, newLog);
-      }
-    } catch (err) {
-      console.error('Erro em logSystemAction:', err);
-    }
-  }, [userProfile, currentUser]);
 
   // --- MEMOIZED SUPABASE SYNC FUNCTION ---
   const syncWithRealDatabase = useCallback(async () => {
@@ -457,8 +468,17 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           .order('created_at', { ascending: false })
           .limit(200);
         if (!auditErr && auditDb) {
-          setAuditLogs(auditDb);
-          await idb.setAll('audit_logs', auditDb);
+          // Merge local logs that are not on the server yet (e.g. pending sync)
+          setAuditLogs((prev) => {
+            const pendingLogs = prev.filter(localLog => 
+              !auditDb.some(dbLog => dbLog.id === localLog.id)
+            );
+            const merged = [...pendingLogs, ...auditDb].sort((a, b) => 
+              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+            idb.setAll('audit_logs', merged).catch(console.error);
+            return merged;
+          });
         }
       } catch (err) {
         console.warn('Erro ao carregar logs de auditoria:', err);
@@ -767,7 +787,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser, triggerSuccessNotification, addConsoleLog]);
 
-  const updateAsset = useCallback(async (category: string, updatedAsset: any) => {
+  const updateAsset = useCallback(async (category: string, updatedAsset: any, silent?: boolean) => {
     try {
       localActionRef.current = true;
       await saveAssetToDb(category, updatedAsset.id.toString(), updatedAsset);
@@ -805,13 +825,24 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
 
-      triggerSuccessNotification('Ativo Atualizado! 🟢', `O ativo ${updatedAsset.idAtivo || updatedAsset.id} foi atualizado com sucesso.`);
+      if (!silent) {
+        triggerSuccessNotification('Ativo Atualizado! 🟢', `O ativo ${updatedAsset.idAtivo || updatedAsset.id} foi atualizado com sucesso.`);
+      }
+      
+      // Registrar log de auditoria no cliente
+      await logSystemAction(
+        'EDICAO_ATIVO', 
+        normalizedCat, 
+        updatedAsset.idAtivo || updatedAsset.id.toString(), 
+        `Ativo do tipo ${normalizedCat} com patrimônio ${updatedAsset.idAtivo || updatedAsset.id} foi atualizado.`
+      ).catch(console.error);
     } catch (err: any) {
-      console.error(`Erro ao atualizar ativo (${category}):`, err);
-      triggerSuccessNotification('Falha na Atualização ❌', err.message || 'Erro de conexão.');
+      const errorMsg = err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      console.error(`Erro ao atualizar ativo (${category}):`, err, errorMsg);
+      triggerSuccessNotification('Falha na Atualização ❌', errorMsg || 'Erro de conexão.');
       throw err;
     }
-  }, [triggerSuccessNotification]);
+  }, [triggerSuccessNotification, logSystemAction]);
 
   const deleteAsset = useCallback(async (category: string, assetId: string) => {
     try {
@@ -855,12 +886,38 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Bloqueia popup de "Ativo Sincronizado" por 5s após exclusão para evitar duplicidade
       lastNotificationTimeRef.current = Date.now() + 5000;
       triggerSuccessNotification('Ativo Excluído! 🗑️', 'O ativo foi removido de forma definitiva.');
+      
+      // Registrar log de auditoria no cliente
+      let assetPatrimonio = assetId;
+      if (normalizedCat === 'extintores') {
+        const ext = extintores.find(a => a.id === assetId);
+        if (ext) assetPatrimonio = ext.idAtivo || ext.id;
+      } else if (normalizedCat === 'hidrantes') {
+        const hid = hidrantes.find(a => a.id === assetId);
+        if (hid) assetPatrimonio = hid.idAtivo || hid.id;
+      } else if (normalizedCat === 'sinalizacoes' || normalizedCat === 'sinalizacao') {
+        const sin = sinalizacoes.find(a => a.id === assetId);
+        if (sin) assetPatrimonio = sin.idAtivo || sin.id;
+      } else if (normalizedCat === 'iluminacao') {
+        const ilu = iluminacoes.find(a => a.id === assetId);
+        if (ilu) assetPatrimonio = ilu.idAtivo || ilu.id;
+      } else if (normalizedCat === 'bombas') {
+        const bom = bombas.find(a => a.id === assetId);
+        if (bom) assetPatrimonio = bom.idAtivo || bom.id;
+      }
+      
+      await logSystemAction(
+        'EXCLUSAO_ATIVO',
+        normalizedCat,
+        assetPatrimonio,
+        `Ativo do tipo ${normalizedCat} com patrimônio ${assetPatrimonio} foi excluído.`
+      ).catch(console.error);
     } catch (err: any) {
       console.error(`Erro ao deletar ativo (${category}):`, err);
       triggerSuccessNotification('Falha na Exclusão ❌', err.message || 'Erro de permissão.');
       throw err;
     }
-  }, [triggerSuccessNotification]);
+  }, [triggerSuccessNotification, logSystemAction, extintores, hidrantes, sinalizacoes, iluminacoes, bombas]);
 
   const updateExtintorAsset = useCallback(async (updatedAsset: any) => {
     await updateAsset('extintores', updatedAsset);

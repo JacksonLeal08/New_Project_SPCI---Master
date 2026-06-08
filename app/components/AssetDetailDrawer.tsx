@@ -245,9 +245,10 @@ export default function AssetDetailDrawer() {
                       <FieldInput label="Validade (meses)" value={formData.validadeRecargaMeses || formData.meses_validade_recarga || '12'} onChange={(v) => handleFieldChange('validadeRecargaMeses', v)} type="number" />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
+                    <div className="grid grid-cols-3 gap-3">
                       <FieldInput label="Última Recarga" value={formData.lastRecarga || formData.data_ultima_recarga || ''} onChange={(v) => handleFieldChange('lastRecarga', v)} type="date" />
                       <FieldInput label="Ano Teste Hidrostático" value={formData.ultimoTesteHidro || formData.ano_ultimo_teste_hidro || ''} onChange={(v) => handleFieldChange('ultimoTesteHidro', v)} type="number" />
+                      <FieldInput label="Ano Fabricação" value={formData.anoFabricacao || formData.ano_fabricacao || ''} onChange={(v) => handleFieldChange('anoFabricacao', v)} type="number" />
                     </div>
 
                     <FieldInput label="URL da Foto" value={formData.fotoUrl || formData.foto_url || ''} onChange={(v) => handleFieldChange('fotoUrl', v)} fullWidth />
@@ -342,6 +343,14 @@ export default function AssetDetailDrawer() {
                           title="Último Teste Hidrostático"
                           date={String(asset.ultimoTesteHidro || asset.ano_ultimo_teste_hidro)}
                           description={`Próximo teste: ${Number(asset.ultimoTesteHidro || asset.ano_ultimo_teste_hidro) + 5}`}
+                        />
+                      )}
+                      {(asset?.anoFabricacao || asset?.ano_fabricacao) && (
+                        <TimelineItem
+                          color="bg-sky-500"
+                          title="Ano de Fabricação"
+                          date={String(asset.anoFabricacao || asset.ano_fabricacao)}
+                          description="Ano de fabricação original do casco do extintor"
                         />
                       )}
                       <TimelineItem

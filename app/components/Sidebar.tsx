@@ -13,14 +13,16 @@ import {
   Bell, 
   Settings, 
   Plus,
-  History
+  History,
+  LogOut
 } from 'lucide-react';
 
 interface SidebarProps {
   onProfileClick: () => void;
+  onLogoutClick?: () => void;
 }
 
-export const Sidebar = ({ onProfileClick }: SidebarProps) => {
+export const Sidebar = ({ onProfileClick, onLogoutClick }: SidebarProps) => {
   const pathname = usePathname();
   const { 
     userProfile, 
@@ -151,6 +153,17 @@ export const Sidebar = ({ onProfileClick }: SidebarProps) => {
             {currentUser ? `User: ${currentUser.email?.split('@')[0]}` : 'Sem planilhas'}
           </p>
         </div>
+      )}
+
+      {/* Botão de Logout */}
+      {onLogoutClick && (
+        <button
+          onClick={onLogoutClick}
+          className="w-full mt-2 bg-[#2D424A]/20 hover:bg-[#af101a] border border-[#CFD8DC]/10 hover:border-transparent text-slate-350 hover:text-white font-['Hanken_Grotesk'] font-bold text-xs py-2.5 px-4 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer shadow-xs active:scale-[0.98]"
+        >
+          <LogOut className="w-4 h-4 shrink-0" />
+          <span>SAIR DO COCKPIT</span>
+        </button>
       )}
     </aside>
   );

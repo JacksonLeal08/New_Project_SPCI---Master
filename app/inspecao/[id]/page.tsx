@@ -31,8 +31,9 @@ import { fetchAtivoParaInspecao, salvarInspecaoNoSupabase, saveAssetToDb } from 
 import { SyncQueue } from '@/lib/syncQueue';
 import { InspecaoRealizada, AssetCategory } from '@/lib/types';
 import { idb } from '@/lib/indexedDb';
-import { useSync } from '@/hooks/useSync';
 import { sanitizeInputText } from '@/lib/utils';
+import { useSpci } from '@/app/context/SpciContext';
+import { useSync } from '@/hooks/useSync';
 
 // Tipagem de categorias
 interface CategoriaOpcao {
@@ -59,6 +60,7 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = [
 ];
 
 function InspecaoOuCadastroContent() {
+  const { logSystemAction } = useSpci();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -431,6 +433,14 @@ function InspecaoOuCadastroContent() {
         await SyncQueue.enqueueInspection(inspecao);
         setSubmissionStatus('success_offline');
       }
+
+      // Registrar log de auditoria no cliente (tanto online quanto offline)
+      await logSystemAction(
+        'INSPECAO',
+        ativo.category || 'extintores',
+        ativo.idAtivo || ativo.id_ativo || rawId,
+        `Vistoria registrada. Técnico: ${inspecao.tecnico_nome}, Status: ${inspecao.status}`
+      ).catch(console.error);
 
       setFormSubmitted(true);
       await updatePendingCount();

@@ -8,6 +8,7 @@ import { Sidebar } from '../components/Sidebar';
 import { Header } from '../components/Header';
 import { getUserProfile } from '@/lib/supabaseDb';
 import { idb } from '@/lib/indexedDb';
+import { LogOut } from 'lucide-react';
 
 
 // Componentes modulares e desacoplados do SPCI
@@ -65,6 +66,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [photoPatrimonio, setPhotoPatrimonio] = useState<string | null>(null);
   const [photoFrontal, setPhotoFrontal] = useState<string | null>(null);
   const [inspectionNotes, setInspectionNotes] = useState('');
+  const [showLogoutConfirmation, setShowLogoutConfirmation] = useState<boolean>(false);
   
   // Alertas de saída do cockpit
   const [alertFormChannel, setAlertFormChannel] = useState<'whatsapp' | 'telegram' | 'email'>('whatsapp');
@@ -337,7 +339,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     <div className="flex bg-[#f4f6f8] min-h-screen text-slate-800 relative overflow-hidden font-mono">
       
       {/* Menu lateral fixo com rotas Next.js */}
-      <Sidebar onProfileClick={() => { if (currentUser) { setShowProfileModal(true); } }} />
+      <Sidebar 
+        onProfileClick={() => { if (currentUser) { setShowProfileModal(true); } }} 
+        onLogoutClick={() => setShowLogoutConfirmation(true)} 
+      />
 
       {/* Corpo principal do Dashboard */}
       <div className="flex-grow flex flex-col min-w-0 h-screen overflow-hidden">
@@ -618,6 +623,53 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         type={premiumAlert?.type === 'success' ? 'success' : premiumAlert?.type === 'critical' ? 'critical' : 'warning'}
         onClose={() => setPremiumAlert(null)}
       />
+
+      {/* 9. Modal de Confirmação de Logout */}
+      <AnimatePresence>
+        {showLogoutConfirmation && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              transition={{ duration: 0.2 }}
+              className="w-full max-w-sm bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl p-6 relative overflow-hidden text-center"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-red-650" />
+              
+              <div className="w-12 h-12 bg-red-950/50 border border-red-900/60 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 shadow-inner">
+                <LogOut className="w-6 h-6" />
+              </div>
+
+              <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">
+                Encerrar Sessão no SPCI?
+              </h3>
+              
+              <p className="text-[10px] text-slate-400 font-sans leading-normal mt-2.5 px-2">
+                Deseja realmente sair do cockpit? Todas as inspeções pendentes na fila local serão preservadas no seu dispositivo.
+              </p>
+
+              <div className="flex gap-3 mt-6">
+                <button
+                  onClick={() => setShowLogoutConfirmation(false)}
+                  className="flex-grow py-2.5 text-[10px] uppercase font-bold text-slate-405 border border-slate-850 bg-slate-950 hover:bg-slate-900 transition-all cursor-pointer rounded-xl"
+                >
+                  Cancelar
+                </button>
+                <button
+                  onClick={() => {
+                    setShowLogoutConfirmation(false);
+                    router.push('/logout');
+                  }}
+                  className="flex-grow py-2.5 text-[10px] uppercase font-black tracking-wider text-white bg-red-650 hover:bg-red-500 shadow-md transition-all cursor-pointer rounded-xl border-none active:scale-[0.98]"
+                >
+                  Confirmar Saída
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <SyncStatusPanel />
     </div>

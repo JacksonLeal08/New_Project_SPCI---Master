@@ -211,7 +211,7 @@ const deserializeNewExtintor = (row: any) => {
     validadeTesteHidro: row.data_limite_hidro || '',
     statusConformidade: row.status_conformidade,
     validadeRecargaMeses: getMonthsDiff(recargaDate, limiteRecargaDate),
-    anoFabricacao: row.ano_ultimo_teste_hidro || new Date().getFullYear() // fallback since not in db
+    anoFabricacao: row.ano_fabricacao || row.ano_ultimo_teste_hidro || new Date().getFullYear()
   };
 };
 
@@ -575,6 +575,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         data_ultima_recarga: normalizeToIsoDate(asset.lastRecarga || asset.data_ultima_recarga),
         meses_validade_recarga: parseInt(asset.validadeRecargaMeses || asset.meses_validade_recarga || '12', 10),
         ano_ultimo_teste_hidro: parseInt(asset.ultimoTesteHidro || asset.ano_ultimo_teste_hidro || new Date().getFullYear().toString(), 10),
+        ano_fabricacao: parseInt(asset.anoFabricacao || asset.ano_fabricacao || new Date().getFullYear().toString(), 10),
         data_pesagem_co2: asset.data_pesagem_co2 ? normalizeToIsoDate(asset.data_pesagem_co2) : null,
         foto_url: asset.fotoUrl || asset.foto_url || null,
         updated_at: new Date().toISOString()
@@ -585,9 +586,25 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         payload.id = id;
       }
 
-      const { error: extErr } = await supabase
+      let extErr;
+      const { error: initialErr } = await supabase
         .from('ativos_extintores')
         .upsert(payload, { onConflict: 'numero_patrimonio' });
+      
+      extErr = initialErr;
+
+      if (extErr) {
+        // Self-healing: if the remote database does not have the 'ano_fabricacao' column,
+        // retry the upsert without that column to allow normal system operation.
+        if (extErr.message?.includes('ano_fabricacao') || extErr.code === 'PGRST204') {
+          console.warn('[saveAssetToDb] Coluna ano_fabricacao ausente no banco remoto. Re-tentando upsert sem esta coluna...');
+          const { ano_fabricacao, ...fallbackPayload } = payload;
+          const { error: fallbackErr } = await supabase
+            .from('ativos_extintores')
+            .upsert(fallbackPayload, { onConflict: 'numero_patrimonio' });
+          extErr = fallbackErr;
+        }
+      }
 
       if (extErr) throw extErr;
       if (typeof window !== 'undefined') {
