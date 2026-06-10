@@ -438,32 +438,9 @@ begin
         'email', p_email,
         'role', p_role,
         'password', p_password,
-        'expires_at', p_expires_at,
-        'onboarding_url', 'https://meusistema.com/onboarding?email=' || url_encode(p_email)
+        'expires_at', p_expires_at
     );
 
     return v_response;
-end;
-$$;
-
--- Função utilitária interna para URL Encode usada na geração do link de onboarding
-create or replace function public.url_encode(data text)
-returns text
-language plpgsql
-as $$
-declare
-    i integer;
-    char text;
-    result text := '';
-begin
-    for i in 1..char_length(data) loop
-        char := substring(data from i for 1);
-        if char ~ '[a-zA-Z0-9_.~-]' then
-            result := result || char;
-        else
-            result := result || '%' || encode(char::bytea, 'hex');
-        end if;
-    end loop;
-    return result;
 end;
 $$;
