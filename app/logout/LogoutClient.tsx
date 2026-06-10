@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { motion } from 'motion/react';
 import { useSpci } from '../context/SpciContext';
 import { Shield, LogOut, ArrowLeft } from 'lucide-react';
@@ -16,9 +16,11 @@ const STATUS_MESSAGES = [
 
 export default function LogoutClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { handleSystemLogout } = useSpci();
 
-  const [isConfirmed, setIsConfirmed] = useState(false);
+  const autoConfirm = searchParams.get('confirm') === 'true';
+  const [isConfirmed, setIsConfirmed] = useState(autoConfirm);
   const [progress, setProgress] = useState(0);
   const [loadingStatus, setLoadingStatus] = useState('Iniciando encerramento de sessão...');
 

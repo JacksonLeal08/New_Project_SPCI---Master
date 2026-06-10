@@ -318,6 +318,10 @@ using (
 -- Esta função cria o registro em auth.users e sincroniza com public.usuarios.
 -- O e-mail de confirmação é marcado como confirmado imediatamente para evitar travas no login.
 
+-- Drop any existing overloads of the function to prevent parameter mismatch issues in the schema cache
+drop function if exists public.create_new_user(text, text, public.user_role, integer);
+drop function if exists public.create_new_user(text, text, text, public.user_role, integer);
+
 create or replace function public.create_new_user(
     p_email text,
     p_username text,

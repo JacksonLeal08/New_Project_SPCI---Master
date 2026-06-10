@@ -686,7 +686,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 <button
                   onClick={() => {
                     setShowLogoutConfirmation(false);
-                    router.push('/logout');
+                    router.push('/logout?confirm=true');
                   }}
                   className="flex-grow py-2.5 text-[10px] uppercase font-black tracking-wider text-white bg-red-650 hover:bg-red-500 shadow-md transition-all cursor-pointer rounded-xl border-none active:scale-[0.98]"
                 >
