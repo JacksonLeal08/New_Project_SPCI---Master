@@ -1,38 +1,113 @@
-# Walkthrough de Implementação: Restrições de Log, Login com @ e Efeito Thanos
+# Relatório de Entrega: Correção de RLS, Login por Username e Exclusão Segura de Usuários
 
-Este documento resume as modificações efetuadas para restringir a visibilidade dos Logs, ajustar o fluxo de login com o caractere `@` e expandir os limites visuais do efeito de desintegração de ativos.
+Este relatório documenta as modificações aplicadas para corrigir o erro de recursão infinita no RLS da tabela `usuarios`, viabilizar o login por username para usuários não autenticados e assegurar a exclusão completa das credenciais de autenticação no Supabase.
 
 ## Modificações Realizadas
 
-### 1. Interface (Sidebar)
-* **Arquivo:** [Sidebar.tsx](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/app/components/Sidebar.tsx)
-* **Alteração:** Tornou a exibição do link "Logs do Sistema" condicional, renderizando-o somente se `userProfile?.role === 'Desenvolvedor'`.
+### 1. Banco de Dados (Novas RPCs e Correção RLS)
+* **Arquivo de Migração:** [20260610040000_fix_usuarios_rls_and_rpc.sql](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/supabase/migrations/20260610040000_fix_usuarios_rls_and_rpc.sql)
+* **Alterações:**
+  * Remoção da verificação `is_my_account_expired()` das políticas de RLS `User_View_Self` e `User_Update_Self` na tabela `public.usuarios` para eliminar o loop de consultas recursivas circulares.
+  * Criação da função RPC `public.get_email_by_username(p_username text)` com `SECURITY DEFINER` para permitir que usuários não autenticados resolvam seu e-mail a partir do username.
+  * Criação da função RPC `public.delete_user_by_admin(p_uid uuid)` com `SECURITY DEFINER` para permitir a exclusão de usuários das tabelas `public.usuarios` e `auth.users`.
 
-### 2. Página de Logs (RBAC no Cliente)
-* **Arquivo:** [page.tsx](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/app/(dashboard)/logs/page.tsx)
-* **Alteração:** Adicionada validação de cargo. Caso o usuário autenticado não possua o papel `Desenvolvedor`, é exibido um card com layout premium informando "Acesso Restrito" e um botão para retornar ao Dashboard.
-
-### 3. Middleware (RBAC na Borda)
-* **Arquivo:** [middleware.ts](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/middleware.ts)
-* **Alteração:** Proteção no middleware do Next.js. Qualquer tentativa de requisição direta às rotas `/logs` ou `/gestao-ativo` por usuários que não sejam do tipo `Desenvolvedor` é bloqueada e redirecionada para `/dashboard`.
-
-### 4. Login Corporativo (Tratamento do @)
+### 2. Autenticação (Híbrida por Username)
 * **Arquivo:** [supabaseAuth.ts](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/lib/supabaseAuth.ts)
-* **Alteração:**
-  * Remoção do caractere `@` no início da string se fornecido pelo usuário (ex: `@jfleal` torna-se `jfleal`).
-  * Validação com expressão regular estrita para detectar se o input é um e-mail válido. Caso não seja (como `jfleal`), executa o fluxo híbrido realizando a busca pelo e-mail associado a esse `user_name` na tabela `public.usuarios` antes de efetuar o login corporativo no Supabase Auth.
+* **Alteração:** Substituição da consulta direta à tabela `usuarios` pela chamada à função RPC `get_email_by_username`, que executa com privilégios elevados de banco de dados, permitindo a autenticação anônima por username sob as regras estritas de RLS.
 
-### 5. Efeito Thanos / Desintegração de Ativos
-* **Arquivo:** [DisintegrationOverlay.tsx](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/app/components/DisintegrationOverlay.tsx)
-  * Ampliado o tamanho lógico do canvas em `150px` para todas as direções (totalizando `+300px` em largura e altura).
-  * Atualizado o estilo CSS absoluto para `top: -150px`, `left: -150px` e largura/altura em `calc(100% + 300px)`.
-  * Adicionado deslocamento de offset de `150px` no grid de geração de partículas, posicionando-as sob os limites reais do card e permitindo que flutuem para o espaço externo sem cortes.
-* **Telas de Inventário:**
-  * [extintores/page.tsx](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/app/(dashboard)/extintores/page.tsx)
-  * [hidrantes/page.tsx](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/app/(dashboard)/hidrantes/page.tsx)
-  * [sinalizacao/page.tsx](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/app/(dashboard)/sinalizacao/page.tsx)
-  * [iluminacao/page.tsx](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/app/(dashboard)/iluminacao/page.tsx)
-  * **Alteração:** Quando o ativo está sob exclusão (`deletingAssetId === asset.id`), a classe do container principal do card é alternada para `overflow-visible border-transparent shadow-none bg-transparent`. Isso oculta os elementos visuais do card de forma limpa e permite que o canvas de desintegração expanda as partículas além dos limites originais sem cortes de overflow.
+### 3. CRUD de Usuários (Exclusão Segura)
+* **Arquivo:** [supabaseDb.ts](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/lib/supabaseDb.ts)
+* **Alteração:** Modificação da função `deleteUserProfileByAdmin` para invocar a função RPC `delete_user_by_admin`. Isso remove o usuário da base pública e do banco de credenciais de login (`auth.users`) simultaneamente.
+
+---
+
+## Script para Execução Imediata no Banco de Produção
+
+Como as alterações envolvem estruturas de segurança internas da tabela `auth.users` e redefinição de políticas RLS, você deve executar o script a seguir no **SQL Editor** do painel da sua instância Supabase:
+
+```sql
+-- 1. CORREÇÃO DA RECURSÃO INFINITA (RLS)
+DROP POLICY IF EXISTS "User_View_Self" ON public.usuarios;
+CREATE POLICY "User_View_Self"
+ON public.usuarios
+FOR SELECT
+TO authenticated
+USING (
+    id = auth.uid()
+);
+
+DROP POLICY IF EXISTS "User_Update_Self" ON public.usuarios;
+CREATE POLICY "User_Update_Self"
+ON public.usuarios
+FOR UPDATE
+TO authenticated
+USING (
+    id = auth.uid()
+)
+WITH CHECK (
+    id = auth.uid()
+);
+
+-- 2. FUNÇÃO RPC: get_email_by_username
+CREATE OR REPLACE FUNCTION public.get_email_by_username(p_username text)
+RETURNS text
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+    v_email text;
+BEGIN
+    SELECT email INTO v_email FROM public.usuarios WHERE LOWER(user_name) = LOWER(p_username) LIMIT 1;
+    RETURN v_email;
+END;
+$$;
+
+-- 3. FUNÇÃO RPC: delete_user_by_admin
+CREATE OR REPLACE FUNCTION public.delete_user_by_admin(p_uid uuid)
+RETURNS boolean
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, pg_temp
+AS $$
+DECLARE
+    v_creator_role public.user_role;
+    v_target_role public.user_role;
+BEGIN
+    -- 1. Valida se o executor está autenticado
+    IF auth.uid() IS NULL THEN
+        RAISE EXCEPTION 'Não autorizado. Usuário não autenticado.';
+    END IF;
+
+    -- 2. Busca a role do executor
+    v_creator_role := public.get_my_role();
+    IF v_creator_role IS NULL THEN
+        RAISE EXCEPTION 'Não autorizado. Usuário criador sem perfil cadastrado.';
+    END IF;
+
+    -- 3. Usuários comuns não podem excluir ninguém
+    IF v_creator_role = 'Usuário'::public.user_role THEN
+        RAISE EXCEPTION 'Acesso negado: Seu nível de acesso não permite excluir contas.';
+    END IF;
+
+    -- 4. Busca a role do usuário a ser excluído
+    SELECT role INTO v_target_role FROM public.usuarios WHERE id = p_uid;
+    
+    -- 5. Se o alvo for um Desenvolvedor, apenas outro Desenvolvedor pode excluir
+    IF v_target_role = 'Desenvolvedor'::public.user_role AND v_creator_role != 'Desenvolvedor'::public.user_role THEN
+        RAISE EXCEPTION 'Hierarquia violada: Apenas Desenvolvedores podem excluir contas do tipo Desenvolvedor.';
+    END IF;
+
+    -- 6. Exclui da tabela public.usuarios (caso não tenha cascateado)
+    DELETE FROM public.usuarios WHERE id = p_uid;
+
+    -- 7. Exclui da tabela auth.users (o que removerá o usuário da autenticação)
+    DELETE FROM auth.users WHERE id = p_uid;
+
+    RETURN true;
+END;
+$$;
+```
 
 ---
 

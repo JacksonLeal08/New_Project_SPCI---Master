@@ -77,19 +77,17 @@ export const signInWithEmailOrUsername = async (identifier: string, password: st
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const isEmail = emailRegex.test(email);
 
-    // If it is not a valid email, assume it's a username and search in public.usuarios
+    // If it is not a valid email, assume it's a username and call public.get_email_by_username RPC
     if (!isEmail) {
-      const { data, error: lookupError } = await supabase
-        .from('usuarios')
-        .select('email')
-        .eq('user_name', email)
-        .maybeSingle();
+      const { data, error: lookupError } = await supabase.rpc('get_email_by_username', {
+        p_username: email
+      });
 
       if (lookupError) throw lookupError;
-      if (!data || !data.email) {
+      if (!data) {
         throw new Error('Nome de usuário não cadastrado no sistema.');
       }
-      email = data.email;
+      email = data;
     }
 
     // Efetua autenticacao tradicional por email/senha no Supabase Auth

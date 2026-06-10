@@ -388,10 +388,9 @@ export async function getAllUserProfiles(): Promise<UserProfile[]> {
  */
 export async function deleteUserProfileByAdmin(uid: string): Promise<void> {
   try {
-    const { error } = await supabase
-      .from('usuarios')
-      .delete()
-      .eq('id', uid);
+    const { error } = await supabase.rpc('delete_user_by_admin', {
+      p_uid: uid
+    });
 
     if (error) throw error;
   } catch (error: any) {
