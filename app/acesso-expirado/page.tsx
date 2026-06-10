@@ -5,7 +5,7 @@ import { useSpci } from '@/app/context/SpciContext';
 import { motion } from 'motion/react';
 
 export default function AcessoExpiradoPage() {
-  const { handleGoogleLogout } = useSpci();
+  const { handleSystemLogout } = useSpci();
 
   return (
     <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-6 text-white font-sans">
@@ -45,7 +45,7 @@ export default function AcessoExpiradoPage() {
           <button 
             onClick={async () => {
               try {
-                await handleGoogleLogout();
+                await handleSystemLogout();
                 window.location.href = '/';
               } catch (e) {
                 console.error(e);

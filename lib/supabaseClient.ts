@@ -9,4 +9,16 @@ if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_A
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  global: {
+    headers: {
+      get 'x-shared-token'() {
+        if (typeof document !== 'undefined') {
+          const match = document.cookie.match(/(?:^|; )spci_shared_token=([^;]*)/);
+          return match ? match[1] : '';
+        }
+        return '';
+      }
+    }
+  }
+});

@@ -4,7 +4,6 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { CompatibleUser as User } from '@/lib/supabaseAuth';
 import { 
   initAuth, 
-  googleSignIn, 
   logout,
   signInWithEmailOrUsername
 } from '@/lib/supabaseAuth';
@@ -141,8 +140,7 @@ interface SpciContextType {
   
   // Handlers
   addConsoleLog: (msg: string, type?: 'ERRO' | 'SUCESSO' | 'INFO') => void;
-  handleGoogleLogin: () => Promise<void>;
-  handleGoogleLogout: () => Promise<void>;
+  handleSystemLogout: () => Promise<void>;
   handleUpdateLogoAndProfile: (logoUrl: string, name: string) => Promise<void>;
   handleAdminRoleStatusChange: (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => Promise<void>;
   handleAdminDeleteUser: (uid: string) => Promise<void>;
@@ -1073,26 +1071,24 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [fetchUsers, addConsoleLog]);
 
-  // --- GOOGLE SIGNIN/LOGOUT ---
-  const handleGoogleLogin = useCallback(async () => {
-    setAuthChecking(true);
-    try {
-      addConsoleLog("Iniciando janela oficial de login com Google...");
-      sessionStorage.setItem('spci_login_pending', 'true');
-      await googleSignIn();
-    } catch (err: any) {
-      console.error("Erro no Login com Google:", err);
-      const errMsg = err.message || String(err);
-      addConsoleLog(`Falha ao conectar Google Account: ${errMsg}`, 'ERRO');
-      triggerSuccessNotification("Falha no Login ❌", errMsg);
-    } finally {
-      setAuthChecking(false);
-    }
-  }, [triggerSuccessNotification, addConsoleLog]);
-
-  const handleGoogleLogout = useCallback(async () => {
+  // --- SYSTEM LOGOUT & SESSION REVOCATION ---
+  const handleSystemLogout = useCallback(async () => {
     try {
       await logSystemAction('LOGOUT', undefined, undefined, 'Sessão encerrada pelo usuário.');
+      
+      // Revogar sessões compartilhadas ativas criadas por este usuário ao deslogar
+      if (currentUser) {
+        try {
+          await supabase
+            .from('shared_sessions')
+            .update({ status: 'revoked' })
+            .eq('created_by', currentUser.uid);
+          addConsoleLog("Acessos de campo compartilhados revogados no logout.");
+        } catch (sessErr: any) {
+          console.error("Erro ao revogar sessões compartilhadas no logout:", sessErr);
+        }
+      }
+
       await logout();
       setCurrentUser(null);
       setUserProfile(null);
@@ -1102,12 +1098,12 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.cookie = `spci_user_expires=; path=/; max-age=0; SameSite=Lax`;
       document.cookie = `spci_user_provider=; path=/; max-age=0; SameSite=Lax`;
       setIsGoogleUser(false);
-      addConsoleLog("Sessão da conta do Google finalizada.");
+      addConsoleLog("Sessão finalizada com sucesso.");
       triggerSuccessNotification("Desconectado! ⚪", "Sessão finalizada com sucesso.");
     } catch (err: any) {
       console.error(err);
     }
-  }, [triggerSuccessNotification, addConsoleLog, logSystemAction]);
+  }, [currentUser, triggerSuccessNotification, addConsoleLog, logSystemAction]);
 
   const handleCredentialsLogin = useCallback(async (identifier: string, pass: string) => {
     setAuthChecking(true);
@@ -1254,8 +1250,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       aiGenerating,
       setAiGenerating,
       addConsoleLog,
-      handleGoogleLogin,
-      handleGoogleLogout,
+      handleSystemLogout,
       handleUpdateLogoAndProfile,
       handleAdminRoleStatusChange,
       handleAdminDeleteUser,

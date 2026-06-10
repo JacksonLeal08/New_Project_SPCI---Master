@@ -25,7 +25,6 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick }: HeaderProps
   const { 
     currentUser, 
     userProfile, 
-    handleGoogleLogin,
     notifications,
     markNotificationAsRead,
     markAllNotificationsAsRead,
@@ -216,18 +215,7 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick }: HeaderProps
               </p>
             </div>
           </div>
-        ) : (
-          <div className="border-l border-slate-100 pl-4">
-            <button
-              onClick={handleGoogleLogin}
-              className="bg-white text-slate-800 text-[10px] font-bold uppercase px-3 py-1.5 rounded-xl flex items-center gap-1.5 hover:bg-slate-50 transition-all border border-slate-200 cursor-pointer shadow-xs hover:scale-[1.02]"
-              aria-label="Conectar com conta Google"
-            >
-              <LogIn className="w-3.5 h-3.5 text-slate-650" />
-              <span>Conectar Google</span>
-            </button>
-          </div>
-        )}
+        ) : null}
       </div>
 
       {/* Modal de Detalhes da Notificação */}

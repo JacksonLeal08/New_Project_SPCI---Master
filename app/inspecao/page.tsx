@@ -57,6 +57,17 @@ export default function PortalTecnicoPage() {
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
   const [showTutorial, setShowTutorial] = useState<boolean>(false);
 
+  // Alerta de Sessão Temporária Compartilhada
+  const [isSharedSession] = useState<boolean>(() => {
+    if (typeof document !== 'undefined') {
+      return document.cookie.includes('spci_shared_token=');
+    }
+    return false;
+  });
+  const [showSharedSessionBanner, setShowSharedSessionBanner] = useState<boolean>(true);
+  const [showSharedSessionBottomSheet, setShowSharedSessionBottomSheet] = useState<boolean>(false);
+
+
   // Alterna o tema de forma fluida (Telegram Style)
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
@@ -269,6 +280,39 @@ export default function PortalTecnicoPage() {
 
       {/* CONTEÚDO PRINCIPAL */}
       <main className="flex-grow w-full max-w-lg mx-auto px-4 py-8 z-10 space-y-6">
+
+        {/* ALERTA DE SESSÃO TEMPORÁRIA COMPARTILHADA */}
+        <AnimatePresence>
+          {isSharedSession && showSharedSessionBanner && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="p-3 bg-amber-500/15 border border-amber-500/30 rounded-xl flex items-center justify-between gap-3 text-amber-550 shadow-sm"
+            >
+              <div className="flex items-center gap-2 flex-grow min-w-0">
+                <TriangleAlert size={14} className="shrink-0 animate-pulse text-amber-500" />
+                <p className="text-[9px] leading-tight font-sans font-black truncate">
+                  ACESSO TEMPORÁRIO (EXPIRA À MEIA-NOITE)
+                </p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={() => setShowSharedSessionBottomSheet(true)}
+                  className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-550 border border-amber-500/40 text-[8px] font-mono uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+                >
+                  Regras
+                </button>
+                <button
+                  onClick={() => setShowSharedSessionBanner(false)}
+                  className="p-1 hover:bg-amber-500/25 rounded-lg transition-colors text-amber-550 cursor-pointer border-none bg-transparent flex items-center justify-center"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* 1. SELECIONE A CATEGORIA DO ATIVO (Mockup Grid com Ricos Gradientes 3D) */}
         <section className="space-y-3">
@@ -599,6 +643,98 @@ export default function PortalTecnicoPage() {
               </button>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Bottom Sheet - Regras de Acesso e Expiração */}
+      <AnimatePresence>
+        {showSharedSessionBottomSheet && (
+          <div className="fixed inset-0 z-50 flex items-end justify-center">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowSharedSessionBottomSheet(false)}
+              className="absolute inset-0 bg-slate-950/65 backdrop-blur-xs"
+            />
+            {/* Sheet Content */}
+            <motion.div
+              initial={{ y: '100%' }}
+              animate={{ y: 0 }}
+              exit={{ y: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 280 }}
+              className={`relative w-full max-w-lg rounded-t-[2rem] border-t border-slate-800 shadow-2xl p-6 space-y-5 z-10 text-left ${
+                isDark ? 'bg-slate-900 text-slate-105' : 'bg-white text-slate-900 border-slate-200'
+              }`}
+            >
+              {/* Top Drag Indicator Line */}
+              <div className="w-12 h-1 bg-slate-700/50 rounded-full mx-auto" />
+
+              <div className="flex items-start gap-3">
+                <div className="p-2.5 bg-amber-500/10 rounded-xl text-amber-500 shrink-0">
+                  <TriangleAlert size={20} />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-sm font-black tracking-tight font-sans">
+                    Aviso de Sessão Compartilhada
+                  </h3>
+                  <p className="text-[9.5px] text-slate-400 font-sans">
+                    Você está utilizando um link temporário gerado por um administrador.
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-xs leading-relaxed font-sans">
+                <div className={`p-3 rounded-xl border space-y-1 ${
+                  isDark ? 'bg-slate-950/50 border-slate-850 text-slate-300' : 'bg-slate-50 border-slate-100 text-slate-700'
+                }`}>
+                  <p className="font-bold text-amber-500 flex items-center gap-1.5">
+                    ⏰ Expiração Diária (Meia-Noite)
+                  </p>
+                  <p className="text-[10.5px]">
+                    Este token expira automaticamente hoje às **23:59:59**. Vistorias em andamento após esse horário serão interrompidas se necessitarem de rede.
+                  </p>
+                </div>
+
+                <div className={`p-3 rounded-xl border space-y-1 ${
+                  isDark ? 'bg-slate-950/50 border-slate-850 text-slate-300' : 'bg-slate-50 border-slate-100 text-slate-700'
+                }`}>
+                  <p className="font-bold text-amber-500 flex items-center gap-1.5">
+                    🔌 Logout do Administrador
+                  </p>
+                  <p className="text-[10.5px]">
+                    Se o administrador que gerou este link sair do sistema web, todos os técnicos conectados via link compartilhado serão deslogados imediatamente.
+                  </p>
+                </div>
+
+                <div className={`p-3 rounded-xl border space-y-1 ${
+                  isDark ? 'bg-slate-950/50 border-slate-850 text-slate-300' : 'bg-slate-50 border-slate-100 text-slate-700'
+                }`}>
+                  <p className="font-bold text-amber-500 flex items-center gap-1.5">
+                    📥 Inspeções Offline Preservadas
+                  </p>
+                  <p className="text-[10.5px]">
+                    Se você preencher um formulário offline **antes da meia-noite**, o banco de dados aceitará o envio mesmo que ele seja transmitido (sincronizado) após a expiração do token.
+                  </p>
+                </div>
+
+                <div className="p-3 bg-amber-500/10 rounded-xl border border-amber-500/25 text-amber-500 space-y-1">
+                  <p className="font-bold text-[11px]">💡 Evite Desconexões</p>
+                  <p className="text-[10.5px] leading-normal">
+                    Se você possui plantão noturno ou realiza inspeções frequentes, solicite ao administrador o **cadastro de um perfil técnico próprio** no sistema. Com seu login pessoal, seu acesso nunca expira à meia-noite.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setShowSharedSessionBottomSheet(false)}
+                className="w-full py-3 bg-slate-950 hover:bg-slate-900 border border-slate-800 text-white font-mono text-[10px] uppercase tracking-widest cursor-pointer rounded-xl font-bold active:scale-[0.98] transition-all"
+              >
+                Entendido
+              </button>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 

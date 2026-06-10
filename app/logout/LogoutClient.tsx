@@ -16,7 +16,7 @@ const STATUS_MESSAGES = [
 
 export default function LogoutClient() {
   const router = useRouter();
-  const { handleGoogleLogout } = useSpci();
+  const { handleSystemLogout } = useSpci();
 
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -28,7 +28,7 @@ export default function LogoutClient() {
     // Execute real logout
     const triggerLogout = async () => {
       try {
-        await handleGoogleLogout();
+        await handleSystemLogout();
       } catch (err) {
         console.error('Erro ao efetuar logout no client:', err);
       }
@@ -66,7 +66,7 @@ export default function LogoutClient() {
       clearInterval(progressInterval);
       clearInterval(messageInterval);
     };
-  }, [isConfirmed, handleGoogleLogout, router]);
+  }, [isConfirmed, handleSystemLogout, router]);
 
   return (
     <div className="min-h-screen bg-slate-950 flex items-center justify-center font-mono relative overflow-hidden select-none text-slate-400">

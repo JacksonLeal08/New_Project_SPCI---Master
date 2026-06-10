@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Hanken_Grotesk, IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google';
 import { SpciProvider } from './context/SpciContext';
+import InstallPwaBanner from './components/InstallPwaBanner';
 import './globals.css';
 
 const hankenGrotesk = Hanken_Grotesk({
@@ -58,6 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body suppressHydrationWarning className="bg-slate-50 text-slate-900 antialiased">
         <SpciProvider>
           {children}
+          <InstallPwaBanner />
         </SpciProvider>
         <script
           dangerouslySetInnerHTML={{

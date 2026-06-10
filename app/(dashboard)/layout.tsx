@@ -60,7 +60,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     complianceLogs,
     setComplianceLogs,
     handleUpdateLogoAndProfile,
-    handleGoogleLogout
+    handleSystemLogout
   } = useSpci();
 
   // --- ESTADOS LOCAIS PARA GESTÃO DO LAYOUT ---
@@ -323,7 +323,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
           <div className="flex gap-3">
             <button 
-              onClick={handleGoogleLogout}
+              onClick={handleSystemLogout}
               className="flex-grow py-2.5 text-[10px] uppercase font-bold text-slate-600 border border-slate-200 hover:bg-slate-50 bg-white transition-all cursor-pointer rounded-xl"
             >
               Sair da Conta ⚪

@@ -32,8 +32,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
     userProfile, 
     currentUser, 
     setShowAddForm, 
-    setSelectedAssetForInspection,
-    isGoogleUser
+    setSelectedAssetForInspection
   } = useSpci();
 
   // Deriva o tab ativo a partir do pathname da URL
@@ -63,7 +62,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
     { id: 'alerts', label: 'Disparo de Alertas', icon: <Bell className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/alerts' },
     { id: 'logs', label: 'Logs do Sistema', icon: <History className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/logs' },
     ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'gestao-ativo', label: 'Gestão de Ativo', icon: <Boxes className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/gestao-ativo' }] : []),
-    ...(isAdmin && !isGoogleUser ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/configuracoes' }] : [])
+    ...(isAdmin ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/configuracoes' }] : [])
   ];
 
   return (
@@ -150,28 +149,14 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
       </nav>
 
       {/* Indicador de banco conectado */}
-      {isAdmin && !isGoogleUser ? (
-        <Link 
-          href="/configuracoes"
-          className="bg-[#2D424A]/40 border border-[#CFD8DC]/10 p-3 rounded-xl text-center text-xs space-y-1.5 mb-2 cursor-pointer hover:bg-[#37474F]/75 transition-all group block hover:scale-[1.01]"
-        >
-          <p className="text-[#a5d6a7] font-bold flex items-center justify-center gap-2 font-['Hanken_Grotesk']">
-            <span aria-hidden="true">{currentUser ? '🟢' : '⚪'}</span> {currentUser ? 'Google DB Conectante' : 'DB Sheets Off'}
-          </p>
-          <p className="text-[10px] text-slate-400 font-mono leading-none group-hover:text-amber-200 transition-colors">
-            {currentUser ? `User: ${currentUser.email?.split('@')[0]}` : 'Clique para Configurar'}
-          </p>
-        </Link>
-      ) : (
-        <div className="bg-[#2D424A]/20 border border-[#CFD8DC]/5 p-3 rounded-xl text-center text-xs space-y-1.5 mb-2 select-none">
-          <p className="text-slate-400 font-bold flex items-center justify-center gap-2 font-['Hanken_Grotesk']">
-            <span aria-hidden="true">{currentUser ? '🟢' : '⚪'}</span> {currentUser ? 'Google DB Ativo' : 'DB Offline'}
-          </p>
-          <p className="text-[10px] text-slate-500 font-mono leading-none">
-            {currentUser ? `User: ${currentUser.email?.split('@')[0]}` : 'Sem planilhas'}
-          </p>
-        </div>
-      )}
+      <div className="bg-[#2D424A]/20 border border-[#CFD8DC]/5 p-3 rounded-xl text-center text-xs space-y-1 mb-2 select-none">
+        <p className="text-emerald-450 font-bold flex items-center justify-center gap-2 font-['Hanken_Grotesk']">
+          <span aria-hidden="true">🟢</span> Banco SPCI Ativo
+        </p>
+        <p className="text-[10px] text-slate-400 font-mono leading-none">
+          {currentUser ? `User: ${currentUser.email?.split('@')[0]}` : 'Offline-first'}
+        </p>
+      </div>
 
       {/* Botão de Logout */}
       {onLogoutClick && (

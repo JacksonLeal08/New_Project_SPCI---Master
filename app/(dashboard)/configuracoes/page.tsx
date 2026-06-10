@@ -18,7 +18,6 @@ export default function ConfiguracoesPage() {
   const {
     currentUser,
     userProfile,
-    isGoogleUser,
     authChecking,
     userList,
     loadingUsersList,
@@ -67,10 +66,10 @@ export default function ConfiguracoesPage() {
 
   // Load user list on mount
   useEffect(() => {
-    if (isAdmin && !isGoogleUser) {
+    if (isAdmin) {
       fetchUsers();
     }
-  }, [isAdmin, isGoogleUser, fetchUsers]);
+  }, [isAdmin, fetchUsers]);
 
   const saveProfileHandler = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -89,7 +88,7 @@ export default function ConfiguracoesPage() {
   };
 
   // --- RENDERING RESTRICTED VIEW FOR SPECTATOR/NON-ADMINS ---
-  if (!isAdmin || isGoogleUser) {
+  if (!isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-center bg-white border border-slate-200 rounded-2xl max-w-md mx-auto shadow-2xl space-y-4 my-12 font-mono relative text-slate-800">
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-600 rounded-t-2xl" />

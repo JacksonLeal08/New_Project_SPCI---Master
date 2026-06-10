@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
+import { supabase } from '@/lib/supabaseClient';
 import { 
   Flame, 
   Droplet, 
@@ -31,7 +32,8 @@ export default function RondaPage() {
     hidrantes,
     sinalizacoes,
     iluminacoes,
-    bombas
+    bombas,
+    triggerSuccessNotification
   } = useSpci();
 
   // Estados do Cockpit
@@ -40,6 +42,11 @@ export default function RondaPage() {
   const [selectedAsset, setSelectedAsset] = useState<any | null>(null);
   const [copiedType, setCopiedType] = useState<'vistoria' | 'cadastro' | 'portal' | null>(null);
   
+  // Controle de Token Compartilhado
+  const [activeSharedToken, setActiveSharedToken] = useState<string>('');
+  const [isRevoking, setIsRevoking] = useState<boolean>(false);
+  const [showWarningModal, setShowWarningModal] = useState<boolean>(false);
+
   // Controle do Iframe do Celular
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [iframeUrl, setIframeUrl] = useState<string>('/inspecao');
@@ -76,13 +83,109 @@ export default function RondaPage() {
     return patrimonio.includes(query) || modelo.includes(query) || local.includes(query);
   });
 
+  const handleCreateSharedToken = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from('usuarios')
+        .select('nome')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      const nomeCriador = profile?.nome || user.email?.split('@')[0] || 'Gestor';
+
+      const expiresAt = new Date();
+      expiresAt.setHours(23, 59, 59, 999);
+
+      const { data: newSession } = await supabase
+        .from('shared_sessions')
+        .insert({
+          created_by: user.id,
+          created_by_nome: nomeCriador,
+          expires_at: expiresAt.toISOString(),
+          status: 'active'
+        })
+        .select('id')
+        .single();
+
+      if (newSession?.id) {
+        setActiveSharedToken(newSession.id);
+        triggerSuccessNotification("Novo Acesso Gerado", "Link de despacho temporário ativado.");
+      }
+    } catch (err) {
+      console.error('Erro ao criar token:', err);
+    }
+  };
+
+  const handleRevokeTokens = async () => {
+    setIsRevoking(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { error } = await supabase
+        .from('shared_sessions')
+        .update({ status: 'revoked' })
+        .eq('created_by', user.id);
+
+      if (!error) {
+        setActiveSharedToken('');
+        triggerSuccessNotification("Acessos Encerrados 🔌", "Todos os links temporários foram revogados.");
+      }
+    } catch (err) {
+      console.error('Erro ao revogar tokens:', err);
+    } finally {
+      setIsRevoking(false);
+    }
+  };
+
+  // Carrega ou cria o token de compartilhamento para hoje
+  useEffect(() => {
+    const fetchOrCreateToken = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+
+        const { data } = await supabase
+          .from('shared_sessions')
+          .select('id')
+          .eq('created_by', user.id)
+          .eq('status', 'active')
+          .gte('expires_at', new Date().toISOString())
+          .limit(1)
+          .maybeSingle();
+
+        if (data?.id) {
+          setActiveSharedToken(data.id);
+        } else {
+          await handleCreateSharedToken();
+        }
+      } catch (err) {
+        console.error('Erro ao gerenciar token compartilhado:', err);
+      }
+    };
+
+    fetchOrCreateToken();
+  }, []);
+
+  // Sincroniza o simulador com o token ativo
+  useEffect(() => {
+    const targetUrl = activeSharedToken ? `/inspecao?token=${activeSharedToken}` : '/inspecao';
+    const timer = setTimeout(() => {
+      setIframeUrl(targetUrl);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [activeSharedToken]);
+
   // Montagem dos links de acesso técnico
   const origin = typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000';
-  const linkPortal = `${origin}/inspecao`;
+  const linkPortal = activeSharedToken ? `${origin}/inspecao?token=${activeSharedToken}` : `${origin}/inspecao`;
   const linkVistoria = selectedAsset 
-    ? `${origin}/inspecao/${selectedAsset.idAtivo || selectedAsset.id}` 
+    ? `${origin}/inspecao/${selectedAsset.idAtivo || selectedAsset.id}${activeSharedToken ? `?token=${activeSharedToken}` : ''}` 
     : '';
-  const linkCadastro = `${origin}/inspecao/novo?category=${selectedCategory}`;
+  const linkCadastro = `${origin}/inspecao/novo?category=${selectedCategory}${activeSharedToken ? `&token=${activeSharedToken}` : ''}`;
 
   // Funções de Copiar no Clipboard
   const handleCopyText = async (text: string, type: 'vistoria' | 'cadastro' | 'portal') => {
@@ -241,6 +344,68 @@ export default function RondaPage() {
 
         {/* COLUNA DIREITA (7/12): Despachador de Links e QR Codes */}
         <div className="lg:col-span-7 space-y-6">
+
+          {/* CARD DE STATUS DE CONEXÃO E GERENCIAMENTO DE LINKS */}
+          <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4 relative overflow-hidden">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${activeSharedToken ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+                <h3 className="text-xs font-mono font-bold text-slate-700 uppercase tracking-widest">
+                  Status de Despacho Temporário
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowWarningModal(true)}
+                className="text-slate-400 hover:text-amber-500 transition-colors p-1 rounded-lg hover:bg-slate-50 flex items-center justify-center cursor-pointer border-none bg-transparent"
+                title="Regras de Conexão e Expiração"
+              >
+                <Info size={16} />
+              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="space-y-1">
+                {activeSharedToken ? (
+                  <>
+                    <p className="text-xs font-bold text-slate-900 font-sans">
+                      Link de Acesso Técnico Ativo
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-mono">
+                      Token: <span className="text-slate-700 font-bold">{activeSharedToken.substring(0, 8)}...</span> (Expira hoje às 23:59:59)
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-xs font-bold text-slate-900 font-sans">
+                      Sem Despacho Ativo
+                    </p>
+                    <p className="text-[10px] text-slate-500 font-sans">
+                      Nenhum link ativo disponível. Técnicos externos não conseguirão acessar.
+                    </p>
+                  </>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                {activeSharedToken ? (
+                  <button
+                    disabled={isRevoking}
+                    onClick={handleRevokeTokens}
+                    className="flex-grow sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 border border-rose-250 bg-rose-50 hover:bg-rose-100 text-rose-700 text-[10px] font-mono uppercase tracking-wider rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    Encerrar Acesso
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleCreateSharedToken}
+                    className="flex-grow sm:flex-none flex items-center justify-center gap-1.5 px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-mono uppercase tracking-wider rounded-lg transition-colors cursor-pointer"
+                  >
+                    Gerar Novo Acesso
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
 
           {/* 1. SELETOR DE ATIVO DO CAMPO */}
           <div className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm space-y-4">
@@ -503,6 +668,96 @@ export default function RondaPage() {
         </div>
 
       </div>
+
+      {/* Warning Modal - Regras de Expiração (Framer Motion) */}
+      <AnimatePresence>
+        {showWarningModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            {/* Backdrop */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowWarningModal(false)}
+              className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs"
+            />
+            {/* Modal Content */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              transition={{ type: 'spring', damping: 25, stiffness: 350 }}
+              className="relative w-full max-w-lg bg-white border border-slate-200 rounded-2xl shadow-2xl p-6 overflow-hidden z-10"
+            >
+              {/* Top Accent Strip */}
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-amber-500" />
+
+              <div className="flex items-start gap-4">
+                <div className="p-3 bg-amber-50 rounded-xl text-amber-600 shrink-0">
+                  <TriangleAlert size={24} />
+                </div>
+                <div className="space-y-4 flex-grow">
+                  <div>
+                    <h3 className="text-base font-black text-slate-900 tracking-tight">
+                      Regras de Acesso Temporário (Técnicos)
+                    </h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Entenda como funciona o compartilhamento temporário para inspeções de campo:
+                    </p>
+                  </div>
+
+                  <div className="space-y-3 text-xs text-slate-700">
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/50 space-y-1">
+                      <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                        ⏰ Expiração às 23:59:59
+                      </p>
+                      <p className="text-slate-650">
+                        Por motivos de segurança e governança, todo acesso compartilhado expira automaticamente à meia-noite do dia corrente.
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/50 space-y-1">
+                      <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                        🔌 Desconexão por Logout
+                      </p>
+                      <p className="text-slate-650">
+                        Quando o administrador/gestor criador do link deslogar do sistema, todos os técnicos utilizando o link associado serão desconectados em tempo real.
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/50 space-y-1">
+                      <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                        📡 Envio de Vistorias Offline
+                      </p>
+                      <p className="text-slate-650">
+                        Caso o técnico realize inspeções em campo offline e o token expire, as inspeções salvas no dispositivo serão aceitas pelo banco desde que tenham sido preenchidas antes da meia-noite.
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-250/30 text-amber-900 space-y-1">
+                      <p className="font-bold flex items-center gap-1.5 font-sans">
+                        ⚠️ Plantão Noturno
+                      </p>
+                      <p className="text-amber-800">
+                        Técnicos que continuarem o trabalho após a meia-noite precisarão solicitar um novo link de despacho do administrador logado ou utilizar um perfil técnico próprio para evitar interrupções.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button
+                      onClick={() => setShowWarningModal(false)}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-mono text-xs uppercase tracking-wider rounded-lg transition-colors cursor-pointer border-none"
+                    >
+                      Entendido
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
     </motion.div>
   );
