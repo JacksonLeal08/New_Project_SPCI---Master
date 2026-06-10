@@ -144,7 +144,7 @@ interface SpciContextType {
   handleUpdateLogoAndProfile: (logoUrl: string, name: string) => Promise<void>;
   handleAdminRoleStatusChange: (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => Promise<void>;
   handleAdminDeleteUser: (uid: string) => Promise<void>;
-  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', daysValid?: number | null) => Promise<any>;
+  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', password: string, expiresAt?: string | null) => Promise<any>;
   handleCredentialsLogin: (identifier: string, pass: string) => Promise<boolean>;
   isGoogleUser: boolean;
   fetchUsers: () => Promise<void>;
@@ -1046,27 +1046,29 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     username: string, 
     name: string, 
     role: 'Desenvolvedor' | 'Administrador' | 'Usuário', 
-    daysValid: number | null = null
+    password: string,
+    expiresAt: string | null = null
   ) => {
-    addConsoleLog(`[Onboarding] Enviando convite para ${name} (${role})...`);
+    addConsoleLog(`[Onboarding] Cadastrando colaborador ${name} (${role})...`);
     try {
-      // RPC call create_new_user
+      // RPC call create_new_user with explicit password and expiration date
       const { data, error } = await supabase.rpc('create_new_user', {
         p_email: email,
         p_username: username,
         p_name: name,
         p_role: role,
-        p_days_valid: daysValid
+        p_password: password,
+        p_expires_at: expiresAt
       });
 
       if (error) throw error;
       
-      addConsoleLog(`[Onboarding] Sucesso ao criar convite para ${name}.`, 'SUCESSO');
+      addConsoleLog(`[Onboarding] Sucesso ao cadastrar colaborador ${name}.`, 'SUCESSO');
       await fetchUsers();
       return data;
     } catch (err: any) {
       console.error(err);
-      addConsoleLog(`[Erro Onboarding] Falha ao convidar usuário: ${err.message || err}`, 'ERRO');
+      addConsoleLog(`[Erro Onboarding] Falha ao cadastrar colaborador: ${err.message || err}`, 'ERRO');
       throw err;
     }
   }, [fetchUsers, addConsoleLog]);

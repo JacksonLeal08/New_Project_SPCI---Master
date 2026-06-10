@@ -57,7 +57,8 @@ export default function ConfiguracoesPage() {
   const [inviteUsername, setInviteUsername] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [inviteRole, setInviteRole] = useState<'Desenvolvedor' | 'Administrador' | 'Usuário'>('Usuário');
-  const [inviteDaysValid, setInviteDaysValid] = useState<number | ''>('');
+  const [inviteExpiresAt, setInviteExpiresAt] = useState('');
+  const [invitePassword, setInvitePassword] = useState('');
   const [inviting, setInviting] = useState(false);
 
   // Onboarding credentials display state
@@ -496,28 +497,44 @@ export default function ConfiguracoesPage() {
               <span>➕</span> Convidar Novo Colaborador
             </h3>
             <p className="text-[10px] text-slate-500 font-sans leading-relaxed">
-              O colaborador será registrado no Supabase Auth. O login estará ativado de forma imediata sem necessidade de confirmação de e-mail por link externo.
+              O colaborador será registrado no Supabase Auth com senha personalizada e termo de validade opcional. O login estará ativado de forma imediata.
             </p>
 
             <form onSubmit={async (e) => {
               e.preventDefault();
               if (inviting) return;
+
+              if (invitePassword.length < 6) {
+                alert('A senha de acesso deve conter no mínimo 6 caracteres.');
+                return;
+              }
+
               setInviting(true);
               try {
+                const expiresAtIso = inviteExpiresAt ? new Date(`${inviteExpiresAt}T23:59:59.999Z`).toISOString() : null;
                 const creds = await handleInviteUser(
                   inviteEmail,
                   inviteUsername,
                   inviteName,
                   inviteRole,
-                  inviteDaysValid === '' ? null : Number(inviteDaysValid)
+                  invitePassword,
+                  expiresAtIso
                 );
-                setCreatedCredentials(creds);
+                
+                // Return payload from RPC includes the password, but just in case, we can attach it to creds
+                setCreatedCredentials({ 
+                  ...creds, 
+                  password: invitePassword,
+                  expires_at: expiresAtIso
+                });
+                
                 setShowInviteModal(false);
                 setInviteEmail('');
                 setInviteUsername('');
                 setInviteName('');
+                setInvitePassword('');
                 setInviteRole('Usuário');
-                setInviteDaysValid('');
+                setInviteExpiresAt('');
               } catch (err: any) {
                 alert(`Erro ao cadastrar usuário: ${err.message || err}`);
               } finally {
@@ -560,6 +577,18 @@ export default function ConfiguracoesPage() {
                 />
               </div>
 
+              <div className="space-y-1">
+                <label className="block text-[9px] font-bold uppercase text-slate-500">Senha de Acesso (Mínimo 6 caracteres)</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={invitePassword}
+                  onChange={(e) => setInvitePassword(e.target.value)}
+                  placeholder="Defina a senha de acesso"
+                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
+                />
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                   <label className="block text-[9px] font-bold uppercase text-slate-500">Nível de Conta</label>
@@ -574,13 +603,12 @@ export default function ConfiguracoesPage() {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Validade (Dias)</label>
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Data de Expiração</label>
                   <input 
-                    type="number" 
-                    value={inviteDaysValid}
-                    onChange={(e) => setInviteDaysValid(e.target.value === '' ? '' : Number(e.target.value))}
-                    placeholder="Sem expiração"
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs"
+                    type="date" 
+                    value={inviteExpiresAt}
+                    onChange={(e) => setInviteExpiresAt(e.target.value)}
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-bold"
                   />
                 </div>
               </div>
@@ -603,7 +631,7 @@ export default function ConfiguracoesPage() {
                       <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full inline-block"></span>
                       PROCESSANDO...
                     </>
-                  ) : 'Enviar Convite'}
+                  ) : 'Cadastrar Colaborador'}
                 </button>
               </div>
             </form>
@@ -621,7 +649,7 @@ export default function ConfiguracoesPage() {
               Acesso Criado com Sucesso! 🎉
             </h3>
             <p className="text-[10px] text-slate-500 text-center font-sans leading-relaxed">
-              Copie os detalhes abaixo e compartilhe com o técnico. A senha temporária não será exibida novamente por diretrizes rígidas de segurança.
+              Copie ou compartilhe os detalhes de acesso abaixo com o colaborador. A senha temporária não será exibida novamente.
             </p>
 
             <div className="bg-slate-50 border border-slate-150 rounded-xl p-4 font-mono text-[10px] text-slate-700 space-y-2 relative shadow-inner">
@@ -638,8 +666,8 @@ export default function ConfiguracoesPage() {
                 <span className="text-slate-800 font-bold">{createdCredentials.email}</span>
               </div>
               <div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Senha Temporária</span>
-                <span className="text-red-500 font-black text-xs tracking-wider">{createdCredentials.temp_password}</span>
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Senha de Acesso</span>
+                <span className="text-red-500 font-black text-xs tracking-wider">{createdCredentials.password || createdCredentials.temp_password}</span>
               </div>
               {createdCredentials.expires_at && (
                 <div>
@@ -652,21 +680,34 @@ export default function ConfiguracoesPage() {
             <div className="space-y-2 pt-2 border-t border-slate-100">
               <button 
                 onClick={() => {
-                  const textToCopy = `Olá ${createdCredentials.name}! Seus dados de acesso ao SPCI:\n\nEmail: ${createdCredentials.email}\nUsername: ${createdCredentials.username}\nSenha Temporária: ${createdCredentials.temp_password}\n\nPor favor, faça o login com suas credenciais.`;
+                  const pass = createdCredentials.password || createdCredentials.temp_password;
+                  const textToCopy = `🚒 *SPCI - CREDENCIAIS DE ACESSO* 🚒\n\nOlá *${createdCredentials.name}*!\nSeu cadastro no SPCI foi realizado com sucesso.\n\n🌐 *Link de Acesso:* ${window.location.origin}/login\n📧 *E-mail:* ${createdCredentials.email}\n👤 *Username:* @${createdCredentials.username}\n🔑 *Senha:* ${pass}\n` + (createdCredentials.expires_at ? `⏳ *Validade:* até ${new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}\n` : '') + `\nFaça seu login com segurança!`;
                   navigator.clipboard.writeText(textToCopy);
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
                 }}
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer shadow-md"
+              >
+                {copied ? '✓ Mensagem Copiada!' : '📋 Copiar Credenciais'}
+              </button>
+
+              <button 
+                onClick={() => {
+                  const pass = createdCredentials.password || createdCredentials.temp_password;
+                  const msg = `🚒 *SPCI - CREDENCIAIS DE ACESSO* 🚒\n\nOlá *${createdCredentials.name}*!\nSeu cadastro no SPCI foi realizado com sucesso.\n\n🌐 *Link de Acesso:* ${window.location.origin}/login\n📧 *E-mail:* ${createdCredentials.email}\n👤 *Username:* @${createdCredentials.username}\n🔑 *Senha:* ${pass}\n` + (createdCredentials.expires_at ? `⏳ *Validade:* até ${new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}\n` : '') + `\nFaça seu login com segurança!`;
+                  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                  window.open(whatsappUrl, '_blank');
+                }}
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer shadow-md"
               >
-                {copied ? '✓ Mensagem Copiada!' : '📋 Copiar Mensagem de Acesso'}
+                💬 Enviar via WhatsApp
               </button>
               
               <button 
                 onClick={() => setCreatedCredentials(null)}
                 className="w-full py-2.5 border border-slate-200 hover:bg-slate-50 bg-white text-slate-500 font-bold rounded-xl text-[10px] uppercase transition-all cursor-pointer shadow-xs"
               >
-                Fechar Perfil
+                Fechar
               </button>
             </div>
           </div>

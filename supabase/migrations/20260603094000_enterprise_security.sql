@@ -321,13 +321,17 @@ using (
 -- Drop any existing overloads of the function to prevent parameter mismatch issues in the schema cache
 drop function if exists public.create_new_user(text, text, public.user_role, integer);
 drop function if exists public.create_new_user(text, text, text, public.user_role, integer);
+drop function if exists public.create_new_user(text, text, public.user_role, int4);
+drop function if exists public.create_new_user(text, text, text, public.user_role, int4);
+drop function if exists public.create_new_user(text, text, text, public.user_role, text, timestamp with time zone);
 
 create or replace function public.create_new_user(
     p_email text,
     p_username text,
     p_name text, -- Nome de exibição do usuário
     p_role public.user_role,
-    p_days_valid integer default null
+    p_password text,
+    p_expires_at timestamp with time zone default null
 )
 returns jsonb
 language plpgsql
@@ -337,8 +341,6 @@ as $$
 declare
     v_creator_role public.user_role;
     v_new_user_id uuid;
-    v_temp_password text;
-    v_expiration_date timestamp with time zone := null;
     v_response jsonb;
 begin
     -- 1. Valida se há um usuário autenticado efetuando a requisição
@@ -365,46 +367,51 @@ begin
         raise exception 'Acesso negado: Seu nível de acesso não permite a criação de contas.';
     end if;
 
-    -- 4. Cálculo de validade do acesso (se fornecida)
-    if p_days_valid is not null and p_days_valid > 0 then
-        v_expiration_date := now() + (p_days_valid || ' days')::interval;
+    -- 4. Validação de formato mínimo de e-mail e username
+    if not (p_email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,4}$') then
+        raise exception 'Formato de e-mail inválido.';
     end if;
 
-    -- 5. Geração de Senha Temporária Forte (12 Bytes -> 24 caracteres hexadecimais)
-    v_temp_password := encode(gen_random_bytes(12), 'hex');
+    if char_length(p_username) < 3 then
+        raise exception 'Nome de usuário muito curto (mínimo de 3 caracteres).';
+    end if;
 
-    -- 6. Inserção no schema auth.users (Supabase Auth)
-    insert into auth.users (
-        instance_id,
-        id,
-        aud,
-        role,
-        email,
-        encrypted_password,
-        email_confirmed_at,
-        created_at,
-        updated_at,
-        raw_app_meta_data,
-        raw_user_meta_data,
-        is_sso_user
-    )
-    values (
-        '00000000-0000-0000-0000-000000000000', -- UUID de instância padrão Supabase
-        gen_random_uuid(),
-        'authenticated',
-        'authenticated',
-        p_email,
-        crypt(v_temp_password, gen_salt('bf', 10)), -- Criptografia Bcrypt
-        now(), -- Confirmação de e-mail desativada (marcada como confirmada)
-        now(),
-        now(),
-        jsonb_build_object('provider', 'email', 'providers', array['email']),
-        jsonb_build_object('user_name', p_username, 'full_name', p_name),
-        false
-    )
-    returning id into v_new_user_id;
+    -- 5. Inserção no schema auth.users (Supabase Auth)
+    begin
+        insert into auth.users (
+            instance_id,
+            id,
+            aud,
+            role,
+            email,
+            encrypted_password,
+            email_confirmed_at,
+            created_at,
+            updated_at,
+            raw_app_meta_data,
+            raw_user_meta_data,
+            is_sso_user
+        )
+        values (
+            '00000000-0000-0000-0000-000000000000', -- UUID de instância padrão Supabase
+            gen_random_uuid(),
+            'authenticated',
+            'authenticated',
+            p_email,
+            crypt(p_password, gen_salt('bf', 10)), -- Criptografia Bcrypt
+            now(), -- Confirmação de e-mail desativada (marcada como confirmada)
+            now(),
+            now(),
+            jsonb_build_object('provider', 'email', 'providers', array['email']),
+            jsonb_build_object('user_name', p_username, 'full_name', p_name),
+            false
+        )
+        returning id into v_new_user_id;
+    exception when unique_violation then
+        raise exception 'Este e-mail ou nome de usuário já está cadastrado no sistema.';
+    end;
 
-    -- 7. Inserção automática na tabela pública public.usuarios
+    -- 6. Inserção automática na tabela pública public.usuarios
     insert into public.usuarios (
         id,
         user_name,
@@ -419,11 +426,10 @@ begin
         p_email,
         p_name,
         p_role,
-        v_expiration_date
+        p_expires_at
     );
 
-    -- 8. Montagem do payload de retorno
-    -- Opcional: gera link de acesso seguro com token mascarado para o front-end
+    -- 7. Montagem do payload de retorno
     v_response := jsonb_build_object(
         'success', true,
         'user_id', v_new_user_id,
@@ -431,9 +437,9 @@ begin
         'name', p_name,
         'email', p_email,
         'role', p_role,
-        'temp_password', v_temp_password,
-        'expires_at', v_expiration_date,
-        'onboarding_url', 'https://meusistema.com/onboarding?email=' || url_encode(p_email) || '&temp_pass=' || v_temp_password
+        'password', p_password,
+        'expires_at', p_expires_at,
+        'onboarding_url', 'https://meusistema.com/onboarding?email=' || url_encode(p_email)
     );
 
     return v_response;
