@@ -14,15 +14,19 @@ import {
   Settings, 
   Plus,
   History,
-  LogOut
+  LogOut,
+  X,
+  Boxes
 } from 'lucide-react';
 
 interface SidebarProps {
   onProfileClick: () => void;
   onLogoutClick?: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
 }
 
-export const Sidebar = ({ onProfileClick, onLogoutClick }: SidebarProps) => {
+export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: SidebarProps) => {
   const pathname = usePathname();
   const { 
     userProfile, 
@@ -58,14 +62,28 @@ export const Sidebar = ({ onProfileClick, onLogoutClick }: SidebarProps) => {
     { id: 'ronda', label: 'Despacho & Ronda Campo', icon: <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/ronda' },
     { id: 'alerts', label: 'Disparo de Alertas', icon: <Bell className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/alerts' },
     { id: 'logs', label: 'Logs do Sistema', icon: <History className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/logs' },
+    ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'gestao-ativo', label: 'Gestão de Ativo', icon: <Boxes className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/gestao-ativo' }] : []),
     ...(isAdmin && !isGoogleUser ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/configuracoes' }] : [])
   ];
 
   return (
     <aside 
-      className="w-72 bg-[#1b2a32] text-white flex flex-col px-4 py-6 shrink-0 shadow-2xl border-r border-[#cfd8dc]/10 z-20 h-screen select-none font-sans"
+      className={`w-72 bg-[#1b2a32] text-white flex flex-col px-4 py-6 shrink-0 shadow-2xl border-r border-[#cfd8dc]/10 z-50 h-screen select-none font-sans fixed lg:static inset-y-0 left-0 transform lg:transform-none transition-transform duration-300 ${
+        isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
+      }`}
       aria-label="Menu principal"
     >
+      {/* Botão de Fechar no Mobile */}
+      {onClose && (
+        <button 
+          onClick={onClose}
+          className="absolute top-4 right-4 lg:hidden text-slate-400 hover:text-white border-none bg-transparent cursor-pointer p-1"
+          aria-label="Fechar menu"
+        >
+          <X className="w-5 h-5" />
+        </button>
+      )}
+
       {/* Botão de Perfil do Usuário */}
       <div 
         onClick={onProfileClick}

@@ -25,6 +25,8 @@ import { idb } from '@/lib/indexedDb';
 import { SyncQueue } from '@/lib/syncQueue';
 import { playTelemetryPingSound } from '@/lib/audio';
 import { MediaQueue } from '@/lib/mediaQueue';
+import { NotificationItem } from '@/lib/types';
+
 
 // --- INITIAL SEED DATA ---
 const INITIAL_EXTINTORES = [
@@ -162,6 +164,14 @@ interface SpciContextType {
   lastSyncTime: Date | null;
   auditLogs: any[];
   logSystemAction: (action: string, tipoAtivo?: string, patrimonio?: string, detalhes?: string) => Promise<void>;
+
+  // Notificações
+  notifications: NotificationItem[];
+  setNotifications: React.Dispatch<React.SetStateAction<NotificationItem[]>>;
+  markNotificationAsRead: (id: string) => Promise<void>;
+  markAllNotificationsAsRead: () => Promise<void>;
+  deleteNotification: (id: string) => Promise<void>;
+  clearAllNotifications: () => Promise<void>;
 }
 
 const generateUUID = () => {
@@ -194,6 +204,9 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [complianceLogs, setComplianceLogs] = useState<any[]>([]);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+
+  // Notificações
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
   // Modals & UI States
   const [showAddForm, setShowAddForm] = useState(false);
@@ -319,7 +332,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await Promise.all(
           data.map(async (item) => {
             try {
-              await saveAssetToDb(moduleKey, item.id.toString(), item);
+              await saveAssetToDb(moduleKey, item.id.toString(), item, true);
             } catch (err) {
               // Se falhar o envio de algum ativo individual, enfileira
               console.warn(`Erro na sincronização de item ${item.id}. Enfileirando.`, err);
@@ -387,6 +400,14 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           else if (item.store === 'bombas') setBombas(list);
           else if (item.store === 'logs') setComplianceLogs(list);
           else if (item.store === 'audit_logs') setAuditLogs(list);
+        }
+
+        // Carregar notificações locais do IndexedDB
+        try {
+          const cachedNotifs = await idb.getAll('notificacoes');
+          setNotifications(cachedNotifs || []);
+        } catch (err) {
+          console.warn('Erro ao carregar notificações do IndexedDB:', err);
         }
       } catch (err) {
         console.error('Falha ao carregar caches do IndexedDB:', err);
@@ -517,7 +538,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           // Se for inserção externa (outro técnico), toca som e avisa
           if (payload.eventType === 'INSERT') {
-            if (localActionRef.current) {
+            const isLocal = localActionRef.current;
+            if (isLocal) {
               localActionRef.current = false;
             } else {
               playTelemetryPingSound();
@@ -526,6 +548,21 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 `O técnico cadastrou um laudo para o patrimônio ${payload.new.asset_patrimonio}.`
               );
             }
+            const newNotif: NotificationItem = {
+              id: payload.new.id || generateUUID(),
+              title: "Nova Inspeção Registrada! 📋",
+              message: `O técnico ${payload.new.tecnico_nome || 'N/A'} realizou uma inspeção no ativo ${payload.new.asset_patrimonio}. Status: ${payload.new.status}`,
+              type: 'inspecao',
+              category: payload.new.asset_patrimonio.startsWith('EXT-') ? 'extintores' : 'equipamento',
+              patrimonio: payload.new.asset_patrimonio,
+              read: false,
+              created_at: payload.new.data_inspecao || new Date().toISOString()
+            };
+            setNotifications(prev => {
+              const next = [newNotif, ...prev];
+              idb.setAll('notificacoes', next).catch(console.error);
+              return next;
+            });
           }
         }
       )
@@ -536,7 +573,33 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('[Realtime] Asset mudou:', payload);
           syncWithRealDatabase();
 
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          if (payload.eventType === 'INSERT') {
+            const isLocal = localActionRef.current;
+            if (isLocal) {
+              localActionRef.current = false;
+            } else {
+              playTelemetryPingSound();
+              triggerSuccessNotification(
+                "Novo Ativo Cadastrado! 🔄",
+                `O ativo ${payload.new.id_ativo || 's/n'} foi adicionado.`
+              );
+            }
+            const newNotif: NotificationItem = {
+              id: payload.new.id || generateUUID(),
+              title: "Novo Ativo Cadastrado! 📦",
+              message: `O ativo ${payload.new.id_ativo || 's/n'} do tipo ${payload.new.category || 'N/A'} foi cadastrado no local ${payload.new.location || 'N/A'}.`,
+              type: 'cadastro',
+              category: payload.new.category,
+              patrimonio: payload.new.id_ativo,
+              read: false,
+              created_at: payload.new.created_at || new Date().toISOString()
+            };
+            setNotifications(prev => {
+              const next = [newNotif, ...prev];
+              idb.setAll('notificacoes', next).catch(console.error);
+              return next;
+            });
+          } else if (payload.eventType === 'UPDATE') {
             if (localActionRef.current) {
               localActionRef.current = false;
             } else {
@@ -556,7 +619,33 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.log('[Realtime] Ativo extintor mudou:', payload);
           syncWithRealDatabase();
 
-          if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          if (payload.eventType === 'INSERT') {
+            const isLocal = localActionRef.current;
+            if (isLocal) {
+              localActionRef.current = false;
+            } else {
+              playTelemetryPingSound();
+              triggerSuccessNotification(
+                "Extintor Cadastrado! 🧯",
+                `O extintor ${payload.new.numero_patrimonio || 's/n'} foi cadastrado.`
+              );
+            }
+            const newNotif: NotificationItem = {
+              id: payload.new.id || generateUUID(),
+              title: "Novo Extintor Cadastrado! 🧯",
+              message: `Um novo extintor patrimônio ${payload.new.numero_patrimonio || 's/n'} foi cadastrado no local ${payload.new.local_instalacao || 'N/A'}.`,
+              type: 'cadastro',
+              category: 'extintores',
+              patrimonio: payload.new.numero_patrimonio,
+              read: false,
+              created_at: payload.new.created_at || new Date().toISOString()
+            };
+            setNotifications(prev => {
+              const next = [newNotif, ...prev];
+              idb.setAll('notificacoes', next).catch(console.error);
+              return next;
+            });
+          } else if (payload.eventType === 'UPDATE') {
             if (localActionRef.current) {
               localActionRef.current = false;
             } else {
@@ -593,6 +682,11 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       syncTimeoutRef.current = setTimeout(() => {
         syncWithRealDatabase();
       }, 2000);
+
+      // Se for um evento silencioso, não exibe nenhuma notificação
+      if (e.detail?.silent) {
+        return;
+      }
       
       // Controla a frequência de exibição das notificações para evitar flood de toasts na tela
       const now = Date.now();
@@ -790,7 +884,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateAsset = useCallback(async (category: string, updatedAsset: any, silent?: boolean) => {
     try {
       localActionRef.current = true;
-      await saveAssetToDb(category, updatedAsset.id.toString(), updatedAsset);
+      await saveAssetToDb(category, updatedAsset.id.toString(), updatedAsset, silent);
       
       const normalizedCat = category.trim().toLowerCase();
       if (normalizedCat === 'extintores') {
@@ -1069,6 +1163,35 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [addConsoleLog, triggerSuccessNotification, logSystemAction]);
 
+  const markNotificationAsRead = useCallback(async (id: string) => {
+    setNotifications((prev) => {
+      const next = prev.map((n) => (n.id === id ? { ...n, read: true } : n));
+      idb.setAll('notificacoes', next).catch(console.error);
+      return next;
+    });
+  }, []);
+
+  const markAllNotificationsAsRead = useCallback(async () => {
+    setNotifications((prev) => {
+      const next = prev.map((n) => ({ ...n, read: true }));
+      idb.setAll('notificacoes', next).catch(console.error);
+      return next;
+    });
+  }, []);
+
+  const deleteNotification = useCallback(async (id: string) => {
+    setNotifications((prev) => {
+      const next = prev.filter((n) => n.id !== id);
+      idb.setAll('notificacoes', next).catch(console.error);
+      return next;
+    });
+  }, []);
+
+  const clearAllNotifications = useCallback(async () => {
+    setNotifications([]);
+    await idb.clear('notificacoes').catch(console.error);
+  }, []);
+
   return (
     <SpciContext.Provider value={{
       currentUser,
@@ -1092,6 +1215,12 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       premiumAlert,
       setPremiumAlert,
       triggerSuccessNotification,
+      notifications,
+      setNotifications,
+      markNotificationAsRead,
+      markAllNotificationsAsRead,
+      deleteNotification,
+      clearAllNotifications,
       showAddForm,
       setShowAddForm,
       newAssetType,

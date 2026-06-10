@@ -480,7 +480,7 @@ export default function PortalTecnicoPage() {
                           isDark ? 'border-slate-850 text-slate-450' : 'border-slate-100 text-slate-600'
                         }`}>
                           <p className="col-span-2">
-                            <strong className={isDark ? 'text-slate-500' : 'text-slate-400'}>📍 Local:</strong> {asset.location} {asset.subLocation ? ` - ${asset.subLocation}` : ''}
+                            <strong className={isDark ? 'text-slate-500' : 'text-slate-400'}>📍 Setor / Sub-Local:</strong> {asset.location} {asset.subLocation ? ` - ${asset.subLocation}` : ''}
                           </p>
                           <p>
                             <strong className={isDark ? 'text-slate-500' : 'text-slate-400'}>🔍 Selo:</strong> {asset.seloInmetro || 'NBR'}

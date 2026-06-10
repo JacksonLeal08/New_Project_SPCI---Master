@@ -4,7 +4,9 @@ import { useSpci } from '@/app/context/SpciContext';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompressor';
 import { MediaQueue } from '@/lib/mediaQueue';
-import { Flame, Check, X, Upload, Shield, Calendar, MapPin, ClipboardList, Info, Plus } from 'lucide-react';
+import { Flame, Check, X, Upload, Shield, Calendar, MapPin, ClipboardList, Info, Plus, QrCode } from 'lucide-react';
+import QrCameraScanner from './QrCameraScanner';
+import { parseInmetroCode } from '@/lib/utils';
 
 interface ExtintorAddModalProps {
   isOpen: boolean;
@@ -47,7 +49,11 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
 
   // --- METADADOS SUPABASE ---
   const [locaisList, setLocaisList] = useState<any[]>([]);
+  const [subLocaisList, setSubLocaisList] = useState<any[]>([]);
   const [loadingMetadata, setLoadingMetadata] = useState(false);
+  const [selectedSubLocalId, setSelectedSubLocalId] = useState('');
+  const [newSubLocalName, setNewSubLocalName] = useState('');
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // --- PATRIMONIO AUTO SEQUENCE ---
   const [maxPatrimonio, setMaxPatrimonio] = useState<number>(0);
@@ -175,8 +181,15 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
           if (loadedLocales.length > 0) {
             setSelectedLocalId(loadedLocales[0].id);
           }
+
+          const { data: subLocales } = await supabase
+            .from('sub_locais')
+            .select('*')
+            .order('nome', { ascending: true });
+          
+          setSubLocaisList(subLocales || []);
         } catch (e) {
-          console.error('Error fetching locales:', e);
+          console.error('Error fetching locales/sub_locales:', e);
         } finally {
           setLoadingMetadata(false);
         }
@@ -209,6 +222,9 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         setFormChassi('');
         setFormSelo('');
         setFormSubLocal('');
+        setSelectedSubLocalId('');
+        setNewSubLocalName('');
+        setIsScannerOpen(false);
         setSelectedModel('');
         setCustomModelName('');
         setFormWeightCap('6KG');
@@ -223,6 +239,21 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       }, 0);
     }
   }, [isOpen, extintores]);
+
+  const filteredSubLocais = subLocaisList.filter(s => s.local_id === selectedLocalId);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (selectedLocalId === 'NEW') {
+        setSelectedSubLocalId('NEW');
+      } else {
+        setSelectedSubLocalId('');
+        setNewSubLocalName('');
+        setFormSubLocal('');
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [selectedLocalId]);
 
   // Adjust expiry automatically to lastRecharge + 12 months when lastRecharge changes
   const handleLastRechargeChange = (month: number, year: number) => {
@@ -297,6 +328,8 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     setFormDataPesagemCo2('');
     setSelectedLocalId(locaisList.length > 0 ? locaisList[0].id : '');
     setNewLocalName('');
+    setSelectedSubLocalId('');
+    setNewSubLocalName('');
     setFormSubLocal('');
     setSelectedFile(null);
     setPreviewUrl(null);
@@ -378,6 +411,37 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         finalLocalName = locaisList.find(l => l.id === selectedLocalId)?.nome || '';
       }
 
+      // 1.5. Dynamic Sub-Local creation if new
+      let finalSubLocalName = '';
+      let finalSubLocalId = selectedSubLocalId;
+
+      if (selectedSubLocalId === 'NEW') {
+        const uppercaseNewSub = newSubLocalName.trim().toUpperCase();
+        
+        // check sub-local duplicate in cache
+        const subDup = subLocaisList.find(s => s.local_id === finalLocalId && s.nome.toUpperCase() === uppercaseNewSub);
+        if (subDup) {
+          finalSubLocalId = subDup.id;
+          finalSubLocalName = subDup.nome;
+        } else {
+          // insert new sub-local
+          const { data: newSubObj, error: subInsErr } = await supabase
+            .from('sub_locais')
+            .insert({ local_id: finalLocalId, nome: uppercaseNewSub })
+            .select('*')
+            .single();
+
+          if (subInsErr) throw subInsErr;
+          if (newSubObj) {
+            finalSubLocalId = newSubObj.id;
+            finalSubLocalName = newSubObj.nome;
+            setSubLocaisList(prev => [...prev, newSubObj].sort((a, b) => a.nome.localeCompare(b.nome)));
+          }
+        }
+      } else {
+        finalSubLocalName = subLocaisList.find(s => s.id === selectedSubLocalId)?.nome || '';
+      }
+
       // 2. Dynamic Model creation if custom and register in supabase modelos_extintores
       let finalModelName = selectedModel === 'CUSTOM' ? customModelName.trim().toUpperCase() : selectedModel;
       
@@ -429,11 +493,11 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         idAtivo: codePatrimonio,
         category: 'extintores',
         location: finalLocalName,
-        subLocation: formSubLocal || 'GERAL',
+        subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         status: 'Conforme',
         
         local_id: finalLocalId || null,
-        sub_local_id: null, 
+        sub_local_id: finalSubLocalId || null, 
         modelo_id: null, // Resolvido no trigger/View do banco
         
         model: finalModelName,
@@ -578,13 +642,23 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                   <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
                     Selo INMETRO
                   </label>
-                  <input 
-                    type="text" 
-                    value={formSelo}
-                    onChange={(e) => setFormSelo(e.target.value)}
-                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-1 focus:ring-red-100 rounded-lg p-2 text-xs outline-none font-mono font-bold"
-                    placeholder="Ex: S-809221"
-                  />
+                  <div className="flex gap-2">
+                    <input 
+                      type="text" 
+                      value={formSelo}
+                      onChange={(e) => setFormSelo(e.target.value)}
+                      className="flex-grow bg-white border border-slate-200 focus:border-red-500 focus:ring-1 focus:ring-red-100 rounded-lg p-2 text-xs outline-none font-mono font-bold"
+                      placeholder="Ex: S-809221"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsScannerOpen(true)}
+                      className="px-3 bg-red-650 hover:bg-red-700 text-white rounded-lg flex items-center justify-center cursor-pointer transition-colors shadow-sm active:scale-95 border-none"
+                      title="Escanear Selo com a Câmera"
+                    >
+                      <QrCode className="w-4 h-4" />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -864,20 +938,45 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                   </div>
                 )}
 
-                {/* Sub Local */}
-                <div className="col-span-1 md:col-span-2">
+                {/* Sub Local Select */}
+                <div>
                   <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                    Sub Local (Posição Física) *
+                    Sub-Local (Posição Física) *
                   </label>
-                  <input 
-                    type="text" 
-                    value={formSubLocal}
-                    onChange={(e) => setFormSubLocal(e.target.value)}
-                    placeholder="Ex: Próximo à Cabine de Força, Rota de Fuga 2"
-                    className="w-full bg-white border border-slate-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-medium"
+                  <select
+                    value={selectedSubLocalId}
+                    onChange={(e) => {
+                      setSelectedSubLocalId(e.target.value);
+                      const selectedSub = filteredSubLocais.find(s => s.id === e.target.value);
+                      setFormSubLocal(selectedSub ? selectedSub.nome : '');
+                    }}
+                    className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
                     required
-                  />
+                  >
+                    <option value="">Selecione...</option>
+                    {filteredSubLocais.map(sub => (
+                      <option key={sub.id} value={sub.id}>{sub.nome}</option>
+                    ))}
+                    <option value="NEW">+ Adicionar Novo Sub-Local...</option>
+                  </select>
                 </div>
+
+                {/* New Sub-Local Input (if selected NEW) */}
+                {selectedSubLocalId === 'NEW' && (
+                  <div>
+                    <label className="block text-[9px] font-extrabold uppercase text-red-655 mb-1.5">
+                      Nome do Novo Sub-Local *
+                    </label>
+                    <input
+                      type="text"
+                      value={newSubLocalName}
+                      onChange={(e) => setNewSubLocalName(e.target.value)}
+                      placeholder="Ex: COPA"
+                      className="w-full bg-white border border-red-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold uppercase"
+                      required
+                    />
+                  </div>
+                )}
               </div>
             </div>
 
@@ -969,6 +1068,18 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
           </div>
         )}
       </AnimatePresence>
+
+      {/* SCANNER DE QR CODE DO INMETRO */}
+      <QrCameraScanner 
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={(code) => {
+          setIsScannerOpen(false);
+          const parsed = parseInmetroCode(code);
+          setFormSelo(parsed);
+          triggerSuccessNotification("Selo Escaneado! 🧯", `Selo INMETRO ${parsed} obtido com sucesso.`);
+        }}
+      />
     </div>
   );
 }

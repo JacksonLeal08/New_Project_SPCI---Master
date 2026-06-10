@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompressor';
@@ -11,8 +11,11 @@ import {
   Lightbulb, 
   Sliders, 
   Check, 
-  X 
+  X,
+  QrCode
 } from 'lucide-react';
+import QrCameraScanner from './QrCameraScanner';
+import { parseInmetroCode } from '@/lib/utils';
 
 interface AssetAddModalProps {
   isOpen: boolean;
@@ -50,13 +53,18 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
 
   // --- ESTADOS PARA METADADOS DO SUPABASE ---
   const [locaisList, setLocaisList] = useState<any[]>([]);
-  const [modelosList, setModelosList] = useState<any[]>([]);
+  const [subLocaisList, setSubLocaisList] = useState<any[]>([]);
   const [loadingMetadata, setLoadingMetadata] = useState(false);
   const [selectedLocalId, setSelectedLocalId] = useState('');
+  const [selectedSubLocalId, setSelectedSubLocalId] = useState('');
+  const [newSubLocalName, setNewSubLocalName] = useState('');
   const [selectedModeloId, setSelectedModeloId] = useState('');
+  const [modelosList, setModelosList] = useState<any[]>([]);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   // --- ESTADOS LOCAIS DO FORMULÁRIO ---
   const [formLocal, setFormLocal] = useState('MANGANÊS');
+  const [newLocalName, setNewLocalName] = useState('');
   const [formSubLocal, setFormSubLocal] = useState('BARRAGEM DO AZUL');
   const [formPatrimonio, setFormPatrimonio] = useState('');
   const [formModel, setFormModel] = useState('');
@@ -141,6 +149,14 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
             setSelectedModeloId(loadedModels[0].id);
             setFormModel(loadedModels[0].nome);
           }
+
+          // 3. Buscar sub_locais
+          const { data: subLocales } = await supabase
+            .from('sub_locais')
+            .select('*')
+            .order('nome', { ascending: true });
+          
+          setSubLocaisList(subLocales || []);
         } catch (e) {
           console.error('Erro ao carregar metadados do Supabase:', e);
         } finally {
@@ -154,9 +170,27 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
         setSelectedFile(null);
         setPreviewUrl(null);
         setCompressionDetails(null);
+        setSelectedSubLocalId('');
+        setNewSubLocalName('');
+        setIsScannerOpen(false);
       }, 0);
     }
   }, [isOpen]);
+
+  const filteredSubLocais = subLocaisList.filter(s => s.local_id === selectedLocalId);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (selectedLocalId === 'NEW') {
+        setSelectedSubLocalId('NEW');
+      } else {
+        setSelectedSubLocalId('');
+        setNewSubLocalName('');
+        setFormSubLocal('');
+      }
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [selectedLocalId]);
 
   if (!isOpen) return null;
 
@@ -175,20 +209,25 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
   ];
 
   // Helper to detect if selected model is CO2
-  const selectedModelName = modelosList.find(m => m.id === selectedModeloId)?.nome || formModel || '';
+  const selectedModelName = modelosList.find((m: any) => m.id === selectedModeloId)?.nome || formModel || '';
   const isCo2 = selectedModelName.toUpperCase().includes('CO2');
 
   const handleLocalChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setSelectedLocalId(val);
-    const locName = locaisList.find(l => l.id === val)?.nome || '';
-    setFormLocal(locName);
+    if (val === 'NEW') {
+      setFormLocal('');
+      setNewLocalName('');
+    } else {
+      const locName = locaisList.find(l => l.id === val)?.nome || '';
+      setFormLocal(locName);
+    }
   };
 
   const handleModeloChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const val = e.target.value;
     setSelectedModeloId(val);
-    const modName = modelosList.find(m => m.id === val)?.nome || '';
+    const modName = modelosList.find((m: any) => m.id === val)?.nome || '';
     setFormModel(modName);
   };
 
@@ -257,6 +296,56 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       return;
     }
 
+    let finalLocalId = selectedLocalId;
+    let finalLocalName = formLocal;
+
+    if (selectedLocalId === 'NEW') {
+      const uppercaseNewLocal = newLocalName.trim().toUpperCase();
+      const localDup = locaisList.find(l => l.nome.toUpperCase() === uppercaseNewLocal);
+      if (localDup) {
+        finalLocalId = localDup.id;
+        finalLocalName = localDup.nome;
+      } else {
+        const { data: newLocObj, error: locInsErr } = await supabase
+          .from('locais')
+          .insert({ nome: uppercaseNewLocal })
+          .select('*')
+          .single();
+
+        if (locInsErr) throw locInsErr;
+        if (newLocObj) {
+          finalLocalId = newLocObj.id;
+          finalLocalName = newLocObj.nome;
+          setLocaisList(prev => [...prev, newLocObj].sort((a, b) => a.nome.localeCompare(b.nome)));
+        }
+      }
+    }
+
+    let finalSubLocalId = selectedSubLocalId;
+    let finalSubLocalName = formSubLocal;
+
+    if (selectedSubLocalId === 'NEW') {
+      const uppercaseNewSub = newSubLocalName.trim().toUpperCase();
+      const subDup = subLocaisList.find(s => s.local_id === finalLocalId && s.nome.toUpperCase() === uppercaseNewSub);
+      if (subDup) {
+        finalSubLocalId = subDup.id;
+        finalSubLocalName = subDup.nome;
+      } else {
+        const { data: newSubObj, error: subInsErr } = await supabase
+          .from('sub_locais')
+          .insert({ local_id: finalLocalId, nome: uppercaseNewSub })
+          .select('*')
+          .single();
+
+        if (subInsErr) throw subInsErr;
+        if (newSubObj) {
+          finalSubLocalId = newSubObj.id;
+          finalSubLocalName = newSubObj.nome;
+          setSubLocaisList(prev => [...prev, newSubObj].sort((a, b) => a.nome.localeCompare(b.nome)));
+        }
+      }
+    }
+
     const getPrefix = () => {
       switch (newAssetType) {
         case 'extintor': return 'EXT-';
@@ -310,8 +399,7 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
     }
 
     if (newAssetType === 'extintor') {
-      const selectedLocalObj = locaisList.find(l => l.id === selectedLocalId);
-      const selectedModeloObj = modelosList.find(m => m.id === selectedModeloId);
+      const selectedModeloObj = modelosList.find((m: any) => m.id === selectedModeloId);
 
       // Calcular data de validade da recarga localmente para exibir rápido
       const recargaDate = new Date(formDataRecarga);
@@ -323,13 +411,13 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
         id: uniqueId,
         idAtivo: codePatrimonio,
         category: 'extintores',
-        location: selectedLocalObj?.nome || formLocal,
-        subLocation: formSubLocal,
+        location: finalLocalName,
+        subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         status: 'Conforme', // Será recalculado pela View do banco
         
         // Chaves estrangeiras relacionais
-        local_id: selectedLocalId || null,
-        sub_local_id: null, // Resolvido no backend via nome
+        local_id: finalLocalId || null,
+        sub_local_id: finalSubLocalId || null,
         modelo_id: selectedModeloId || null,
         
         // Mapeamento específico e de compatibilidade
@@ -357,8 +445,8 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
-        location: formLocal,
-        subLocation: formSubLocal,
+        location: finalLocalName,
+        subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         components: ['2 Mangueiras (15m)', '1 Esguicho Regulável', '2 Chaves Storz'],
         lastInsp: new Date().toISOString().substring(0, 10),
         nextInsp: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
@@ -372,8 +460,8 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
-        location: formLocal,
-        subLocation: formSubLocal,
+        location: finalLocalName,
+        subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         model: multiSelectModels.join(', ') || 'Placa Multi-Direcional - C3',
         group: 'Rota de Fuga',
         status: 'Conforme',
@@ -386,8 +474,8 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
-        location: formLocal,
-        subLocation: formSubLocal,
+        location: finalLocalName,
+        subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         systemType: formSystemType,
         model: multiSelectModels.join(', ') || 'Bloco 30 LEDs',
         qty: 1,
@@ -403,8 +491,8 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
-        location: formLocal,
-        subLocation: formSubLocal,
+        location: finalLocalName,
+        subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         model: formModel || 'Bomba Centrífuga Principal',
         pressure: 'Estável - 120 MCA',
         starts: '0',
@@ -443,6 +531,9 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
     setSelectedFile(null);
     setPreviewUrl(null);
     setMultiSelectModels([]);
+    setSelectedSubLocalId('');
+    setNewSubLocalName('');
+    setNewLocalName('');
     onClose();
     triggerSuccessNotification('Equipamento Registrado!', `Ativo ${codePatrimonio} foi cadastrado no banco de dados SPCI.`);
   };
@@ -529,38 +620,68 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
                 
                 {/* Local */}
                 <div>
-                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Local da Instalação *</label>
-                  {locaisList.length > 0 ? (
-                    <select 
-                      value={selectedLocalId} 
-                      onChange={handleLocalChange} 
-                      className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs cursor-pointer"
-                    >
-                      {locaisList.map(loc => <option key={loc.id} value={loc.id}>{loc.nome}</option>)}
-                    </select>
-                  ) : (
-                    <select 
-                      value={formLocal} 
-                      onChange={(e) => setFormLocal(e.target.value)} 
-                      className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs cursor-pointer"
-                    >
-                      {SECTORS_LIST.map(sec => <option key={sec} value={sec}>{sec}</option>)}
-                    </select>
-                  )}
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Setor da Planta *</label>
+                  <select 
+                    value={selectedLocalId} 
+                    onChange={handleLocalChange} 
+                    className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs cursor-pointer"
+                    required
+                  >
+                    {locaisList.map(loc => <option key={loc.id} value={loc.id}>{loc.nome}</option>)}
+                    <option value="NEW">+ Adicionar Novo Setor...</option>
+                  </select>
                 </div>
 
-                {/* Sub-Local */}
+                {/* New Sector Input (if selected NEW) */}
+                {selectedLocalId === 'NEW' && (
+                  <div>
+                    <label className="block text-[10px] sm:text-xs font-bold uppercase text-red-655 mb-2">Nome do Novo Setor *</label>
+                    <input 
+                      type="text" 
+                      value={newLocalName}
+                      onChange={(e) => setNewLocalName(e.target.value)}
+                      placeholder="Ex: CALDEIRAS"
+                      className="w-full bg-white border border-red-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-850 outline-none font-bold uppercase"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Sub Local Select */}
                 <div>
-                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Sub Local (Sala / Doca) *</label>
-                  <input 
-                    type="text" 
-                    value={formSubLocal} 
-                    onChange={(e) => setFormSubLocal(e.target.value)} 
-                    className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs" 
-                    placeholder="Ex: Sala de Geradores, Coluna 12" 
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Sub-Local (Posição Física) *</label>
+                  <select
+                    value={selectedSubLocalId}
+                    onChange={(e) => {
+                      setSelectedSubLocalId(e.target.value);
+                      const selectedSub = filteredSubLocais.find(s => s.id === e.target.value);
+                      setFormSubLocal(selectedSub ? selectedSub.nome : '');
+                    }}
+                    className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-bold shadow-xs cursor-pointer"
                     required
-                  />
+                  >
+                    <option value="">Selecione...</option>
+                    {filteredSubLocais.map(sub => (
+                      <option key={sub.id} value={sub.id}>{sub.nome}</option>
+                    ))}
+                    <option value="NEW">+ Adicionar Novo Sub-Local...</option>
+                  </select>
                 </div>
+
+                {/* New Sub-Local Input (if selected NEW) */}
+                {selectedSubLocalId === 'NEW' && (
+                  <div>
+                    <label className="block text-[10px] sm:text-xs font-bold uppercase text-red-655 mb-2">Nome do Novo Sub-Local *</label>
+                    <input
+                      type="text"
+                      value={newSubLocalName}
+                      onChange={(e) => setNewSubLocalName(e.target.value)}
+                      placeholder="Ex: COPA"
+                      className="w-full bg-white border border-red-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-850 outline-none font-bold uppercase"
+                      required
+                    />
+                  </div>
+                )}
 
                 {/* Patrimonio */}
                 <div>
@@ -591,7 +712,7 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
                           onChange={handleModeloChange} 
                           className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-850 outline-none font-bold shadow-xs cursor-pointer"
                         >
-                          {modelosList.map(mod => <option key={mod.id} value={mod.id}>{mod.nome}</option>)}
+                          {modelosList.map((mod: any) => <option key={mod.id} value={mod.id}>{mod.nome}</option>)}
                         </select>
                       ) : (
                         <select 
@@ -619,13 +740,23 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
                     </div>
                     <div>
                       <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Selo Inmetro (Opcional)</label>
-                      <input 
-                        type="text" 
-                        value={formSelo} 
-                        onChange={(e) => setFormSelo(e.target.value)} 
-                        className="w-full bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-800 outline-none font-mono" 
-                        placeholder="S-123456" 
-                      />
+                      <div className="flex gap-2">
+                        <input 
+                          type="text" 
+                          value={formSelo} 
+                          onChange={(e) => setFormSelo(e.target.value)} 
+                          className="flex-grow bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-850 outline-none font-mono" 
+                          placeholder="S-123456" 
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsScannerOpen(true)}
+                          className="px-3 bg-red-650 hover:bg-red-700 text-white rounded-xl flex items-center justify-center cursor-pointer transition-colors shadow-sm active:scale-95 border-none"
+                          title="Escanear Selo com a Câmera"
+                        >
+                          <QrCode className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                     <div>
                       <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Chassi Corporativo</label>
@@ -820,6 +951,18 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
           </form>
         </div>
       </motion.div>
+
+      {/* SCANNER DE QR CODE DO INMETRO */}
+      <QrCameraScanner 
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={(code) => {
+          setIsScannerOpen(false);
+          const parsed = parseInmetroCode(code);
+          setFormSelo(parsed);
+          triggerSuccessNotification("Selo Escaneado! 🧯", `Selo INMETRO ${parsed} obtido com sucesso.`);
+        }}
+      />
     </motion.div>
   );
 }

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '../context/SpciContext';
 import { Sidebar } from '../components/Sidebar';
@@ -23,6 +23,7 @@ import SyncStatusPanel from '../components/SyncStatusPanel';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const {
     currentUser,
     userProfile,
@@ -67,7 +68,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [photoFrontal, setPhotoFrontal] = useState<string | null>(null);
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState<boolean>(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   
+  // Efeito para fechar a sidebar do mobile quando a rota mudar
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsMobileSidebarOpen(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [pathname]);
+
   // Alertas de saída do cockpit
   const [alertFormChannel, setAlertFormChannel] = useState<'whatsapp' | 'telegram' | 'email'>('whatsapp');
   const [alertTargetContact, setAlertTargetContact] = useState('');
@@ -338,10 +348,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex bg-[#f4f6f8] min-h-screen text-slate-800 relative overflow-hidden font-mono">
       
+      {/* Overlay Backdrop do Mobile Menu */}
+      <AnimatePresence>
+        {isMobileSidebarOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setIsMobileSidebarOpen(false)}
+            className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-40 lg:hidden"
+            aria-hidden="true"
+          />
+        )}
+      </AnimatePresence>
+
       {/* Menu lateral fixo com rotas Next.js */}
       <Sidebar 
         onProfileClick={() => { if (currentUser) { setShowProfileModal(true); } }} 
         onLogoutClick={() => setShowLogoutConfirmation(true)} 
+        isOpen={isMobileSidebarOpen}
+        onClose={() => setIsMobileSidebarOpen(false)}
       />
 
       {/* Corpo principal do Dashboard */}
@@ -351,6 +377,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <Header 
           onScanClick={() => setScanModal(true)} 
           onProfileClick={() => setShowProfileModal(true)} 
+          onMenuClick={() => setIsMobileSidebarOpen(true)}
         />
 
         {/* Área onde as subpáginas renderizam */}

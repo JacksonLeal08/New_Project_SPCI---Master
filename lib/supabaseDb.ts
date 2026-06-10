@@ -438,7 +438,7 @@ export async function getAssetsList(collectionName: string): Promise<any[]> {
   }
 }
 
-export async function saveAssetToDb(collectionName: string, id: string, asset: any): Promise<void> {
+export async function saveAssetToDb(collectionName: string, id: string, asset: any, silent?: boolean): Promise<void> {
   try {
     if (collectionName === 'audit_logs') {
       const { error } = await supabase
@@ -608,7 +608,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
 
       if (extErr) throw extErr;
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('spci_sync_success', { detail: { type: 'asset', id, category: 'extintores' } }));
+        window.dispatchEvent(new CustomEvent('spci_sync_success', { detail: { type: 'asset', id, category: 'extintores', silent } }));
       }
       return;
     }
@@ -621,7 +621,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
 
     if (error) throw error;
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('spci_sync_success', { detail: { type: 'asset', id, category } }));
+      window.dispatchEvent(new CustomEvent('spci_sync_success', { detail: { type: 'asset', id, category, silent } }));
     }
   } catch (error: any) {
     console.warn(`Could not save asset to ${collectionName} in Supabase.`, error);

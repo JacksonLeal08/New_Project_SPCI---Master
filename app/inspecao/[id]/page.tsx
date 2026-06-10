@@ -24,16 +24,18 @@ import {
   Cog,
   Plus,
   Sun,
-  Moon
+  Moon,
+  QrCode
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fetchAtivoParaInspecao, salvarInspecaoNoSupabase, saveAssetToDb } from '@/lib/supabaseDb';
 import { SyncQueue } from '@/lib/syncQueue';
 import { InspecaoRealizada, AssetCategory } from '@/lib/types';
 import { idb } from '@/lib/indexedDb';
-import { sanitizeInputText } from '@/lib/utils';
+import { sanitizeInputText, parseInmetroCode } from '@/lib/utils';
 import { useSpci } from '@/app/context/SpciContext';
 import { useSync } from '@/hooks/useSync';
+import QrCameraScanner from '@/app/components/QrCameraScanner';
 
 // Tipagem de categorias
 interface CategoriaOpcao {
@@ -60,7 +62,7 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = [
 ];
 
 function InspecaoOuCadastroContent() {
-  const { logSystemAction } = useSpci();
+  const { logSystemAction, complianceLogs } = useSpci();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -76,6 +78,11 @@ function InspecaoOuCadastroContent() {
   const [loading, setLoading] = useState<boolean>(true);
   const [ativo, setAtivo] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Alertas de duplicidade
+  const [showDuplicityAlert, setShowDuplicityAlert] = useState<boolean>(false);
+  const [existingInspectionTime, setExistingInspectionTime] = useState<string>('');
+  const [existingInspectionTecnico, setExistingInspectionTecnico] = useState<string>('');
 
   // Hook unificado de sincronia e status de rede
   const { isOnline, pendingCount, syncing, triggerSync, updatePendingCount } = useSync();
@@ -100,6 +107,15 @@ function InspecaoOuCadastroContent() {
   const [seloInmetro, setSeloInmetro] = useState<string>('');
   const [chassiCorporativo, setChassiCorporativo] = useState<string>('');
   const [cadastroSucesso, setCadastroSucesso] = useState<boolean>(false);
+
+  // --- METADADOS DINÂMICOS DE LOCALIZAÇÃO (SETORES/SUB-LOCAIS) ---
+  const [locaisList, setLocaisList] = useState<any[]>([]);
+  const [subLocaisList, setSubLocaisList] = useState<any[]>([]);
+  const [selectedLocalId, setSelectedLocalId] = useState<string>('');
+  const [selectedSubLocalId, setSelectedSubLocalId] = useState<string>('');
+  const [newLocalName, setNewLocalName] = useState<string>('');
+  const [newSubLocalName, setNewSubLocalName] = useState<string>('');
+  const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
 
   // Novos campos detalhados para o Extintor relacional
   const [fabricante, setFabricante] = useState<string>('CHAMATEX');
@@ -241,6 +257,34 @@ function InspecaoOuCadastroContent() {
     loadData();
   }, [rawId, editId]);
 
+  // Efeito para detecção de vistorias duplicadas no mesmo dia
+  useEffect(() => {
+    if (ativo && !isCadastro && !isEdicao) {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const targetId = ativo.idAtivo || ativo.id || rawId;
+      
+      const duplicateLog = (complianceLogs || []).find(log => 
+        log.assetId === targetId && log.date === todayStr
+      );
+      
+      if (duplicateLog) {
+        const timer = setTimeout(() => {
+          setExistingInspectionTime(duplicateLog.time || 'N/A');
+          
+          let name = 'Outro Operador';
+          if (duplicateLog.notes && duplicateLog.notes.includes('Técnico:')) {
+            name = duplicateLog.notes.split('Técnico:')[1].trim().split(',')[0].trim();
+          } else if (duplicateLog.tecnico_nome) {
+            name = duplicateLog.tecnico_nome;
+          }
+          setExistingInspectionTecnico(name);
+          setShowDuplicityAlert(true);
+        }, 0);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [ativo, complianceLogs, isCadastro, isEdicao, rawId]);
+
   // Carrega opções de Fabricantes e Modelos existentes para preenchimento dinâmico
   useEffect(() => {
     const fetchUniqueOptions = async () => {
@@ -259,6 +303,104 @@ function InspecaoOuCadastroContent() {
     };
     fetchUniqueOptions();
   }, []);
+
+  // Carrega Metadados Dinâmicos (Setores / Sub-Locais)
+  useEffect(() => {
+    const loadMetadata = async () => {
+      try {
+        let loadedLocales: any[] = [];
+        let loadedSubLocales: any[] = [];
+
+        if (navigator.onLine) {
+          try {
+            const { data: locales } = await supabase
+              .from('locais')
+              .select('*')
+              .order('nome', { ascending: true });
+            
+            if (locales && locales.length > 0) {
+              loadedLocales = locales;
+              await idb.set('config', 'locais', locales);
+            }
+
+            const { data: subLocales } = await supabase
+              .from('sub_locais')
+              .select('*')
+              .order('nome', { ascending: true });
+            
+            if (subLocales && subLocales.length > 0) {
+              loadedSubLocales = subLocales;
+              await idb.set('config', 'sub_locais', subLocales);
+            }
+          } catch (err) {
+            console.warn("Erro ao buscar locais/sub_locais do Supabase, tentando cache local", err);
+          }
+        }
+
+        if (loadedLocales.length === 0) {
+          const cachedLoc = await idb.get('config', 'locais');
+          if (cachedLoc && cachedLoc.length > 0) {
+            loadedLocales = cachedLoc;
+          } else {
+            loadedLocales = [
+              { id: 'MANGANÊS', nome: 'MANGANÊS' },
+              { id: 'ALMOXARIFADO', nome: 'ALMOXARIFADO' },
+              { id: 'SALA ELÉTRICA', nome: 'SALA ELÉTRICA' },
+              { id: 'PRODUÇÃO', nome: 'PRODUÇÃO' },
+              { id: 'LOGÍSTICA', nome: 'LOGÍSTICA' }
+            ];
+          }
+        }
+
+        if (loadedSubLocales.length === 0) {
+          const cachedSub = await idb.get('config', 'sub_locais');
+          if (cachedSub && cachedSub.length > 0) {
+            loadedSubLocales = cachedSub;
+          }
+        }
+
+        setLocaisList(loadedLocales);
+        setSubLocaisList(loadedSubLocales);
+
+        if (loadedLocales.length > 0) {
+          setSelectedLocalId(loadedLocales[0].id);
+        }
+      } catch (e) {
+        console.error('Erro ao carregar metadados no portal móvel:', e);
+      }
+    };
+
+    loadMetadata();
+  }, []);
+
+  const filteredSubLocais = subLocaisList.filter(s => s.local_id === selectedLocalId);
+
+  // Efeito para sincronizar as opções de local nos formulários caso o ativo já venha populado (Edição/Inspeção)
+  useEffect(() => {
+    if (ativo && (isCadastro || isEdicao) && locaisList.length > 0) {
+      setTimeout(() => {
+        const matchedLocal = locaisList.find(l => l.nome.toUpperCase() === (ativo.location || '').toUpperCase());
+        if (matchedLocal) {
+          setSelectedLocalId(matchedLocal.id);
+          
+          const matchedSub = subLocaisList.find(s => s.local_id === matchedLocal.id && s.nome.toUpperCase() === (ativo.subLocation || '').toUpperCase());
+          if (matchedSub) {
+            setSelectedSubLocalId(matchedSub.id);
+          } else if (ativo.subLocation) {
+            setSelectedSubLocalId('NEW');
+            setNewSubLocalName(ativo.subLocation);
+          }
+        } else if (ativo.location) {
+          setSelectedLocalId('NEW');
+          setNewLocalName(ativo.location);
+          if (ativo.subLocation) {
+            setSelectedSubLocalId('NEW');
+            setNewSubLocalName(ativo.subLocation);
+          }
+        }
+      }, 0);
+    }
+  }, [ativo, locaisList, subLocaisList, isCadastro, isEdicao]);
 
   // Sincroniza o tema preferido do usuário após a hidratação no cliente
   useEffect(() => {
@@ -297,6 +439,16 @@ function InspecaoOuCadastroContent() {
       return;
     }
 
+    if (selectedLocalId === 'NEW' && !newLocalName.trim()) {
+      alert('Por favor, preencha o nome do novo setor.');
+      return;
+    }
+
+    if (selectedSubLocalId === 'NEW' && !newSubLocalName.trim()) {
+      alert('Por favor, preencha o nome do novo sub-local.');
+      return;
+    }
+
     // Define o prefixo do patrimônio baseado na categoria
     const prefixo = 
       cadastroCategoria === 'extintores' ? 'EXT' :
@@ -312,35 +464,94 @@ function InspecaoOuCadastroContent() {
     validadeRecargaDateObj.setMonth(validadeRecargaDateObj.getMonth() + validadeRecargaMeses);
     const validadeRecargaStr = validadeRecargaDateObj.toLocaleDateString('pt-BR');
 
-    const novoAtivo = {
-      id: patrimonioCompleto, // ID principal
-      idAtivo: patrimonioCompleto,
-      category: cadastroCategoria,
-      location: localInstalacao,
-      subLocation: subLocal.trim(),
-      status: 'Conforme', // inicia em conformidade no cadastro
-      model: modeloAtivo,
-      seloInmetro: seloInmetro.trim() || 'Isento',
-      chassi: chassiCorporativo.trim() || 'NÃO GRAVADO',
-      
-      // Novos atributos estruturados
-      fabricante: fabricante.trim() || 'N/A',
-      capacidadeExtintora: capacidadeExtintora.trim() || 'N/A',
-      anoFabricacao: anoFabricacao.trim() || new Date().getFullYear().toString(),
-      ultimoTesteHidro: ultimoTesteHidro.trim() || new Date().getFullYear().toString(),
-      validadeRecargaMeses: validadeRecargaMeses,
-      peso: modeloAtivo.split(' - ')[1] || 'N/A',
-
-      lastRecarga: lastRecargaStr,
-      validadeRecarga: validadeRecargaStr,
-      validadeTesteHidro: (parseInt(ultimoTesteHidro, 10) + 5).toString(),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
     setLoading(true);
 
     try {
+      let finalLocalId = selectedLocalId;
+      let finalLocalName = localInstalacao;
+      let finalSubLocalId = selectedSubLocalId;
+      let finalSubLocalName = subLocal;
+
+      if (isOnline) {
+        try {
+          if (selectedLocalId === 'NEW') {
+            const uppercaseNewLocal = newLocalName.trim().toUpperCase();
+            const localDup = locaisList.find(l => l.nome.toUpperCase() === uppercaseNewLocal);
+            if (localDup) {
+              finalLocalId = localDup.id;
+              finalLocalName = localDup.nome;
+            } else {
+              const { data: newLocObj, error: locInsErr } = await supabase
+                .from('locais')
+                .insert({ nome: uppercaseNewLocal })
+                .select('*')
+                .single();
+
+              if (locInsErr) throw locInsErr;
+              if (newLocObj) {
+                finalLocalId = newLocObj.id;
+                finalLocalName = newLocObj.nome;
+                setLocaisList(prev => [...prev, newLocObj].sort((a, b) => a.nome.localeCompare(b.nome)));
+              }
+            }
+          }
+
+          if (selectedSubLocalId === 'NEW') {
+            const uppercaseNewSub = newSubLocalName.trim().toUpperCase();
+            const subDup = subLocaisList.find(s => s.local_id === finalLocalId && s.nome.toUpperCase() === uppercaseNewSub);
+            if (subDup) {
+              finalSubLocalId = subDup.id;
+              finalSubLocalName = subDup.nome;
+            } else {
+              const { data: newSubObj, error: subInsErr } = await supabase
+                .from('sub_locais')
+                .insert({ local_id: finalLocalId, nome: uppercaseNewSub })
+                .select('*')
+                .single();
+
+              if (subInsErr) throw subInsErr;
+              if (newSubObj) {
+                finalSubLocalId = newSubObj.id;
+                finalSubLocalName = newSubObj.nome;
+                setSubLocaisList(prev => [...prev, newSubObj].sort((a, b) => a.nome.localeCompare(b.nome)));
+              }
+            }
+          }
+        } catch (err) {
+          console.warn("Erro ao registrar setor/sub-local online inline, prosseguindo com fallback de upsert do db:", err);
+        }
+      }
+
+      const novoAtivo = {
+        id: patrimonioCompleto, // ID principal
+        idAtivo: patrimonioCompleto,
+        category: cadastroCategoria,
+        location: finalLocalName,
+        subLocation: finalSubLocalName.trim() || 'GERAL',
+        status: 'Conforme', // inicia em conformidade no cadastro
+        model: modeloAtivo,
+        seloInmetro: seloInmetro.trim() || 'Isento',
+        chassi: chassiCorporativo.trim() || 'NÃO GRAVADO',
+        
+        local_id: finalLocalId === 'NEW' ? null : (finalLocalId || null),
+        sub_local_id: finalSubLocalId === 'NEW' ? null : (finalSubLocalId || null),
+        modelo_id: null,
+        
+        // Novos atributos estruturados
+        fabricante: fabricante.trim() || 'N/A',
+        capacidadeExtintora: capacidadeExtintora.trim() || 'N/A',
+        anoFabricacao: anoFabricacao.trim() || new Date().getFullYear().toString(),
+        ultimoTesteHidro: ultimoTesteHidro.trim() || new Date().getFullYear().toString(),
+        validadeRecargaMeses: validadeRecargaMeses,
+        peso: modeloAtivo.split(' - ')[1] || 'N/A',
+
+        lastRecarga: lastRecargaStr,
+        validadeRecarga: validadeRecargaStr,
+        validadeTesteHidro: (parseInt(ultimoTesteHidro, 10) + 5).toString(),
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
       if (isOnline) {
         // Envia direto para o Supabase
         await saveAssetToDb(cadastroCategoria, patrimonioCompleto, novoAtivo);
@@ -647,41 +858,102 @@ function InspecaoOuCadastroContent() {
                 {/* 2. Detalhes de Localização */}
                 <section className={`${cardClass} p-5 space-y-4 rounded-2xl`}>
                   <h3 className={`text-[10px] ${textMutedClass} uppercase tracking-widest font-bold border-b pb-2 ${borderBottomClass}`}>
-                    Localização da Instalação
+                    Setor / Sub-Local
                   </h3>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Local */}
+                    {/* Local (Setor da Planta) */}
                     <div className="space-y-1.5">
-                      <label className={`text-[9px] ${textMutedClass} uppercase tracking-wider`}>Local da Instalação *</label>
+                      <label className={`text-[9px] ${textMutedClass} uppercase tracking-wider`}>Setor da Planta *</label>
                       <select 
-                        value={localInstalacao}
-                        onChange={(e) => setLocalInstalacao(e.target.value)}
+                        value={selectedLocalId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedLocalId(val);
+                          if (val === 'NEW') {
+                            setSelectedSubLocalId('NEW');
+                            setLocalInstalacao(newLocalName);
+                          } else {
+                            setSelectedSubLocalId('');
+                            setNewSubLocalName('');
+                            setSubLocal('');
+                            const matched = locaisList.find(l => l.id === val);
+                            setLocalInstalacao(matched ? matched.nome : '');
+                          }
+                        }}
                         className={`w-full px-3 py-2.5 text-xs focus:outline-none rounded-lg cursor-pointer ${selectBgClass}`}
+                        required
                       >
-                        {localInstalacao && !["MANGANÊS", "ALMOXARIFADO", "SALA ELÉTRICA", "PRODUÇÃO", "LOGÍSTICA"].includes(localInstalacao) && (
-                          <option value={localInstalacao} className={isDark ? "bg-slate-900" : ""}>{localInstalacao}</option>
-                        )}
-                        <option value="MANGANÊS" className={isDark ? "bg-slate-900" : ""}>MANGANÊS</option>
-                        <option value="ALMOXARIFADO" className={isDark ? "bg-slate-900" : ""}>ALMOXARIFADO</option>
-                        <option value="SALA ELÉTRICA" className={isDark ? "bg-slate-900" : ""}>SALA ELÉTRICA</option>
-                        <option value="PRODUÇÃO" className={isDark ? "bg-slate-900" : ""}>PRODUÇÃO</option>
-                        <option value="LOGÍSTICA" className={isDark ? "bg-slate-900" : ""}>LOGÍSTICA</option>
+                        {locaisList.map(loc => (
+                          <option key={loc.id} value={loc.id} className={isDark ? "bg-slate-900" : ""}>{loc.nome}</option>
+                        ))}
+                        <option value="NEW" className={isDark ? "bg-slate-900 text-amber-500 font-bold" : "text-amber-600 font-bold"}>+ Adicionar Novo Setor...</option>
                       </select>
                     </div>
 
+                    {/* Novo Setor Input */}
+                    {selectedLocalId === 'NEW' && (
+                      <div className="space-y-1.5">
+                        <label className={`text-[9px] text-red-500 uppercase tracking-wider`}>Nome do Novo Setor *</label>
+                        <input 
+                          type="text" 
+                          value={newLocalName}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNewLocalName(val);
+                            setLocalInstalacao(val);
+                          }}
+                          placeholder="Ex: CALDEIRAS"
+                          className={`w-full px-3 py-3 text-xs focus:outline-none rounded-lg ${inputBgClass}`}
+                          required
+                        />
+                      </div>
+                    )}
+
                     {/* Sub-local */}
                     <div className="space-y-1.5">
-                      <label className={`text-[9px] ${textMutedClass} uppercase tracking-wider`}>Sub Local (Sala / Doca) *</label>
-                      <input 
-                        type="text"
+                      <label className={`text-[9px] ${textMutedClass} uppercase tracking-wider`}>Sub-Local (Posição Física) *</label>
+                      <select
+                        value={selectedSubLocalId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedSubLocalId(val);
+                          if (val === 'NEW') {
+                            setSubLocal(newSubLocalName);
+                          } else {
+                            const matched = filteredSubLocais.find(s => s.id === val);
+                            setSubLocal(matched ? matched.nome : '');
+                          }
+                        }}
+                        className={`w-full px-3 py-2.5 text-xs focus:outline-none rounded-lg cursor-pointer ${selectBgClass}`}
                         required
-                        value={subLocal}
-                        onChange={(e) => setSubLocal(sanitizeInputText(e.target.value))}
-                        placeholder="Ex: BARRAGEM DO AZUL"
-                        className={`w-full px-3 py-3 text-xs focus:outline-none rounded-lg ${inputBgClass}`}
-                      />
+                      >
+                        <option value="" className={isDark ? "bg-slate-900" : ""}>Selecione...</option>
+                        {filteredSubLocais.map(sub => (
+                          <option key={sub.id} value={sub.id} className={isDark ? "bg-slate-900" : ""}>{sub.nome}</option>
+                        ))}
+                        <option value="NEW" className={isDark ? "bg-slate-900 text-amber-500 font-bold" : "text-amber-600 font-bold"}>+ Adicionar Novo Sub-Local...</option>
+                      </select>
                     </div>
+
+                    {/* Novo Sub-Local Input */}
+                    {selectedSubLocalId === 'NEW' && (
+                      <div className="space-y-1.5">
+                        <label className={`text-[9px] text-red-500 uppercase tracking-wider`}>Nome do Novo Sub-Local *</label>
+                        <input
+                          type="text"
+                          value={newSubLocalName}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setNewSubLocalName(val);
+                            setSubLocal(val);
+                          }}
+                          placeholder="Ex: COPA"
+                          className={`w-full px-3 py-3 text-xs focus:outline-none rounded-lg ${inputBgClass}`}
+                          required
+                        />
+                      </div>
+                    )}
                   </div>
                 </section>
 
@@ -782,15 +1054,25 @@ function InspecaoOuCadastroContent() {
                     {/* Selo Inmetro */}
                     <div className="space-y-1.5">
                       <label className={`text-[9px] ${textMutedClass} uppercase tracking-wider`}>Selo Inmetro (Opcional)</label>
-                      <input 
-                        type="text"
-                        value={seloInmetro}
-                        onChange={(e) => setSeloInmetro(sanitizeInputText(e.target.value))}
-                        placeholder="Selo Impresso"
-                        className={`w-full px-3 py-3 text-xs focus:outline-none rounded-lg ${
-                          isDark ? 'bg-slate-950 border-slate-850 text-slate-200 focus:border-red-500' : 'bg-white border-slate-250 text-slate-900 focus:border-red-655 shadow-sm'
-                        }`}
-                      />
+                      <div className="flex gap-2">
+                        <input 
+                          type="text"
+                          value={seloInmetro}
+                          onChange={(e) => setSeloInmetro(sanitizeInputText(e.target.value))}
+                          placeholder="Selo Impresso"
+                          className={`flex-grow w-full px-3 py-3 text-xs focus:outline-none rounded-lg ${
+                            isDark ? 'bg-slate-950 border-slate-850 text-slate-200 focus:border-red-500' : 'bg-white border-slate-250 text-slate-900 focus:border-red-655 shadow-sm'
+                          }`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsScannerOpen(true)}
+                          className="px-4 bg-red-650 hover:bg-red-700 text-white rounded-lg flex items-center justify-center cursor-pointer transition-colors shadow-sm active:scale-95 border-none"
+                          title="Escanear Selo com a Câmera"
+                        >
+                          <QrCode className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* Chassi */}
@@ -1028,7 +1310,7 @@ function InspecaoOuCadastroContent() {
                   <div className="space-y-1 col-span-2">
                     <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider flex items-center gap-1`}>
                       <MapPin size={8} className="text-red-500" />
-                      Localização Física
+                      Setor / Sub-Local
                     </span>
                     <p className={`font-semibold leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
                       {ativo.location} {ativo.subLocation ? ` - ${ativo.subLocation}` : ''}
@@ -1281,7 +1563,7 @@ function InspecaoOuCadastroContent() {
                   <>
                     <p>1. **Categoria:** Identifique e confirme a categoria do ativo (Extintores, Hidrantes, etc.).</p>
                     <p>2. **Patrimônio:** Insira apenas a numeração física. O prefixo (ex: EXT-) é gerado automaticamente pelo SPCI.</p>
-                    <p>3. **Localização:** Escolha o Local e descreva a sala ou área específica no Sub-local.</p>
+                    <p>3. **Setor / Sub-Local:** Escolha o Setor da Planta e selecione ou adicione a posição física em Sub-Local.</p>
                     <p>4. **Vencimentos:** O sistema agendará a próxima vistoria no mês corrente do cadastro de forma automática.</p>
                   </>
                 ) : (
@@ -1305,6 +1587,95 @@ function InspecaoOuCadastroContent() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* DUPLICITY ALERT MODAL */}
+      <AnimatePresence>
+        {showDuplicityAlert && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/90 flex items-center justify-center p-4 z-50"
+          >
+            <motion.div 
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              className="bg-slate-900 border border-slate-800 max-w-sm w-full p-6 space-y-5 text-center font-mono shadow-2xl relative"
+            >
+              <div className="absolute top-0 left-0 right-0 h-1 bg-amber-500" />
+              
+              <div className="w-12 h-12 bg-amber-950/50 border border-amber-900/60 rounded-full flex items-center justify-center mx-auto text-amber-500 shadow-inner">
+                <AlertTriangle size={20} />
+              </div>
+
+              <div className="space-y-1">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-slate-100">
+                  Ativo já Inspecionado Hoje
+                </h3>
+                <p className="text-[9px] uppercase tracking-wider text-amber-500 font-bold mt-1">
+                  Inspeção já realizada
+                </p>
+              </div>
+
+              <div className="bg-slate-950 border border-slate-850 p-3 rounded-none text-[9px] text-slate-400 space-y-1 text-left leading-normal font-mono">
+                <p><span className="text-slate-500 uppercase">Equipamento:</span> <span className="text-slate-200 font-bold">{ativo?.idAtivo || ativo?.id}</span></p>
+                <p><span className="text-slate-500 uppercase">Técnico:</span> <span className="text-slate-200 font-bold">{existingInspectionTecnico}</span></p>
+                <p><span className="text-slate-500 uppercase">Horário:</span> <span className="text-slate-200 font-bold">{existingInspectionTime}</span></p>
+              </div>
+
+              <p className="text-[9px] text-slate-500 font-sans leading-normal px-1">
+                A norma de segurança SPCI recomenda apenas uma vistoria diária por ativo. Deseja retornar ou prosseguir e sobrescrever o laudo anterior?
+              </p>
+
+              <div className="flex gap-3 pt-2">
+                <button 
+                  onClick={() => {
+                    setShowDuplicityAlert(false);
+                    router.push('/inspecao'); // Volta à lista de ronda
+                  }}
+                  className="flex-grow py-2.5 bg-slate-850 hover:bg-slate-800 text-slate-350 text-[9px] font-bold uppercase border border-slate-850 cursor-pointer"
+                >
+                  Voltar
+                </button>
+                <button 
+                  onClick={() => setShowDuplicityAlert(false)}
+                  className="flex-grow py-2.5 bg-amber-600 hover:bg-amber-500 text-white text-[9px] font-bold uppercase cursor-pointer border-none shadow-md active:scale-95 transition-all"
+                >
+                  Prosseguir
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* SCANNER DE QR CODE DO INMETRO */}
+      <QrCameraScanner 
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScanSuccess={(code) => {
+          setIsScannerOpen(false);
+          const parsed = parseInmetroCode(code);
+          setSeloInmetro(parsed);
+          try {
+            const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(783.99, audioCtx.currentTime); // G5
+            gain.gain.setValueAtTime(0, audioCtx.currentTime);
+            gain.gain.linearRampToValueAtTime(0.06, audioCtx.currentTime + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.25);
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.25);
+          } catch (e) {
+            console.warn('AudioContext beep failed:', e);
+          }
+        }}
+      />
 
     </div>
   );

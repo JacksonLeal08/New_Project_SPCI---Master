@@ -94,3 +94,15 @@ export interface InspecaoRealizada {
   created_at?: string;
 }
 
+export interface NotificationItem {
+  id: string;
+  title: string;
+  message: string;
+  type: 'cadastro' | 'inspecao' | 'alerta';
+  category?: string;
+  patrimonio?: string;
+  read: boolean;
+  created_at: string;
+}
+
+

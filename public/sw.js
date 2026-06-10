@@ -49,6 +49,12 @@ self.addEventListener('fetch', (event) => {
 
       return fetch(event.request)
         .then((response) => {
+          // Se a resposta foi redirecionada, retorna um redirecionamento limpo para o navegador seguir.
+          // Isso evita o erro de segurança do browser quando o modo de redirect do request é 'manual' (ex: navegação de páginas).
+          if (response.redirected) {
+            return Response.redirect(response.url, 307);
+          }
+
           // Não cacheia respostas que não sejam de sucesso ou APIs
           if (!response || response.status !== 200 || response.type !== 'basic' || event.request.url.includes('/api/')) {
             return response;
