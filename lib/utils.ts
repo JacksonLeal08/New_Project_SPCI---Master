@@ -58,4 +58,50 @@ export function parseInmetroCode(scannedText: string): string {
   return text.replace(/[^a-zA-Z0-9-]/g, '').trim();
 }
 
+/**
+ * Extrai o ID ou Hash correspondente a partir de uma URL completa de acesso ou consulta.
+ * Caso o texto não seja uma URL, retorna o próprio texto original limpo.
+ */
+export function extractIdOrHashFromUrl(code: string): string {
+  if (!code) return "";
+  const trimmed = code.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    try {
+      const url = new URL(trimmed);
+      const pathname = url.pathname;
+      
+      // Caso 1: /qr/[hash]
+      if (pathname.includes('/qr/')) {
+        const parts = pathname.split('/qr/');
+        if (parts[1]) {
+          return parts[1].split('?')[0].split('/')[0];
+        }
+      }
+      
+      // Caso 2: /inspecao/[id]
+      if (pathname.includes('/inspecao/')) {
+        const parts = pathname.split('/inspecao/');
+        if (parts[1]) {
+          const val = parts[1].split('?')[0].split('/')[0];
+          if (val && val !== 'novo') {
+            return val;
+          }
+        }
+      }
+
+      // Caso 3: /public/extintores/[hash]
+      if (pathname.includes('/public/extintores/')) {
+        const parts = pathname.split('/public/extintores/');
+        if (parts[1]) {
+          return parts[1].split('?')[0].split('/')[0];
+        }
+      }
+    } catch (e) {
+      console.warn('[QR Scanner] Erro ao analisar URL:', e);
+    }
+  }
+  return trimmed;
+}
+
+
 

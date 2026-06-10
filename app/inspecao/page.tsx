@@ -29,6 +29,7 @@ import { SyncQueue } from '@/lib/syncQueue';
 import QrCameraScanner from '@/app/components/QrCameraScanner';
 import { idb } from '@/lib/indexedDb';
 import { useSync } from '@/hooks/useSync';
+import { extractIdOrHashFromUrl } from '@/lib/utils';
 
 // Mapeamento de categorias de ativos
 interface Categoria {
@@ -163,7 +164,8 @@ export default function PortalTecnicoPage() {
   const handleScanSuccess = (decodedCode: string) => {
     setIsScannerOpen(false);
     if (decodedCode) {
-      router.push(`/inspecao/${decodedCode.trim()}`);
+      const parsedCode = extractIdOrHashFromUrl(decodedCode);
+      router.push(`/inspecao/${parsedCode}`);
     }
   };
 

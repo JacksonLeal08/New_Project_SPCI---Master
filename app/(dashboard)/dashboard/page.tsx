@@ -155,17 +155,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Indicador de status de Conexão com o Supabase */}
-      <div className="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-200 rounded-2xl p-4 shadow-sm flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <span className="flex h-3 w-3 relative" aria-hidden="true">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-          </span>
-          <span className="font-['Hanken_Grotesk'] font-black text-emerald-900 uppercase tracking-widest text-xs">Banco de Dados Supabase Conectado</span>
-        </div>
-        <span className="text-emerald-700 text-[10px] font-mono font-bold bg-white px-3 py-1 rounded border border-emerald-100">Sessão Segura & Ativa</span>
-      </div>
 
       {/* ═══ LINHA 1: KPIs de CONFORMIDADE DE ATIVOS (Melhorados) ═══ */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">

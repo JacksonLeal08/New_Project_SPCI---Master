@@ -635,35 +635,33 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
 export async function fetchAtivoParaInspecao(idOrPatrimonio: string): Promise<any | null> {
   try {
     const idUpper = idOrPatrimonio.toUpperCase().trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idUpper);
     const isExtintor = idUpper.startsWith('EXT-');
 
-    if (isExtintor) {
-      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idUpper);
+    if (isUuid || isExtintor) {
       const query = supabase.from('vw_extintores_publico').select('*');
       if (isUuid) {
-        query.eq('id', idUpper);
+        query.or(`id.eq.${idUpper},qr_code_hash.eq.${idUpper}`);
       } else {
         query.eq('numero_patrimonio', idUpper);
       }
       const { data, error } = await query.maybeSingle();
-      if (error) {
+      if (error || !data) {
         console.warn('Erro ao buscar de vw_extintores_publico, tentando view_extintores...', error);
         const oldQuery = supabase.from('view_extintores').select('*');
         if (isUuid) {
-          oldQuery.eq('id', idUpper);
+          oldQuery.or(`id.eq.${idUpper},qr_code_hash.eq.${idUpper}`);
         } else {
           oldQuery.eq('id_ativo', idUpper);
         }
         const { data: oldData, error: oldErr } = await oldQuery.maybeSingle();
-        if (oldErr) throw oldErr;
-        if (oldData) return deserializeExtintor(oldData);
+        if (!oldErr && oldData) return deserializeExtintor(oldData);
       }
       if (data) return deserializeNewExtintor(data);
     }
 
     // Fallback/Outras categorias
     const query = supabase.from('assets').select('*');
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idUpper);
     if (isUuid) {
       query.eq('id', idUpper);
     } else {

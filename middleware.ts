@@ -16,6 +16,19 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Se o parâmetro new_session estiver presente, limpa a sessão ativa para permitir novo login
+  const newSessionParam = url.searchParams.get('new_session');
+  if (newSessionParam === 'true') {
+    url.searchParams.delete('new_session');
+    const response = NextResponse.redirect(url);
+    response.cookies.delete('spci_session_token');
+    response.cookies.delete('spci_user_role');
+    response.cookies.delete('spci_user_expires');
+    response.cookies.delete('spci_shared_token');
+    return response;
+  }
+
+
   // 2. Leitura dos cookies de sessão e governança corporativa
   const sessionToken = request.cookies.get('spci_session_token')?.value;
   const userRole = request.cookies.get('spci_user_role')?.value;

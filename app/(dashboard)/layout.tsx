@@ -9,6 +9,7 @@ import { Header } from '../components/Header';
 import { getUserProfile } from '@/lib/supabaseDb';
 import { idb } from '@/lib/indexedDb';
 import { LogOut } from 'lucide-react';
+import { extractIdOrHashFromUrl } from '@/lib/utils';
 
 
 // Componentes modulares e desacoplados do SPCI
@@ -109,15 +110,34 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   // --- SCANNER DE QR CODE OTIMIZADO ---
   const handleQrScanSuccess = async (code: string) => {
-    const uppercaseCode = code.toUpperCase().trim();
+    const parsedCode = extractIdOrHashFromUrl(code);
+    const uppercaseCode = parsedCode.toUpperCase().trim();
     if (!uppercaseCode) return;
     
     // 1. Busca rápida no estado do React
-    let ext = extintores.find(x => x.idAtivo === uppercaseCode || x.chassi === uppercaseCode);
-    let hid = hidrantes.find(x => x.idAtivo === uppercaseCode);
-    let sin = sinalizacoes.find(x => x.idAtivo === uppercaseCode);
-    let lum = iluminacoes.find(x => x.idAtivo === uppercaseCode);
-    let bom = (bombas as any[])?.find((x: any) => x.idAtivo === uppercaseCode || x.code === uppercaseCode);
+    let ext = extintores.find(x => 
+      x.idAtivo?.toUpperCase() === uppercaseCode || 
+      x.chassi?.toUpperCase() === uppercaseCode || 
+      x.qr_code_hash?.toUpperCase() === uppercaseCode ||
+      x.id?.toUpperCase() === uppercaseCode
+    );
+    let hid = hidrantes.find(x => 
+      x.idAtivo?.toUpperCase() === uppercaseCode || 
+      x.id?.toUpperCase() === uppercaseCode
+    );
+    let sin = sinalizacoes.find(x => 
+      x.idAtivo?.toUpperCase() === uppercaseCode || 
+      x.id?.toUpperCase() === uppercaseCode
+    );
+    let lum = iluminacoes.find(x => 
+      x.idAtivo?.toUpperCase() === uppercaseCode || 
+      x.id?.toUpperCase() === uppercaseCode
+    );
+    let bom = (bombas as any[])?.find((x: any) => 
+      x.idAtivo?.toUpperCase() === uppercaseCode || 
+      x.code?.toUpperCase() === uppercaseCode || 
+      x.id?.toUpperCase() === uppercaseCode
+    );
 
     let match = ext || hid || sin || lum || bom;
 

@@ -1,0 +1,10 @@
+- [x] Criar nova branch local `fix/qr-routing-session-clean`
+- [x] Implementar helper de extração de URL em `lib/utils.ts`
+- [x] Atualizar `fetchAtivoParaInspecao` em `lib/supabaseDb.ts` para buscar por `qr_code_hash`
+- [x] Atualizar o leitor óptico em `app/inspecao/page.tsx` para usar o helper
+- [x] Atualizar o leitor óptico em `app/(dashboard)/layout.tsx` para usar o helper e buscar por `qr_code_hash`
+- [x] Remover o banner verde do banco de dados em `app/(dashboard)/dashboard/page.tsx`
+- [x] Implementar interceptador de `new_session=true` no `middleware.ts`
+- [x] Adicionar parâmetro `?new_session=true` nas URLs de compartilhamento em `app/(dashboard)/configuracoes/page.tsx`
+- [x] Validar a build com `npm run build`
+- [/] Enviar alterações para o git (commit e push na branch)
