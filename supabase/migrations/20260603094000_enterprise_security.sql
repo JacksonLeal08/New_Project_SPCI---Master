@@ -390,7 +390,14 @@ begin
             updated_at,
             raw_app_meta_data,
             raw_user_meta_data,
-            is_sso_user
+            is_sso_user,
+            confirmation_token,
+            email_change,
+            email_change_token_new,
+            email_change_token_current,
+            recovery_token,
+            phone_change,
+            phone_change_token
         )
         values (
             '00000000-0000-0000-0000-000000000000', -- UUID de instância padrão Supabase
@@ -404,7 +411,14 @@ begin
             now(),
             jsonb_build_object('provider', 'email', 'providers', array['email']),
             jsonb_build_object('user_name', p_username, 'full_name', p_name),
-            false
+            false,
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            ''
         )
         returning id into v_new_user_id;
     exception when unique_violation then
