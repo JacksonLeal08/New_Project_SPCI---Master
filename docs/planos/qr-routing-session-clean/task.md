@@ -7,4 +7,4 @@
 - [x] Implementar interceptador de `new_session=true` no `middleware.ts`
 - [x] Adicionar parâmetro `?new_session=true` nas URLs de compartilhamento em `app/(dashboard)/configuracoes/page.tsx`
 - [x] Validar a build com `npm run build`
-- [/] Enviar alterações para o git (commit e push na branch)
+- [x] Enviar alterações para o git (commit e push na branch)

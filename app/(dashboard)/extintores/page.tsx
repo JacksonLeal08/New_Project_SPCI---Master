@@ -1576,7 +1576,11 @@ export default function ExtintoresPage() {
                   layout
                   initial={{ opacity: 0, scale: 0.97 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="bg-white rounded-2xl border border-slate-200 shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-md hover:border-slate-350 transition-all duration-300 group"
+                  className={`transition-all duration-300 group flex flex-col justify-between rounded-2xl ${
+                    deletingAssetId === asset.id 
+                      ? 'border-transparent shadow-none bg-transparent overflow-visible' 
+                      : 'bg-white border border-slate-200 shadow-sm relative overflow-hidden hover:shadow-md hover:border-slate-350'
+                  }`}
                 >
                   <DisintegrationOverlay
                     isActive={deletingAssetId === asset.id}

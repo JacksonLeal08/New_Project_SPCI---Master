@@ -48,7 +48,14 @@ export default function SinalizacaoPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {sinalizacoes.map((asset) => (
-          <div key={asset.id} className="bg-white rounded-2xl border border-[#CFD8DC] shadow-sm relative overflow-hidden flex flex-col justify-between hover:shadow-lg transition-shadow group">
+          <div 
+            key={asset.id} 
+            className={`transition-all duration-300 group flex flex-col justify-between rounded-2xl ${
+              deletingAssetId === asset.id 
+                ? 'border-transparent shadow-none bg-transparent overflow-visible' 
+                : 'bg-white border border-[#CFD8DC] shadow-sm relative overflow-hidden hover:shadow-lg transition-shadow'
+            }`}
+          >
             <DisintegrationOverlay
               isActive={deletingAssetId === asset.id}
               themeColor="#f97316"

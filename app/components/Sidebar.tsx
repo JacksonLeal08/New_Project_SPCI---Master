@@ -60,7 +60,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
     { id: 'bombas', label: 'Casa de Bombas', icon: <Sliders className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/bombas' },
     { id: 'ronda', label: 'Despacho & Ronda Campo', icon: <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/ronda' },
     { id: 'alerts', label: 'Disparo de Alertas', icon: <Bell className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/alerts' },
-    { id: 'logs', label: 'Logs do Sistema', icon: <History className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/logs' },
+    ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'logs', label: 'Logs do Sistema', icon: <History className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/logs' }] : []),
     ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'gestao-ativo', label: 'Gestão de Ativo', icon: <Boxes className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/gestao-ativo' }] : []),
     ...(isAdmin ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/configuracoes' }] : [])
   ];

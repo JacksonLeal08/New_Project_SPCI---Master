@@ -139,6 +139,17 @@ export async function middleware(request: NextRequest) {
     }
   }
 
+  // 7.5. Controle RBAC de nível de Desenvolvedor (Logs e Gestão de Ativos)
+  const isDeveloperRoute = path.startsWith('/logs') || path.startsWith('/gestao-ativo');
+  if (isDeveloperRoute && sessionToken) {
+    const isDeveloper = userRole === 'Desenvolvedor';
+
+    if (!isDeveloper) {
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
+    }
+  }
+
   return NextResponse.next();
 }
 

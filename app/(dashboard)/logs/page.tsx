@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import * as XLSX from 'xlsx';
+import { useRouter } from 'next/navigation';
 import { 
   Download, 
   Share2, 
@@ -15,11 +16,45 @@ import {
   ChevronDown,
   Activity,
   ArrowUpDown,
-  FileCheck
+  FileCheck,
+  Lock,
+  ArrowLeft
 } from 'lucide-react';
 
 export default function LogsAuditoriaPage() {
-  const { auditLogs, triggerSuccessNotification } = useSpci();
+  const router = useRouter();
+  const { auditLogs, triggerSuccessNotification, userProfile } = useSpci();
+
+  // 1. RBAC - Acesso restrito ao cargo Desenvolvedor
+  const isDesenvolvedor = userProfile?.role === 'Desenvolvedor';
+
+  if (!isDesenvolvedor) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center p-4 select-none">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl p-6 text-center font-mono"
+        >
+          <div className="w-16 h-16 bg-red-950/40 border border-red-900/60 rounded-full flex items-center justify-center mx-auto mb-5 text-red-500 shadow-inner">
+            <Lock className="w-7 h-7" />
+          </div>
+          <h2 className="text-sm font-black text-slate-100 uppercase tracking-widest">
+            Acesso Restrito
+          </h2>
+          <p className="text-[10px] text-slate-400 font-sans leading-relaxed mt-3 px-2">
+            A visualização dos logs de auditoria do sistema é restrita exclusivamente ao perfil de <strong>Desenvolvedor SPCI</strong>.
+          </p>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="mt-6 w-full py-3 bg-red-650 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-md flex items-center justify-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" /> Voltar ao Dashboard
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   // --- FILTER STATES ---
   const [filterAction, setFilterAction] = useState<string>('ALL');

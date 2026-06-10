@@ -67,9 +67,18 @@ export const googleSignIn = async (): Promise<null> => {
 export const signInWithEmailOrUsername = async (identifier: string, password: string): Promise<CompatibleUser | null> => {
   try {
     let email = identifier.trim();
+    
+    // Remove leading '@' if typed by the user as part of their username (e.g. '@jfleal' -> 'jfleal')
+    if (email.startsWith('@')) {
+      email = email.slice(1);
+    }
 
-    // Se nao for um e-mail valido (nao contem '@'), busca o e-mail pelo user_name na tabela public.usuarios
-    if (!email.includes('@')) {
+    // Strict regex to check if the identifier is a valid email
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isEmail = emailRegex.test(email);
+
+    // If it is not a valid email, assume it's a username and search in public.usuarios
+    if (!isEmail) {
       const { data, error: lookupError } = await supabase
         .from('usuarios')
         .select('email')

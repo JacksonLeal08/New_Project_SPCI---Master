@@ -41,8 +41,9 @@ export default function DisintegrationOverlay({
     if (!parent) return;
 
     const rect = parent.getBoundingClientRect();
-    canvas.width = rect.width;
-    canvas.height = rect.height;
+    const padding = 150; // padding to allow particles to float outside card
+    canvas.width = rect.width + padding * 2;
+    canvas.height = rect.height + padding * 2;
 
     // Generate particles in a grid covering the card
     const particles: Particle[] = [];
@@ -63,11 +64,14 @@ export default function DisintegrationOverlay({
       '#f8fafc', // Slate 50
     ];
 
-    for (let x = 4; x < canvas.width - 4; x += stepX) {
-      for (let y = 4; y < canvas.height - 4; y += stepY) {
-        // Add slight randomness to initial position to avoid rigid lines
-        const px = x + (Math.random() - 0.5) * 6;
-        const py = y + (Math.random() - 0.5) * 6;
+    const cardWidth = rect.width;
+    const cardHeight = rect.height;
+
+    for (let x = 4; x < cardWidth - 4; x += stepX) {
+      for (let y = 4; y < cardHeight - 4; y += stepY) {
+        // Add slight randomness to initial position and add padding offset
+        const px = x + padding + (Math.random() - 0.5) * 6;
+        const py = y + padding + (Math.random() - 0.5) * 6;
 
         // Pick random color
         const color = colorChoices[Math.floor(Math.random() * colorChoices.length)];
@@ -137,8 +141,14 @@ export default function DisintegrationOverlay({
   return (
     <canvas
       ref={canvasRef}
-      className="absolute inset-0 w-full h-full pointer-events-none z-50 rounded-2xl"
-      style={{ mixBlendMode: 'normal' }}
+      className="absolute pointer-events-none z-50"
+      style={{
+        mixBlendMode: 'normal',
+        top: '-150px',
+        left: '-150px',
+        width: 'calc(100% + 300px)',
+        height: 'calc(100% + 300px)',
+      }}
     />
   );
 }
