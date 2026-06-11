@@ -26,6 +26,7 @@ import { SyncQueue } from '@/lib/syncQueue';
 import { playTelemetryPingSound } from '@/lib/audio';
 import { MediaQueue } from '@/lib/mediaQueue';
 import { NotificationItem } from '@/lib/types';
+import { createUserAction, deleteUserAction } from '@/app/actions/userActions';
 
 
 // --- INITIAL SEED DATA ---
@@ -145,7 +146,7 @@ interface SpciContextType {
   handleUpdateLogoAndProfile: (logoUrl: string, name: string) => Promise<void>;
   handleAdminRoleStatusChange: (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => Promise<void>;
   handleAdminDeleteUser: (uid: string) => Promise<void>;
-  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', password: string, expiresAt?: string | null, allowedModules?: string[] | null) => Promise<any>;
+  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', password: string, phone: string, expiresAt?: string | null, allowedModules?: string[] | null) => Promise<any>;
   handleCredentialsLogin: (identifier: string, pass: string) => Promise<boolean>;
   isGoogleUser: boolean;
   fetchUsers: () => Promise<void>;
@@ -1037,7 +1038,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleAdminDeleteUser = useCallback(async (uid: string) => {
     try {
-      await deleteUserProfileByAdmin(uid);
+      await deleteUserAction(uid);
       await fetchUsers();
       triggerSuccessNotification("Excluído com Sucesso! 🗑️", "A credencial foi deletada de forma definitiva.");
     } catch (err: any) {
@@ -1052,23 +1053,22 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     name: string, 
     role: 'Desenvolvedor' | 'Administrador' | 'Usuário', 
     password: string,
+    phone: string,
     expiresAt: string | null = null,
     allowedModules: string[] | null = null
   ) => {
     addConsoleLog(`[Onboarding] Cadastrando colaborador ${name} (${role})...`);
     try {
-      // RPC call create_new_user with explicit password, expiration date, and allowed modules
-      const { data, error } = await supabase.rpc('create_new_user', {
-        p_email: email,
-        p_username: username,
-        p_name: name,
-        p_role: role,
-        p_password: password,
-        p_expires_at: expiresAt,
-        p_allowed_modules: allowedModules
+      const data = await createUserAction({
+        email,
+        username,
+        name,
+        role,
+        phone,
+        password,
+        expiresAt,
+        allowedModules
       });
-
-      if (error) throw error;
       
       addConsoleLog(`[Onboarding] Sucesso ao cadastrar colaborador ${name}.`, 'SUCESSO');
       await fetchUsers();

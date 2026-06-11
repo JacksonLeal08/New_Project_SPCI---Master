@@ -11,6 +11,7 @@ export interface UserProfile {
   logoUrl: string;
   role: 'Desenvolvedor' | 'Administrador' | 'Usuário';
   status: string;
+  telefoneWhatsapp: string;
   dataExpiracao?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -21,13 +22,14 @@ export interface UserProfile {
 const serializeProfile = (profile: UserProfile) => {
   return {
     id: profile.uid,
-    name: profile.name,
+    nome_completo: profile.name,
     email: profile.email,
     user_name: profile.userName,
     photo_url: profile.photoURL || null,
     logo_url: profile.logoUrl || null,
-    role: profile.role,
-    status: profile.status,
+    perfil_acesso: profile.role,
+    status_conta: profile.status,
+    telefone_whatsapp: profile.telefoneWhatsapp || '',
     data_expiracao: profile.dataExpiracao || null,
     created_at: profile.createdAt || new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -37,13 +39,14 @@ const serializeProfile = (profile: UserProfile) => {
 const deserializeProfile = (row: any): UserProfile => {
   return {
     uid: row.id,
-    name: row.name,
+    name: row.nome_completo || row.name || '',
     email: row.email,
     userName: row.user_name || '',
     photoURL: row.photo_url || '',
     logoUrl: row.logo_url || '',
-    role: row.role as 'Desenvolvedor' | 'Administrador' | 'Usuário',
-    status: row.status || 'active',
+    role: (row.perfil_acesso || row.role) as 'Desenvolvedor' | 'Administrador' | 'Usuário',
+    status: row.status_conta || row.status || 'Ativo',
+    telefoneWhatsapp: row.telefone_whatsapp || '',
     dataExpiracao: row.data_expiracao || null,
     createdAt: row.created_at,
     updatedAt: row.updated_at
@@ -252,7 +255,8 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
       photoURL: user.photoURL || '',
       logoUrl: '',
       role: initialRole,
-      status: 'active',
+      status: 'Ativo',
+      telefoneWhatsapp: '',
       dataExpiracao: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -280,7 +284,8 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
       photoURL: user.photoURL || '',
       logoUrl: '',
       role: isBootstrappedAdmin ? 'Desenvolvedor' : 'Usuário',
-      status: 'active',
+      status: 'Ativo',
+      telefoneWhatsapp: '',
       dataExpiracao: null,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
@@ -317,7 +322,7 @@ export async function updateUserLogo(uid: string, logoUrl: string, name?: string
       updated_at: new Date().toISOString()
     };
     if (name) {
-      updatePayload.name = name;
+      updatePayload.nome_completo = name;
     }
 
     const { error } = await supabase
@@ -344,8 +349,8 @@ export async function updateUserRoleAndStatus(
     const { error } = await supabase
       .from('usuarios')
       .update({
-        role,
-        status,
+        perfil_acesso: role,
+        status_conta: status,
         updated_at: new Date().toISOString()
       })
       .eq('id', uid);

@@ -56,6 +56,7 @@ export default function ConfiguracoesPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteUsername, setInviteUsername] = useState('');
   const [inviteName, setInviteName] = useState('');
+  const [invitePhone, setInvitePhone] = useState('');
   const [inviteRole, setInviteRole] = useState<'Desenvolvedor' | 'Administrador' | 'Usuário'>('Usuário');
   const [inviteExpiresAt, setInviteExpiresAt] = useState('');
   const [invitePassword, setInvitePassword] = useState('');
@@ -435,6 +436,9 @@ export default function ConfiguracoesPage() {
                             <td className="p-4 text-[10px] text-slate-500">
                               <p className="font-bold text-red-650">@{u.userName || 'n/a'}</p>
                               <p className="text-slate-400 mt-0.5">{u.email}</p>
+                              {u.telefoneWhatsapp && (
+                                <p className="text-emerald-600 font-bold mt-0.5">📞 {u.telefoneWhatsapp}</p>
+                              )}
                             </td>
                             <td className="p-4">
                               <select 
@@ -523,14 +527,15 @@ export default function ConfiguracoesPage() {
                   inviteName,
                   inviteRole,
                   invitePassword,
+                  invitePhone,
                   expiresAtIso,
                   userProfile?.role === 'Desenvolvedor' ? selectedModules : null
                 );
                 
-                // Return payload from RPC includes the password, but just in case, we can attach it to creds
                 setCreatedCredentials({ 
                   ...creds, 
                   password: invitePassword,
+                  phone: invitePhone,
                   expires_at: expiresAtIso
                 });
                 
@@ -538,6 +543,7 @@ export default function ConfiguracoesPage() {
                 setInviteEmail('');
                 setInviteUsername('');
                 setInviteName('');
+                setInvitePhone('');
                 setInvitePassword('');
                 setInviteRole('Usuário');
                 setInviteExpiresAt('');
@@ -583,6 +589,18 @@ export default function ConfiguracoesPage() {
                   onChange={(e) => setInviteEmail(e.target.value)}
                   placeholder="Ex: joao.silva@empresa.com"
                   className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[9px] font-bold uppercase text-slate-500">Telefone / WhatsApp</label>
+                <input 
+                  type="text" 
+                  required 
+                  value={invitePhone}
+                  onChange={(e) => setInvitePhone(e.target.value)}
+                  placeholder="Ex: 5511999999999 (somente números)"
+                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
                 />
               </div>
 
@@ -719,6 +737,10 @@ export default function ConfiguracoesPage() {
                 <span className="text-slate-800 font-bold">{createdCredentials.email}</span>
               </div>
               <div>
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">WhatsApp</span>
+                <span className="text-slate-800 font-bold">{createdCredentials.phone || 'N/A'}</span>
+              </div>
+              <div>
                 <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Senha de Acesso</span>
                 <span className="text-red-500 font-black text-xs tracking-wider">{createdCredentials.password || createdCredentials.temp_password}</span>
               </div>
@@ -748,7 +770,10 @@ export default function ConfiguracoesPage() {
                 onClick={() => {
                   const pass = createdCredentials.password || createdCredentials.temp_password;
                   const msg = `🚒 *SPCI - CREDENCIAIS DE ACESSO* 🚒\n\nOlá *${createdCredentials.name}*!\nSeu cadastro no SPCI foi realizado com sucesso.\n\n🌐 *Link de Acesso:* ${window.location.origin}/login?new_session=true\n📧 *E-mail:* ${createdCredentials.email}\n👤 *Username:* @${createdCredentials.username}\n🔑 *Senha:* ${pass}\n` + (createdCredentials.expires_at ? `⏳ *Validade:* até ${new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}\n` : '') + `\nFaça seu login com segurança!`;
-                  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                  const cleanPhone = createdCredentials.phone ? createdCredentials.phone.replace(/\D/g, '') : '';
+                  const whatsappUrl = cleanPhone 
+                    ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
+                    : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
                   window.open(whatsappUrl, '_blank');
                 }}
                 className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer shadow-md"
