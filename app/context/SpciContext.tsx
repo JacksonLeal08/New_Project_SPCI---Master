@@ -26,7 +26,7 @@ import { SyncQueue } from '@/lib/syncQueue';
 import { playTelemetryPingSound } from '@/lib/audio';
 import { MediaQueue } from '@/lib/mediaQueue';
 import { NotificationItem } from '@/lib/types';
-import { createUserAction, deleteUserAction } from '@/app/actions/userActions';
+import { createUserAction, deleteUserAction, updateUserStatusAction } from '@/app/actions/userActions';
 
 
 // --- INITIAL SEED DATA ---
@@ -1027,7 +1027,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleAdminRoleStatusChange = useCallback(async (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => {
     try {
-      await updateUserRoleAndStatus(uid, newRole, newStatus);
+      const dbStatus = (newStatus === 'active' || newStatus === 'Ativo') ? 'Ativo' : 'Inativo/Suspenso';
+      await updateUserStatusAction(uid, { role: newRole, status: dbStatus as any });
       await fetchUsers();
       triggerSuccessNotification("Usuário Atualizado! 🟢", "Perfil de governança modificado com sucesso.");
     } catch (err: any) {

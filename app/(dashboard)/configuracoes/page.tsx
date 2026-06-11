@@ -405,7 +405,9 @@ export default function ConfiguracoesPage() {
                       {userList.map(u => {
                         const isOwnAccount = u.uid === currentUser?.uid;
                         const isPrimaryAdmin = u.email?.toLowerCase() === 'jackson602@gmail.com';
-                        const disableActions = isPrimaryAdmin || isOwnAccount || (u.role === 'Desenvolvedor' && userProfile?.role !== 'Desenvolvedor');
+                        const disableActions = isOwnAccount || 
+                          (isPrimaryAdmin && userProfile?.role !== 'Desenvolvedor') || 
+                          (u.role === 'Desenvolvedor' && userProfile?.role !== 'Desenvolvedor');
                         
                         return (
                           <tr key={u.uid} className="hover:bg-slate-50 transition-all text-slate-700">
