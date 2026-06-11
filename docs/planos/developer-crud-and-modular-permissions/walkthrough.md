@@ -20,9 +20,19 @@ Este relatório documenta as modificações aplicadas para habilitar a governan�
   * Criação da lista `filteredNavItems` para filtrar os itens de menu baseando-se nas permissões do usuário logado (`userProfile?.permissions`).
   * O perfil de `Desenvolvedor` visualiza todos os elementos de forma irrestrita.
   * O menu "Logs do Sistema" e "Gestão de Ativo" são completamente ocultados para Técnico e Administrador.
+  * O menu "Dashboard" é configurado como de visualização obrigatória/padrão para todos.
+  * Usuários sem permissões cadastradas (retrocompatibilidade) ou com lista vazia visualizam **apenas o Dashboard**.
   * Ajuste estético na exibição do cargo na barra superior do menu lateral para mostrar `'DEV'` quando o usuário for do perfil Desenvolvedor.
 
-### 3. Painel de Configurações (CRUD e Cadastro com Flags)
+### 3. Página do Dashboard (Aviso de Acesso Limitado)
+
+* **Arquivo:** [page.tsx](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/app/(dashboard)/dashboard/page.tsx)
+* **Alterações:**
+  * Destruturação de `userProfile` a partir do contexto `useSpci()`.
+  * Criação da condicional `isRestricted` para checar se o usuário logado (não-Desenvolvedor) possui acesso apenas ao Dashboard básico (sem permissões cadastradas ou array vazio).
+  * Renderização de um banner de aviso (`motion.div`) informando que o usuário possui acesso limitado e orientando-o a contatar o Desenvolvedor para habilitar novos módulos.
+
+### 4. Painel de Configurações (CRUD e Cadastro com Flags)
 
 * **Arquivo:** [page.tsx](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/app/(dashboard)/configuracoes/page.tsx)
 * **Alterações:**
@@ -31,7 +41,7 @@ Este relatório documenta as modificações aplicadas para habilitar a governan�
   * Passagem da lista de módulos selecionados para a função de convite (`handleInviteUser`) e posterior envio para a RPC do banco.
   * Correção do select de cargos na tabela CRUD de usuários: Agora a opção "Desenvolvedor" é renderizada se o usuário logado for Desenvolvedor, permitindo que ele promova/demote colaboradores a este nível.
 
-### 4. Operações de Banco de Dados e Contexto do React
+### 5. Operações de Banco de Dados e Contexto do React
 
 * **Arquivos:**
   * [supabaseDb.ts](file:///c:/Users/jacks/OneDrive/Documentos/Jackson%20Leal/ANTIGRAVITY_PROJECTS/New_Project_SPCI---Master/lib/supabaseDb.ts): Adicionado o campo `permissions` na interface `UserProfile` e implementada a chamada de banco `getUserPermissions(uid)` acionando a RPC `get_user_permissions`.
