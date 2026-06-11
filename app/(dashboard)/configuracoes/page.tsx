@@ -60,6 +60,9 @@ export default function ConfiguracoesPage() {
   const [inviteExpiresAt, setInviteExpiresAt] = useState('');
   const [invitePassword, setInvitePassword] = useState('');
   const [inviting, setInviting] = useState(false);
+  const [selectedModules, setSelectedModules] = useState<string[]>([
+    'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
+  ]);
 
   // Onboarding credentials display state
   const [createdCredentials, setCreatedCredentials] = useState<any | null>(null);
@@ -440,7 +443,9 @@ export default function ConfiguracoesPage() {
                                 onChange={(e) => handleAdminRoleStatusChange(u.uid, e.target.value as any, u.status)}
                                 className="bg-white border border-slate-200 rounded-xl p-2 font-bold text-[10px] text-slate-700 focus:outline-none focus:border-red-650 cursor-pointer disabled:opacity-40 shadow-xs"
                               >
-                                {u.role === 'Desenvolvedor' && <option value="Desenvolvedor">💻 Desenvolvedor</option>}
+                                {(userProfile?.role === 'Desenvolvedor' || u.role === 'Desenvolvedor') && (
+                                  <option value="Desenvolvedor">💻 Desenvolvedor</option>
+                                )}
                                 <option value="Administrador">🛡️ Administrador</option>
                                 <option value="Usuário">👷 Técnico de Campo</option>
                               </select>
@@ -518,7 +523,8 @@ export default function ConfiguracoesPage() {
                   inviteName,
                   inviteRole,
                   invitePassword,
-                  expiresAtIso
+                  expiresAtIso,
+                  userProfile?.role === 'Desenvolvedor' ? selectedModules : null
                 );
                 
                 // Return payload from RPC includes the password, but just in case, we can attach it to creds
@@ -535,6 +541,9 @@ export default function ConfiguracoesPage() {
                 setInvitePassword('');
                 setInviteRole('Usuário');
                 setInviteExpiresAt('');
+                setSelectedModules([
+                  'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
+                ]);
               } catch (err: any) {
                 alert(`Erro ao cadastrar usuário: ${err.message || err}`);
               } finally {
@@ -613,10 +622,54 @@ export default function ConfiguracoesPage() {
                 </div>
               </div>
 
+              {userProfile?.role === 'Desenvolvedor' && (
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">
+                    Módulos Autorizados (Abas de Elementos)
+                  </label>
+                  <div className="grid grid-cols-2 gap-2 mt-1">
+                    {[
+                      { id: 'dashboard', label: '📊 Dashboard' },
+                      { id: 'extintores', label: '🧯 Extintores' },
+                      { id: 'hidrantes', label: '💧 Hidrantes' },
+                      { id: 'sinalizacao', label: '⚠️ Sinalização' },
+                      { id: 'iluminacao', label: '💡 Iluminação' },
+                      { id: 'bombas', label: '🔧 Casa de Bombas' },
+                      { id: 'ronda', label: '📱 Ronda & Campo' },
+                      { id: 'alerts', label: '🔔 Alertas' }
+                    ].map(mod => (
+                      <label 
+                        key={mod.id} 
+                        className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-all select-none text-[10px]"
+                      >
+                        <input 
+                          type="checkbox"
+                          checked={selectedModules.includes(mod.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setSelectedModules(prev => [...prev, mod.id]);
+                            } else {
+                              setSelectedModules(prev => prev.filter(id => id !== mod.id));
+                            }
+                          }}
+                          className="rounded border-slate-350 text-red-600 focus:ring-red-500 w-3.5 h-3.5"
+                        />
+                        <span className="font-bold text-slate-700">{mod.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="flex gap-2.5 pt-3 border-t border-slate-100 justify-end">
                 <button 
                   type="button" 
-                  onClick={() => setShowInviteModal(false)}
+                  onClick={() => {
+                    setShowInviteModal(false);
+                    setSelectedModules([
+                      'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
+                    ]);
+                  }}
                   className="px-4 py-2.5 border border-slate-200 hover:border-slate-350 bg-white text-slate-550 font-bold rounded-xl cursor-pointer text-[10px] uppercase transition-all shadow-xs"
                 >
                   Cancelar

@@ -65,6 +65,16 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
     ...(isAdmin ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-4 h-4 transition-transform duration-300 group-hover:scale-110" />, path: '/configuracoes' }] : [])
   ];
 
+  const filteredNavItems = navItems.filter(item => {
+    if (userProfile?.role === 'Desenvolvedor') return true;
+    if (item.id === 'logs' || item.id === 'gestao-ativo') return false;
+    if (item.id === 'configuracoes') return isAdmin;
+    if (userProfile?.permissions) {
+      return userProfile.permissions.includes(item.id);
+    }
+    return true;
+  });
+
   return (
     <aside 
       className={`w-72 bg-[#1b2a32] text-white flex flex-col px-4 py-6 shrink-0 shadow-2xl border-r border-[#cfd8dc]/10 z-50 h-screen select-none font-sans fixed lg:static inset-y-0 left-0 transform lg:transform-none transition-transform duration-300 ${
@@ -113,7 +123,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
             {userProfile?.name ? userProfile.name.toUpperCase() : 'SISTEMA SPCI'}
           </h1>
           <p className="font-mono text-[9px] text-slate-400 tracking-wider uppercase block leading-tight mt-0.5">
-            {userProfile ? `🛡️ ${isAdmin ? 'ADMIN' : 'TÉCNICO'}` : 'Offline-first'}
+            {userProfile ? `🛡️ ${userProfile.role === 'Desenvolvedor' ? 'DEV' : userProfile.role === 'Administrador' ? 'ADMIN' : 'TÉCNICO'}` : 'Offline-first'}
           </p>
         </div>
       </div>
@@ -128,7 +138,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
 
       {/* Links de navegação semânticos e com tags ARIA */}
       <nav className="flex-grow space-y-1 overflow-y-auto" aria-label="Navegação do painel">
-        {navItems.map(item => {
+        {filteredNavItems.map(item => {
           const isActive = activeTab === item.id;
           return (
             <Link

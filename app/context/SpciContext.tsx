@@ -14,6 +14,7 @@ import {
   updateUserRoleAndStatus, 
   getAllUserProfiles, 
   deleteUserProfileByAdmin,
+  getUserPermissions,
   getAssetsList,
   saveAssetToDb,
   deleteAssetFromDb,
@@ -144,7 +145,7 @@ interface SpciContextType {
   handleUpdateLogoAndProfile: (logoUrl: string, name: string) => Promise<void>;
   handleAdminRoleStatusChange: (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => Promise<void>;
   handleAdminDeleteUser: (uid: string) => Promise<void>;
-  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', password: string, expiresAt?: string | null) => Promise<any>;
+  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', password: string, expiresAt?: string | null, allowedModules?: string[] | null) => Promise<any>;
   handleCredentialsLogin: (identifier: string, pass: string) => Promise<boolean>;
   isGoogleUser: boolean;
   fetchUsers: () => Promise<void>;
@@ -724,6 +725,10 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
             email: user.email,
             photoURL: user.photoURL
           });
+          
+          const permissions = await getUserPermissions(user.uid);
+          profile.permissions = permissions;
+          
           setUserProfile(profile);
           setProfileNameInput(profile.name);
           setProfileLogoUrlInput(profile.logoUrl || '');
@@ -1047,18 +1052,20 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     name: string, 
     role: 'Desenvolvedor' | 'Administrador' | 'Usuário', 
     password: string,
-    expiresAt: string | null = null
+    expiresAt: string | null = null,
+    allowedModules: string[] | null = null
   ) => {
     addConsoleLog(`[Onboarding] Cadastrando colaborador ${name} (${role})...`);
     try {
-      // RPC call create_new_user with explicit password and expiration date
+      // RPC call create_new_user with explicit password, expiration date, and allowed modules
       const { data, error } = await supabase.rpc('create_new_user', {
         p_email: email,
         p_username: username,
         p_name: name,
         p_role: role,
         p_password: password,
-        p_expires_at: expiresAt
+        p_expires_at: expiresAt,
+        p_allowed_modules: allowedModules
       });
 
       if (error) throw error;
@@ -1121,6 +1128,9 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           email: user.email,
           photoURL: user.photoURL
         });
+        
+        const permissions = await getUserPermissions(user.uid);
+        profile.permissions = permissions;
         
         setUserProfile(profile);
         setProfileNameInput(profile.name);

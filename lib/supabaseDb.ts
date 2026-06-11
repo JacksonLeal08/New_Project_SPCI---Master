@@ -14,6 +14,7 @@ export interface UserProfile {
   dataExpiracao?: string | null;
   createdAt: string;
   updatedAt: string;
+  permissions?: string[];
 }
 
 // --- PROFILE SERIALIZATION & DESERIALIZATION HELPER ---
@@ -396,6 +397,23 @@ export async function deleteUserProfileByAdmin(uid: string): Promise<void> {
   } catch (error: any) {
     console.error('Error in deleteUserProfileByAdmin:', error);
     throw new Error(`Erro ao deletar perfil: ${error.message || error}`);
+  }
+}
+
+/**
+ * Busca as permissões de abas/elementos do usuário pelo UID.
+ */
+export async function getUserPermissions(uid: string): Promise<string[]> {
+  try {
+    const { data, error } = await supabase.rpc('get_user_permissions', {
+      p_uid: uid
+    });
+
+    if (error) throw error;
+    return data || [];
+  } catch (error: any) {
+    console.error('Erro em getUserPermissions:', error);
+    return [];
   }
 }
 
