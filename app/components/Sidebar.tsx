@@ -69,10 +69,11 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
     if (userProfile?.role === 'Desenvolvedor') return true;
     if (item.id === 'logs' || item.id === 'gestao-ativo') return false;
     if (item.id === 'configuracoes') return isAdmin;
-    if (userProfile?.permissions) {
+    if (item.id === 'dashboard') return true;
+    if (userProfile?.permissions && userProfile.permissions.length > 0) {
       return userProfile.permissions.includes(item.id);
     }
-    return true;
+    return false;
   });
 
   return (

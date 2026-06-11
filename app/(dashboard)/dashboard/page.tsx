@@ -9,6 +9,7 @@ import { D3SectorHeatmap } from '@/app/components/D3Heatmap';
 export default function DashboardPage() {
   const router = useRouter();
   const {
+    userProfile,
     extintores,
     hidrantes,
     sinalizacoes,
@@ -18,6 +19,9 @@ export default function DashboardPage() {
     setScanModal,
     setSelectedAssetForHistory
   } = useSpci();
+
+  const isRestricted = userProfile?.role !== 'Desenvolvedor' && 
+    (!userProfile?.permissions || userProfile.permissions.filter((p: string) => p !== 'dashboard').length === 0);
 
   // Estados para geração de QR Code dinâmico de vistorias em campo
   const [selectedAssetId, setSelectedAssetId] = React.useState<string>('');
@@ -154,6 +158,23 @@ export default function DashboardPage() {
           </button>
         </div>
       </div>
+
+      {/* Aviso de Acesso Limitado / Sem Permissões */}
+      {isRestricted && (
+        <motion.div 
+          initial={{ opacity: 0, y: -10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-amber-50 border-l-4 border-amber-500 p-4 rounded-xl shadow-sm flex items-start gap-3"
+        >
+          <span className="text-xl" aria-hidden="true">⚠️</span>
+          <div>
+            <h4 className="font-['Hanken_Grotesk'] font-bold text-sm text-amber-800">Acesso Restrito / Sem Módulos Ativos</h4>
+            <p className="text-xs text-amber-700 mt-0.5 font-['Hanken_Grotesk']">
+              Seu perfil de acesso está limitado ao Dashboard básico. Entre em contato com o <strong>Desenvolvedor</strong> para liberar novos módulos de navegação no sistema.
+            </p>
+          </div>
+        </motion.div>
+      )}
 
 
       {/* ═══ LINHA 1: KPIs de CONFORMIDADE DE ATIVOS (Melhorados) ═══ */}
