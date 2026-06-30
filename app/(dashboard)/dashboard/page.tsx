@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import { D3SectorHeatmap } from '@/app/components/D3Heatmap';
+import { copyToClipboard } from '@/lib/utils';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -484,9 +485,14 @@ export default function DashboardPage() {
                 <button
                   onClick={() => {
                     const link = `${window.location.origin}/inspecao/${selectedAssetId}`;
-                    navigator.clipboard.writeText(link);
-                    setCopiedLink(true);
-                    setTimeout(() => setCopiedLink(false), 2000);
+                    copyToClipboard(link)
+                      .then(() => {
+                        setCopiedLink(true);
+                        setTimeout(() => setCopiedLink(false), 2000);
+                      })
+                      .catch((err) => {
+                        console.error('Erro ao copiar link:', err);
+                      });
                   }}
                   className={`flex-1 py-2 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all font-mono cursor-pointer border-none active:scale-[0.98] ${
                     copiedLink ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'

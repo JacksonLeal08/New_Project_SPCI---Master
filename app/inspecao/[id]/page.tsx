@@ -32,7 +32,7 @@ import { fetchAtivoParaInspecao, salvarInspecaoNoSupabase, saveAssetToDb } from 
 import { SyncQueue } from '@/lib/syncQueue';
 import { InspecaoRealizada, AssetCategory } from '@/lib/types';
 import { idb } from '@/lib/indexedDb';
-import { sanitizeInputText, parseInmetroCode } from '@/lib/utils';
+import { sanitizeInputText, parseInmetroCode, copyToClipboard } from '@/lib/utils';
 import { useSpci } from '@/app/context/SpciContext';
 import { useSync } from '@/hooks/useSync';
 import QrCameraScanner from '@/app/components/QrCameraScanner';
@@ -433,7 +433,7 @@ function InspecaoOuCadastroContent() {
       const link = isCadastro 
         ? `${window.location.origin}/inspecao`
         : window.location.href;
-      await navigator.clipboard.writeText(link);
+      await copyToClipboard(link);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {

@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import * as XLSX from 'xlsx';
 import { useRouter } from 'next/navigation';
+import { copyToClipboard } from '@/lib/utils';
 import { 
   Download, 
   Share2, 
@@ -269,12 +270,18 @@ export default function LogsAuditoriaPage() {
         });
         triggerSuccessNotification('Dados Compartilhados! ✈️', 'O resumo foi enviado via Web Share API.');
       } catch (err) {
-        navigator.clipboard.writeText(shareText);
-        triggerSuccessNotification('Texto Copiado! 📋', 'Dados do log formatados para compartilhamento.');
+        copyToClipboard(shareText)
+          .then(() => {
+            triggerSuccessNotification('Texto Copiado! 📋', 'Dados do log formatados para compartilhamento.');
+          })
+          .catch((e) => console.error('Erro ao copiar:', e));
       }
     } else {
-      navigator.clipboard.writeText(shareText);
-      triggerSuccessNotification('Texto Copiado! 📋', 'Dados do log formatados para compartilhamento.');
+      copyToClipboard(shareText)
+        .then(() => {
+          triggerSuccessNotification('Texto Copiado! 📋', 'Dados do log formatados para compartilhamento.');
+        })
+        .catch((e) => console.error('Erro ao copiar:', e));
     }
   };
 

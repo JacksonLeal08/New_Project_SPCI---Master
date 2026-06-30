@@ -103,5 +103,30 @@ export function extractIdOrHashFromUrl(code: string): string {
   return trimmed;
 }
 
-
-
+export function copyToClipboard(text: string): Promise<void> {
+  if (typeof window !== 'undefined' && navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text);
+  } else {
+    return new Promise<void>((resolve, reject) => {
+      try {
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        textArea.style.top = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        const successful = document.execCommand('copy');
+        document.body.removeChild(textArea);
+        if (successful) {
+          resolve();
+        } else {
+          reject(new Error('Failed to copy text'));
+        }
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+}

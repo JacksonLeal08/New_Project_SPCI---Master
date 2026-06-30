@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { X, Share2, Shield, AlertTriangle, CheckCircle, HelpCircle, ClipboardList } from 'lucide-react';
 import { useSpci } from '@/app/context/SpciContext';
+import { copyToClipboard } from '@/lib/utils';
 
 interface ConformidadeStudyModalProps {
   isOpen: boolean;
@@ -113,7 +114,7 @@ Acesse o painel para verificar os detalhes: ${window.location.origin}`;
       }
     } else {
       try {
-        await navigator.clipboard.writeText(shareText);
+        await copyToClipboard(shareText);
         alert('Copiado! O relatório formatado de conformidade foi salvo na sua Área de Transferência.');
       } catch (err) {
         console.error('Clipboard copy failed:', err);

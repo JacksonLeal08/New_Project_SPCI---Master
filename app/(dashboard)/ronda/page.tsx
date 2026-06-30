@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import { supabase } from '@/lib/supabaseClient';
+import { copyToClipboard } from '@/lib/utils';
 import { 
   Flame, 
   Droplet, 
@@ -190,7 +191,7 @@ export default function RondaPage() {
   // Funções de Copiar no Clipboard
   const handleCopyText = async (text: string, type: 'vistoria' | 'cadastro' | 'portal') => {
     try {
-      await navigator.clipboard.writeText(text);
+      await copyToClipboard(text);
       setCopiedType(type);
       setTimeout(() => setCopiedType(null), 2000);
     } catch (e) {

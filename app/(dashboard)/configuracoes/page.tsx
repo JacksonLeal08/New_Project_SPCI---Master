@@ -10,6 +10,8 @@ import {
   UserPlus, 
   Check 
 } from 'lucide-react';
+import { copyToClipboard } from '@/lib/utils';
+
 
 export default function ConfiguracoesPage() {
   const router = useRouter();
@@ -759,9 +761,14 @@ export default function ConfiguracoesPage() {
                 onClick={() => {
                   const pass = createdCredentials.password || createdCredentials.temp_password;
                   const textToCopy = `🚒 *SPCI - CREDENCIAIS DE ACESSO* 🚒\n\nOlá *${createdCredentials.name}*!\nSeu cadastro no SPCI foi realizado com sucesso.\n\n🌐 *Link de Acesso:* ${window.location.origin}/login?new_session=true\n📧 *E-mail:* ${createdCredentials.email}\n👤 *Username:* @${createdCredentials.username}\n🔑 *Senha:* ${pass}\n` + (createdCredentials.expires_at ? `⏳ *Validade:* até ${new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}\n` : '') + `\nFaça seu login com segurança!`;
-                  navigator.clipboard.writeText(textToCopy);
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
+                  copyToClipboard(textToCopy)
+                    .then(() => {
+                      setCopied(true);
+                      setTimeout(() => setCopied(false), 2000);
+                    })
+                    .catch((err) => {
+                      console.error('Erro ao copiar:', err);
+                    });
                 }}
                 className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer shadow-md"
               >
