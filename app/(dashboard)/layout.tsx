@@ -314,7 +314,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   };
 
   // --- VIEW DE ACESSO PENDENTE / SUSPENSO ---
-  if (currentUser && userProfile && userProfile.status !== 'active' && userProfile.status !== 'Ativo') {
+  if (typeof window !== 'undefined') {
+    console.log('[DEBUG LAYOUT] User profile status:', userProfile?.status);
+  }
+  const userStatusClean = String(userProfile?.status || '').toLowerCase();
+  if (currentUser && userProfile && userStatusClean !== 'active' && userStatusClean !== 'ativo') {
     return (
       <div className="bg-[#f4f6f8] min-h-screen text-slate-850 flex flex-col items-center justify-center p-6 text-center select-none font-mono relative overflow-hidden">
         <div className="max-w-md bg-white border border-slate-200 p-8 shadow-2xl space-y-6 relative rounded-2xl">
