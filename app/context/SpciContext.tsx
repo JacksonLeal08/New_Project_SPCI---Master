@@ -1071,6 +1071,10 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         allowedModules
       });
       
+      if (!data || data.success === false) {
+        throw new Error(data?.error || 'Falha ao cadastrar colaborador.');
+      }
+
       addConsoleLog(`[Onboarding] Sucesso ao cadastrar colaborador ${name}.`, 'SUCESSO');
       await fetchUsers();
       return data;
