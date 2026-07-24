@@ -7,6 +7,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     '',
     '/login',
     '/acesso-expirado',
+    '/consulta',
   ];
 
   return routes.map((route) => ({

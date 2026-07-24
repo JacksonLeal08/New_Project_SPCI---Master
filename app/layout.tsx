@@ -31,10 +31,24 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'SISTEMA SPCI - Gestão de Ativos e Inspeção',
+  metadataBase: new URL('https://spci.compliance.app'),
+  title: {
+    default: 'SISTEMA SPCI - Gestão de Ativos e Inspeção',
+    template: '%s | SISTEMA SPCI',
+  },
   description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI',
   manifest: '/manifest.json',
-  robots: 'index, follow',
+  robots: {
+    index: true,
+    follow: true,
+  },
+  alternates: {
+    canonical: '/',
+  },
+  icons: {
+    icon: '/icons/icon-192.png',
+    apple: '/icons/icon-192.png',
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -47,6 +61,35 @@ export const metadata: Metadata = {
     siteName: 'SISTEMA SPCI',
     locale: 'pt_BR',
     type: 'website',
+    images: [
+      {
+        url: '/icons/icon-512.png',
+        width: 512,
+        height: 512,
+        alt: 'Logo Sistema SPCI - Gestão de Incêndio',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'SISTEMA SPCI - Gestão de Ativos e Inspeção',
+    description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI',
+    images: ['/icons/icon-512.png'],
+  },
+};
+
+const jsonLdData = {
+  '@context': 'https://schema.org',
+  '@type': 'WebApplication',
+  name: 'SISTEMA SPCI',
+  applicationCategory: 'BusinessApplication',
+  operatingSystem: 'All',
+  url: 'https://spci.compliance.app',
+  description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI',
+  offers: {
+    '@type': 'Offer',
+    price: '0',
+    priceCurrency: 'BRL',
   },
 };
 
@@ -56,6 +99,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       lang="pt-BR" 
       className={`${hankenGrotesk.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable}`}
     >
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }}
+        />
+      </head>
       <body suppressHydrationWarning className="bg-slate-50 text-slate-900 antialiased">
         <SpciProvider>
           {children}
