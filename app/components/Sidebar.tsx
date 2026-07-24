@@ -94,10 +94,25 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
         </button>
       )}
 
+      {/* Marca Principal Grupo OMG */}
+      <div className="flex items-center gap-3 mb-6 p-2 bg-slate-900/60 border border-slate-800/80 rounded-2xl">
+        <div className="bg-white p-1.5 rounded-xl shrink-0 shadow-md">
+          <img 
+            src="/logo-omg.png" 
+            alt="Logo Grupo OMG" 
+            className="h-8 w-auto object-contain" 
+          />
+        </div>
+        <div className="min-w-0">
+          <span className="text-[9px] text-red-500 font-bold tracking-widest block uppercase leading-none">GRUPO OMG</span>
+          <h2 className="text-xs font-black text-slate-100 tracking-tight leading-none mt-1">SPCI COMPLIANCE</h2>
+        </div>
+      </div>
+
       {/* Botão de Perfil do Usuário */}
       <div 
         onClick={onProfileClick}
-        className="flex items-center gap-3 mb-8 mt-2 p-2.5 rounded-xl hover:bg-white/5 cursor-pointer transition-all duration-300 group hover:scale-[1.02]"
+        className="flex items-center gap-3 mb-6 p-2.5 rounded-xl hover:bg-white/5 cursor-pointer transition-all duration-300 group hover:scale-[1.02] border border-slate-800/50 bg-slate-900/40"
         title="Clique para editar seu perfil e logo"
         role="button"
         tabIndex={0}
@@ -107,12 +122,12 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
           <img 
             src={userProfile.logoUrl} 
             alt={`Logo da empresa de ${userProfile?.name || 'técnico'}`}
-            className="w-11 h-11 rounded-xl object-contain border border-slate-500 bg-white p-1 shadow-md transition-transform duration-300 group-hover:scale-105" 
+            className="w-9 h-9 rounded-xl object-contain border border-slate-600 bg-white p-0.5 shadow-md transition-transform duration-300 group-hover:scale-105" 
             referrerPolicy="no-referrer"
           />
         ) : (
           <div 
-            className="w-11 h-11 bg-red-600 rounded-xl flex items-center justify-center text-xl shadow-lg border border-red-500 animate-pulse group-hover:scale-105 transition-transform duration-300"
+            className="w-9 h-9 bg-red-600 rounded-xl flex items-center justify-center text-base shadow-lg border border-red-500 group-hover:scale-105 transition-transform duration-300"
             aria-hidden="true"
           >
             🧯
@@ -120,10 +135,10 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
         )}
         <div className="min-w-0 flex-1">
           <span className="sr-only">Perfil de usuário ativo:</span>
-          <h1 className="font-['Hanken_Grotesk'] text-sm font-black tracking-tight text-white m-0 truncate group-hover:text-amber-200 transition-colors">
+          <h3 className="font-['Hanken_Grotesk'] text-xs font-black tracking-tight text-white m-0 truncate group-hover:text-amber-200 transition-colors">
             {userProfile?.name ? userProfile.name.toUpperCase() : 'SISTEMA SPCI'}
-          </h1>
-          <p className="font-mono text-[9px] text-slate-400 tracking-wider uppercase block leading-tight mt-0.5">
+          </h3>
+          <p className="font-mono text-[8.5px] text-slate-400 tracking-wider uppercase block leading-tight mt-0.5">
             {userProfile ? `🛡️ ${userProfile.role === 'Desenvolvedor' ? 'DEV' : userProfile.role === 'Administrador' ? 'ADMIN' : 'TÉCNICO'}` : 'Offline-first'}
           </p>
         </div>

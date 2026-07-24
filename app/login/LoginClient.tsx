@@ -4,7 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '../context/SpciContext';
-import { Shield, Key, Mail, AlertTriangle, ArrowRight } from 'lucide-react';
+import { Shield, Key, Mail, AlertTriangle, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import AppFooter from '../components/AppFooter';
+import { SYSTEM_VERSION } from '../config/version';
 
 // Status messages for interactive loading
 const statusMessages = [
@@ -28,6 +30,7 @@ export default function LoginClient() {
 
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
@@ -128,8 +131,8 @@ export default function LoginClient() {
       {/* Main Container */}
       <div className="flex-1 flex flex-col md:flex-row z-10 w-full">
         
-        {/* LEFT COLUMN: Industrial Conceptual & Compliance */}
-        <div className="hidden md:flex md:w-[45%] lg:w-[50%] relative flex-col justify-between p-12 overflow-hidden border-r border-slate-900">
+        {/* LEFT COLUMN: Industrial Conceptual & Compliance (Dominante 65%) */}
+        <div className="hidden md:flex md:w-[62%] lg:w-[65%] relative flex-col justify-between p-12 overflow-hidden border-r border-slate-900">
           {/* Background image with high contrast brand gradient overlay */}
           <div 
             className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105 filter brightness-[0.4] saturate-[0.8] transition-transform duration-10000 ease-out" 
@@ -138,56 +141,60 @@ export default function LoginClient() {
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
 
-          {/* Logo Brand top */}
-          <div className="relative flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-950/60 border border-red-800/80 flex items-center justify-center text-red-500 text-lg font-black shadow-lg shadow-red-950/30">
-              🧯
+          {/* Logo Brand top - Grupo OMG */}
+          <div className="relative flex items-center gap-4">
+            <div className="bg-slate-900/90 border border-slate-700/80 p-2.5 rounded-xl shadow-xl backdrop-blur-md">
+              <img 
+                src="/logo-omg.png" 
+                alt="Logo Grupo OMG" 
+                className="h-10 w-auto object-contain brightness-110 drop-shadow-[0_0_8px_rgba(220,38,38,0.3)]" 
+              />
             </div>
             <div>
-              <span className="text-[10px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">Plataforma</span>
+              <span className="text-[10px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
               <h2 className="text-base font-black text-slate-100 tracking-tight leading-none mt-1">SPCI COMPLIANCE</h2>
             </div>
           </div>
 
           {/* Title and Legal Compliance middle/bottom */}
-          <div className="relative space-y-6 max-w-lg mt-auto">
-            <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-950/50 border border-red-900/60 text-red-400 text-[10px] uppercase font-extrabold tracking-wider">
+          <div className="relative space-y-6 max-w-xl mt-auto">
+            <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-950/60 border border-red-800/70 text-red-400 text-[10px] uppercase font-extrabold tracking-wider rounded-lg backdrop-blur-xs">
               <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse"></span>
-              Conformidade Legal NBR 12962 / 13434
+              Conformidade Legal NBR 12962 / 13434 / 13714
             </div>
             <div className="space-y-3">
-              <h1 className="text-3xl lg:text-4xl font-black text-slate-100 uppercase tracking-tight leading-none">
+              <h1 className="text-3xl lg:text-4xl font-black text-slate-100 uppercase tracking-tight leading-tight">
                 Gestão & Governança de Combate a Incêndio
               </h1>
-              <p className="text-xs text-slate-400 font-sans leading-relaxed">
+              <p className="text-xs text-slate-300 font-sans leading-relaxed">
                 Centralização de laudos técnicos, vistorias em tempo real, rastreabilidade offline-first de ativos e relatórios executivos para governança predial e industrial.
               </p>
             </div>
           </div>
 
           {/* Footer stats bottom */}
-          <div className="relative pt-6 border-t border-slate-900/80 flex items-center justify-between text-[10px] text-slate-500 font-bold uppercase tracking-widest mt-12">
-            <span>SISTEMA DE SEGURANÇA</span>
-            <span>v2.1.0</span>
+          <div className="relative pt-6 border-t border-slate-900/80 flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-12">
+            <span>SISTEMA DE SEGURANÇA GRUPO OMG</span>
+            <span>v{SYSTEM_VERSION}</span>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Clean premium dark form */}
-        <div className="flex-1 flex flex-col justify-center px-6 py-12 sm:px-12 lg:px-24 bg-slate-950/80 backdrop-blur-md relative">
+        {/* RIGHT COLUMN: Compact & Interativo (35%) */}
+        <div className="md:w-[38%] lg:w-[35%] flex-1 flex flex-col justify-between px-6 py-8 sm:px-10 bg-slate-950/90 backdrop-blur-md relative border-l border-slate-900">
           
-          <div className="mx-auto w-full max-w-sm space-y-8">
+          <div className="my-auto w-full max-w-sm mx-auto space-y-8">
             {/* Header info for mobile (logo + branding) */}
             <div className="md:hidden flex items-center gap-3 mb-6">
-              <div className="w-9 h-9 bg-red-950/60 border border-red-800/80 flex items-center justify-center text-red-500 text-base font-black">
-                🧯
+              <div className="bg-slate-900 border border-slate-800 p-2 rounded-lg">
+                <img src="/logo-omg.png" alt="Logo Grupo OMG" className="h-8 w-auto object-contain" />
               </div>
               <div>
-                <span className="text-[8px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">Plataforma</span>
+                <span className="text-[8px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
                 <h2 className="text-sm font-black text-slate-100 tracking-tight leading-none mt-1">SPCI COMPLIANCE</h2>
               </div>
             </div>
 
-            <div className="space-y-2">
+            <div className="space-y-2 text-left">
               <h2 className="text-xl font-bold uppercase text-slate-100 tracking-wider">Acessar Cockpit</h2>
               <p className="text-xs text-slate-400 font-sans">Entre com suas credenciais corporativas SPCI.</p>
             </div>
@@ -199,7 +206,7 @@ export default function LoginClient() {
                   initial={{ opacity: 0, y: -8 }} 
                   animate={{ opacity: 1, y: 0 }} 
                   exit={{ opacity: 0, y: -8 }}
-                  className="bg-red-950/40 border border-red-900/60 p-4 flex gap-3 text-red-400"
+                  className="bg-red-950/40 border border-red-900/60 p-4 flex gap-3 text-red-400 rounded-xl"
                 >
                   <AlertTriangle className="w-5 h-5 shrink-0" />
                   <div className="text-[11px] font-bold leading-normal">
@@ -216,7 +223,7 @@ export default function LoginClient() {
                   Usuário ou E-mail
                 </label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
                     <Mail className="w-4 h-4" />
                   </span>
                   <input
@@ -226,7 +233,7 @@ export default function LoginClient() {
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder="usuario ou email@empresa.com"
-                    className="w-full bg-slate-900 border border-slate-800 focus:border-red-600/80 focus:shadow-[0_0_12px_rgba(220,38,38,0.15)] rounded-none py-3 pl-10 pr-4 text-xs text-slate-200 placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-3 pl-10 pr-4 text-xs text-slate-100 placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
                   />
                 </div>
               </div>
@@ -236,30 +243,44 @@ export default function LoginClient() {
                   Senha Geral
                 </label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
                     <Key className="w-4 h-4" />
                   </span>
                   <input
                     id="password"
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-slate-900 border border-slate-800 focus:border-red-600/80 focus:shadow-[0_0_12px_rgba(220,38,38,0.15)] rounded-none py-3 pl-10 pr-4 text-xs text-slate-200 placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-3 pl-10 pr-10 text-xs text-slate-100 placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
                   />
+
+                  {/* Ícone de olho visível somente quando o usuário digitar pelo menos 1 caractere */}
+                  {password.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-slate-200 transition-colors border-none bg-transparent cursor-pointer"
+                      aria-label={showPassword ? "Ocultar senha" : "Exibir senha"}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4 text-red-500" /> : <Eye className="w-4 h-4 text-slate-400" />}
+                    </button>
+                  )}
                 </div>
               </div>
 
               <button
                 type="submit"
-                className="w-full py-3 bg-red-600 hover:bg-red-500 hover:shadow-[0_0_15px_rgba(220,38,38,0.25)] text-slate-950 font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all duration-300 border border-transparent active:scale-[0.98]"
+                className="w-full py-3.5 bg-red-600 hover:bg-red-500 hover:shadow-[0_0_20px_rgba(220,38,38,0.35)] text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all duration-300 border-none rounded-xl active:scale-[0.98]"
               >
                 ENTRAR NO SISTEMA <ArrowRight className="w-4 h-4" />
               </button>
             </form>
+          </div>
 
-
+          <div className="pt-6 border-t border-slate-900 mt-6">
+            <AppFooter variant="flow" className="py-0 text-[10px]" />
           </div>
         </div>
 

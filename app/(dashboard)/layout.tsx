@@ -21,6 +21,7 @@ import PremiumHUDAlert from '../components/ui/PremiumHUDAlert';
 import QrCameraScanner from '../components/QrCameraScanner';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 import SyncStatusPanel from '../components/SyncStatusPanel';
+import AppFooter from '../components/AppFooter';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -406,8 +407,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Área onde as subpáginas renderizam */}
         <main className="flex-grow overflow-y-auto p-4 md:p-6 bg-[#f8fafc] relative">
-          <div className="max-w-6xl mx-auto pb-20">
+          <div className="max-w-6xl mx-auto pb-12">
             {children}
+            <AppFooter variant="flow" className="mt-8 border-t border-slate-200/80 pt-6" />
           </div>
         </main>
       </div>

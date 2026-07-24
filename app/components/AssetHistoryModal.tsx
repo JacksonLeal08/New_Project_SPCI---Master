@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { AnyAsset, AssetStatus } from '@/lib/types';
 import { useSpci } from '@/app/context/SpciContext';
 import { idb } from '@/lib/indexedDb';
+import AppFooter from './AppFooter';
 
 interface AssetHistoryModalProps {
   isOpen: boolean;
@@ -299,8 +300,8 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
           </div>
         </div>
 
-        {/* Área de Informação e Timeline */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-900/40 scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-slate-900">
+        {/* Área de Informação e Timeline (scroll com barra oculta) */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-900/40 scrollbar-none">
           
           {/* Métricas KPI */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -496,6 +497,7 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
             FECHAR HISTÓRICO
           </button>
         </div>
+        <AppFooter variant="fixed" />
       </motion.div>
     </motion.div>
   );

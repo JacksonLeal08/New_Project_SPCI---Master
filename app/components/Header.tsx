@@ -49,10 +49,12 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick }: HeaderProps
             <Menu className="w-5 h-5" />
           </button>
         )}
-        <span className="md:hidden text-lg font-black tracking-tight text-red-600">SPCI</span>
-        <span className="hidden md:inline-block font-['Hanken_Grotesk'] font-extrabold tracking-tight text-slate-900 text-sm flex items-center gap-2">
-          <span className="text-red-600">🚒</span> PLANTA DE SEGURANÇA SPCI
-        </span>
+        <div className="flex items-center gap-2.5">
+          <img src="/logo-omg.png" alt="Logo Grupo OMG" className="h-6 w-auto object-contain md:hidden" />
+          <span className="hidden md:flex items-center gap-2 font-['Hanken_Grotesk'] font-extrabold tracking-tight text-slate-900 text-sm">
+            <span className="text-red-600 font-bold">●</span> GRUPO OMG // PLANTA DE SEGURANÇA SPCI
+          </span>
+        </div>
       </div>
 
       <div className="flex items-center gap-4">

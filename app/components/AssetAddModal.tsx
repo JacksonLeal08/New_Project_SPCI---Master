@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import QrCameraScanner from './QrCameraScanner';
 import { parseInmetroCode } from '@/lib/utils';
+import AppFooter from './AppFooter';
 
 interface AssetAddModalProps {
   isOpen: boolean;
@@ -571,8 +572,8 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
           </button>
         </div>
 
-        {/* Modal Body (Scrollable Form) */}
-        <div className="p-6 space-y-6 max-h-[68vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-slate-50">
+        {/* Modal Body (Scrollable Form com barra oculta) */}
+        <div className="p-6 space-y-6 max-h-[68vh] overflow-y-auto scrollbar-none">
           
           {/* Visual Category Selection Grid */}
           <div>
@@ -950,6 +951,7 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
             </div>
           </form>
         </div>
+        <AppFooter variant="fixed" />
       </motion.div>
 
       {/* SCANNER DE QR CODE DO INMETRO */}

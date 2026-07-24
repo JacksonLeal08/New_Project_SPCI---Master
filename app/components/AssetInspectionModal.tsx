@@ -1,6 +1,7 @@
 import React from 'react';
 import { motion } from 'motion/react';
 import { AnyAsset, AssetStatus } from '@/lib/types';
+import AppFooter from './AppFooter';
 
 interface AssetInspectionModalProps {
   isOpen: boolean;
@@ -104,7 +105,7 @@ export default function AssetInspectionModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-800 scrollbar-track-slate-900">
+        <div className="p-6 space-y-6 max-h-[70vh] overflow-y-auto scrollbar-none">
           {/* Informações Básicas do Equipamento */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border border-slate-800/60 p-4 bg-slate-950/30">
             <div>
@@ -227,6 +228,7 @@ export default function AssetInspectionModal({
             🟢 HOMOLOGAR REGISTRO
           </button>
         </div>
+        <AppFooter variant="fixed" />
       </motion.div>
     </motion.div>
   );

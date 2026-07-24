@@ -21,3 +21,12 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #37474F;
 }
+
+/* Utilitário para ocultar barra visual de rolagem em modais mantendo o scroll ativo */
+.scrollbar-none {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
