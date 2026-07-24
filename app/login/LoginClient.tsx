@@ -152,7 +152,7 @@ export default function LoginClient() {
             </div>
             <div>
               <span className="text-[10px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
-              <h2 className="text-base font-black text-slate-100 tracking-tight leading-none mt-1">SPCI COMPLIANCE</h2>
+              <h2 className="text-base font-black text-slate-100 tracking-tight leading-none mt-1">SPCI MASTER</h2>
             </div>
           </div>
 
@@ -172,15 +172,14 @@ export default function LoginClient() {
             </div>
           </div>
 
-          {/* Footer stats bottom */}
-          <div className="relative pt-6 border-t border-slate-900/80 flex items-center justify-between text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-12">
+          {/* Footer stats bottom - Sem a versão duplicada no canto direito */}
+          <div className="relative pt-6 border-t border-slate-900/80 flex items-center justify-start text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-12">
             <span>SISTEMA DE SEGURANÇA GRUPO OMG</span>
-            <span>v{SYSTEM_VERSION}</span>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Compact & Interativo (35%) */}
-        <div className="md:w-[38%] lg:w-[35%] flex-1 flex flex-col justify-between px-6 py-8 sm:px-10 bg-slate-950/90 backdrop-blur-md relative border-l border-slate-900">
+        {/* RIGHT COLUMN: Glassmorphism Efeito Vidro Fosco (35%) */}
+        <div className="md:w-[38%] lg:w-[35%] flex-1 flex flex-col justify-between px-6 py-8 sm:px-10 bg-slate-950/65 backdrop-blur-xl border-l border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.8)] relative z-20">
           
           <div className="my-auto w-full max-w-sm mx-auto space-y-8">
             {/* Header info for mobile (logo + branding) */}
@@ -190,7 +189,7 @@ export default function LoginClient() {
               </div>
               <div>
                 <span className="text-[8px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
-                <h2 className="text-sm font-black text-slate-100 tracking-tight leading-none mt-1">SPCI COMPLIANCE</h2>
+                <h2 className="text-sm font-black text-slate-100 tracking-tight leading-none mt-1">SPCI MASTER</h2>
               </div>
             </div>
 

@@ -105,7 +105,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
         </div>
         <div className="min-w-0">
           <span className="text-[9px] text-red-500 font-bold tracking-widest block uppercase leading-none">GRUPO OMG</span>
-          <h2 className="text-xs font-black text-slate-100 tracking-tight leading-none mt-1">SPCI COMPLIANCE</h2>
+          <h2 className="text-xs font-black text-slate-100 tracking-tight leading-none mt-1">SPCI MASTER</h2>
         </div>
       </div>
 
