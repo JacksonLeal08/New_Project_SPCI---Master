@@ -118,6 +118,27 @@ export default function LoginClient() {
     }
   };
 
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!forgotEmail) return;
+    setForgotLoading(true);
+    setForgotMsg(null);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(forgotEmail, {
+        redirectTo: `${window.location.origin}/login`,
+      });
+      if (error) {
+        setForgotMsg({ type: 'error', text: error.message || 'Falha ao enviar e-mail de redefinição.' });
+      } else {
+        setForgotMsg({ type: 'success', text: 'E-mail de redefinição enviado! Verifique sua caixa de entrada.' });
+      }
+    } catch (err: any) {
+      setForgotMsg({ type: 'error', text: 'Ocorreu um erro ao processar a solicitação.' });
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
 
   if (authChecking) {
     return (
