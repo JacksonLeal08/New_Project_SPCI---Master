@@ -40,24 +40,40 @@ export default function SpciChatIa() {
     setAiGenerating(true);
 
     try {
-      const response = await fetch('/api/gemini', {
+      // 1. Tenta comunicar com a API do DeepSeek
+      let response = await fetch('/api/deepseek', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           prompt: `Responda de forma sucinta como o Inspe IA SPCI.
           Planta SPCI atual: ${totalAssets} ativos monitorados, ${totalVencidos} vencidos, ${totalAtencao} em atenção. Índice Geral Conformidade: ${compliancePercentage}%.
           Mensagem do operador: ${msg}`,
-          systemInstruction: "Você é o assistente virtual Inspe IA SPCI. Responda em português, de forma breve, muito precisa, baseando-se estritamente em engenharia de segurança contra incêndios (NBR 12962, NBR 13434, NBR 13714). Mantenha as respostas curtas e objetivas."
+          systemInstruction: "Você é o assistente virtual Inspe IA SPCI operando via motor DeepSeek-V3. Responda em português brasileiro, de forma breve, altamente precisa e técnica, baseando-se estritamente em engenharia de segurança contra incêndios (NBR 12962, NBR 13434, NBR 13714, NBR 10897). Mantenha as respostas objetivas e formatadas em Markdown quando necessário."
         })
       });
 
+      // 2. Se a rota do DeepSeek retornar erro, faz fallback de segurança para o Gemini
+      if (!response.ok) {
+        console.warn('Falha na API DeepSeek. Alternando para o Gemini...');
+        response = await fetch('/api/gemini', {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: `Responda de forma sucinta como o Inspe IA SPCI.
+            Planta SPCI atual: ${totalAssets} ativos monitorados, ${totalVencidos} vencidos, ${totalAtencao} em atenção. Índice Geral Conformidade: ${compliancePercentage}%.
+            Mensagem do operador: ${msg}`,
+            systemInstruction: "Você é o assistente virtual Inspe IA SPCI. Responda em português, de forma breve, muito precisa, baseando-se estritamente em engenharia de segurança contra incêndios."
+          })
+        });
+      }
+
       const data = await response.json();
-      const text = data.text || "Sem resposta da central de dados Gemini.";
+      const text = data.text || "Sem resposta da central de inteligência do SPCI.";
       setChatMessages(prev => [...prev, { sender: 'assistant', text }]);
     } catch (e: any) {
       setChatMessages(prev => [...prev, { 
         sender: 'assistant', 
-        text: `Inspe IA (Modo SPCI Offline): Erro de rede ou indisponibilidade da API do Gemini.\n\nDica de segurança: Para extintores vencidos ou sem lacre, providencie recarga imediata sob NBR 12962. Para abrigos obstruídos, reordene o local de acordo com a NBR 13714.` 
+        text: `Inspe IA (Modo SPCI Offline): Erro de conexão ou indisponibilidade da API do DeepSeek.\n\nDica de segurança: Para extintores vencidos ou sem lacre, providencie recarga imediata sob NBR 12962. Para abrigos obstruídos, reordene o local de acordo com a NBR 13714.` 
       }]);
     } finally {
       setAiGenerating(false);
