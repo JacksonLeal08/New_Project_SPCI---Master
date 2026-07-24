@@ -81,25 +81,25 @@ export default function AssetInspectionModal({
       className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 overflow-y-auto"
     >
       <motion.div 
-        initial={{ opacity: 0, scale: 0.98, y: 10 }} 
+        initial={{ opacity: 0, scale: 0.98, y: 15 }} 
         animate={{ opacity: 1, scale: 1, y: 0 }} 
-        className="w-full max-w-2xl border border-slate-800 bg-slate-900 shadow-2xl rounded-none relative my-8 font-mono text-xs text-slate-200"
+        className="w-full max-w-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl rounded-none relative my-8 font-mono text-xs text-slate-800 dark:text-slate-200"
       >
         <div className="absolute top-0 left-0 right-0 h-1 bg-red-600" aria-hidden="true" />
         
         {/* Cabeçalho do HUD */}
-        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-800/80 bg-slate-900/50">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-slate-100 dark:border-slate-800/80 bg-slate-50/50 dark:bg-slate-900/50">
           <div className="flex flex-col gap-0.5">
             <span className="bg-red-950 text-red-400 border border-red-900/50 text-[9px] font-bold py-0.5 px-2 w-max uppercase tracking-widest">
               LAUDO DE VISTORIA ATIVO
             </span>
-            <h2 className="text-sm font-bold text-slate-100 uppercase tracking-wider mt-1">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider mt-1">
               Conformidade NBR - {asset.idAtivo || asset.id}
             </h2>
           </div>
           <button 
             onClick={onClose} 
-            className="text-slate-400 hover:text-slate-100 border border-slate-800 hover:border-slate-700 bg-slate-850 px-2 py-1 transition-all rounded-none cursor-pointer"
+            className="text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-850 px-2 py-1 transition-all rounded-none cursor-pointer"
           >
             DESCARTAR ×
           </button>

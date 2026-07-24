@@ -22,6 +22,7 @@ import QrCameraScanner from '../components/QrCameraScanner';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 import SyncStatusPanel from '../components/SyncStatusPanel';
 import AppFooter from '../components/AppFooter';
+import QuickAssetFab from '../components/QuickAssetFab';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -413,6 +414,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
             <AppFooter variant="flow" />
           </div>
+          <QuickAssetFab />
         </main>
       </div>
 

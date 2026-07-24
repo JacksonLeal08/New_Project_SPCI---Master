@@ -548,18 +548,18 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       <motion.div 
         initial={{ opacity: 0, scale: 0.98, y: 15 }} 
         animate={{ opacity: 1, scale: 1, y: 0 }} 
-        className="w-full max-w-xl bg-white border border-slate-200 shadow-2xl rounded-2xl relative my-8 font-mono text-xs text-slate-800"
+        className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl relative my-8 font-mono text-xs text-slate-800 dark:text-slate-100"
       >
         {/* Accent Top Bar */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-650 rounded-t-2xl" aria-hidden="true" />
 
         {/* Modal Header */}
-        <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 bg-slate-50/50 rounded-t-2xl pt-7">
+        <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 rounded-t-2xl pt-7">
           <div className="flex flex-col gap-0.5">
-            <span className="text-slate-400 text-[9px] font-bold uppercase tracking-widest">
+            <span className="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-widest">
               CADASTRO DE EQUIPAMENTOS
             </span>
-            <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider mt-1 flex items-center gap-1.5">
+            <h2 className="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider mt-1 flex items-center gap-1.5">
               ✍️ Cadastrar Novo Ativo no Sistema SPCI
             </h2>
           </div>

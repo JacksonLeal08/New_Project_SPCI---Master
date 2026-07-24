@@ -259,6 +259,32 @@ export default function ConfiguracoesPage() {
                   <p className="text-[9px] text-slate-400 font-sans mt-0.5">Link público para o logotipo personalizado da empresa parceira.</p>
                 </div>
 
+                <div className="space-y-1.5">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">
+                    📁 Escolher Foto/Imagem do Dispositivo
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="file" 
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (event) => {
+                            if (event.target?.result) {
+                              setProfileLogoUrlInput(event.target.result as string);
+                            }
+                          };
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                      className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:uppercase file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer border border-slate-200 rounded-xl p-1 bg-slate-50"
+                    />
+                  </div>
+                  <p className="text-[9px] text-slate-400 font-sans mt-0.5">Selecione qualquer arquivo de imagem (PNG, JPG, WEBP) armazenado no seu dispositivo.</p>
+                </div>
+
                 <div className="space-y-2">
                   <span className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">Sugestões de Avatares & Logos Corporativas</span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
