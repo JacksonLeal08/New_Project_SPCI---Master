@@ -81,7 +81,7 @@ export default function SpciChatIa() {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end gap-3 pointer-events-none font-mono">
+    <div className="fixed bottom-6 left-6 md:left-auto md:right-24 z-50 flex flex-col items-end gap-3 pointer-events-none font-mono">
       <AnimatePresence>
         {chatOpened && (
           <motion.div 

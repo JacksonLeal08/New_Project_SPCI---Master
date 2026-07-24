@@ -8,10 +8,18 @@ import { AssetCategory } from '@/lib/types';
 
 export default function QuickAssetFab() {
   const [isOpen, setIsOpen] = useState(false);
-  const { setShowAddForm, setSelectedAssetForInspection } = useSpci();
+  const { setShowAddForm, setSelectedAssetForInspection, setNewAssetType } = useSpci();
 
   const handleSelectCategory = (category: AssetCategory) => {
+    const categoryMap: Record<AssetCategory, 'extintor' | 'hidrante' | 'sinalizacao' | 'iluminacao' | 'bomba'> = {
+      extintores: 'extintor',
+      hidrantes: 'hidrante',
+      sinalizacoes: 'sinalizacao',
+      iluminacao: 'iluminacao',
+      bombas: 'bomba'
+    };
     setSelectedAssetForInspection(null);
+    setNewAssetType(categoryMap[category]);
     setShowAddForm(true);
     setIsOpen(false);
   };

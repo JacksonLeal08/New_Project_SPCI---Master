@@ -120,7 +120,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
       {/* Botão para recolher/expandir a Sidebar no Desktop */}
       <button
         onClick={toggleCollapse}
-        className="hidden lg:flex absolute -right-3.5 top-7 bg-red-600 hover:bg-red-500 text-white p-1 rounded-full border-2 border-slate-900 shadow-xl cursor-pointer z-50 transition-transform hover:scale-110 active:scale-95"
+        className="hidden lg:flex absolute -right-3.5 top-6 bg-red-600 hover:bg-red-500 text-white p-1 rounded-full border-2 border-[#1b2a32] shadow-xl cursor-pointer z-50 transition-transform hover:scale-110 active:scale-95"
         title={isCollapsed ? "Expandir barra lateral" : "Recolher barra lateral"}
         aria-label="Recolher/Expandir barra lateral"
       >
@@ -128,12 +128,12 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
       </button>
 
       {/* Marca Principal Grupo OMG - Empilhada (Logo + SPCI MASTER abaixo) */}
-      <div className={`flex flex-col items-center justify-center mb-6 pt-2 transition-all ${isCollapsed ? 'px-0' : 'px-2'}`}>
+      <div className={`flex flex-col items-center justify-center mb-6 pt-1 transition-all shrink-0 ${isCollapsed ? 'px-0' : 'px-2'}`}>
         <img 
           src="/logo-omg.png" 
           alt="Logo Grupo OMG" 
           className={`object-contain shrink-0 filter drop-shadow-[0_4px_12px_rgba(220,38,38,0.4)] transition-all ${
-            isCollapsed ? 'h-10 w-auto' : 'h-14 w-auto'
+            isCollapsed ? 'h-8 w-auto max-w-[48px]' : 'h-14 w-auto'
           }`} 
         />
         {!isCollapsed && (
@@ -143,20 +143,8 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
         )}
       </div>
 
-      {/* Botão para cadastrar novo ativo */}
-      <button 
-        onClick={handleRegisterNewAssetClick}
-        className={`bg-[#af101a] hover:bg-[#d32f2f] text-white font-['Hanken_Grotesk'] font-bold text-xs py-3 rounded-xl flex items-center justify-center gap-2 mb-6 group transition-all duration-300 transform hover:scale-[1.03] active:scale-95 shadow-md shadow-red-950/20 border-none cursor-pointer relative ${
-          isCollapsed ? 'px-2' : 'px-4 w-full'
-        }`}
-        title={isCollapsed ? "Registrar Novo Ativo" : undefined}
-      >
-        <Plus className="w-4 h-4 shrink-0" />
-        {!isCollapsed && <span>REGISTRAR NOVO ATIVO</span>}
-      </button>
-
       {/* Links de navegação semânticos com ícones 3D e Tooltips no hover */}
-      <nav className="flex-grow space-y-1.5 overflow-y-auto px-1" aria-label="Navegação do painel">
+      <nav className={`flex-grow space-y-1.5 px-1 ${isCollapsed ? 'overflow-visible' : 'overflow-y-auto'}`} aria-label="Navegação do painel">
         {filteredNavItems.map(item => {
           const isActive = activeTab === item.id;
           return (
@@ -184,7 +172,8 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
 
               {/* Tooltip flutuante quando a sidebar está recolhida */}
               {isCollapsed && (
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white rounded-lg shadow-2xl text-[11px] font-bold uppercase tracking-wider whitespace-nowrap z-50 border border-slate-700">
+                <div className="opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white rounded-xl shadow-2xl text-[11px] font-bold uppercase tracking-wider whitespace-nowrap z-50 border border-slate-700 flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-red-500 inline-block animate-pulse"></span>
                   {item.label}
                 </div>
               )}
@@ -195,7 +184,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
 
       {/* Indicador de banco conectado */}
       {!isCollapsed && (
-        <div className="bg-[#2D424A]/20 border border-[#CFD8DC]/5 p-3 rounded-xl text-center text-xs space-y-1 mb-2 select-none">
+        <div className="bg-[#2D424A]/20 border border-[#CFD8DC]/5 p-3 rounded-xl text-center text-xs space-y-1 mb-2 select-none shrink-0">
           <p className="text-emerald-450 font-bold flex items-center justify-center gap-2 font-['Hanken_Grotesk']">
             <span aria-hidden="true">🟢</span> Banco SPCI Ativo
           </p>
@@ -209,7 +198,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
       {onLogoutClick && (
         <button
           onClick={onLogoutClick}
-          className={`mt-2 bg-[#2D424A]/20 hover:bg-[#af101a] border border-[#CFD8DC]/10 hover:border-transparent text-slate-300 hover:text-white font-['Hanken_Grotesk'] font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer shadow-xs active:scale-[0.98] relative group ${
+          className={`mt-2 bg-[#2D424A]/30 hover:bg-[#af101a] border border-[#CFD8DC]/10 hover:border-transparent text-slate-300 hover:text-white font-['Hanken_Grotesk'] font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer shadow-xs active:scale-[0.98] relative group shrink-0 ${
             isCollapsed ? 'px-0 w-full' : 'px-4 w-full'
           }`}
           title={isCollapsed ? "Sair do Cockpit" : undefined}
@@ -218,7 +207,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
           {!isCollapsed && <span>SAIR DO COCKPIT</span>}
 
           {isCollapsed && (
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-red-950 text-red-200 rounded-lg shadow-2xl text-[11px] font-bold uppercase tracking-wider whitespace-nowrap z-50 border border-red-800">
+            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-red-950 text-red-200 rounded-xl shadow-2xl text-[11px] font-bold uppercase tracking-wider whitespace-nowrap z-50 border border-red-800">
               Sair do Cockpit
             </div>
           )}
