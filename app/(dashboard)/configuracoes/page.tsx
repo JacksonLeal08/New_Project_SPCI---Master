@@ -260,28 +260,31 @@ export default function ConfiguracoesPage() {
                 </div>
 
                 <div className="space-y-2">
-                  <span className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">Logos Rápidas SPCI</span>
+                  <span className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">Sugestões de Avatares & Logos Corporativas</span>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
-                      { name: '🔥 SPCI Corp', url: 'https://images.unsplash.com/photo-1516216621161-8a5021e11e2f?w=100&auto=format&fit=crop&q=80' },
-                      { name: '🏢 Seguridade', url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=100&auto=format&fit=crop&q=80' },
-                      { name: '🌳 EcoPrevenir', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=100&auto=format&fit=crop&q=80' }
+                      { name: '🔥 Capacete SPCI', url: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=120&auto=format&fit=crop&q=80' },
+                      { name: '🛡️ Escudo OMG', url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=120&auto=format&fit=crop&q=80' },
+                      { name: '👷 Técnico Campo', url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=120&auto=format&fit=crop&q=80' },
+                      { name: '⚙️ Planta Industrial', url: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=120&auto=format&fit=crop&q=80' },
+                      { name: '🏢 SPCI Governança', url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=120&auto=format&fit=crop&q=80' },
+                      { name: '🌿 EcoPrevenir NBR', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=120&auto=format&fit=crop&q=80' }
                     ].map(preset => (
                       <button
                         key={preset.name}
                         type="button"
                         onClick={() => setProfileLogoUrlInput(preset.url)}
                         className={`border p-2 bg-slate-50 hover:bg-slate-100 flex items-center gap-3 cursor-pointer transition-all rounded-xl text-left ${
-                          profileLogoUrlInput === preset.url ? 'border-red-600' : 'border-slate-200'
+                          profileLogoUrlInput === preset.url ? 'border-red-600 ring-2 ring-red-600/20' : 'border-slate-200'
                         }`}
                       >
                         <img 
                           src={preset.url} 
                           alt={preset.name} 
-                          className="w-8 h-8 object-cover bg-white p-0.5 shadow-sm rounded-lg" 
+                          className="w-9 h-9 object-cover bg-white p-0.5 shadow-sm rounded-lg" 
                           referrerPolicy="no-referrer"
                         />
-                        <span className="text-[9px] font-extrabold text-slate-500 leading-tight block uppercase truncate">{preset.name}</span>
+                        <span className="text-[9px] font-extrabold text-slate-700 leading-tight block uppercase truncate">{preset.name}</span>
                       </button>
                     ))}
                   </div>
@@ -760,7 +763,7 @@ export default function ConfiguracoesPage() {
               <button 
                 onClick={() => {
                   const pass = createdCredentials.password || createdCredentials.temp_password;
-                  const textToCopy = `🚒 *SPCI - CREDENCIAIS DE ACESSO* 🚒\n\nOlá *${createdCredentials.name}*!\nSeu cadastro no SPCI foi realizado com sucesso.\n\n🌐 *Link de Acesso:* ${window.location.origin}/login?new_session=true\n📧 *E-mail:* ${createdCredentials.email}\n👤 *Username:* @${createdCredentials.username}\n🔑 *Senha:* ${pass}\n` + (createdCredentials.expires_at ? `⏳ *Validade:* até ${new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}\n` : '') + `\nFaça seu login com segurança!`;
+                  const textToCopy = `🏢 *GRUPO OMG // SPCI MASTER*\n───────────────\n🔥 *CREDENCIAIS DE ACESSO CORPORATIVO*\n\nOlá, *${createdCredentials.name}*!\nSeu perfil de acesso ao *SPCI Master* foi cadastrado com sucesso.\n\n📍 *Nível de Acesso:* ${createdCredentials.role || 'Usuário'}\n🌐 *Link do Cockpit:* ${window.location.origin}/login\n📧 *E-mail / Login:* ${createdCredentials.email}\n👤 *Username:* @${createdCredentials.username}\n🔑 *Senha Temporária:* ${pass}\n` + (createdCredentials.expires_at ? `⏳ *Validade:* até ${new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}\n` : '') + `\n───────────────\n⚠️ *Instrução:* Acesse o link acima, faça o login e altere sua senha após a primeira sessão.\n\n_Grupo OMG © 2026 - Todos os Direitos Reservados_`;
                   copyToClipboard(textToCopy)
                     .then(() => {
                       setCopied(true);
@@ -772,22 +775,22 @@ export default function ConfiguracoesPage() {
                 }}
                 className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer shadow-md"
               >
-                {copied ? '✓ Mensagem Copiada!' : '📋 Copiar Credenciais'}
+                {copied ? '✓ Mensagem Copiada!' : '📋 Copiar Mensagem Premium'}
               </button>
 
               <button 
                 onClick={() => {
                   const pass = createdCredentials.password || createdCredentials.temp_password;
-                  const msg = `🚒 *SPCI - CREDENCIAIS DE ACESSO* 🚒\n\nOlá *${createdCredentials.name}*!\nSeu cadastro no SPCI foi realizado com sucesso.\n\n🌐 *Link de Acesso:* ${window.location.origin}/login?new_session=true\n📧 *E-mail:* ${createdCredentials.email}\n👤 *Username:* @${createdCredentials.username}\n🔑 *Senha:* ${pass}\n` + (createdCredentials.expires_at ? `⏳ *Validade:* até ${new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}\n` : '') + `\nFaça seu login com segurança!`;
+                  const msg = `🏢 *GRUPO OMG // SPCI MASTER*\n───────────────\n🔥 *CREDENCIAIS DE ACESSO CORPORATIVO*\n\nOlá, *${createdCredentials.name}*!\nSeu perfil de acesso ao *SPCI Master* foi cadastrado com sucesso.\n\n📍 *Nível de Acesso:* ${createdCredentials.role || 'Usuário'}\n🌐 *Link do Cockpit:* https://spci-master.vercel.app/login\n📧 *E-mail / Login:* ${createdCredentials.email}\n👤 *Username:* @${createdCredentials.username}\n🔑 *Senha Temporária:* ${pass}\n` + (createdCredentials.expires_at ? `⏳ *Validade:* até ${new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}\n` : '') + `\n───────────────\n⚠️ *Instrução:* Acesse o link acima, faça o login e altere sua senha após a primeira sessão.\n\n_Grupo OMG © 2026 - Todos os Direitos Reservados_`;
                   const cleanPhone = createdCredentials.phone ? createdCredentials.phone.replace(/\D/g, '') : '';
                   const whatsappUrl = cleanPhone 
                     ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
                     : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
                   window.open(whatsappUrl, '_blank');
                 }}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer shadow-md"
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-2 transition-all border-none cursor-pointer shadow-md"
               >
-                💬 Enviar via WhatsApp
+                <span>📲</span> Compartilhar Credenciais via WhatsApp Premium
               </button>
               
               <button 

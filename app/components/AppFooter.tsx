@@ -13,8 +13,8 @@ export default function AppFooter({ variant = 'flow', className = '' }: AppFoote
 
   if (variant === 'fixed') {
     return (
-      <footer className={`w-full bg-slate-900 border-t border-slate-800/80 px-4 py-2.5 text-center text-[10.5px] font-mono text-slate-400 select-none shrink-0 rounded-b-2xl ${className}`}>
-        <p className="tracking-wide">
+      <footer className={`w-full bg-slate-900 dark:bg-[#262626] border-t border-slate-800/80 px-4 py-1.5 text-center text-[10px] font-mono text-slate-400 dark:text-[#C4C4C4] select-none shrink-0 ${className}`}>
+        <p className="tracking-wide truncate">
           {textContent}
         </p>
       </footer>
@@ -22,9 +22,9 @@ export default function AppFooter({ variant = 'flow', className = '' }: AppFoote
   }
 
   return (
-    <footer className={`w-full py-6 text-center text-xs font-mono text-slate-500 select-none ${className}`}>
-      <p className="tracking-wider uppercase text-[11px]">
-        © {COPYRIGHT_YEAR} - Todos os direitos reservados <span className="mx-1 text-red-500 font-bold">|</span> <span className="font-bold text-slate-700">{COMPANY_NAME}</span> <span className="mx-1 text-red-500 font-bold">|</span> Versão {SYSTEM_VERSION}
+    <footer className={`w-full py-1.5 px-4 text-center text-[10px] font-mono text-slate-500 dark:text-[#C4C4C4] border-t border-slate-200/60 dark:border-slate-800/80 bg-slate-50/80 dark:bg-[#262626]/80 backdrop-blur-xs select-none mt-auto shrink-0 ${className}`}>
+      <p className="tracking-wider uppercase truncate">
+        © {COPYRIGHT_YEAR} - Todos os direitos reservados <span className="mx-1 text-red-500 font-bold">|</span> <span className="font-bold text-slate-700 dark:text-slate-200">{COMPANY_NAME}</span> <span className="mx-1 text-red-500 font-bold">|</span> Versão {SYSTEM_VERSION}
       </p>
     </footer>
   );
