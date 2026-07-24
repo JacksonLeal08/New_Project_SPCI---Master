@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationItem } from '@/lib/types';
+import ThemeToggle from './ThemeToggle';
 
 interface HeaderProps {
   onScanClick: () => void;
@@ -58,6 +59,9 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick }: HeaderProps
       </div>
 
       <div className="flex items-center gap-4">
+        {/* Alternador de Tema Claro/Escuro (Estilo Telegram) */}
+        <ThemeToggle />
+
         {/* Botão de Busca Rápida / QR Scan */}
         <button 
           onClick={onScanClick}

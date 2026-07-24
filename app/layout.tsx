@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Hanken_Grotesk, IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google';
 import { SpciProvider } from './context/SpciContext';
+import { ThemeProvider } from './context/ThemeContext';
 import InstallPwaBanner from './components/InstallPwaBanner';
 import './globals.css';
 
@@ -46,7 +47,12 @@ export const metadata: Metadata = {
     canonical: '/',
   },
   icons: {
-    icon: '/icons/icon-192.png',
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/icons/omega-icon.svg', type: 'image/svg+xml' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+    ],
+    shortcut: '/favicon.svg',
     apple: '/icons/icon-192.png',
   },
   appleWebApp: {
@@ -105,11 +111,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }}
         />
       </head>
-      <body suppressHydrationWarning className="bg-slate-50 text-slate-900 antialiased">
-        <SpciProvider>
-          {children}
-          <InstallPwaBanner />
-        </SpciProvider>
+      <body suppressHydrationWarning className="bg-slate-50 dark:bg-[#333333] text-slate-900 dark:text-[#C4C4C4] antialiased transition-colors duration-300">
+        <ThemeProvider>
+          <SpciProvider>
+            {children}
+            <InstallPwaBanner />
+          </SpciProvider>
+        </ThemeProvider>
         <script
           dangerouslySetInnerHTML={{
             __html: `

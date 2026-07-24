@@ -1,9 +1,13 @@
-const CACHE_NAME = 'spci-pwa-cache-v1';
+const CACHE_NAME = 'spci-pwa-cache-v2';
 const ASSETS_TO_CACHE = [
   '/',
+  '/favicon.svg',
+  '/icons/omega-icon.svg',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/logo-omg.png',
+  '/login-bg.png',
 ];
 
 // Instalação do Service Worker e cache estático

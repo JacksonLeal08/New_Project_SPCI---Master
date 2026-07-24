@@ -4,9 +4,11 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '../context/SpciContext';
-import { Shield, Key, Mail, AlertTriangle, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Shield, Key, Mail, AlertTriangle, ArrowRight, Eye, EyeOff, CheckSquare, Square } from 'lucide-react';
 import AppFooter from '../components/AppFooter';
+import ThemeToggle from '../components/ThemeToggle';
 import { SYSTEM_VERSION } from '../config/version';
+import { supabase } from '@/lib/supabaseClient';
 
 // Status messages for interactive loading
 const statusMessages = [
@@ -31,6 +33,11 @@ export default function LoginClient() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
@@ -124,12 +131,18 @@ export default function LoginClient() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex font-mono relative overflow-hidden select-none">
+    <div className="min-h-screen bg-slate-950 flex flex-col justify-between font-mono relative overflow-hidden select-none">
+      
+      {/* Botão de Tema no Canto Superior Direito da Tela de Login */}
+      <div className="absolute top-4 right-4 z-50">
+        <ThemeToggle />
+      </div>
+
       {/* Decorative absolute background grid */}
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-35" />
 
       {/* Main Container */}
-      <div className="flex-1 flex flex-col md:flex-row z-10 w-full">
+      <div className="flex-1 flex flex-col md:flex-row w-full max-w-[1600px] mx-auto z-10">
         
         {/* LEFT COLUMN: Industrial Conceptual & Compliance (Dominante 65%) */}
         <div className="hidden md:flex md:w-[62%] lg:w-[65%] relative flex-col justify-between p-12 overflow-hidden border-r border-slate-900">
@@ -141,15 +154,13 @@ export default function LoginClient() {
           <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
 
-          {/* Logo Brand top - Grupo OMG */}
-          <div className="relative flex items-center gap-4">
-            <div className="bg-slate-900/90 border border-slate-700/80 p-2.5 rounded-xl shadow-xl backdrop-blur-md">
-              <img 
-                src="/logo-omg.png" 
-                alt="Logo Grupo OMG" 
-                className="h-10 w-auto object-contain brightness-110 drop-shadow-[0_0_8px_rgba(220,38,38,0.3)]" 
-              />
-            </div>
+          {/* Logo Brand top - Grupo OMG (Solta, Vazada e Ampliada) */}
+          <div className="relative flex items-center gap-5">
+            <img 
+              src="/logo-omg.png" 
+              alt="Logo Grupo OMG" 
+              className="h-14 lg:h-16 w-auto object-contain brightness-110 drop-shadow-[0_4px_16px_rgba(220,38,38,0.4)] transition-transform hover:scale-105" 
+            />
             <div>
               <span className="text-[10px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
               <h2 className="text-base font-black text-slate-100 tracking-tight leading-none mt-1">SPCI MASTER</h2>
@@ -172,7 +183,7 @@ export default function LoginClient() {
             </div>
           </div>
 
-          {/* Footer stats bottom - Sem a versão duplicada no canto direito */}
+          {/* Footer stats bottom */}
           <div className="relative pt-6 border-t border-slate-900/80 flex items-center justify-start text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-12">
             <span>SISTEMA DE SEGURANÇA GRUPO OMG</span>
           </div>
@@ -184,9 +195,7 @@ export default function LoginClient() {
           <div className="my-auto w-full max-w-sm mx-auto space-y-8">
             {/* Header info for mobile (logo + branding) */}
             <div className="md:hidden flex items-center gap-3 mb-6">
-              <div className="bg-slate-900 border border-slate-800 p-2 rounded-lg">
-                <img src="/logo-omg.png" alt="Logo Grupo OMG" className="h-8 w-auto object-contain" />
-              </div>
+              <img src="/logo-omg.png" alt="Logo Grupo OMG" className="h-10 w-auto object-contain drop-shadow-md" />
               <div>
                 <span className="text-[8px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
                 <h2 className="text-sm font-black text-slate-100 tracking-tight leading-none mt-1">SPCI MASTER</h2>
@@ -232,7 +241,7 @@ export default function LoginClient() {
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder="usuario ou email@empresa.com"
-                    className="w-full bg-slate-900 border border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-3 pl-10 pr-4 text-xs text-slate-100 placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
+                    className="w-full bg-slate-900/90 border border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-3 pl-10 pr-4 text-xs text-slate-100 placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
                   />
                 </div>
               </div>
@@ -252,7 +261,7 @@ export default function LoginClient() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-slate-900 border border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-3 pl-10 pr-10 text-xs text-slate-100 placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
+                    className="w-full bg-slate-900/90 border border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-3 pl-10 pr-10 text-xs text-slate-100 placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
                   />
 
                   {/* Ícone de olho visível somente quando o usuário digitar pelo menos 1 caractere */}
@@ -267,6 +276,36 @@ export default function LoginClient() {
                     </button>
                   )}
                 </div>
+              </div>
+
+              {/* Opções Adicionais: Checkbox Permanecer Logado + Link Esqueci Minha Senha */}
+              <div className="flex items-center justify-between text-[11px] font-sans">
+                <label className="flex items-center gap-2 text-slate-300 cursor-pointer select-none">
+                  <input 
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="sr-only"
+                  />
+                  {rememberMe ? (
+                    <CheckSquare className="w-4 h-4 text-red-500" />
+                  ) : (
+                    <Square className="w-4 h-4 text-slate-600" />
+                  )}
+                  <span>Permanecer conectado</span>
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotMsg(null);
+                    setForgotEmail(identifier.includes('@') ? identifier : '');
+                    setShowForgotModal(true);
+                  }}
+                  className="text-red-400 hover:text-red-300 font-medium transition-colors border-none bg-transparent cursor-pointer"
+                >
+                  Esqueci minha senha
+                </button>
               </div>
 
               <button
@@ -354,6 +393,88 @@ export default function LoginClient() {
                 </div>
               </div>
             </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* MODAL DE RECUPERAÇÃO DE SENHA */}
+      <AnimatePresence>
+        {showForgotModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.95, opacity: 0 }}
+              className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl relative space-y-5"
+            >
+              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 className="text-sm font-bold uppercase text-slate-100 tracking-wider flex items-center gap-2">
+                  <Key className="w-4 h-4 text-red-500" />
+                  Recuperar Acesso
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowForgotModal(false)}
+                  className="text-slate-400 hover:text-slate-200 text-xs uppercase cursor-pointer border-none bg-transparent"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p className="text-xs text-slate-300 font-sans leading-relaxed">
+                Informe o seu e-mail corporativo cadastrado para receber as instruções de redefinição de senha.
+              </p>
+
+              {forgotMsg && (
+                <div
+                  className={`p-3 rounded-xl text-xs font-sans font-medium ${
+                    forgotMsg.type === 'success'
+                      ? 'bg-emerald-950/60 border border-emerald-800 text-emerald-400'
+                      : 'bg-red-950/60 border border-red-800 text-red-400'
+                  }`}
+                >
+                  {forgotMsg.text}
+                </div>
+              )}
+
+              <form onSubmit={handleResetPassword} className="space-y-4">
+                <div className="space-y-1.5">
+                  <label htmlFor="forgot-email" className="block text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                    E-mail Cadastrado
+                  </label>
+                  <input
+                    id="forgot-email"
+                    type="email"
+                    required
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
+                    placeholder="seu.email@empresa.com"
+                    className="w-full bg-slate-950 border border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-2.5 px-3.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none transition-all"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowForgotModal(false)}
+                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold uppercase border-none cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={forgotLoading}
+                    className="px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold uppercase border-none cursor-pointer transition-all"
+                  >
+                    {forgotLoading ? 'Enviando...' : 'Enviar E-mail'}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>

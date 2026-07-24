@@ -95,14 +95,12 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose }: Side
       )}
 
       {/* Marca Principal Grupo OMG */}
-      <div className="flex items-center gap-3 mb-6 p-2 bg-slate-900/60 border border-slate-800/80 rounded-2xl">
-        <div className="bg-white p-1.5 rounded-xl shrink-0 shadow-md">
-          <img 
-            src="/logo-omg.png" 
-            alt="Logo Grupo OMG" 
-            className="h-8 w-auto object-contain" 
-          />
-        </div>
+      <div className="flex items-center gap-3.5 mb-6 px-1 py-2">
+        <img 
+          src="/logo-omg.png" 
+          alt="Logo Grupo OMG" 
+          className="h-12 w-auto object-contain shrink-0 filter drop-shadow-[0_2px_8px_rgba(220,38,38,0.3)]" 
+        />
         <div className="min-w-0">
           <span className="text-[9px] text-red-500 font-bold tracking-widest block uppercase leading-none">GRUPO OMG</span>
           <h2 className="text-xs font-black text-slate-100 tracking-tight leading-none mt-1">SPCI MASTER</h2>
