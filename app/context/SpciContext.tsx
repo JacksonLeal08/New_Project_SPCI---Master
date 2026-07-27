@@ -1114,6 +1114,23 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       addConsoleLog(`[Onboarding] Sucesso ao cadastrar colaborador ${name}.`, 'SUCESSO');
+
+      const newUserObj: any = {
+        uid: data.user_id || `usr-${Date.now()}`,
+        name: name,
+        email: email,
+        userName: username,
+        photoURL: '',
+        logoUrl: '',
+        role: role,
+        status: 'Ativo',
+        telefoneWhatsapp: phone || '',
+        dataExpiracao: expiresAt,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+      setUserList(prev => [newUserObj, ...prev.filter(u => u.uid !== newUserObj.uid)]);
+
       await fetchUsers();
       return data;
     } catch (err: any) {

@@ -57,13 +57,15 @@ export default function LoginClient() {
       if (hash.includes('error=') || hash.includes('otp_expired') || hash.includes('invalid')) {
         setErrorMsg('⚠️ O link de e-mail expirou ou é inválido. Por favor, utilize suas credenciais corporativas de login.');
         window.history.replaceState(null, '', window.location.pathname);
-      } else if (hash.includes('type=recovery') || hash.includes('access_token')) {
+      } else if (hash.includes('type=recovery')) {
         setShowForgotModal(true);
         setForgotMsg({ type: 'success', text: 'Link de recuperação identificado! Digite seu e-mail para atualizar a nova senha.' });
         window.history.replaceState(null, '', window.location.pathname);
+      } else if (hash.includes('type=signup') || hash.includes('access_token')) {
+        router.push('/dashboard' + hash);
       }
     }
-  }, []);
+  }, [router]);
 
   // Loading animation simulation
   useEffect(() => {

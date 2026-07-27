@@ -570,6 +570,7 @@ export default function ConfiguracoesPage() {
                   expires_at: expiresAtIso
                 });
                 
+                await fetchUsers();
                 setShowInviteModal(false);
                 setInviteEmail('');
                 setInviteUsername('');

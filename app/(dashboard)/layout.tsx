@@ -87,6 +87,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     }
   }, []);
 
+  // Tratamento de confirmação de e-mail e tokens de acesso na URL (#access_token=...)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash) {
+      const hash = window.location.hash;
+      if (hash.includes('access_token') || hash.includes('type=signup')) {
+        setTimeout(() => {
+          triggerSuccessNotification(
+            'E-mail Confirmado! 🟢',
+            'Sua conta foi ativada com sucesso. Seja bem-vindo ao Cockpit SPCI Master!'
+          );
+        }, 500);
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+    }
+  }, [triggerSuccessNotification]);
+
   // Efeito para fechar a sidebar do mobile quando a rota mudar
   useEffect(() => {
     const timer = setTimeout(() => {
