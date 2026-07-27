@@ -26,7 +26,7 @@ import { SyncQueue } from '@/lib/syncQueue';
 import { playTelemetryPingSound } from '@/lib/audio';
 import { MediaQueue } from '@/lib/mediaQueue';
 import { NotificationItem } from '@/lib/types';
-import { createUserAction, deleteUserAction, updateUserStatusAction } from '@/app/actions/userActions';
+import { createUserAction, deleteUserAction, updateUserStatusAction, updateFullUserAction } from '@/app/actions/userActions';
 
 
 // --- INITIAL SEED DATA ---
@@ -146,6 +146,7 @@ interface SpciContextType {
   handleUpdateLogoAndProfile: (logoUrl: string, name: string) => Promise<void>;
   handleAdminRoleStatusChange: (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => Promise<void>;
   handleAdminDeleteUser: (uid: string) => Promise<void>;
+  handleUpdateUserFull: (uid: string, payload: { name: string; username: string; email: string; phone: string; role: 'Desenvolvedor' | 'Administrador' | 'Usuário'; status: 'Ativo' | 'Pendente' | 'Inativo/Suspenso'; expiresAt: string | null; password?: string; allowedModules?: string[] | null; }) => Promise<any>;
   handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', password: string, phone: string, expiresAt?: string | null, allowedModules?: string[] | null) => Promise<any>;
   handleCredentialsLogin: (identifier: string, pass: string) => Promise<boolean>;
   isGoogleUser: boolean;
@@ -1150,8 +1151,11 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleAdminRoleStatusChange = useCallback(async (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => {
     try {
-      const dbStatus = (newStatus === 'active' || newStatus === 'Ativo') ? 'Ativo' : 'Inativo/Suspenso';
-      await updateUserStatusAction(uid, { role: newRole, status: dbStatus as any });
+      const dbStatus = (newStatus === 'active' || newStatus === 'Ativo') ? 'Ativo' : (newStatus === 'pending' || newStatus === 'Pendente') ? 'Pendente' : 'Inativo/Suspenso';
+      const res = await updateUserStatusAction(uid, { role: newRole, status: dbStatus as any });
+      if (!res.success) {
+        throw new Error(res.error || 'Falha ao salvar alteração no Supabase.');
+      }
       await fetchUsers();
       triggerSuccessNotification("Usuário Atualizado! 🟢", "Perfil de governança modificado com sucesso.");
     } catch (err: any) {
@@ -1160,9 +1164,41 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [fetchUsers, triggerSuccessNotification]);
 
+  const handleUpdateUserFull = useCallback(async (
+    uid: string,
+    payload: {
+      name: string;
+      username: string;
+      email: string;
+      phone: string;
+      role: 'Desenvolvedor' | 'Administrador' | 'Usuário';
+      status: 'Ativo' | 'Pendente' | 'Inativo/Suspenso';
+      expiresAt: string | null;
+      password?: string;
+      allowedModules?: string[] | null;
+    }
+  ) => {
+    try {
+      const res = await updateFullUserAction(uid, payload);
+      if (!res.success) {
+        throw new Error(res.error || 'Falha ao atualizar cadastro do colaborador no banco.');
+      }
+      await fetchUsers();
+      triggerSuccessNotification("Perfil Atualizado! 🟢", `As alterações do usuário ${payload.name} foram salvas no Supabase.`);
+      return res;
+    } catch (err: any) {
+      console.error('[handleUpdateUserFull Erro]', err);
+      triggerSuccessNotification("Falha na Atualização ❌", err.message || "Erro de permissão.");
+      throw err;
+    }
+  }, [fetchUsers, triggerSuccessNotification]);
+
   const handleAdminDeleteUser = useCallback(async (uid: string) => {
     try {
-      await deleteUserAction(uid);
+      const res = await deleteUserAction(uid);
+      if (!res.success) {
+        throw new Error(res.error || 'Falha ao excluir colaborador.');
+      }
       await fetchUsers();
       triggerSuccessNotification("Excluído com Sucesso! 🗑️", "A credencial foi deletada de forma definitiva.");
     } catch (err: any) {
@@ -1411,6 +1447,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       handleUpdateLogoAndProfile,
       handleAdminRoleStatusChange,
       handleAdminDeleteUser,
+      handleUpdateUserFull,
       handleInviteUser,
       handleCredentialsLogin,
       isGoogleUser,

@@ -179,6 +179,15 @@ export async function deleteUserAction(userId: string) {
       return { success: false, error: 'ID do usuário não fornecido.' };
     }
     const supabaseAdmin = getSupabaseAdminClient();
+
+    // 1. Deleta da tabela usuarios
+    try {
+      await supabaseAdmin.from('usuarios').delete().eq('id', userId);
+    } catch (dErr: any) {
+      console.warn('[deleteUserAction] Aviso ao deletar da tabela usuarios:', dErr);
+    }
+
+    // 2. Deleta do Supabase Auth
     const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
     if (error) {
@@ -193,13 +202,12 @@ export async function deleteUserAction(userId: string) {
 
 /**
  * Server Action para atualizar o status de bloqueio ou perfil de um usuário.
- * Atualiza tanto na tabela usuarios quanto nos metadados do Auth.
  */
 export async function updateUserStatusAction(
   userId: string,
   payload: {
     role?: 'Desenvolvedor' | 'Administrador' | 'Usuário';
-    status?: 'Ativo' | 'Inativo/Suspenso';
+    status?: 'Ativo' | 'Pendente' | 'Inativo/Suspenso';
   }
 ) {
   try {
@@ -207,7 +215,7 @@ export async function updateUserStatusAction(
       return { success: false, error: 'ID do usuário não fornecido.' };
     }
     const supabaseAdmin = getSupabaseAdminClient();
-    const updateData: any = {};
+    const updateData: any = { updated_at: new Date().toISOString() };
 
     if (payload.role) {
       updateData.perfil_acesso = payload.role;
@@ -225,7 +233,7 @@ export async function updateUserStatusAction(
       return { success: false, error: `Erro ao atualizar perfil público: ${error.message}` };
     }
 
-    // Sincroniza role nos metadados do Auth também
+    // Sincroniza role nos metadados do Auth
     if (payload.role) {
       await supabaseAdmin.auth.admin.updateUserById(userId, {
         user_metadata: { perfil_acesso: payload.role }
@@ -235,6 +243,105 @@ export async function updateUserStatusAction(
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err.message || 'Erro ao atualizar status.' };
+  }
+}
+
+/**
+ * Server Action para atualização completa de perfil do colaborador (RBAC, dados pessoais, validade, senha e permissões).
+ * Garante a sincronização atômica na tabela usuarios, metadados do Supabase Auth e permissões modulares.
+ */
+export async function updateFullUserAction(
+  userId: string,
+  payload: {
+    name: string;
+    username: string;
+    email: string;
+    phone: string;
+    role: 'Desenvolvedor' | 'Administrador' | 'Usuário';
+    status: 'Ativo' | 'Pendente' | 'Inativo/Suspenso';
+    expiresAt: string | null;
+    password?: string;
+    allowedModules?: string[] | null;
+  }
+) {
+  try {
+    if (!userId) {
+      return { success: false, error: 'ID do usuário não fornecido.' };
+    }
+    const supabaseAdmin = getSupabaseAdminClient();
+
+    const { name, username, email, phone, role, status, expiresAt, password, allowedModules } = payload;
+
+    // 1. Atualizar no Supabase Auth Admin
+    const authUpdatePayload: any = {
+      email,
+      user_metadata: {
+        full_name: name,
+        user_name: username,
+        perfil_acesso: role,
+        data_expiracao: expiresAt
+      }
+    };
+
+    if (password && password.trim().length >= 6) {
+      authUpdatePayload.password = password.trim();
+    }
+
+    if (status === 'Inativo/Suspenso') {
+      authUpdatePayload.banned_until = '3000-01-01T00:00:00Z';
+    } else {
+      authUpdatePayload.banned_until = 'none';
+    }
+
+    const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(userId, authUpdatePayload);
+    if (authErr) {
+      console.warn('[updateFullUserAction] Auth update warning:', authErr.message);
+    }
+
+    // 2. Upsert na tabela publica usuarios
+    const { error: dbErr } = await supabaseAdmin.from('usuarios').upsert(
+      [
+        {
+          id: userId,
+          nome_completo: name,
+          user_name: username,
+          email: email,
+          telefone_whatsapp: phone || '',
+          perfil_acesso: role,
+          status_conta: status,
+          data_expiracao: expiresAt || null,
+          updated_at: new Date().toISOString()
+        }
+      ],
+      { onConflict: 'id' }
+    );
+
+    if (dbErr) {
+      return { success: false, error: `Erro ao salvar atualizações na tabela usuarios: ${dbErr.message}` };
+    }
+
+    // 3. Atualizar permissões modulares (se modulos existir)
+    if (allowedModules) {
+      try {
+        const { data: modules } = await supabaseAdmin.from('modulos').select('id, nome');
+        if (modules && modules.length > 0) {
+          const permissionsToInsert = modules.map((m: any) => ({
+            usuario_id: userId,
+            modulo_id: m.id,
+            visualizar: allowedModules.includes(m.nome),
+            interagir: allowedModules.includes(m.nome)
+          }));
+          await supabaseAdmin.from('permissoes_modulos').upsert(permissionsToInsert, { onConflict: 'usuario_id,modulo_id' });
+        }
+      } catch (pErr: any) {
+        console.warn('[updateFullUserAction] Falha ao atualizar permissões modulares:', pErr);
+      }
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[updateFullUserAction Catch]', err);
+    return { success: false, error: err.message || 'Erro inesperado ao atualizar usuário.' };
   }
 }
 

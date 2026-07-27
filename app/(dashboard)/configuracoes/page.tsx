@@ -8,7 +8,8 @@ import {
   RefreshCw, 
   Trash2, 
   UserPlus, 
-  Check 
+  Check,
+  Pencil
 } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
 
@@ -26,6 +27,7 @@ export default function ConfiguracoesPage() {
     fetchUsers,
     handleAdminRoleStatusChange,
     handleAdminDeleteUser,
+    handleUpdateUserFull,
     handleInviteUser,
     handleUpdateLogoAndProfile,
     triggerSuccessNotification,
@@ -72,6 +74,42 @@ export default function ConfiguracoesPage() {
   const [copied, setCopied] = useState(false);
   const [userToDelete, setUserToDelete] = useState<any | null>(null);
   const [deletingUser, setDeletingUser] = useState(false);
+
+  // User edit modal states
+  const [editingUser, setEditingUser] = useState<any | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editRole, setEditRole] = useState<'Desenvolvedor' | 'Administrador' | 'Usuário'>('Usuário');
+  const [editStatus, setEditStatus] = useState<'Ativo' | 'Pendente' | 'Inativo/Suspenso'>('Ativo');
+  const [editExpiresAt, setEditExpiresAt] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editModules, setEditModules] = useState<string[]>([
+    'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
+  ]);
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const handleOpenEditModal = (user: any) => {
+    setEditingUser(user);
+    setEditName(user.name || '');
+    setEditUsername(user.userName || user.username || '');
+    setEditEmail(user.email || '');
+    setEditPhone(user.telefoneWhatsapp || user.phone || '');
+    setEditRole(user.role || 'Usuário');
+    setEditStatus(
+      user.status === 'active' || user.status === 'Ativo' 
+        ? 'Ativo' 
+        : user.status === 'pending' || user.status === 'Pendente' 
+          ? 'Pendente' 
+          : 'Inativo/Suspenso'
+    );
+    setEditExpiresAt(user.dataExpiracao ? new Date(user.dataExpiracao).toISOString().split('T')[0] : '');
+    setEditPassword('');
+    setEditModules([
+      'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
+    ]);
+  };
 
   // Load user list on mount and tab switch
   useEffect(() => {
@@ -429,7 +467,7 @@ export default function ConfiguracoesPage() {
                         <th className="p-4 font-black">Username / E-mail</th>
                         <th className="p-4 font-black">Nível de Acesso (RBAC)</th>
                         <th className="p-4 font-black">Status de Acesso</th>
-                        <th className="p-4 text-center font-black">Excluir</th>
+                        <th className="p-4 text-center font-black">Ações</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
@@ -506,14 +544,24 @@ export default function ConfiguracoesPage() {
                               </select>
                             </td>
                             <td className="p-4 text-center">
-                              <button 
-                                onClick={() => setUserToDelete(u)}
-                                disabled={disableActions}
-                                className="text-slate-405 hover:text-red-600 p-2 bg-white border border-slate-200 hover:border-red-200 rounded-xl cursor-pointer transition-all disabled:opacity-20 disabled:pointer-events-none shadow-xs"
-                                title="Solicitar exclusão do perfil"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              <div className="flex items-center justify-center gap-2">
+                                <button 
+                                  onClick={() => handleOpenEditModal(u)}
+                                  disabled={disableActions}
+                                  className="text-slate-600 hover:text-red-650 p-2 bg-white border border-slate-200 hover:border-red-200 rounded-xl cursor-pointer transition-all disabled:opacity-20 disabled:pointer-events-none shadow-xs"
+                                  title="Editar perfil completo e permissões do colaborador"
+                                >
+                                  <Pencil className="w-3.5 h-3.5" />
+                                </button>
+                                <button 
+                                  onClick={() => setUserToDelete(u)}
+                                  disabled={disableActions}
+                                  className="text-slate-400 hover:text-red-600 p-2 bg-white border border-slate-200 hover:border-red-200 rounded-xl cursor-pointer transition-all disabled:opacity-20 disabled:pointer-events-none shadow-xs"
+                                  title="Solicitar exclusão do perfil"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         );
@@ -931,6 +979,230 @@ export default function ConfiguracoesPage() {
                 )}
               </button>
             </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* 5. Modal: Edição Completa de Perfil do Colaborador (Desenvolvedor e Administrador) */}
+      {editingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-mono select-none">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 12 }}
+            className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg lg:max-w-2xl shadow-2xl p-6 relative overflow-hidden space-y-4 text-xs text-slate-800 max-h-[92vh] flex flex-col"
+          >
+            <div className="absolute top-0 left-0 right-0 h-1 bg-red-650 rounded-t-2xl" />
+
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100 shrink-0">
+              <div className="w-10 h-10 bg-red-50 border border-red-100 text-red-650 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-inner">
+                ✏️
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                  Editar Cadastro do Colaborador
+                </h3>
+                <p className="text-[10px] text-slate-500 font-sans mt-0.5">
+                  Atualização de credenciais, nível de acesso RBAC, validade e permissões no Supabase
+                </p>
+              </div>
+            </div>
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (savingEdit) return;
+                setSavingEdit(true);
+                try {
+                  const expiresAtIso = editExpiresAt ? new Date(`${editExpiresAt}T23:59:59.999Z`).toISOString() : null;
+                  await handleUpdateUserFull(editingUser.uid, {
+                    name: editName,
+                    username: editUsername,
+                    email: editEmail,
+                    phone: editPhone,
+                    role: editRole,
+                    status: editStatus,
+                    expiresAt: expiresAtIso,
+                    password: editPassword || undefined,
+                    allowedModules: userProfile?.role === 'Desenvolvedor' ? editModules : null
+                  });
+                  setEditingUser(null);
+                } catch (err: any) {
+                  alert(`Erro ao salvar perfil: ${err.message || err}`);
+                } finally {
+                  setSavingEdit(false);
+                }
+              }}
+              className="space-y-4 overflow-y-auto pr-1 flex-1 scrollbar-thin"
+            >
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Nome Completo</label>
+                  <input
+                    type="text"
+                    required
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Nome completo do colaborador"
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none font-bold shadow-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Username (@)</label>
+                  <input
+                    type="text"
+                    required
+                    value={editUsername}
+                    onChange={(e) => setEditUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                    placeholder="Ex: joaosilva"
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none font-bold shadow-xs"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">E-mail Corporativo</label>
+                  <input
+                    type="email"
+                    required
+                    value={editEmail}
+                    onChange={(e) => setEditEmail(e.target.value)}
+                    placeholder="E-mail de acesso"
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Telefone / WhatsApp</label>
+                  <input
+                    type="text"
+                    value={editPhone}
+                    onChange={(e) => setEditPhone(e.target.value)}
+                    placeholder="DDD + Número"
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Nível de Conta (RBAC)</label>
+                  <select
+                    value={editRole}
+                    onChange={(e) => setEditRole(e.target.value as any)}
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
+                  >
+                    {userProfile?.role === 'Desenvolvedor' && <option value="Desenvolvedor">💻 Desenvolvedor</option>}
+                    <option value="Administrador">🛡️ Administrador</option>
+                    <option value="Usuário">👷 Técnico de Campo</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Status da Conta</label>
+                  <select
+                    value={editStatus}
+                    onChange={(e) => setEditStatus(e.target.value as any)}
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
+                  >
+                    <option value="Ativo">🟢 Ativo (Liberado)</option>
+                    <option value="Pendente">🟡 Pendente (Sem Acesso)</option>
+                    <option value="Inativo/Suspenso">🔴 Inativo / Suspenso</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Data de Expiração</label>
+                  <input
+                    type="date"
+                    value={editExpiresAt}
+                    onChange={(e) => setEditExpiresAt(e.target.value)}
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-bold"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1 pt-2 border-t border-slate-100">
+                <label className="block text-[9px] font-bold uppercase text-slate-500">
+                  Nova Senha de Acesso <span className="text-slate-400 font-normal">(Opcional — deixe em branco para não alterar)</span>
+                </label>
+                <input
+                  type="text"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Digite uma nova senha de no mínimo 6 caracteres"
+                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-mono"
+                />
+              </div>
+
+              {userProfile?.role === 'Desenvolvedor' && (
+                <div className="space-y-2 pt-2 border-t border-slate-100">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">
+                    Módulos Autorizados (Abas de Elementos)
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+                    {[
+                      { id: 'dashboard', label: '📊 Dashboard' },
+                      { id: 'extintores', label: '🧯 Extintores' },
+                      { id: 'hidrantes', label: '💧 Hidrantes' },
+                      { id: 'sinalizacao', label: '⚠️ Sinalização' },
+                      { id: 'iluminacao', label: '💡 Iluminação' },
+                      { id: 'bombas', label: '🔧 Casa de Bombas' },
+                      { id: 'ronda', label: '📱 Ronda & Campo' },
+                      { id: 'alerts', label: '🔔 Alertas' }
+                    ].map(mod => (
+                      <label
+                        key={mod.id}
+                        className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-all select-none text-[10px]"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={editModules.includes(mod.id)}
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setEditModules(prev => [...prev, mod.id]);
+                            } else {
+                              setEditModules(prev => prev.filter(id => id !== mod.id));
+                            }
+                          }}
+                          className="rounded border-slate-350 text-red-600 focus:ring-red-500 w-3.5 h-3.5"
+                        />
+                        <span className="font-bold text-slate-700">{mod.label}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2.5 pt-3 border-t border-slate-100 justify-end shrink-0">
+                <button
+                  type="button"
+                  disabled={savingEdit}
+                  onClick={() => setEditingUser(null)}
+                  className="px-5 py-2.5 border border-slate-200 hover:border-slate-350 bg-white text-slate-600 font-bold rounded-xl cursor-pointer text-xs uppercase transition-all shadow-xs"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingEdit}
+                  className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl hover:opacity-90 disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer border-none text-xs uppercase shadow-md active:scale-95"
+                >
+                  {savingEdit ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full inline-block"></span>
+                      SALVANDO...
+                    </>
+                  ) : (
+                    <>
+                      <span>💾</span> Salvar Alterações
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </motion.div>
         </div>
       )}
