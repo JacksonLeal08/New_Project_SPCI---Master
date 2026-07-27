@@ -173,7 +173,7 @@ export default function LoginClient() {
       <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-35" />
 
       {/* Main Container */}
-      <div className="flex-1 flex flex-col md:flex-row w-full max-w-[1600px] mx-auto z-10">
+      <div className="flex-1 flex flex-col md:flex-row w-full min-h-screen z-10">
         
         {/* LEFT COLUMN: Industrial Conceptual & Compliance (Dominante 65%) */}
         <div className="hidden md:flex md:w-[62%] lg:w-[65%] relative flex-col justify-between p-12 overflow-hidden border-r border-slate-900">
@@ -348,7 +348,7 @@ export default function LoginClient() {
             </form>
           </div>
 
-          <div className="pt-6 border-t border-slate-900 mt-6">
+          <div className="pt-4 mt-6 text-center">
             <AppFooter variant="flow" className="py-0 text-[10px]" />
           </div>
         </div>

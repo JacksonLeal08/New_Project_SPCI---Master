@@ -1,4 +1,6 @@
 export const SYSTEM_VERSION = 'v2.5.0';
+export const COMPANY_NAME = 'Grupo OMG';
+export const COPYRIGHT_YEAR = '2026';
 
 export interface ChangelogRelease {
   version: string;

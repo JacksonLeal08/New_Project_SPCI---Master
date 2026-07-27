@@ -22,7 +22,7 @@ export default function AppFooter({ variant = 'flow', className = '' }: AppFoote
   }
 
   return (
-    <footer className={`w-full py-1.5 px-4 text-center text-[10px] font-mono text-slate-500 dark:text-[#C4C4C4] border-t border-slate-200/60 dark:border-slate-800/80 bg-slate-50/80 dark:bg-[#262626]/80 backdrop-blur-xs select-none mt-auto shrink-0 ${className}`}>
+    <footer className={`w-full py-2 px-2 text-center text-[10px] font-mono text-slate-500 dark:text-slate-400 select-none mt-auto shrink-0 bg-transparent ${className}`}>
       <p className="tracking-wider uppercase truncate">
         © {COPYRIGHT_YEAR} - Todos os direitos reservados <span className="mx-1 text-red-500 font-bold">|</span> <span className="font-bold text-slate-700 dark:text-slate-200">{COMPANY_NAME}</span> <span className="mx-1 text-red-500 font-bold">|</span> Versão {SYSTEM_VERSION}
       </p>
