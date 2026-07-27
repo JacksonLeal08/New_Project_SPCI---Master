@@ -2,7 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 
-// Inicializa o cliente do Supabase com privilégios de Admin (ou Anon Key de fallback)
+// Inicializa o cliente do Supabase com privilégios de Admin
 const getSupabaseAdminClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -22,7 +22,10 @@ const getSupabaseAdminClient = () => {
 };
 
 /**
- * Server Action para criar um novo colaborador de forma segura sem crash no Server Component.
+ * Server Action para criar um novo colaborador de forma segura.
+ * Sempre usa SUPABASE_SERVICE_ROLE_KEY para bypassar RLS.
+ * Usa upsert para tolerância a duplicatas.
+ * Executa rollback no Auth se o INSERT na tabela usuarios falhar.
  */
 export async function createUserAction(payload: {
   email: string;
@@ -36,7 +39,7 @@ export async function createUserAction(payload: {
 }) {
   try {
     const { email, username, name, role, phone, password, expiresAt, allowedModules } = payload;
-    
+
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -44,156 +47,120 @@ export async function createUserAction(payload: {
       return { success: false, error: 'Variável NEXT_PUBLIC_SUPABASE_URL não configurada no servidor.' };
     }
 
-    // Se temos a Service Role Key, usamos o cliente admin para bypassar envio de e-mail de confirmação
-    if (serviceRoleKey) {
-      const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-        auth: { autoRefreshToken: false, persistSession: false }
-      });
+    if (!serviceRoleKey) {
+      return {
+        success: false,
+        error: 'SUPABASE_SERVICE_ROLE_KEY ausente. Configure a variável no servidor para criar usuários com segurança.'
+      };
+    }
 
-      // 1. Cria o usuário no Supabase Auth
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: {
-          user_name: username,
-          full_name: name
-        }
-      });
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false }
+    });
 
-      if (authError) {
-        return { success: false, error: `Erro no Supabase Auth: ${authError.message}` };
+    // 1. Cria o usuário no Supabase Auth com confirmação automática de e-mail
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: {
+        user_name: username,
+        full_name: name,
+        perfil_acesso: role
       }
+    });
 
-      const userId = authData.user?.id;
-      if (!userId) {
-        return { success: false, error: 'Falha ao obter ID do novo usuário criado.' };
-      }
+    if (authError) {
+      return { success: false, error: `Erro no Supabase Auth: ${authError.message}` };
+    }
 
-      try {
-        // 2. Insere os dados na tabela pública public.usuarios
-        const { error: dbError } = await supabaseAdmin.from('usuarios').insert([
-          {
-            id: userId,
-            user_name: username,
-            email: email,
-            nome_completo: name,
-            telefone_whatsapp: phone,
-            perfil_acesso: role,
-            status_conta: 'Ativo',
-            data_expiracao: expiresAt
-          }
-        ]);
+    const userId = authData.user?.id;
+    if (!userId) {
+      return { success: false, error: 'Falha ao obter ID do novo usuário criado no Auth.' };
+    }
 
-        if (dbError) {
-          console.warn('[createUserAction] Erro ao inserir na tabela usuarios:', dbError.message);
-        }
-
-        // 3. Cadastra as permissões modulares do usuário (se a tabela modulos existir)
-        try {
-          const { data: modules } = await supabaseAdmin.from('modulos').select('id, nome');
-
-          if (modules && modules.length > 0) {
-            const permissionsToInsert = modules.map((m) => ({
-              usuario_id: userId,
-              modulo_id: m.id,
-              visualizar: allowedModules ? allowedModules.includes(m.nome) : true,
-              interagir: allowedModules ? allowedModules.includes(m.nome) : true
-            }));
-
-            await supabaseAdmin.from('permissoes_modulos').insert(permissionsToInsert);
-          }
-        } catch (mErr) {
-          console.warn('[createUserAction] Tabela modulos/permissoes não disponível:', mErr);
-        }
-
-        // 4. Dispara a notificação de e-mail corporativo HTML Premium
-        try {
-          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
-          await fetch(`${siteUrl}/api/send-email`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              toEmail: email,
-              username,
-              name,
-              role,
-              tempPassword: password,
-              expiresAt
-            })
-          }).catch(console.warn);
-        } catch (eErr) {
-          console.warn('[createUserAction] Erro ao disparar e-mail:', eErr);
-        }
-
-        return {
-          success: true,
-          user_id: userId,
-          username,
-          name,
-          email,
-          role,
-          password,
-          expires_at: expiresAt
-        };
-      } catch (err: any) {
-        console.error('Erro ao registrar perfil público. Executando rollback no Auth...', err);
-        await supabaseAdmin.auth.admin.deleteUser(userId);
-        return { success: false, error: `Erro ao salvar perfil público: ${err.message || err}` };
-      }
-    } else {
-      // Fallback quando SUPABASE_SERVICE_ROLE_KEY não está presente no servidor (modo Cliente / Anon)
-      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-      if (!anonKey) {
-        return { success: false, error: 'SUPABASE_SERVICE_ROLE_KEY ou NEXT_PUBLIC_SUPABASE_ANON_KEY ausentes no servidor.' };
-      }
-
-      const supabaseAnon = createClient(supabaseUrl, anonKey, {
-        auth: { autoRefreshToken: false, persistSession: false }
-      });
-
-      const { data: authData, error: authError } = await supabaseAnon.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            user_name: username,
-            full_name: name
-          }
-        }
-      });
-
-      if (authError) {
-        return { success: false, error: `Erro ao criar conta: ${authError.message}` };
-      }
-
-      const userId = authData.user?.id || `usr-${Date.now()}`;
-
-      // Tenta inserir na tabela usuarios
-      await supabaseAnon.from('usuarios').insert([
+    // 2. Upsert na tabela pública public.usuarios (tolerante a duplicatas)
+    const { error: dbError } = await supabaseAdmin.from('usuarios').upsert(
+      [
         {
           id: userId,
           user_name: username,
           email: email,
           nome_completo: name,
-          telefone_whatsapp: phone,
+          telefone_whatsapp: phone || '',
           perfil_acesso: role,
           status_conta: 'Ativo',
-          data_expiracao: expiresAt
+          data_expiracao: expiresAt || null
         }
-      ]);
+      ],
+      { onConflict: 'id' }
+    );
 
+    if (dbError) {
+      // Erro crítico: reverter criação no Auth para não deixar órfão
+      console.error('[createUserAction] ERRO ao salvar na tabela usuarios — executando rollback no Auth:', dbError.message);
+      await supabaseAdmin.auth.admin.deleteUser(userId).catch((rErr: any) =>
+        console.error('[createUserAction] Falha no rollback do Auth:', rErr.message)
+      );
       return {
-        success: true,
-        user_id: userId,
-        username,
-        name,
-        email,
-        role,
-        password,
-        expires_at: expiresAt
+        success: false,
+        error: `Usuário criado no Auth mas falhou ao salvar no banco: ${dbError.message}. A conta foi removida para consistência.`
       };
     }
+
+    // 3. Cadastra as permissões modulares do usuário (se a tabela modulos existir)
+    try {
+      const { data: modules } = await supabaseAdmin.from('modulos').select('id, nome');
+
+      if (modules && modules.length > 0) {
+        const permissionsToInsert = modules.map((m: any) => ({
+          usuario_id: userId,
+          modulo_id: m.id,
+          visualizar: allowedModules ? allowedModules.includes(m.nome) : true,
+          interagir: allowedModules ? allowedModules.includes(m.nome) : true
+        }));
+
+        try {
+          await supabaseAdmin
+            .from('permissoes_modulos')
+            .upsert(permissionsToInsert, { onConflict: 'usuario_id,modulo_id' });
+        } catch (pErr: any) {
+          console.warn('[createUserAction] Erro ao salvar permissões:', pErr.message || pErr);
+        }
+      }
+    } catch (mErr) {
+      console.warn('[createUserAction] Tabela modulos/permissoes não disponível:', mErr);
+    }
+
+    // 4. Dispara a notificação de e-mail corporativo HTML Premium
+    try {
+      const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+      await fetch(`${siteUrl}/api/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toEmail: email,
+          username,
+          name,
+          role,
+          tempPassword: password,
+          expiresAt
+        })
+      }).catch(console.warn);
+    } catch (eErr) {
+      console.warn('[createUserAction] Erro ao disparar e-mail:', eErr);
+    }
+
+    return {
+      success: true,
+      user_id: userId,
+      username,
+      name,
+      email,
+      role,
+      password,
+      expires_at: expiresAt
+    };
   } catch (globalErr: any) {
     console.error('[createUserAction Global Catch]', globalErr);
     return {
@@ -226,6 +193,7 @@ export async function deleteUserAction(userId: string) {
 
 /**
  * Server Action para atualizar o status de bloqueio ou perfil de um usuário.
+ * Atualiza tanto na tabela usuarios quanto nos metadados do Auth.
  */
 export async function updateUserStatusAction(
   userId: string,
@@ -255,6 +223,13 @@ export async function updateUserStatusAction(
 
     if (error) {
       return { success: false, error: `Erro ao atualizar perfil público: ${error.message}` };
+    }
+
+    // Sincroniza role nos metadados do Auth também
+    if (payload.role) {
+      await supabaseAdmin.auth.admin.updateUserById(userId, {
+        user_metadata: { perfil_acesso: payload.role }
+      }).catch((e: any) => console.warn('[updateUserStatusAction] Falha ao sincronizar role no Auth:', e.message));
     }
 
     return { success: true };
@@ -298,7 +273,7 @@ export async function getUsersListAction() {
       });
     });
 
-    // Sobrescreve com dados atualizados da tabela publica "usuarios"
+    // Sobrescreve com dados atualizados da tabela publica "usuarios" (prioridade ao banco)
     (dbUsers || []).forEach((u: any) => {
       const existing = userMap.get(u.id);
       userMap.set(u.id, {
