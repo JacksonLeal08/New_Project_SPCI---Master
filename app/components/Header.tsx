@@ -217,7 +217,11 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick }: HeaderProps
                 {userProfile?.name || currentUser.displayName || 'Técnico SPCI'}
               </p>
               <p className="text-[8px] font-mono text-red-600 uppercase tracking-wider font-bold">
-                {userProfile?.role === 'Desenvolvedor' ? '💻 Dev' : userProfile?.role === 'Administrador' ? '🛡️ Admin' : '👷 Técnico'}
+                {userProfile?.role === 'Desenvolvedor'
+                  ? '💻 Desenvolvedor'
+                  : userProfile?.role === 'Administrador'
+                    ? '🛡️ Administrador'
+                    : '👷 Técnico de Campo'}
               </p>
             </div>
           </div>

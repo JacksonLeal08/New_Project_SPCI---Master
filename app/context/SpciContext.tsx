@@ -796,6 +796,33 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           } else {
             document.cookie = `spci_user_expires=; path=/; max-age=0; SameSite=Lax`;
           }
+
+          // Se for Admin ou Desenvolvedor, carregar lista de usuários logo após login
+          if (profile.role === 'Administrador' || profile.role === 'Desenvolvedor') {
+            try {
+              const { getUsersListAction } = await import('@/app/actions/userActions');
+              const res = await getUsersListAction();
+              if (res.success && res.users) {
+                const list = res.users.map((u: any) => ({
+                  uid: u.uid,
+                  name: u.name,
+                  email: u.email,
+                  userName: u.username,
+                  photoURL: '',
+                  logoUrl: '',
+                  role: u.role as any,
+                  status: u.status,
+                  telefoneWhatsapp: u.phone || '',
+                  dataExpiracao: u.dataExpiracao,
+                  createdAt: u.createdAt || new Date().toISOString(),
+                  updatedAt: new Date().toISOString()
+                }));
+                setUserList(list);
+              }
+            } catch (e) {
+              console.warn('[Auth] Falha ao carregar lista de usuários:', e);
+            }
+          }
         } catch (err: any) {
           console.error("Erro ao sincronizar perfil do usuário:", err);
         } finally {
@@ -905,6 +932,64 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
   }, [userProfile, addConsoleLog]);
+
+  // Polling periódico de logins de colaboradores para o Desenvolvedor/Administrador
+  // Fallback para quando o Realtime não entrega por RLS ou latência
+  const lastSeenLoginRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!currentUser) return;
+    const profileRole = userProfile?.role;
+    if (profileRole !== 'Desenvolvedor' && profileRole !== 'Administrador') return;
+
+    const pollLoginLogs = async () => {
+      try {
+        const { data } = await supabase
+          .from('logs_auditoria')
+          .select('id, usuario_id, usuario_nome, usuario_email, created_at')
+          .eq('acao', 'LOGIN')
+          .neq('usuario_id', currentUser.uid)
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        if (data && data.length > 0) {
+          const latest = data[0];
+          const latestId = latest.id;
+          if (lastSeenLoginRef.current !== latestId) {
+            lastSeenLoginRef.current = latestId;
+            const seenKey = `spci_seen_login_${latestId}`;
+            if (!sessionStorage.getItem(seenKey)) {
+              sessionStorage.setItem(seenKey, '1');
+              playTelemetryPingSound();
+              triggerSuccessNotification(
+                "👤 Colaborador Conectado!",
+                `${latest.usuario_nome || 'Usuário'} (${latest.usuario_email || 'N/A'}) acabou de acessar o sistema.`
+              );
+              const notif: NotificationItem = {
+                id: latestId || generateUUID(),
+                title: "👤 Colaborador Conectado! 🔑",
+                message: `${latest.usuario_nome || 'Usuário'} (${latest.usuario_email || 'N/A'}) efetuou login.`,
+                type: 'alerta',
+                category: 'acesso',
+                read: false,
+                created_at: latest.created_at || new Date().toISOString()
+              };
+              setNotifications(prev => {
+                if (prev.some(n => n.id === notif.id)) return prev;
+                const next = [notif, ...prev];
+                idb.setAll('notificacoes', next).catch(console.error);
+                return next;
+              });
+            }
+          }
+        }
+      } catch (e) {
+        // silencioso — Realtime é o canal principal
+      }
+    };
+
+    const interval = setInterval(pollLoginLogs, 30000);
+    return () => clearInterval(interval);
+  }, [currentUser, userProfile, triggerSuccessNotification]);
 
   const handleUpdateLogoAndProfile = useCallback(async (logoUrl: string, name: string) => {
     if (currentUser) {
