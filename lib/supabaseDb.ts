@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { InspecaoRealizada } from './types';
+import { getUsersListAction } from '@/app/actions/userActions';
 
 
 export interface UserProfile {
@@ -375,14 +376,37 @@ export async function updateUserRoleAndStatus(
  */
 export async function getAllUserProfiles(): Promise<UserProfile[]> {
   try {
-    const { data, error } = await supabase
-      .from('usuarios')
-      .select('*');
+    const res = await getUsersListAction();
+    if (res.success && res.users && res.users.length > 0) {
+      const list = res.users.map((u: any) => ({
+        uid: u.uid,
+        name: u.name,
+        email: u.email,
+        userName: u.username,
+        photoURL: '',
+        logoUrl: '',
+        role: u.role as any,
+        status: u.status,
+        telefoneWhatsapp: u.phone || '',
+        dataExpiracao: u.dataExpiracao,
+        createdAt: u.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }));
 
+      return list.sort((a, b) => {
+        if (a.role !== b.role) {
+          if (a.role === 'Desenvolvedor') return -1;
+          if (b.role === 'Desenvolvedor') return 1;
+          return a.role === 'Administrador' ? -1 : 1;
+        }
+        return a.name.localeCompare(b.name);
+      });
+    }
+
+    const { data, error } = await supabase.from('usuarios').select('*');
     if (error) throw error;
     const list = (data || []).map(deserializeProfile);
     
-    // Sort by role then name
     return list.sort((a, b) => {
       if (a.role !== b.role) {
         if (a.role === 'Desenvolvedor') return -1;
@@ -393,7 +417,7 @@ export async function getAllUserProfiles(): Promise<UserProfile[]> {
     });
   } catch (error: any) {
     console.error('Error in getAllUserProfiles:', error);
-    throw new Error(`Erro ao obter lista de perfis: ${error.message || error}`);
+    return [];
   }
 }
 

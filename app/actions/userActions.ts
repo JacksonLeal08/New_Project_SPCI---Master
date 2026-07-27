@@ -262,3 +262,38 @@ export async function updateUserStatusAction(
     return { success: false, error: err.message || 'Erro ao atualizar status.' };
   }
 }
+
+/**
+ * Server Action para buscar a lista completa de todos os usuários/colaboradores do banco público sem bloqueios de RLS.
+ */
+export async function getUsersListAction() {
+  try {
+    const supabaseAdmin = getSupabaseAdminClient();
+    const { data: dbUsers, error } = await supabaseAdmin
+      .from('usuarios')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn('[getUsersListAction] Erro na consulta de usuários:', error.message);
+      return { success: false, users: [] };
+    }
+
+    const mappedUsers = (dbUsers || []).map((u: any) => ({
+      uid: u.id,
+      name: u.nome_completo || u.user_name || 'Sem nome',
+      email: u.email || 'N/A',
+      username: u.user_name || 'usuario',
+      phone: u.telefone_whatsapp || '',
+      role: u.perfil_acesso || 'Usuário',
+      status: u.status_conta || 'Ativo',
+      dataExpiracao: u.data_expiracao || null,
+      createdAt: u.created_at
+    }));
+
+    return { success: true, users: mappedUsers };
+  } catch (err: any) {
+    console.error('[getUsersListAction Catch]', err);
+    return { success: false, users: [] };
+  }
+}

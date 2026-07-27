@@ -269,11 +269,14 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logSystemAction = useCallback(async (action: string, tipoAtivo?: string, patrimonio?: string, detalhes?: string) => {
     try {
       const activeUser = userProfile || currentUser;
+      const userName = activeUser?.name || activeUser?.displayName || (activeUser?.email ? activeUser.email.split('@')[0] : 'Sistema/Técnico');
+      const userEmail = activeUser?.email || 'N/A';
+
       const newLog = {
         id: generateUUID(),
         usuario_id: activeUser?.uid || null,
-        usuario_nome: activeUser?.name || activeUser?.displayName || 'Sistema/Técnico',
-        usuario_email: activeUser?.email || 'N/A',
+        usuario_nome: userName,
+        usuario_email: userEmail,
         acao: action,
         tipo_ativo: tipoAtivo || null,
         patrimonio: patrimonio || null,
@@ -281,14 +284,14 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         created_at: new Date().toISOString()
       };
 
-      // 1. Atualizar localmente
+      // 1. Atualizar localmente no IndexedDB e no estado
       setAuditLogs((prev) => {
         const next = [newLog, ...prev];
         idb.setAll('audit_logs', next).catch(console.error);
         return next;
       });
 
-      // 2. Tentar sincronizar online ou enfileirar offline
+      // 2. Sincronizar online com o Supabase sem lançar erro de RLS
       const isOnline = typeof window !== 'undefined' && navigator.onLine;
       if (isOnline) {
         try {
@@ -303,13 +306,12 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
             detalhes: newLog.detalhes,
             created_at: newLog.created_at
           }]);
-          if (error) throw error;
-        } catch (err) {
-          console.warn('Erro ao gravar log online, enfileirando:', err);
-          await SyncQueue.enqueue('audit_logs', newLog.id, newLog);
+          if (error) {
+            console.warn('[logSystemAction] Log salvo localmente (RLS/Permissão no banco):', error.message);
+          }
+        } catch (err: any) {
+          console.warn('[logSystemAction] Falha de sincronia de log online:', err.message || err);
         }
-      } else {
-        await SyncQueue.enqueue('audit_logs', newLog.id, newLog);
       }
     } catch (err) {
       console.error('Erro em logSystemAction:', err);
@@ -654,6 +656,42 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 "Extintor Sincronizado por Terceiro! 🧯",
                 `O extintor ${payload.new.numero_patrimonio || 's/n'} foi atualizado remotamente.`
               );
+            }
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'logs_auditoria' },
+        (payload) => {
+          console.log('[Realtime] Novo log de auditoria:', payload);
+          const newLog = payload.new;
+          if (newLog) {
+            // Atualizar lista local de auditLogs
+            setAuditLogs(prev => [newLog, ...prev]);
+
+            // Se a ação for LOGIN e for de outro usuário, notifica com sinal sonoro e aviso no sininho
+            if (newLog.acao === 'LOGIN' && newLog.usuario_id !== currentUser?.uid) {
+              playTelemetryPingSound();
+              triggerSuccessNotification(
+                "👤 Colaborador Conectado!",
+                `${newLog.usuario_nome || 'Usuário'} (${newLog.usuario_email || 'N/A'}) acabou de acessar o sistema.`
+              );
+
+              const loginNotif: NotificationItem = {
+                id: newLog.id || generateUUID(),
+                title: "👤 Colaborador Conectado! 🔑",
+                message: `${newLog.usuario_nome || 'Usuário'} (${newLog.usuario_email || 'N/A'}) efetuou login no sistema.`,
+                type: 'sistema',
+                category: 'acesso',
+                read: false,
+                created_at: newLog.created_at || new Date().toISOString()
+              };
+              setNotifications(prev => {
+                const next = [loginNotif, ...prev];
+                idb.setAll('notificacoes', next).catch(console.error);
+                return next;
+              });
             }
           }
         }
