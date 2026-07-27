@@ -5,7 +5,11 @@ import { createClient } from '@supabase/supabase-js';
 // Inicializa o cliente do Supabase com privilégios de Admin
 const getSupabaseAdminClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const serviceRoleKey = 
+    process.env.SUPABASE_SERVICE_ROLE_KEY || 
+    process.env.SUPABASE_SERVICE_KEY || 
+    process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY || 
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error(
@@ -298,26 +302,34 @@ export async function updateFullUserAction(
       console.warn('[updateFullUserAction] Auth update warning:', authErr.message);
     }
 
-    // 2. Upsert na tabela publica usuarios
-    const { error: dbErr } = await supabaseAdmin.from('usuarios').upsert(
-      [
-        {
-          id: userId,
-          nome_completo: name,
-          user_name: username,
-          email: email,
-          telefone_whatsapp: phone || '',
-          perfil_acesso: role,
-          status_conta: status,
-          data_expiracao: expiresAt || null,
-          updated_at: new Date().toISOString()
-        }
-      ],
-      { onConflict: 'id' }
-    );
+    // 2. Atualizar ou Upsert na tabela publica usuarios
+    const userPayload = {
+      id: userId,
+      nome_completo: name,
+      user_name: username,
+      email: email,
+      telefone_whatsapp: phone || '',
+      perfil_acesso: role,
+      status_conta: status,
+      data_expiracao: expiresAt || null,
+      updated_at: new Date().toISOString()
+    };
 
-    if (dbErr) {
-      return { success: false, error: `Erro ao salvar atualizações na tabela usuarios: ${dbErr.message}` };
+    // Tenta UPDATE direto no ID primeiro (evita checagem de política INSERT do RLS no PostgreSQL)
+    const { error: updateErr } = await supabaseAdmin
+      .from('usuarios')
+      .update(userPayload)
+      .eq('id', userId);
+
+    if (updateErr) {
+      console.warn('[updateFullUserAction] Update direto falhou, tentando upsert:', updateErr.message);
+      const { error: upsertErr } = await supabaseAdmin
+        .from('usuarios')
+        .upsert([userPayload], { onConflict: 'id' });
+
+      if (upsertErr) {
+        return { success: false, error: `Erro ao salvar atualizações na tabela usuarios: ${upsertErr.message}` };
+      }
     }
 
     // 3. Atualizar permissões modulares (se modulos existir)
