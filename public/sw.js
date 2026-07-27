@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spci-pwa-cache-v2';
+const CACHE_NAME = 'spci-pwa-cache-v3';
 const ASSETS_TO_CACHE = [
   '/',
   '/favicon.svg',
@@ -14,9 +14,9 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Cache inicial carregado.');
+      console.log('[Service Worker] Cache inicial v3 carregado.');
       return cache.addAll(ASSETS_TO_CACHE);
-    })
+    }).catch(err => console.warn('[Service Worker] Erro no cache install:', err))
   );
   self.skipWaiting();
 });
@@ -38,45 +38,49 @@ self.addEventListener('activate', (event) => {
   self.clients.claim();
 });
 
-// Interceptador de requisições para responder offline
+// Interceptador de requisições seguro (Network First para rotas dinâmicas do Next.js)
 self.addEventListener('fetch', (event) => {
   // Apenas intercepta requisições locais GET
   if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
     return;
   }
 
+  const url = new URL(event.request.url);
+
+  // Ignora APIs e rotas internas do Next.js no cache rígido para evitar erros offline no dev/prod
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/')) {
+    event.respondWith(
+      fetch(event.request).catch(async () => {
+        const cached = await caches.match(event.request);
+        return cached || new Response('', { status: 404, statusText: 'Offline' });
+      })
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      return fetch(event.request)
-        .then((response) => {
-          // Se a resposta foi redirecionada, retorna um redirecionamento limpo para o navegador seguir.
-          // Isso evita o erro de segurança do browser quando o modo de redirect do request é 'manual' (ex: navegação de páginas).
-          if (response.redirected) {
-            return Response.redirect(response.url, 307);
-          }
-
-          // Não cacheia respostas que não sejam de sucesso ou APIs
-          if (!response || response.status !== 200 || response.type !== 'basic' || event.request.url.includes('/api/')) {
-            return response;
-          }
-
-          const responseToCache = response.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
-
+    fetch(event.request)
+      .then((response) => {
+        if (!response || response.status !== 200 || response.type !== 'basic') {
           return response;
-        })
-        .catch(() => {
-          // Fallback offline caso a rede falhe e o recurso não esteja no cache
-          if (event.request.mode === 'navigate') {
-            return caches.match('/');
-          }
-        });
-    })
+        }
+        const responseToCache = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseToCache);
+        }).catch(console.warn);
+
+        return response;
+      })
+      .catch(async () => {
+        const cachedResponse = await caches.match(event.request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        if (event.request.mode === 'navigate') {
+          const rootCached = await caches.match('/');
+          if (rootCached) return rootCached;
+        }
+        return new Response('Rede indisponível.', { status: 503, statusText: 'Offline' });
+      })
   );
 });

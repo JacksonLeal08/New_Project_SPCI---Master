@@ -107,6 +107,25 @@ export async function createUserAction(payload: {
           console.warn('[createUserAction] Tabela modulos/permissoes não disponível:', mErr);
         }
 
+        // 4. Dispara a notificação de e-mail corporativo HTML Premium
+        try {
+          const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000';
+          await fetch(`${siteUrl}/api/send-email`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              toEmail: email,
+              username,
+              name,
+              role,
+              tempPassword: password,
+              expiresAt
+            })
+          }).catch(console.warn);
+        } catch (eErr) {
+          console.warn('[createUserAction] Erro ao disparar e-mail:', eErr);
+        }
+
         return {
           success: true,
           user_id: userId,
