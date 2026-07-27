@@ -541,7 +541,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <span className="text-[9px] text-slate-400 font-extrabold uppercase leading-none block">Credencial Logada</span>
                     <p className="text-xs font-bold text-slate-700 truncate mt-1">{currentUser.email}</p>
                     <p className="text-[9px] text-slate-500 mt-0.5">
-                      Acesso: {userProfile?.role === 'admin' ? '🛡️ Administrador' : '👷 Técnico de Campo'}
+                      Acesso: {userProfile?.role === 'Desenvolvedor'
+                        ? '💻 Desenvolvedor'
+                        : userProfile?.role === 'Administrador'
+                          ? '🛡️ Administrador'
+                          : '👷 Técnico de Campo'}
                     </p>
                   </div>
                 </div>
