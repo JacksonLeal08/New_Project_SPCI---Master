@@ -235,12 +235,12 @@ const deserializeNewExtintor = (row: any) => {
  */
 /**
  * Recovers or registers a user profile on login.
- * Both 'jacksonflr@outlook.com.br' and 'jackson602@gmail.com' are bootstrapped as 'Desenvolvedor'.
+ * Only 'jacksonflr@outlook.com.br' is the Master Developer.
+ * All other accounts fetch their role dynamically from Supabase database / Auth metadata.
  */
 export async function registerOrLoginUserProfile(user: { uid: string; displayName: string | null; email: string | null; photoURL: string | null }): Promise<UserProfile> {
   const cachedAvatar = typeof window !== 'undefined' ? localStorage.getItem(`spci_user_avatar_${user.uid}`) : null;
-  const devEmails = ['jacksonflr@outlook.com.br', 'jackson602@gmail.com'];
-  const isBootstrappedAdmin = devEmails.includes(user.email?.toLowerCase() || '');
+  const isMasterDev = user.email?.toLowerCase() === 'jacksonflr@outlook.com.br';
 
   const getSafeUserName = (email: string | null) => {
     const prefix = email?.split('@')[0] || 'usuario';
@@ -257,7 +257,7 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
     if (profileRow && !selectErr) {
       const p = deserializeProfile(profileRow);
       if (cachedAvatar) p.logoUrl = cachedAvatar;
-      if (isBootstrappedAdmin) p.role = 'Desenvolvedor';
+      if (isMasterDev) p.role = 'Desenvolvedor';
       return p;
     }
 
@@ -274,7 +274,7 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
             userName: found.username,
             photoURL: user.photoURL || '',
             logoUrl: cachedAvatar || '',
-            role: (isBootstrappedAdmin ? 'Desenvolvedor' : found.role) as any,
+            role: (isMasterDev ? 'Desenvolvedor' : found.role) as any,
             status: found.status,
             telefoneWhatsapp: found.phone || '',
             dataExpiracao: found.dataExpiracao,
@@ -287,7 +287,7 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
       console.warn('[registerOrLoginUserProfile] Aviso no fallback admin:', sErr);
     }
 
-    const initialRole = isBootstrappedAdmin ? 'Desenvolvedor' : 'Usuário';
+    const initialRole = isMasterDev ? 'Desenvolvedor' : 'Usuário';
     const newProfile: UserProfile = {
       uid: user.uid,
       name: user.displayName || user.email?.split('@')[0] || 'Usuário SPCI',
@@ -320,7 +320,7 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
       userName: getSafeUserName(user.email),
       photoURL: user.photoURL || '',
       logoUrl: cachedAvatar || '',
-      role: isBootstrappedAdmin ? 'Desenvolvedor' : 'Usuário',
+      role: isMasterDev ? 'Desenvolvedor' : 'Usuário',
       status: 'active',
       telefoneWhatsapp: '',
       dataExpiracao: null,
@@ -336,7 +336,7 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   try {
     const cachedAvatar = typeof window !== 'undefined' ? localStorage.getItem(`spci_user_avatar_${uid}`) : null;
-    const devEmails = ['jacksonflr@outlook.com.br', 'jackson602@gmail.com'];
+    const isMasterDevEmail = (email: string) => email?.toLowerCase() === 'jacksonflr@outlook.com.br';
 
     const { data, error } = await supabase
       .from('usuarios')
@@ -348,7 +348,7 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     if (data) {
       const p = deserializeProfile(data);
       if (cachedAvatar) p.logoUrl = cachedAvatar;
-      if (devEmails.includes(p.email?.toLowerCase() || '')) {
+      if (isMasterDevEmail(p.email)) {
         p.role = 'Desenvolvedor';
       }
       return p;
