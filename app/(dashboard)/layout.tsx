@@ -438,7 +438,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
         {/* Área onde as subpáginas renderizam */}
         <main className="flex-grow flex flex-col min-h-screen overflow-y-auto p-4 md:p-6 bg-[#f8fafc] dark:bg-[#333333] text-slate-900 dark:text-[#C4C4C4] transition-colors duration-300 relative">
-          <div className="max-w-6xl mx-auto w-full flex-1 flex flex-col justify-between">
+          <div className="max-w-[1800px] 2xl:max-w-[2100px] mx-auto w-full flex-1 flex flex-col justify-between">
             <div className="pb-6">
               {children}
             </div>

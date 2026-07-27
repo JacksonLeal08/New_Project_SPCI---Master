@@ -67,9 +67,11 @@ export default function ConfiguracoesPage() {
     'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
   ]);
 
-  // Onboarding credentials display state
+  // Onboarding credentials & delete confirmation display state
   const [createdCredentials, setCreatedCredentials] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<any | null>(null);
+  const [deletingUser, setDeletingUser] = useState(false);
 
   // Load user list on mount and tab switch
   useEffect(() => {
@@ -116,7 +118,7 @@ export default function ConfiguracoesPage() {
     <motion.div 
       initial={{ opacity: 0, y: 12 }} 
       animate={{ opacity: 1, y: 0 }} 
-      className="space-y-6 max-w-6xl mx-auto pb-24 font-mono select-none text-slate-850"
+      className="w-full space-y-6 pb-24 font-mono select-none text-slate-850"
     >
       {/* Header section */}
       <div className="bg-white border border-slate-200 p-6 shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4 rounded-2xl">
@@ -505,10 +507,10 @@ export default function ConfiguracoesPage() {
                             </td>
                             <td className="p-4 text-center">
                               <button 
-                                onClick={() => handleAdminDeleteUser(u.uid)}
+                                onClick={() => setUserToDelete(u)}
                                 disabled={disableActions}
                                 className="text-slate-405 hover:text-red-600 p-2 bg-white border border-slate-200 hover:border-red-200 rounded-xl cursor-pointer transition-all disabled:opacity-20 disabled:pointer-events-none shadow-xs"
-                                title="Deletar permanentemente"
+                                title="Solicitar exclusão do perfil"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
@@ -826,6 +828,110 @@ export default function ConfiguracoesPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 4. Modal: Confirmação de Exclusão de Perfil do Colaborador (Desenvolvedor e Administrador) */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-mono select-none">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 12 }}
+            className="bg-white border border-slate-200 rounded-2xl w-full max-w-md md:max-w-lg lg:max-w-xl shadow-2xl p-6 relative overflow-hidden space-y-5 text-xs text-slate-800"
+          >
+            <div className="absolute top-0 left-0 right-0 h-1 bg-red-600 rounded-t-2xl" />
+            
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 bg-red-50 border border-red-100 text-red-600 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-inner">
+                🗑️
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                  Confirmar Exclusão de Perfil
+                </h3>
+                <p className="text-[10px] text-slate-500 font-sans mt-0.5">
+                  Governança e Gerenciamento de Credenciais SPCI
+                </p>
+              </div>
+            </div>
+
+            {/* Dados do Colaborador a Ser Excluído */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-left font-mono shadow-inner">
+              <div className="flex justify-between items-start gap-2">
+                <div>
+                  <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest block">Nome do Colaborador</span>
+                  <p className="font-black text-sm text-slate-900 uppercase mt-0.5">{userToDelete.name}</p>
+                </div>
+                <span className="px-2 py-0.5 bg-red-100 text-red-700 font-black text-[9px] uppercase rounded-md border border-red-200 shrink-0">
+                  {userToDelete.role === 'Desenvolvedor' ? '💻 Dev' : userToDelete.role === 'Administrador' ? '🛡️ Admin' : '👷 Técnico'}
+                </span>
+              </div>
+
+              <div className="pt-2 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
+                <div>
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Username</span>
+                  <span className="text-red-650 font-bold">@{userToDelete.userName || 'usuario'}</span>
+                </div>
+                <div>
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">E-mail</span>
+                  <span className="text-slate-700 font-bold truncate block">{userToDelete.email}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Caixa de Alerta Crítico */}
+            <div className="bg-amber-50 border border-amber-200 text-amber-950 rounded-xl p-4 text-[11px] leading-relaxed font-sans font-bold flex gap-3 items-start shadow-xs">
+              <span className="text-xl shrink-0 leading-none">⚠️</span>
+              <div className="space-y-1">
+                <p className="font-black text-amber-900 uppercase tracking-wider text-[10px]">
+                  Atenção: Ação Definitiva e Irreversível!
+                </p>
+                <p className="text-amber-800 text-[11px]">
+                  Tem certeza de que deseja excluir permanentemente o perfil de <strong>{userToDelete.name}</strong>? Esta ação removerá a conta do Supabase Auth e excluirá seus registros de acesso. <strong>Após confirmada, não será possível desfazer.</strong>
+                </p>
+              </div>
+            </div>
+
+            {/* Ações */}
+            <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2 justify-end">
+              <button
+                type="button"
+                disabled={deletingUser}
+                onClick={() => setUserToDelete(null)}
+                className="px-5 py-2.5 border border-slate-200 hover:border-slate-350 bg-white text-slate-600 font-bold rounded-xl cursor-pointer text-xs uppercase transition-all shadow-xs disabled:opacity-50"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                disabled={deletingUser}
+                onClick={async () => {
+                  setDeletingUser(true);
+                  try {
+                    await handleAdminDeleteUser(userToDelete.uid);
+                    setUserToDelete(null);
+                  } catch (err) {
+                    console.error("Erro ao deletar usuário:", err);
+                  } finally {
+                    setDeletingUser(false);
+                  }
+                }}
+                className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-xs uppercase flex items-center justify-center gap-2 transition-all cursor-pointer border-none shadow-md disabled:opacity-40 active:scale-95"
+              >
+                {deletingUser ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full inline-block"></span>
+                    EXCLUINDO...
+                  </>
+                ) : (
+                  <>
+                    <span>🗑️</span> Sim, Confirmar Exclusão
+                  </>
+                )}
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
     </motion.div>
