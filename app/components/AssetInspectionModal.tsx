@@ -2,6 +2,7 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { AnyAsset, AssetStatus } from '@/lib/types';
 import AppFooter from './AppFooter';
+import { useSpci } from '@/app/context/SpciContext';
 
 interface AssetInspectionModalProps {
   isOpen: boolean;
@@ -26,12 +27,47 @@ export default function AssetInspectionModal({
   photoFrontal,
   onDemoDrop
 }: AssetInspectionModalProps) {
+  const { extintorChecklist } = useSpci();
+
   if (!isOpen || !asset) return null;
 
-  // Requisitos NBR genéricos baseados nas normas brasileiras de incêndio
+  // Requisitos NBR genéricos baseados nas normas brasileiras de incêndio e no checklist ativo
   const getRequirements = () => {
     switch (asset.category) {
-      case 'extintores':
+      case 'extintores': {
+        if (extintorChecklist && extintorChecklist.length > 0) {
+          const modelUpper = ((asset as any).model || '').toUpperCase();
+          const pesoVal = parseFloat(String((asset as any).peso_capacidade || (asset as any).peso || '0').replace(/\D/g, '')) || 0;
+          const isCarreta = modelUpper.includes('CARRETA') || modelUpper.includes('RODAS') || pesoVal >= 20;
+
+          // Mapeia Tipo
+          let tipoAgente = 'PQS';
+          if (modelUpper.includes('CO2')) tipoAgente = 'CO2';
+          else if (modelUpper.includes('AGUA') || modelUpper.includes('ÁGUA') || modelUpper.includes('AP')) tipoAgente = 'AP';
+          else if (modelUpper.includes('ESPUMA')) tipoAgente = 'Espuma';
+          else if (modelUpper.includes('K')) tipoAgente = 'K';
+
+          const activeItems = extintorChecklist.filter((chk: any) => {
+            if (chk.status !== 'Ativado') return false;
+
+            // Valida Tipo
+            const tipos = chk.tiposAplicaveis || ['Todos'];
+            const matchesTipo = tipos.includes('Todos') || tipos.includes(tipoAgente);
+
+            // Valida Peso
+            const pesos = chk.pesosAplicaveis || ['Todos'];
+            const matchesPeso =
+              pesos.includes('Todos') ||
+              (isCarreta && pesos.includes('Carreta / Sobre Rodas')) ||
+              (!isCarreta && pesos.includes('Portátil'));
+
+            return matchesTipo && matchesPeso;
+          });
+
+          if (activeItems.length > 0) {
+            return activeItems.map((x: any) => x.item);
+          }
+        }
         return [
           "Posição e Localização recomendada conforme NBR 12962?",
           "Acesso desobstruído com sinalização de piso regulamentar?",
@@ -39,6 +75,7 @@ export default function AssetInspectionModal({
           "Pressão indicada no manômetro está na faixa verde operacional?",
           "Integridade estrutural da carcaça, mangueira, bico e lacre de segurança?"
         ];
+      }
       case 'hidrantes':
         return [
           "Abrigo de hidrante limpo, desobstruído e sinalizado conforme NBR 13714?",

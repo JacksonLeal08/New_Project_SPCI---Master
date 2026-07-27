@@ -7,6 +7,7 @@ import AssetDetailDrawer from '@/app/components/AssetDetailDrawer';
 import DisintegrationOverlay from '@/app/components/DisintegrationOverlay';
 import ExtintorAddModal from '@/app/components/ExtintorAddModal';
 import ConformidadeStudyModal from '@/app/components/ConformidadeStudyModal';
+import { ChecklistEditModal } from '@/app/components/ChecklistEditModal';
 import * as XLSX from 'xlsx';
 import { 
   Plus, 
@@ -82,7 +83,9 @@ export default function ExtintoresPage() {
     requestAssetDeletion,
     lastSyncTime,
     syncWithRealDatabase,
-    complianceLogs
+    complianceLogs,
+    extintorChecklist,
+    setExtintorChecklist
   } = useSpci();
 
   // --- ESTADOS DO COCKPIT DE IMPORTAÇÃO ---
@@ -105,6 +108,7 @@ export default function ExtintoresPage() {
   // --- MODAIS EXCLUSIVOS PREMIUM ---
   const [showExtintorAddModal, setShowExtintorAddModal] = useState<boolean>(false);
   const [showComplianceStudyModal, setShowComplianceStudyModal] = useState<boolean>(false);
+  const [showChecklistModal, setShowChecklistModal] = useState<boolean>(false);
 
   const canDelete = userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Administrador';
 
@@ -229,6 +233,9 @@ export default function ExtintoresPage() {
       case 'edit_mass':
         setShowBulkEdit(true);
         setShowBulkImport(false);
+        break;
+      case 'edit_check':
+        setShowChecklistModal(true);
         break;
       default:
         setPremiumAlert({
@@ -1810,6 +1817,14 @@ export default function ExtintoresPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* MODAL EXCLUSIVO DE EDIÇÃO DE CHECKLIST NBR */}
+      <ChecklistEditModal
+        isOpen={showChecklistModal}
+        onClose={() => setShowChecklistModal(false)}
+        items={extintorChecklist}
+        onSaveSuccess={(updated) => setExtintorChecklist(updated)}
+      />
     </motion.div>
   );
 }

@@ -27,6 +27,8 @@ import { playTelemetryPingSound } from '@/lib/audio';
 import { MediaQueue } from '@/lib/mediaQueue';
 import { NotificationItem } from '@/lib/types';
 import { createUserAction, deleteUserAction, updateUserStatusAction, updateFullUserAction, createLogAction } from '@/app/actions/userActions';
+import { getChecklistItemsAction } from '@/app/actions/checklistActions';
+import { DEFAULT_EXTINTOR_CHECKLIST } from '@/app/components/ChecklistEditModal';
 
 
 // --- INITIAL SEED DATA ---
@@ -85,9 +87,11 @@ interface SpciContextType {
   iluminacoes: any[];
   bombas: any[];
   complianceLogs: any[];
+  extintorChecklist: any[];
   
   // Setters/actions for data lists
   setExtintores: React.Dispatch<React.SetStateAction<any[]>>;
+  setExtintorChecklist: React.Dispatch<React.SetStateAction<any[]>>;
   setHidrantes: React.Dispatch<React.SetStateAction<any[]>>;
   setSinalizacoes: React.Dispatch<React.SetStateAction<any[]>>;
   setIluminacoes: React.Dispatch<React.SetStateAction<any[]>>;
@@ -198,6 +202,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // Data lists
   const [extintores, setExtintores] = useState<any[]>([]);
+  const [extintorChecklist, setExtintorChecklist] = useState<any[]>(DEFAULT_EXTINTOR_CHECKLIST);
   const [hidrantes, setHidrantes] = useState<any[]>([]);
   const [sinalizacoes, setSinalizacoes] = useState<any[]>([]);
   const [iluminacoes, setIluminacoes] = useState<any[]>([]);
@@ -1393,7 +1398,9 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       iluminacoes,
       bombas,
       complianceLogs,
+      extintorChecklist,
       setExtintores,
+      setExtintorChecklist,
       setHidrantes,
       setSinalizacoes,
       setIluminacoes,
