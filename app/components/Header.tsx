@@ -190,22 +190,26 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick }: HeaderProps
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') onProfileClick(); }}
           >
             {userProfile?.logoUrl ? (
-              <img 
-                alt={`Logo corporativo de ${userProfile?.name || 'técnico'}`} 
-                className="w-8 h-8 rounded-xl border border-red-500 object-cover bg-white p-0.5 shadow-xs" 
-                src={userProfile.logoUrl}
-                referrerPolicy="no-referrer"
-              />
+              <div className="w-8 h-8 rounded-xl border border-red-500/40 bg-white p-0.5 shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
+                <img 
+                  alt={`Logo corporativo de ${userProfile?.name || 'técnico'}`} 
+                  className="w-full h-full object-contain rounded-lg" 
+                  src={userProfile.logoUrl}
+                  referrerPolicy="no-referrer"
+                />
+              </div>
             ) : currentUser.photoURL ? (
-              <img 
-                alt={`Foto de perfil de ${userProfile?.name || 'técnico'}`} 
-                className="w-8 h-8 rounded-xl border border-red-500 object-cover shadow-xs" 
-                src={currentUser.photoURL}
-                referrerPolicy="no-referrer"
-              />
+              <div className="w-8 h-8 rounded-xl border border-red-500/40 bg-white p-0.5 shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
+                <img 
+                  alt={`Foto de perfil de ${userProfile?.name || 'técnico'}`} 
+                  className="w-full h-full object-cover rounded-lg" 
+                  src={currentUser.photoURL}
+                  referrerPolicy="no-referrer"
+                />
+              </div>
             ) : (
               <div 
-                className="w-8 h-8 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center text-xs uppercase border border-red-200"
+                className="w-8 h-8 rounded-xl bg-red-50 text-red-600 font-bold flex items-center justify-center text-xs uppercase border border-red-200 shrink-0"
                 aria-hidden="true"
               >
                 {currentUser.email?.charAt(0)}

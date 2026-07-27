@@ -526,12 +526,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <div className="space-y-4">
                 <div className="bg-slate-50 border border-slate-150 p-3 flex items-center gap-3 rounded-xl shadow-xs">
                   {userProfile?.logoUrl ? (
-                    <img
-                      src={userProfile.logoUrl}
-                      alt={`Logo corporativo de ${userProfile.name}`}
-                      className="w-10 h-10 object-contain border border-slate-200 bg-white p-0.5 rounded-lg"
-                      referrerPolicy="no-referrer"
-                    />
+                    <div className="w-10 h-10 rounded-lg border border-slate-200 bg-white p-0.5 shadow-xs flex items-center justify-center shrink-0 overflow-hidden">
+                      <img
+                        src={userProfile.logoUrl}
+                        alt={`Logo corporativo de ${userProfile.name}`}
+                        className="w-full h-full object-contain rounded-md"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
                   ) : (
                     <div className="w-10 h-10 bg-slate-200 text-slate-500 font-bold flex items-center justify-center text-xs uppercase rounded-lg" aria-hidden="true">
                       {userProfile?.name?.charAt(0) || 'U'}
