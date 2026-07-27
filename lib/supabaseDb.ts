@@ -233,9 +233,15 @@ const deserializeNewExtintor = (row: any) => {
  * Recovers or registers a user profile on login.
  * If the user's email matches 'jackson602@gmail.com', they are bootstrapped as a 'Desenvolvedor'.
  */
+/**
+ * Recovers or registers a user profile on login.
+ * Both 'jacksonflr@outlook.com.br' and 'jackson602@gmail.com' are bootstrapped as 'Desenvolvedor'.
+ */
 export async function registerOrLoginUserProfile(user: { uid: string; displayName: string | null; email: string | null; photoURL: string | null }): Promise<UserProfile> {
   const cachedAvatar = typeof window !== 'undefined' ? localStorage.getItem(`spci_user_avatar_${user.uid}`) : null;
-  const isBootstrappedAdmin = user.email?.toLowerCase() === 'jackson602@gmail.com';
+  const devEmails = ['jacksonflr@outlook.com.br', 'jackson602@gmail.com'];
+  const isBootstrappedAdmin = devEmails.includes(user.email?.toLowerCase() || '');
+
   const getSafeUserName = (email: string | null) => {
     const prefix = email?.split('@')[0] || 'usuario';
     return prefix.length >= 3 ? prefix : `${prefix}_usr`;
@@ -253,6 +259,32 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
       if (cachedAvatar) p.logoUrl = cachedAvatar;
       if (isBootstrappedAdmin) p.role = 'Desenvolvedor';
       return p;
+    }
+
+    // Fallback: tentar recuperar via Server Action com service role se a consulta anônima no cliente falhar
+    try {
+      const res = await getUsersListAction();
+      if (res.success && res.users) {
+        const found = res.users.find((u: any) => u.uid === user.uid || u.email?.toLowerCase() === user.email?.toLowerCase());
+        if (found) {
+          return {
+            uid: found.uid,
+            name: found.name,
+            email: found.email,
+            userName: found.username,
+            photoURL: user.photoURL || '',
+            logoUrl: cachedAvatar || '',
+            role: (isBootstrappedAdmin ? 'Desenvolvedor' : found.role) as any,
+            status: found.status,
+            telefoneWhatsapp: found.phone || '',
+            dataExpiracao: found.dataExpiracao,
+            createdAt: found.createdAt || new Date().toISOString(),
+            updatedAt: new Date().toISOString()
+          };
+        }
+      }
+    } catch (sErr) {
+      console.warn('[registerOrLoginUserProfile] Aviso no fallback admin:', sErr);
     }
 
     const initialRole = isBootstrappedAdmin ? 'Desenvolvedor' : 'Usuário';
@@ -304,6 +336,8 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   try {
     const cachedAvatar = typeof window !== 'undefined' ? localStorage.getItem(`spci_user_avatar_${uid}`) : null;
+    const devEmails = ['jacksonflr@outlook.com.br', 'jackson602@gmail.com'];
+
     const { data, error } = await supabase
       .from('usuarios')
       .select('*')
@@ -314,6 +348,9 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     if (data) {
       const p = deserializeProfile(data);
       if (cachedAvatar) p.logoUrl = cachedAvatar;
+      if (devEmails.includes(p.email?.toLowerCase() || '')) {
+        p.role = 'Desenvolvedor';
+      }
       return p;
     }
     return null;

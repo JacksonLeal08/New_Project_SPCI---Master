@@ -473,7 +473,7 @@ export default function ConfiguracoesPage() {
                     <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
                       {userList.map(u => {
                         const isOwnAccount = u.uid === currentUser?.uid;
-                        const isPrimaryAdmin = u.email?.toLowerCase() === 'jackson602@gmail.com';
+                        const isPrimaryAdmin = ['jacksonflr@outlook.com.br', 'jackson602@gmail.com'].includes(u.email?.toLowerCase() || '');
                         const disableActions = isOwnAccount || 
                           (isPrimaryAdmin && userProfile?.role !== 'Desenvolvedor') || 
                           (u.role === 'Desenvolvedor' && userProfile?.role !== 'Desenvolvedor');
