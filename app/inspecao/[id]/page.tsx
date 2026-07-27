@@ -62,7 +62,7 @@ const DEFAULT_CHECKLIST: ChecklistItem[] = [
 ];
 
 function InspecaoOuCadastroContent() {
-  const { logSystemAction, complianceLogs } = useSpci();
+  const { logSystemAction, complianceLogs, extintorChecklist } = useSpci();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
