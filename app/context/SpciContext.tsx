@@ -682,7 +682,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 id: newLog.id || generateUUID(),
                 title: "👤 Colaborador Conectado! 🔑",
                 message: `${newLog.usuario_nome || 'Usuário'} (${newLog.usuario_email || 'N/A'}) efetuou login no sistema.`,
-                type: 'sistema',
+                type: 'alerta',
                 category: 'acesso',
                 read: false,
                 created_at: newLog.created_at || new Date().toISOString()
