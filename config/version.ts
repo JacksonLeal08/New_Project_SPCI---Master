@@ -1,4 +1,4 @@
-export const SYSTEM_VERSION = 'v2.5.0';
+export const SYSTEM_VERSION = 'v2.6.0';
 export const COMPANY_NAME = 'Grupo OMG';
 export const COPYRIGHT_YEAR = '2026';
 
@@ -12,6 +12,18 @@ export interface ChangelogRelease {
 
 export const SYSTEM_CHANGELOG: ChangelogRelease[] = [
   {
+    version: 'v2.6.0',
+    date: '27-07-2026',
+    title: '⚡ Sincronização Dinâmica de Roles RBAC, Logs sem Bloqueio e Notificação de Login',
+    description: 'Release com sincronia total de perfil no Supabase, registro Server Action de auditoria e alerta de acessos ao Desenvolvedor.',
+    changes: [
+      '💻 Desenvolvedor Master Único reservado para jacksonflr@outlook.com.br; todos os demais colaboradores leem roles 100% dinâmicos do Supabase.',
+      '📝 Gravação de Logs de Auditoria no Supabase sem bloqueios RLS (via Server Action administrativa).',
+      '🔔 Notificações e sinalização ao Desenvolvedor no ícone de sininho a cada novo login de usuário no sistema.',
+      '📌 Unificação da versão oficial v2.6.0 no rodapé, modal de changelog e tela de login.'
+    ]
+  },
+  {
     version: 'v2.5.0',
     date: '27-07-2026',
     title: '🚀 CRUD Completo para Desenvolvedor, Notificações com Som e Layout Amplo',
@@ -22,17 +34,6 @@ export const SYSTEM_CHANGELOG: ChangelogRelease[] = [
       '🔊 Notificações com sinal sonoro de telemetria em tempo real a cada novo login de colaborador.',
       '🖼️ Persistência de avatar/foto de perfil no F5 com tratamento gracioso de permissões RLS.',
       '🖥️ Expansão dos modais centrais para aproveitamento horizontal amplo e responsivo em desktop/mobile.'
-    ]
-  },
-  {
-    version: 'v2.4.0',
-    date: '27-07-2026',
-    title: '✉️ E-mail Corporativo HTML Premium e Resiliência PWA',
-    description: 'Integração de notificações corporativas Grupo OMG | SPCI Master.',
-    changes: [
-      '✉️ Envio de credenciais com template HTML corporativo premium (Grupo OMG | SPCI Master).',
-      '⚠️ Tratamento de links expirados na tela de login.',
-      '⚡ Estratégia Network-First no Service Worker (sw.js) para evitar exceções offline.'
     ]
   }
 ];

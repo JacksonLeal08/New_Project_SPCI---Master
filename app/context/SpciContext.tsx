@@ -26,7 +26,7 @@ import { SyncQueue } from '@/lib/syncQueue';
 import { playTelemetryPingSound } from '@/lib/audio';
 import { MediaQueue } from '@/lib/mediaQueue';
 import { NotificationItem } from '@/lib/types';
-import { createUserAction, deleteUserAction, updateUserStatusAction, updateFullUserAction } from '@/app/actions/userActions';
+import { createUserAction, deleteUserAction, updateUserStatusAction, updateFullUserAction, createLogAction } from '@/app/actions/userActions';
 
 
 // --- INITIAL SEED DATA ---
@@ -292,32 +292,31 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return next;
       });
 
-      // 2. Sincronizar online com o Supabase sem lançar erro de RLS
+      // 2. Sincronizar no banco via Server Action administrativa (bypassa RLS)
       const isOnline = typeof window !== 'undefined' && navigator.onLine;
       if (isOnline) {
-        try {
-          const { error } = await supabase.from('logs_auditoria').insert([{
-            id: newLog.id,
-            usuario_id: newLog.usuario_id,
-            usuario_nome: newLog.usuario_nome,
-            usuario_email: newLog.usuario_email,
-            acao: newLog.acao,
-            tipo_ativo: newLog.tipo_ativo,
-            patrimonio: newLog.patrimonio,
-            detalhes: newLog.detalhes,
-            created_at: newLog.created_at
-          }]);
-          if (error) {
-            console.warn('[logSystemAction] Log salvo localmente (RLS/Permissão no banco):', error.message);
-          }
-        } catch (err: any) {
-          console.warn('[logSystemAction] Falha de sincronia de log online:', err.message || err);
-        }
+        createLogAction({
+          usuarioId: newLog.usuario_id,
+          usuarioNome: newLog.usuario_nome,
+          usuarioEmail: newLog.usuario_email,
+          acao: newLog.acao,
+          tipoAtivo: newLog.tipo_ativo,
+          patrimonio: newLog.patrimonio,
+          detalhes: newLog.detalhes
+        }).catch(err => console.warn('[logSystemAction] Falha ao enviar log online:', err));
+      }
+
+      // 3. Se for evento de LOGIN, emite notificação para aviso no sininho
+      if (action === 'LOGIN') {
+        triggerSuccessNotification(
+          "🚪 Novo Login Registrado",
+          `${userName} (${userEmail}) realizou login no sistema SPCI.`
+        );
       }
     } catch (err) {
       console.error('Erro em logSystemAction:', err);
     }
-  }, [userProfile, currentUser]);
+  }, [userProfile, currentUser, triggerSuccessNotification]);
 
   // Sync to database lists with offline resilience
   const saveAssetsList = useCallback(async (moduleKey: string, data: any[], isImport = false) => {

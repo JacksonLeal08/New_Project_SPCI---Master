@@ -420,6 +420,44 @@ export async function getUsersListAction() {
     return { success: true, users: combinedUsers };
   } catch (err: any) {
     console.error('[getUsersListAction Catch]', err);
-    return { success: false, users: [] };
+    return { success: false, error: err.message || 'Erro ao listar usuários.' };
+  }
+}
+
+/**
+ * Server Action para gravar log de auditoria no Supabase com service role (bypassa RLS).
+ */
+export async function createLogAction(payload: {
+  usuarioId?: string | null;
+  usuarioNome: string;
+  usuarioEmail: string;
+  acao: string;
+  tipoAtivo?: string | null;
+  patrimonio?: string | null;
+  detalhes?: string;
+}) {
+  try {
+    const supabaseAdmin = getSupabaseAdminClient();
+    const newLog = {
+      id: crypto.randomUUID(),
+      usuario_id: payload.usuarioId || null,
+      usuario_nome: payload.usuarioNome,
+      usuario_email: payload.usuarioEmail,
+      acao: payload.acao,
+      tipo_ativo: payload.tipoAtivo || null,
+      patrimonio: payload.patrimonio || null,
+      detalhes: payload.detalhes || '',
+      created_at: new Date().toISOString()
+    };
+
+    const { error } = await supabaseAdmin.from('logs_auditoria').insert([newLog]);
+    if (error) {
+      console.warn('[createLogAction] Aviso ao inserir log via admin:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true, log: newLog };
+  } catch (err: any) {
+    console.warn('[createLogAction Catch]:', err);
+    return { success: false, error: err.message || 'Erro ao gravar log.' };
   }
 }

@@ -1,7 +1,5 @@
 /**
  * Módulo Central de Versionamento Automático do SPCI
- * Atualizado dinamicamente a cada entrega/commit do sistema.
+ * Re-exporta a versão oficial centralizada em config/version.ts.
  */
-export const SYSTEM_VERSION = '2.4.0';
-export const COMPANY_NAME = 'Grupo OMG';
-export const COPYRIGHT_YEAR = 2026;
+export { SYSTEM_VERSION, COMPANY_NAME, COPYRIGHT_YEAR, SYSTEM_CHANGELOG } from '@/config/version';
