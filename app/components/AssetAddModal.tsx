@@ -548,7 +548,7 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       <motion.div 
         initial={{ opacity: 0, scale: 0.98, y: 15 }} 
         animate={{ opacity: 1, scale: 1, y: 0 }} 
-        className="w-full max-w-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl relative my-8 font-mono text-xs text-slate-800 dark:text-slate-100"
+        className="w-full max-w-5xl md:max-w-6xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl relative my-8 font-mono text-xs text-slate-800 dark:text-slate-100"
       >
         {/* Accent Top Bar */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-650 rounded-t-2xl" aria-hidden="true" />

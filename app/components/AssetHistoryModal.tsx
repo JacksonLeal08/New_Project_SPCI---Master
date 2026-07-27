@@ -270,7 +270,7 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
       <motion.div 
         initial={{ opacity: 0, scale: 0.98, y: 10 }} 
         animate={{ opacity: 1, scale: 1, y: 0 }} 
-        className="w-full max-w-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl rounded-none relative my-8 font-mono text-xs text-slate-800 dark:text-slate-200 flex flex-col max-h-[85vh]"
+        className="w-full max-w-5xl md:max-w-6xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl rounded-2xl relative my-8 font-mono text-xs text-slate-800 dark:text-slate-200 flex flex-col max-h-[85vh]"
       >
         <div className="absolute top-0 left-0 right-0 h-1 bg-red-600" aria-hidden="true" />
 

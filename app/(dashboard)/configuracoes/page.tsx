@@ -71,12 +71,10 @@ export default function ConfiguracoesPage() {
   const [createdCredentials, setCreatedCredentials] = useState<any | null>(null);
   const [copied, setCopied] = useState(false);
 
-  // Load user list on mount
+  // Load user list on mount and tab switch
   useEffect(() => {
-    if (isAdmin) {
-      fetchUsers();
-    }
-  }, [isAdmin, fetchUsers]);
+    fetchUsers();
+  }, [fetchUsers, activeTab]);
 
   const saveProfileHandler = async (e: React.FormEvent) => {
     e.preventDefault();

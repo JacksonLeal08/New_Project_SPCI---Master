@@ -234,6 +234,13 @@ const deserializeNewExtintor = (row: any) => {
  * If the user's email matches 'jackson602@gmail.com', they are bootstrapped as a 'Desenvolvedor'.
  */
 export async function registerOrLoginUserProfile(user: { uid: string; displayName: string | null; email: string | null; photoURL: string | null }): Promise<UserProfile> {
+  const cachedAvatar = typeof window !== 'undefined' ? localStorage.getItem(`spci_user_avatar_${user.uid}`) : null;
+  const isBootstrappedAdmin = user.email?.toLowerCase() === 'jackson602@gmail.com';
+  const getSafeUserName = (email: string | null) => {
+    const prefix = email?.split('@')[0] || 'usuario';
+    return prefix.length >= 3 ? prefix : `${prefix}_usr`;
+  };
+
   try {
     const { data: profileRow, error: selectErr } = await supabase
       .from('usuarios')
@@ -241,27 +248,21 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
       .eq('id', user.uid)
       .maybeSingle();
 
-    if (selectErr) throw selectErr;
-
-    if (profileRow) {
-      return deserializeProfile(profileRow);
+    if (profileRow && !selectErr) {
+      const p = deserializeProfile(profileRow);
+      if (cachedAvatar) p.logoUrl = cachedAvatar;
+      if (isBootstrappedAdmin) p.role = 'Desenvolvedor';
+      return p;
     }
 
-    const isBootstrappedAdmin = user.email?.toLowerCase() === 'jackson602@gmail.com';
     const initialRole = isBootstrappedAdmin ? 'Desenvolvedor' : 'Usuário';
-
-    const getSafeUserName = (email: string | null) => {
-      const prefix = email?.split('@')[0] || 'usuario';
-      return prefix.length >= 3 ? prefix : `${prefix}_usr`;
-    };
-
     const newProfile: UserProfile = {
       uid: user.uid,
       name: user.displayName || user.email?.split('@')[0] || 'Usuário SPCI',
       email: user.email || '',
       userName: getSafeUserName(user.email),
       photoURL: user.photoURL || '',
-      logoUrl: '',
+      logoUrl: cachedAvatar || '',
       role: initialRole,
       status: 'active',
       telefoneWhatsapp: '',
@@ -274,23 +275,19 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
       .from('usuarios')
       .insert(serializeProfile(newProfile));
 
-    if (insertErr) throw insertErr;
+    if (insertErr) {
+      console.warn('[registerOrLoginUserProfile] Aviso ao inserir no banco (RSL/Permissão):', insertErr.message);
+    }
     return newProfile;
   } catch (error: any) {
-    console.error('Error in registerOrLoginUserProfile:', error);
-    // Return local profile fallback as a safety net to prevent runtime crash
-    const isBootstrappedAdmin = user.email?.toLowerCase() === 'jackson602@gmail.com';
-    const getSafeUserName = (email: string | null) => {
-      const prefix = email?.split('@')[0] || 'usuario';
-      return prefix.length >= 3 ? prefix : `${prefix}_usr`;
-    };
+    console.warn('[registerOrLoginUserProfile] Retornando perfil seguro com cache local:', error.message || error);
     return {
       uid: user.uid,
       name: user.displayName || user.email?.split('@')[0] || 'Usuário SPCI',
       email: user.email || '',
       userName: getSafeUserName(user.email),
       photoURL: user.photoURL || '',
-      logoUrl: '',
+      logoUrl: cachedAvatar || '',
       role: isBootstrappedAdmin ? 'Desenvolvedor' : 'Usuário',
       status: 'active',
       telefoneWhatsapp: '',
@@ -306,6 +303,7 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
  */
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   try {
+    const cachedAvatar = typeof window !== 'undefined' ? localStorage.getItem(`spci_user_avatar_${uid}`) : null;
     const { data, error } = await supabase
       .from('usuarios')
       .select('*')
@@ -313,10 +311,15 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
       .maybeSingle();
 
     if (error) throw error;
-    return data ? deserializeProfile(data) : null;
+    if (data) {
+      const p = deserializeProfile(data);
+      if (cachedAvatar) p.logoUrl = cachedAvatar;
+      return p;
+    }
+    return null;
   } catch (error: any) {
-    console.error('Error in getUserProfile:', error);
-    throw new Error(`Erro ao obter perfil de usuário: ${error.message || error}`);
+    console.warn('Erro em getUserProfile (usando fallback local):', error.message);
+    return null;
   }
 }
 
@@ -325,6 +328,10 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
  */
 export async function updateUserLogo(uid: string, logoUrl: string, name?: string): Promise<void> {
   try {
+    if (typeof window !== 'undefined' && logoUrl) {
+      localStorage.setItem(`spci_user_avatar_${uid}`, logoUrl);
+    }
+
     const updatePayload: any = {
       logo_url: logoUrl,
       updated_at: new Date().toISOString()
@@ -338,10 +345,11 @@ export async function updateUserLogo(uid: string, logoUrl: string, name?: string
       .update(updatePayload)
       .eq('id', uid);
 
-    if (error) throw error;
+    if (error) {
+      console.warn('[updateUserLogo] Aviso ao atualizar no banco (salvo no cache local):', error.message);
+    }
   } catch (error: any) {
-    console.error('Error in updateUserLogo:', error);
-    throw new Error(`Erro ao atualizar logotipo de usuário: ${error.message || error}`);
+    console.warn('[updateUserLogo] Atualização salva localmente:', error.message || error);
   }
 }
 

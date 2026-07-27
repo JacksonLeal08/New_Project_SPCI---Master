@@ -269,29 +269,61 @@ export async function updateUserStatusAction(
 export async function getUsersListAction() {
   try {
     const supabaseAdmin = getSupabaseAdminClient();
-    const { data: dbUsers, error } = await supabaseAdmin
+
+    // 1. Busca usuários da tabela pública "usuarios"
+    const { data: dbUsers } = await supabaseAdmin
       .from('usuarios')
       .select('*')
       .order('created_at', { ascending: false });
 
-    if (error) {
-      console.warn('[getUsersListAction] Erro na consulta de usuários:', error.message);
-      return { success: false, users: [] };
-    }
+    // 2. Busca contas registradas no Supabase Auth Admin
+    const { data: authData } = await supabaseAdmin.auth.admin.listUsers();
+    const authUsers = authData?.users || [];
 
-    const mappedUsers = (dbUsers || []).map((u: any) => ({
-      uid: u.id,
-      name: u.nome_completo || u.user_name || 'Sem nome',
-      email: u.email || 'N/A',
-      username: u.user_name || 'usuario',
-      phone: u.telefone_whatsapp || '',
-      role: u.perfil_acesso || 'Usuário',
-      status: u.status_conta || 'Ativo',
-      dataExpiracao: u.data_expiracao || null,
-      createdAt: u.created_at
-    }));
+    const userMap = new Map<string, any>();
 
-    return { success: true, users: mappedUsers };
+    // Popula com dados do Auth
+    authUsers.forEach((authUser: any) => {
+      const meta = authUser.user_metadata || {};
+      userMap.set(authUser.id, {
+        uid: authUser.id,
+        name: meta.full_name || meta.name || authUser.email?.split('@')[0] || 'Sem nome',
+        email: authUser.email || 'N/A',
+        username: meta.user_name || authUser.email?.split('@')[0] || 'usuario',
+        phone: meta.telefone_whatsapp || authUser.phone || '',
+        role: meta.perfil_acesso || meta.role || 'Usuário',
+        status: authUser.banned_until ? 'Inativo/Suspenso' : 'Ativo',
+        dataExpiracao: meta.data_expiracao || null,
+        createdAt: authUser.created_at || new Date().toISOString()
+      });
+    });
+
+    // Sobrescreve com dados atualizados da tabela publica "usuarios"
+    (dbUsers || []).forEach((u: any) => {
+      const existing = userMap.get(u.id);
+      userMap.set(u.id, {
+        uid: u.id,
+        name: u.nome_completo || u.user_name || existing?.name || 'Sem nome',
+        email: u.email || existing?.email || 'N/A',
+        username: u.user_name || existing?.username || 'usuario',
+        phone: u.telefone_whatsapp || existing?.phone || '',
+        role: u.perfil_acesso || existing?.role || 'Usuário',
+        status: u.status_conta || existing?.status || 'Ativo',
+        dataExpiracao: u.data_expiracao || existing?.dataExpiracao || null,
+        createdAt: u.created_at || existing?.createdAt || new Date().toISOString()
+      });
+    });
+
+    const combinedUsers = Array.from(userMap.values()).sort((a, b) => {
+      if (a.role !== b.role) {
+        if (a.role === 'Desenvolvedor') return -1;
+        if (b.role === 'Desenvolvedor') return 1;
+        return a.role === 'Administrador' ? -1 : 1;
+      }
+      return a.name.localeCompare(b.name);
+    });
+
+    return { success: true, users: combinedUsers };
   } catch (err: any) {
     console.error('[getUsersListAction Catch]', err);
     return { success: false, users: [] };

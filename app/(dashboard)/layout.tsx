@@ -23,6 +23,8 @@ import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 import SyncStatusPanel from '../components/SyncStatusPanel';
 import AppFooter from '../components/AppFooter';
 import QuickAssetFab from '../components/QuickAssetFab';
+import ChangelogModal from '../components/ChangelogModal';
+import { SYSTEM_VERSION } from '@/config/version';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -72,6 +74,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [inspectionNotes, setInspectionNotes] = useState('');
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
+  const [showChangelog, setShowChangelog] = useState(false);
+
+  // Verificação de versão do sistema no primeiro carregamento
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const lastSeen = localStorage.getItem('spci_last_seen_version');
+      if (lastSeen !== SYSTEM_VERSION) {
+        setShowChangelog(true);
+        localStorage.setItem('spci_last_seen_version', SYSTEM_VERSION);
+      }
+    }
+  }, []);
 
   // Efeito para fechar a sidebar do mobile quando a rota mudar
   useEffect(() => {
@@ -727,6 +741,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </AnimatePresence>
 
       <SyncStatusPanel />
+      <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />
     </div>
   );
 }

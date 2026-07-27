@@ -22,6 +22,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import { SYSTEM_VERSION } from '@/config/version';
 
 interface SidebarProps {
   onProfileClick?: () => void;
@@ -182,13 +183,18 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
         })}
       </nav>
 
-      {/* Indicador de banco conectado */}
+      {/* Indicador de banco conectado e versão */}
       {!isCollapsed && (
         <div className="bg-[#2D424A]/20 border border-[#CFD8DC]/5 p-3 rounded-xl text-center text-xs space-y-1 mb-2 select-none shrink-0">
-          <p className="text-emerald-450 font-bold flex items-center justify-center gap-2 font-['Hanken_Grotesk']">
-            <span aria-hidden="true">🟢</span> Banco SPCI Ativo
-          </p>
-          <p className="text-[10px] text-slate-400 font-mono leading-none truncate">
+          <div className="flex items-center justify-between">
+            <p className="text-emerald-450 font-bold flex items-center gap-1.5 font-['Hanken_Grotesk'] text-[11px]">
+              <span aria-hidden="true">🟢</span> Banco SPCI Ativo
+            </p>
+            <span className="text-[9px] font-bold bg-red-600/20 text-red-400 border border-red-600/40 px-1.5 py-0.5 rounded-md">
+              {SYSTEM_VERSION}
+            </span>
+          </div>
+          <p className="text-[10px] text-slate-400 font-mono leading-none truncate text-left pt-0.5">
             {currentUser ? `User: ${currentUser.email?.split('@')[0]}` : 'Offline-first'}
           </p>
         </div>
