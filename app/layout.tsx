@@ -103,7 +103,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html 
       lang="pt-BR" 
-      className={`${hankenGrotesk.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable}`}
+      className={`light ${hankenGrotesk.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable}`}
     >
       <head>
         <script
@@ -111,7 +111,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }}
         />
       </head>
-      <body suppressHydrationWarning className="bg-slate-50 dark:bg-[#333333] text-slate-900 dark:text-[#C4C4C4] antialiased transition-colors duration-300">
+      <body suppressHydrationWarning className="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 antialiased transition-colors duration-300">
         <ThemeProvider>
           <SpciProvider>
             {children}

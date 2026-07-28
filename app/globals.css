@@ -31,17 +31,16 @@
   display: none;
 }
 
-/* Paleta de Cores Corporativa para Tema Escuro (#333333 / #C4C4C4) */
+html.light {
+  color-scheme: light;
+}
+
+/* Paleta de Cores Corporativa para Tema Escuro */
 html.dark {
   color-scheme: dark;
-  --bg-primary: #333333;
-  --bg-secondary: #262626;
-  --text-primary: #C4C4C4;
-  --text-bright: #E5E5E5;
-  --border-subtle: #444444;
 }
 
 html.dark body {
-  background-color: #333333;
-  color: #C4C4C4;
+  background-color: #020617;
+  color: #e2e8f0;
 }
