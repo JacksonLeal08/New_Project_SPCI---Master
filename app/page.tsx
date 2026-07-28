@@ -1,5 +1,5 @@
-import { redirect } from 'next/navigation';
+import QuietLuxuryHome from './components/QuietLuxuryHome';
 
 export default function Home() {
-  redirect('/dashboard');
+  return <QuietLuxuryHome />;
 }
