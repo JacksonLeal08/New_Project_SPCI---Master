@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '../context/SpciContext';
 import { Shield, Key, Mail, AlertTriangle, ArrowRight, Eye, EyeOff, CheckSquare, Square } from 'lucide-react';
 import AppFooter from '../components/AppFooter';
-import ThemeToggle from '../components/ThemeToggle';
 import { SYSTEM_VERSION } from '../config/version';
 import { supabase } from '@/lib/supabaseClient';
 
@@ -227,12 +226,9 @@ export default function LoginClient() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <div className="space-y-1 text-left">
-                <h2 className="text-xl font-bold uppercase text-slate-900 dark:text-slate-100 tracking-wider">Acessar Cockpit</h2>
-                <p className="text-xs text-slate-500 dark:text-slate-400 font-sans">Entre com suas credenciais corporativas SPCI.</p>
-              </div>
-              <ThemeToggle />
+            <div className="space-y-1 text-left">
+              <h2 className="text-xl font-bold uppercase text-slate-900 dark:text-slate-100 tracking-wider">Acessar Cockpit</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400 font-sans">Entre com suas credenciais corporativas SPCI.</p>
             </div>
 
             {/* Error box */}
