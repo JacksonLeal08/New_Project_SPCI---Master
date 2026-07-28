@@ -198,78 +198,14 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleStartAdd = () => {
-    setEditingId('NEW');
-    setItemText('');
-    setSelectedTipos(['Todos']);
-    setSelectedPesos(['Todos']);
-    setItemStatus('Ativado');
-  };
+  // Filtragem local
+  const filteredList = list.filter((item) => {
+    const matchesSearch = item.item.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'Todos' || item.status === filterStatus;
+    return matchesSearch && matchesStatus;
+  });
 
-  const handleStartEdit = (it: ChecklistItemData) => {
-    setEditingId(it.id);
-    setItemText(it.item);
-    setSelectedTipos(it.tiposAplicaveis.length > 0 ? it.tiposAplicaveis : ['Todos']);
-    setSelectedPesos(it.pesosAplicaveis.length > 0 ? it.pesosAplicaveis : ['Todos']);
-    setItemStatus(it.status);
-  };
-
-  const handleSaveForm = () => {
-    if (!itemText.trim()) {
-      alert('Por favor, informe o texto da instrução do quesito NBR.');
-      return;
-    }
-
-    if (editingId === 'NEW') {
-      const newItem: ChecklistItemData = {
-        id: `chk-${Date.now()}`,
-        ordem: list.length + 1,
-        categoria: 'extintores',
-        item: itemText.trim(),
-        tiposAplicaveis: selectedTipos.length > 0 ? selectedTipos : ['Todos'],
-        pesosAplicaveis: selectedPesos.length > 0 ? selectedPesos : ['Todos'],
-        status: itemStatus
-      };
-      setList((prev) => [...prev, newItem]);
-    } else if (editingId) {
-      setList((prev) =>
-        prev.map((it) =>
-          it.id === editingId
-            ? {
-                ...it,
-                item: itemText.trim(),
-                tiposAplicaveis: selectedTipos.length > 0 ? selectedTipos : ['Todos'],
-                pesosAplicaveis: selectedPesos.length > 0 ? selectedPesos : ['Todos'],
-                status: itemStatus
-              }
-            : it
-        )
-      );
-    }
-    setEditingId(null);
-  };
-
-  const handleToggleStatus = (id: string) => {
-    setList((prev) =>
-      prev.map((it) =>
-        it.id === id
-          ? { ...it, status: it.status === 'Ativado' ? 'Desativado' : 'Ativado' }
-          : it
-      )
-    );
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Tem certeza que deseja excluir este quesito do checklist?')) {
-      setList((prev) => prev.filter((it) => it.id !== id));
-      try {
-        await deleteChecklistItemAction(id);
-      } catch (err) {
-        console.warn('Erro ao deletar item no banco:', err);
-      }
-    }
-  };
-
+  // Manipular reordenação
   const handleMove = (index: number, direction: 'UP' | 'DOWN') => {
     const targetIndex = direction === 'UP' ? index - 1 : index + 1;
     if (targetIndex < 0 || targetIndex >= list.length) return;
@@ -279,58 +215,86 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
     newList[index] = newList[targetIndex];
     newList[targetIndex] = temp;
 
-    // Atualiza ordens
-    const reordered = newList.map((it, idx) => ({ ...it, ordem: idx + 1 }));
+    // Recalcular ordens
+    const reordered = newList.map((item, idx) => ({ ...item, ordem: idx + 1 }));
     setList(reordered);
   };
 
+  // Alterar status direto
+  const handleToggleStatus = (id: string) => {
+    const updated = list.map((item) => {
+      if (item.id === id) {
+        return {
+          ...item,
+          status: (item.status === 'Ativado' ? 'Desativado' : 'Ativado') as 'Ativado' | 'Desativado'
+        };
+      }
+      return item;
+    });
+    setList(updated);
+  };
+
+  // Deletar quesito
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Tem certeza que deseja excluir este quesito do checklist?')) {
+      const updated = list.filter((item) => item.id !== id);
+      const reordered = updated.map((item, idx) => ({ ...item, ordem: idx + 1 }));
+      setList(reordered);
+
+      // Tentar deletar no servidor se não for ID temporário
+      if (!id.startsWith('new-')) {
+        try {
+          await deleteChecklistItemAction(id);
+        } catch (e) {
+          console.error('Erro ao deletar item no banco:', e);
+        }
+      }
+    }
+  };
+
+  // Restaurar NBR Padrão
   const handleResetDefault = () => {
-    if (confirm('Deseja restaurar a lista padrão de 14 itens da NBR 12962? Suas edições não salvas serão substituídas.')) {
+    if (window.confirm('Restaurar o checklist com os 14 itens originais da norma NBR 12962?')) {
       setList(DEFAULT_EXTINTOR_CHECKLIST);
     }
   };
 
-  const handleSaveAll = async () => {
-    setSaving(true);
-    try {
-      const records = list.map((it, idx) => ({
-        id: it.id,
-        ordem: idx + 1,
-        categoria: 'extintores',
-        item: it.item,
-        tipos_aplicaveis: it.tiposAplicaveis,
-        pesos_aplicaveis: it.pesosAplicaveis,
-        status: it.status
-      }));
-
-      const res = await saveChecklistItemsAction('extintores', records);
-      if (!res.success) {
-        throw new Error(res.error || 'Erro ao salvar no banco.');
-      }
-
-      onSaveSuccess(list);
-      alert('Checklist NBR de Extintores atualizado e sincronizado com sucesso no Supabase!');
-      onClose();
-    } catch (err: any) {
-      alert(`Aviso ao salvar no servidor (salvo em memória local): ${err.message || err}`);
-      onSaveSuccess(list);
-      onClose();
-    } finally {
-      setSaving(false);
-    }
+  // Iniciar formulário de Adição
+  const handleStartAdd = () => {
+    setEditingId('NEW');
+    setItemText('');
+    setSelectedTipos(['Todos']);
+    setSelectedPesos(['Todos']);
+    setItemStatus('Ativado');
   };
 
-  const toggleArraySelection = (array: string[], item: string, setFn: (val: string[]) => void) => {
-    if (item === 'Todos') {
+  // Iniciar formulário de Edição
+  const handleStartEdit = (item: ChecklistItemData) => {
+    setEditingId(item.id);
+    setItemText(item.item);
+    setSelectedTipos(item.tiposAplicaveis || ['Todos']);
+    setSelectedPesos(item.pesosAplicaveis || ['Todos']);
+    setItemStatus(item.status);
+  };
+
+  // Selecionar/Deselecionar opções de array
+  const toggleArraySelection = (
+    currentList: string[],
+    value: string,
+    setFn: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    if (value === 'Todos') {
       setFn(['Todos']);
       return;
     }
-    let next = array.filter((x) => x !== 'Todos');
-    if (next.includes(item)) {
-      next = next.filter((x) => x !== item);
+
+    let next = currentList.filter((v) => v !== 'Todos');
+    if (next.includes(value)) {
+      next = next.filter((v) => v !== value);
     } else {
-      next.push(item);
+      next.push(value);
     }
+
     if (next.length === 0) {
       setFn(['Todos']);
     } else {
@@ -338,19 +302,69 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
     }
   };
 
-  const filteredList = list.filter((it) => {
-    const matchesSearch = it.item.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = filterStatus === 'Todos' || it.status === filterStatus;
-    return matchesSearch && matchesStatus;
-  });
+  // Salvar formulário inline
+  const handleSaveForm = () => {
+    if (!itemText.trim()) {
+      alert('Por favor, informe a descrição do quesito de verificação.');
+      return;
+    }
+
+    if (editingId === 'NEW') {
+      const newItem: ChecklistItemData = {
+        id: `new-${Date.now()}`,
+        ordem: list.length + 1,
+        categoria: 'extintores',
+        item: itemText.trim(),
+        tiposAplicaveis: selectedTipos,
+        pesosAplicaveis: selectedPesos,
+        status: itemStatus
+      };
+      setList([...list, newItem]);
+    } else if (editingId) {
+      const updated = list.map((item) => {
+        if (item.id === editingId) {
+          return {
+            ...item,
+            item: itemText.trim(),
+            tiposAplicaveis: selectedTipos,
+            pesosAplicaveis: selectedPesos,
+            status: itemStatus
+          };
+        }
+        return item;
+      });
+      setList(updated);
+    }
+
+    setEditingId(null);
+  };
+
+  // Salvar tudo no Supabase
+  const handleSaveAll = async () => {
+    setSaving(true);
+    try {
+      const res = await saveChecklistItemsAction('extintores', list as any);
+      if (res.success) {
+        onSaveSuccess((res as any).data || list);
+        alert('Checklist NBR salvo com sucesso no banco de dados!');
+        onClose();
+      } else {
+        alert(`Erro ao salvar checklist: ${res.error || 'Falha desconhecida'}`);
+      }
+    } catch (err: any) {
+      alert(`Erro inesperado ao salvar checklist: ${err.message || err}`);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-3 sm:p-6 font-mono select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 font-mono select-none">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 15 }}
-        className="w-full max-w-5xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-900 dark:text-slate-100"
+        className="w-full max-w-5xl bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-900"
       >
         {/* CABEÇALHO DO MODAL */}
         <div className="bg-red-700 text-white p-4 sm:p-5 flex items-center justify-between border-b border-red-800 shadow-md">
@@ -359,17 +373,17 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
               <CheckSquare className="w-5 h-5 text-white" />
             </div>
             <div>
-              <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
+              <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white font-['Hanken_Grotesk']">
                 CHECKLIST - EXTINTORES (NBR 12962 / NBR 15808)
               </h2>
-              <p className="text-[11px] text-red-100 font-sans mt-0.5 font-semibold">
+              <p className="text-[11px] text-red-100 font-sans mt-0.5 font-bold">
                 Configuração dos quesitos de verificação para vistoria Web e App de Ronda
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer font-bold"
+            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer font-bold border border-white/20"
             title="Fechar Modal"
           >
             <X className="w-5 h-5" />
@@ -377,7 +391,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
         </div>
 
         {/* BARRA DE AÇÕES E FILTROS */}
-        <div className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="bg-slate-50 border-b border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
@@ -386,13 +400,13 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                 placeholder="Buscar quesito..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 pl-8 pr-3 py-1.5 rounded-xl text-xs font-sans text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-600 shadow-xs"
+                className="w-full bg-white border border-slate-300 pl-8 pr-3 py-1.5 rounded-xl text-xs font-sans text-slate-900 font-bold focus:outline-none focus:border-red-600 shadow-xs"
               />
             </div>
             <select
               value={filterStatus}
               onChange={(e: any) => setFilterStatus(e.target.value)}
-              className="bg-white border border-slate-200 py-1.5 px-3 rounded-xl text-xs font-mono text-slate-700 focus:outline-none focus:border-red-600 shadow-xs"
+              className="bg-white border border-slate-300 py-1.5 px-3 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-red-600 shadow-xs"
             >
               <option value="Todos">Status: Todos</option>
               <option value="Ativado">🟢 Ativados</option>
@@ -403,7 +417,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
           <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
             <button
               onClick={handleResetDefault}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold flex items-center gap-1.5 transition-all shadow-xs"
+              className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
               title="Restaurar os 14 itens originais da NBR 12962"
             >
               <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
@@ -411,7 +425,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
             </button>
             <button
               onClick={handleStartAdd}
-              className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold flex items-center gap-1.5 transition-all shadow-sm"
+              className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black flex items-center gap-1.5 transition-all shadow-sm cursor-pointer border-none"
             >
               <Plus className="w-4 h-4" />
               <span>Novo Quesito</span>
@@ -426,23 +440,23 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
               initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: 'auto' }}
               exit={{ opacity: 0, height: 0 }}
-              className="bg-red-50/70 border-b border-red-200 p-4 font-sans space-y-3"
+              className="bg-red-50/90 border-b border-red-200 p-4 font-sans space-y-3"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono font-bold text-red-700 uppercase flex items-center gap-1.5">
+                <span className="text-xs font-mono font-black text-red-800 uppercase flex items-center gap-1.5">
                   <Edit3 className="w-4 h-4" />
                   {editingId === 'NEW' ? 'Cadastrar Novo Quesito NBR' : 'Editar Quesito do Checklist'}
                 </span>
                 <button
                   onClick={() => setEditingId(null)}
-                  className="text-slate-400 hover:text-slate-600 text-xs"
+                  className="text-slate-500 hover:text-slate-800 text-xs font-bold"
                 >
                   Cancelar
                 </button>
               </div>
 
               <div className="space-y-1">
-                <label className="block text-[10px] font-mono font-bold uppercase text-slate-600">
+                <label className="block text-[10px] font-mono font-black uppercase text-slate-700">
                   Descrição da Instrução / Verificação NBR *
                 </label>
                 <input
@@ -450,14 +464,14 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                   value={itemText}
                   onChange={(e) => setItemText(e.target.value)}
                   placeholder="Ex: Suporte e altura de instalação adequada (Máximo 1,60 m)"
-                  className="w-full bg-white border border-slate-300 focus:border-red-600 rounded-xl p-2.5 text-xs text-slate-800 font-bold shadow-xs focus:outline-none"
+                  className="w-full bg-white border border-slate-300 focus:border-red-600 rounded-xl p-2.5 text-xs text-slate-900 font-bold shadow-xs focus:outline-none"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                 {/* FILTRO TIPO DE AGENTE EXTINTOR */}
                 <div className="space-y-1 bg-white p-2.5 border border-slate-200 rounded-xl shadow-xs">
-                  <label className="block text-[9px] font-mono font-bold uppercase text-slate-600 flex items-center gap-1">
+                  <label className="block text-[9px] font-mono font-black uppercase text-slate-700 flex items-center gap-1">
                     <Tag className="w-3 h-3 text-red-600" />
                     Tipo de Agente Extintor
                   </label>
@@ -469,10 +483,10 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                           key={tp}
                           type="button"
                           onClick={() => toggleArraySelection(selectedTipos, tp, setSelectedTipos)}
-                          className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-lg border transition-all ${
+                          className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
                             isSel
-                              ? 'bg-red-600 text-white border-red-700 shadow-xs'
-                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                              ? 'bg-red-600 text-white border-red-700 shadow-xs font-black'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                           }`}
                         >
                           {tp}
@@ -484,7 +498,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
 
                 {/* FILTRO CAPACIDADE / PESO */}
                 <div className="space-y-1 bg-white p-2.5 border border-slate-200 rounded-xl shadow-xs">
-                  <label className="block text-[9px] font-mono font-bold uppercase text-slate-600 flex items-center gap-1">
+                  <label className="block text-[9px] font-mono font-black uppercase text-slate-700 flex items-center gap-1">
                     <Scale className="w-3 h-3 text-red-600" />
                     Capacidade / Peso
                   </label>
@@ -496,10 +510,10 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                           key={ps}
                           type="button"
                           onClick={() => toggleArraySelection(selectedPesos, ps, setSelectedPesos)}
-                          className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-lg border transition-all ${
+                          className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-lg border transition-all cursor-pointer ${
                             isSel
-                              ? 'bg-red-600 text-white border-red-700 shadow-xs'
-                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                              ? 'bg-red-600 text-white border-red-700 shadow-xs font-black'
+                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                           }`}
                         >
                           {ps}
@@ -511,17 +525,17 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
 
                 {/* STATUS LIGA/DESLIGA */}
                 <div className="space-y-1 bg-white p-2.5 border border-slate-200 rounded-xl shadow-xs flex flex-col justify-between">
-                  <label className="block text-[9px] font-mono font-bold uppercase text-slate-600">
+                  <label className="block text-[9px] font-mono font-black uppercase text-slate-700">
                     Status do Quesito
                   </label>
                   <div className="flex items-center gap-2 pt-1">
                     <button
                       type="button"
                       onClick={() => setItemStatus('Ativado')}
-                      className={`flex-1 py-1 text-[10px] font-mono font-bold rounded-lg border text-center transition-all ${
+                      className={`flex-1 py-1 text-[10px] font-mono font-bold rounded-lg border text-center transition-all cursor-pointer ${
                         itemStatus === 'Ativado'
-                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs'
-                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                          ? 'bg-emerald-600 text-white border-emerald-700 shadow-xs font-black'
+                          : 'bg-slate-50 text-slate-600 border-slate-200'
                       }`}
                     >
                       🟢 Ativado
@@ -529,10 +543,10 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setItemStatus('Desativado')}
-                      className={`flex-1 py-1 text-[10px] font-mono font-bold rounded-lg border text-center transition-all ${
+                      className={`flex-1 py-1 text-[10px] font-mono font-bold rounded-lg border text-center transition-all cursor-pointer ${
                         itemStatus === 'Desativado'
-                          ? 'bg-red-600 text-white border-red-700 shadow-xs'
-                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                          ? 'bg-red-600 text-white border-red-700 shadow-xs font-black'
+                          : 'bg-slate-50 text-slate-600 border-slate-200'
                       }`}
                     >
                       🔴 Desativado
@@ -545,14 +559,14 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setEditingId(null)}
-                  className="px-3 py-1.5 text-xs font-mono border border-slate-200 bg-white hover:bg-slate-100 rounded-xl"
+                  className="px-3.5 py-1.5 text-xs font-mono border border-slate-200 bg-white hover:bg-slate-100 rounded-xl text-slate-700 font-bold"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={handleSaveForm}
-                  className="px-4 py-1.5 text-xs font-mono font-bold bg-red-700 hover:bg-red-800 text-white rounded-xl shadow-sm"
+                  className="px-4 py-1.5 text-xs font-mono font-black bg-red-700 hover:bg-red-800 text-white rounded-xl shadow-sm border-none"
                 >
                   Confirmar Quesito
                 </button>
@@ -562,10 +576,10 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
         </AnimatePresence>
 
         {/* TABELA DE QUESITOS DO CHECKLIST */}
-        <div className="flex-1 overflow-y-auto p-4 scrollbar-thin">
+        <div className="flex-1 overflow-y-auto p-4 scrollbar-thin bg-white">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-100 border-b border-slate-200 font-mono text-[10px] uppercase text-slate-600">
+              <tr className="bg-slate-100 border-b border-slate-200 font-mono text-[10px] font-black uppercase text-slate-700 tracking-wider">
                 <th className="p-3 text-center w-16">Ordem</th>
                 <th className="p-3 min-w-[280px]">Item / Quesito de Verificação NBR</th>
                 <th className="p-3 text-center w-36">Tipo Agente</th>
@@ -574,10 +588,10 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                 <th className="p-3 text-center w-40">Ação</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-150 font-sans text-xs">
+            <tbody className="divide-y divide-slate-200 font-sans text-xs">
               {filteredList.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-400 font-mono text-xs">
+                  <td colSpan={6} className="p-8 text-center text-slate-500 font-mono text-xs font-bold">
                     Nenhum quesito encontrado para a busca.
                   </td>
                 </tr>
@@ -587,39 +601,39 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                   return (
                     <tr
                       key={it.id}
-                      className={`hover:bg-slate-50 transition-all ${
-                        isDeactivated ? 'bg-slate-50/80 text-slate-400' : 'text-slate-800'
+                      className={`hover:bg-slate-50/80 transition-all ${
+                        isDeactivated ? 'bg-slate-50/90 text-slate-400' : 'text-slate-900'
                       }`}
                     >
                       {/* ORDEM E BOTÕES MOVER */}
-                      <td className="p-3 text-center font-mono font-bold text-slate-600">
-                        <div className="flex items-center justify-center gap-1">
-                          <span className="w-6 h-6 bg-slate-100 border border-slate-200 rounded-lg flex items-center justify-center text-[11px]">
+                      <td className="p-3 text-center font-mono font-bold text-slate-700">
+                        <div className="flex items-center justify-center gap-1.5">
+                          <span className="w-7 h-7 bg-slate-100 border border-slate-300 rounded-lg flex items-center justify-center text-xs font-black text-slate-900 shadow-xs">
                             {it.ordem}
                           </span>
                           <div className="flex flex-col">
                             <button
                               disabled={idx === 0}
                               onClick={() => handleMove(idx, 'UP')}
-                              className="text-slate-400 hover:text-red-600 disabled:opacity-20 p-0.5"
+                              className="text-slate-400 hover:text-red-700 disabled:opacity-20 p-0.5 cursor-pointer"
                               title="Mover para Cima"
                             >
-                              <ArrowUp className="w-3 h-3" />
+                              <ArrowUp className="w-3.5 h-3.5" />
                             </button>
                             <button
                               disabled={idx === filteredList.length - 1}
                               onClick={() => handleMove(idx, 'DOWN')}
-                              className="text-slate-400 hover:text-red-600 disabled:opacity-20 p-0.5"
+                              className="text-slate-400 hover:text-red-700 disabled:opacity-20 p-0.5 cursor-pointer"
                               title="Mover para Baixo"
                             >
-                              <ArrowDown className="w-3 h-3" />
+                              <ArrowDown className="w-3.5 h-3.5" />
                             </button>
                           </div>
                         </div>
                       </td>
 
                       {/* TEXTO DO QUESITO */}
-                      <td className="p-3 font-semibold text-slate-800 leading-snug">
+                      <td className={`p-3 font-bold text-xs leading-relaxed ${isDeactivated ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
                         {it.item}
                       </td>
 
@@ -629,10 +643,10 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                           {it.tiposAplicaveis.map((tp) => (
                             <span
                               key={tp}
-                              className={`px-1.5 py-0.5 rounded border ${
+                              className={`px-2 py-0.5 rounded-md border font-black text-[9.5px] ${
                                 tp === 'Todos'
-                                  ? 'bg-slate-100 text-slate-700 border-slate-200'
-                                  : 'bg-red-50 text-red-700 border-red-200 font-bold'
+                                  ? 'bg-slate-100 text-slate-800 border-slate-300'
+                                  : 'bg-red-50 text-red-800 border-red-200'
                               }`}
                             >
                               {tp}
@@ -647,10 +661,10 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                           {it.pesosAplicaveis.map((ps) => (
                             <span
                               key={ps}
-                              className={`px-1.5 py-0.5 rounded border ${
+                              className={`px-2 py-0.5 rounded-md border font-black text-[9.5px] ${
                                 ps === 'Todos'
-                                  ? 'bg-slate-100 text-slate-700 border-slate-200'
-                                  : 'bg-blue-50 text-blue-700 border-blue-200 font-bold'
+                                  ? 'bg-slate-100 text-slate-800 border-slate-300'
+                                  : 'bg-blue-50 text-blue-800 border-blue-200'
                               }`}
                             >
                               {ps}
@@ -662,13 +676,13 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                       {/* STATUS LIGA/DESLIGA */}
                       <td className="p-3 text-center font-mono text-[11px]">
                         <span
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border ${
+                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-black border ${
                             it.status === 'Ativado'
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-red-50 text-red-700 border-red-200'
+                              ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                              : 'bg-red-50 text-red-800 border-red-300'
                           }`}
                         >
-                          {it.status === 'Ativado' ? 'Ativado' : 'Desativado'}
+                          {it.status === 'Ativado' ? '🟢 Ativado' : '🔴 Desativado'}
                         </span>
                       </td>
 
@@ -677,15 +691,15 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                         <div className="flex items-center justify-center gap-1.5">
                           <button
                             onClick={() => handleStartEdit(it)}
-                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold transition-all shadow-xs"
+                            className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-black transition-all shadow-xs cursor-pointer border-none"
                           >
                             Editar
                           </button>
                           <button
                             onClick={() => handleToggleStatus(it.id)}
-                            className={`px-2.5 py-1 rounded-lg font-bold text-white transition-all shadow-xs ${
+                            className={`px-2.5 py-1 rounded-lg font-black text-white transition-all shadow-xs cursor-pointer border-none ${
                               it.status === 'Ativado'
-                                ? 'bg-red-500 hover:bg-red-600'
+                                ? 'bg-red-600 hover:bg-red-700'
                                 : 'bg-emerald-600 hover:bg-emerald-700'
                             }`}
                           >
@@ -693,7 +707,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                           </button>
                           <button
                             onClick={() => handleDelete(it.id)}
-                            className="p-1 text-slate-400 hover:text-red-600 rounded-lg hover:bg-slate-100 transition-all"
+                            className="p-1.5 text-slate-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all border border-slate-200 hover:border-red-200 cursor-pointer"
                             title="Excluir Quesito"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -709,21 +723,21 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
         </div>
 
         {/* RODAPÉ DO MODAL DE SALVAMENTO */}
-        <div className="bg-slate-50 border-t border-slate-200 p-4 flex items-center justify-between font-mono text-xs">
-          <span className="text-slate-500 text-[11px]">
+        <div className="bg-slate-50 border-t border-slate-200 p-4 flex items-center justify-between font-mono text-xs text-slate-700 font-bold">
+          <span className="text-slate-600 text-[11px]">
             Total de {list.length} quesitos ({list.filter((x) => x.status === 'Ativado').length} ativados)
           </span>
           <div className="flex items-center gap-3">
             <button
               onClick={onClose}
-              className="px-4 py-2 border border-slate-200 bg-white hover:bg-slate-100 text-slate-700 font-bold rounded-xl transition-all shadow-xs"
+              className="px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl transition-all shadow-xs cursor-pointer"
             >
               Cancelar
             </button>
             <button
               onClick={handleSaveAll}
               disabled={saving}
-              className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white font-bold rounded-xl flex items-center gap-2 transition-all shadow-md disabled:opacity-50"
+              className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white font-black rounded-xl flex items-center gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer border-none"
             >
               <Save className="w-4 h-4" />
               <span>{saving ? 'Salvando...' : 'Salvar Alterações no Supabase'}</span>
