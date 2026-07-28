@@ -91,11 +91,11 @@ export default function RondaPage() {
 
       const { data: profile } = await supabase
         .from('usuarios')
-        .select('nome')
+        .select('nome_completo, user_name')
         .eq('id', user.id)
         .maybeSingle();
 
-      const nomeCriador = profile?.nome || user.email?.split('@')[0] || 'Gestor';
+      const nomeCriador = profile?.nome_completo || profile?.user_name || user.email?.split('@')[0] || 'Gestor';
 
       const expiresAt = new Date();
       expiresAt.setHours(23, 59, 59, 999);
