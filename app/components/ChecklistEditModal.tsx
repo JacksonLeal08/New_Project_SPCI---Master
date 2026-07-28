@@ -350,7 +350,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
         initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 15 }}
-        className="w-full max-w-5xl bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-800"
+        className="w-full max-w-5xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-900 dark:text-slate-100"
       >
         {/* CABEÇALHO DO MODAL */}
         <div className="bg-red-700 text-white p-4 sm:p-5 flex items-center justify-between border-b border-red-800 shadow-md">
@@ -362,14 +362,14 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
               <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white">
                 CHECKLIST - EXTINTORES (NBR 12962 / NBR 15808)
               </h2>
-              <p className="text-[11px] text-red-100 font-sans mt-0.5">
+              <p className="text-[11px] text-red-100 font-sans mt-0.5 font-semibold">
                 Configuração dos quesitos de verificação para vistoria Web e App de Ronda
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all"
+            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer font-bold"
             title="Fechar Modal"
           >
             <X className="w-5 h-5" />
@@ -377,7 +377,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
         </div>
 
         {/* BARRA DE AÇÕES E FILTROS */}
-        <div className="bg-slate-50 border-b border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+        <div className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <div className="relative flex-1 sm:w-64">
               <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
@@ -386,7 +386,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                 placeholder="Buscar quesito..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-white border border-slate-200 pl-8 pr-3 py-1.5 rounded-xl text-xs font-sans text-slate-800 focus:outline-none focus:border-red-600 shadow-xs"
+                className="w-full bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-800 pl-8 pr-3 py-1.5 rounded-xl text-xs font-sans text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-600 shadow-xs"
               />
             </div>
             <select
