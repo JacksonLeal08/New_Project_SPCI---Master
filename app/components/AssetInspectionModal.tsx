@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnyAsset } from '@/lib/types';
-import AppFooter from './AppFooter';
+import AppFooter from '@/app/components/AppFooter';
 import { useSpci } from '@/app/context/SpciContext';
-import { MediaCaptureModal } from './MediaCaptureModal';
+import { MediaCaptureModal } from '@/app/components/MediaCaptureModal';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -231,58 +231,58 @@ export default function AssetInspectionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-3 sm:p-6 font-mono text-xs select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-3 sm:p-6 font-mono text-xs select-none">
       <motion.div 
         initial={{ opacity: 0, scale: 0.98, y: 15 }} 
         animate={{ opacity: 1, scale: 1, y: 0 }} 
-        className="w-full max-w-5xl lg:max-w-6xl 2xl:max-w-7xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl rounded-2xl relative max-h-[92vh] flex flex-col overflow-hidden text-slate-900 dark:text-slate-100"
+        className="w-full max-w-5xl lg:max-w-6xl 2xl:max-w-7xl border border-slate-200 bg-white shadow-2xl rounded-2xl relative max-h-[92vh] flex flex-col overflow-hidden text-slate-900"
       >
         <div className="h-1.5 bg-red-600 w-full" aria-hidden="true" />
         
-        {/* CABEÇALHO DO MODAL - ALTO CONTRASTE */}
-        <div className="flex justify-between items-center px-5 py-4 border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/80 shrink-0">
+        {/* CABEÇALHO DO MODAL - TEMA CLARO */}
+        <div className="flex justify-between items-center px-5 py-4 border-b border-slate-200 bg-slate-50 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-red-600/10 dark:bg-red-600/20 rounded-xl flex items-center justify-center border border-red-600/30">
-              <CheckSquare className="w-5 h-5 text-red-600 dark:text-red-400" />
+            <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center border border-red-200 shadow-inner">
+              <CheckSquare className="w-5 h-5 text-red-600" />
             </div>
             <div>
-              <span className="bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300 border border-red-200 dark:border-red-900/50 text-[9px] font-black py-0.5 px-2 uppercase tracking-widest rounded-md">
+              <span className="bg-red-100 text-red-800 border border-red-200 text-[9.5px] font-black py-0.5 px-2.5 uppercase tracking-widest rounded-md">
                 LAUDO DE VISTORIA TÉCNICA NBR
               </span>
-              <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-50 uppercase tracking-wider mt-0.5">
+              <h2 className="text-sm sm:text-base font-black text-slate-900 uppercase tracking-wider mt-0.5 font-['Hanken_Grotesk']">
                 INSPEÇÃO EXTINTOR - {asset.idAtivo || asset.id}
               </h2>
             </div>
           </div>
           <button 
             onClick={onClose} 
-            className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 border border-slate-200 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 transition-all rounded-xl cursor-pointer font-bold shadow-xs"
+            className="text-slate-600 hover:text-slate-900 border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-100 px-3.5 py-1.5 transition-all rounded-xl cursor-pointer font-extrabold text-xs shadow-xs"
           >
             DESCARTAR ×
           </button>
         </div>
 
         {/* CORPO ROLÁVEL DE INSPEÇÃO */}
-        <div className="p-4 sm:p-6 space-y-6 overflow-y-auto flex-1 scrollbar-thin">
+        <div className="p-4 sm:p-6 space-y-6 overflow-y-auto flex-1 scrollbar-thin bg-white">
           
           {/* Informações Básicas do Equipamento */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border border-slate-200 dark:border-slate-800 p-4 bg-slate-50 dark:bg-slate-950/50 rounded-xl shadow-xs">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border border-slate-200 p-4 bg-slate-50 rounded-xl shadow-xs">
             <div>
-              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">Equipamento / Modelo</span>
-              <p className="font-extrabold text-slate-900 dark:text-slate-100 truncate text-sm">{(asset as any).model || 'Modelo SPCI'}</p>
-              <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 font-semibold">Selo/Inmetro: {(asset as any).seloInmetro || 'Isento/NBR'}</p>
+              <span className="text-[10px] text-slate-600 font-black uppercase tracking-wider block mb-1">Equipamento / Modelo</span>
+              <p className="font-black text-slate-900 truncate text-sm">{(asset as any).model || 'Modelo SPCI'}</p>
+              <p className="text-[11px] text-slate-700 mt-1 font-bold">Selo/Inmetro: {(asset as any).seloInmetro || 'Isento/NBR'}</p>
             </div>
             <div>
-              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">Localização</span>
-              <p className="font-extrabold text-slate-900 dark:text-slate-100 truncate text-sm">{asset.location}</p>
-              <p className="text-[10px] text-slate-600 dark:text-slate-400 mt-1 font-semibold">Subsetor: {asset.subLocation || 'Não especificado'}</p>
+              <span className="text-[10px] text-slate-600 font-black uppercase tracking-wider block mb-1">Localização</span>
+              <p className="font-black text-slate-900 truncate text-sm">{asset.location}</p>
+              <p className="text-[11px] text-slate-700 mt-1 font-bold">Subsetor: {asset.subLocation || 'Não especificado'}</p>
             </div>
             <div>
-              <span className="text-[9px] text-slate-500 dark:text-slate-400 font-bold uppercase tracking-wider block mb-1">Status Atual do Ativo</span>
-              <span className={`inline-block font-extrabold uppercase border px-2.5 py-1 text-[10px] mt-1 rounded-lg ${
+              <span className="text-[10px] text-slate-600 font-black uppercase tracking-wider block mb-1">Status Atual do Ativo</span>
+              <span className={`inline-block font-black uppercase border px-3 py-1 text-[11px] mt-1 rounded-lg shadow-2xs ${
                 asset.status === 'Conforme' || asset.status === 'Operacional'
-                  ? 'text-emerald-700 bg-emerald-100 border-emerald-300 dark:text-emerald-400 dark:border-emerald-950 dark:bg-emerald-950/40' 
-                  : 'text-red-700 bg-red-100 border-red-300 dark:text-red-400 dark:border-red-950 dark:bg-red-950/40'
+                  ? 'text-emerald-800 bg-emerald-100 border-emerald-300' 
+                  : 'text-red-800 bg-red-100 border-red-300'
               }`}>
                 {asset.status}
               </span>
@@ -290,38 +290,38 @@ export default function AssetInspectionModal({
           </div>
 
           {/* LAUDO FOTOGRÁFICO MANDATÓRIO DO EQUIPAMENTO */}
-          <div className="border border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-950/60 p-4 rounded-xl space-y-3 shadow-xs">
+          <div className="border border-slate-200 bg-slate-50 p-4 rounded-xl space-y-3 shadow-xs">
             <div className="flex items-center gap-2">
               <span className="text-base text-red-600 animate-pulse">📸</span>
               <div>
-                <p className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-wide">Fotos Obrigatórias do Equipamento *</p>
-                <p className="text-[10px] text-slate-600 dark:text-slate-400 font-sans">Capture a foto do Patrimônio/Selo Inmetro e a foto Frontal da instalação.</p>
+                <p className="text-xs font-black text-slate-900 uppercase tracking-wide">Fotos Obrigatórias do Equipamento *</p>
+                <p className="text-[11px] text-slate-700 font-bold font-sans">Capture a foto do Patrimônio/Selo Inmetro e a foto Frontal da instalação.</p>
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button 
                 type="button" 
                 onClick={() => handleOpenPhotoPicker('Foto Patrimônio / Selo Inmetro', () => onDemoDrop('patrimonio'))}
-                className={`py-3 px-4 text-center border transition-all rounded-xl cursor-pointer text-[10px] font-extrabold flex items-center justify-center gap-2 shadow-xs ${
+                className={`py-3 px-4 text-center border transition-all rounded-xl cursor-pointer text-[10px] font-black flex items-center justify-center gap-2 shadow-xs ${
                   photoPatrimonio 
-                    ? 'bg-emerald-100 border-emerald-400 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700' 
-                    : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-red-500 text-slate-800 dark:text-slate-200'
+                    ? 'bg-emerald-100 border-emerald-400 text-emerald-900' 
+                    : 'bg-white border-slate-300 hover:border-red-600 text-slate-900 hover:bg-red-50/50'
                 }`}
               >
-                <Camera className="w-4 h-4 text-red-600 dark:text-red-400" />
+                <Camera className="w-4 h-4 text-red-600" />
                 <span>{photoPatrimonio ? '✔️ FOTO PATRIMÔNIO ANEXADA' : '📸 FOTO PATRIMÔNIO (CÂMERA / GALERIA)'}</span>
               </button>
 
               <button 
                 type="button" 
                 onClick={() => handleOpenPhotoPicker('Foto Frontal da Instalação', () => onDemoDrop('frontal'))}
-                className={`py-3 px-4 text-center border transition-all rounded-xl cursor-pointer text-[10px] font-extrabold flex items-center justify-center gap-2 shadow-xs ${
+                className={`py-3 px-4 text-center border transition-all rounded-xl cursor-pointer text-[10px] font-black flex items-center justify-center gap-2 shadow-xs ${
                   photoFrontal 
-                    ? 'bg-emerald-100 border-emerald-400 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-700' 
-                    : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 hover:border-red-500 text-slate-800 dark:text-slate-200'
+                    ? 'bg-emerald-100 border-emerald-400 text-emerald-900' 
+                    : 'bg-white border-slate-300 hover:border-red-600 text-slate-900 hover:bg-red-50/50'
                 }`}
               >
-                <Camera className="w-4 h-4 text-red-600 dark:text-red-400" />
+                <Camera className="w-4 h-4 text-red-600" />
                 <span>{photoFrontal ? '✔️ FOTO FRONTAL ANEXADA' : '📸 FOTO FRONTAL (CÂMERA / GALERIA)'}</span>
               </button>
             </div>
@@ -329,12 +329,12 @@ export default function AssetInspectionModal({
 
           {/* QUESITOS DO CHECKLIST NBR */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200 dark:border-slate-800">
-              <h3 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 flex items-center gap-2">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
+              <h3 className="text-xs font-black uppercase text-slate-900 flex items-center gap-2 tracking-wide">
                 <CheckSquare className="w-4 h-4 text-red-600" />
                 Checklist de Verificação Técnica NBR ({requirements.length} itens)
               </h3>
-              <span className="text-[10px] text-slate-500 dark:text-slate-400 font-bold font-sans">
+              <span className="text-[11px] text-slate-700 font-bold font-sans">
                 {requirements.filter((_, idx) => getItemState(idx).status === 'Não Conforme').length} inconformidade(s)
               </span>
             </div>
@@ -347,18 +347,18 @@ export default function AssetInspectionModal({
                 return (
                   <div
                     key={i}
-                    className={`border rounded-xl p-3.5 transition-all space-y-3 shadow-xs ${
+                    className={`border rounded-xl p-3.5 transition-all space-y-3 shadow-2xs ${
                       isNonConform
-                        ? 'border-red-500 bg-red-50/90 dark:bg-red-950/30 dark:border-red-700 text-slate-900 dark:text-slate-100'
+                        ? 'border-2 border-red-500 bg-red-50 text-slate-900 shadow-xs'
                         : state.status === 'Conforme'
-                        ? 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90'
-                        : 'border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/40 opacity-80'
+                        ? 'border-slate-200 bg-white hover:border-slate-300'
+                        : 'border-slate-200 bg-slate-50 opacity-90'
                     }`}
                   >
                     {/* TÍTULO E BOTÕES DE OPÇÃO */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <p className="text-[11px] font-sans font-bold leading-snug text-slate-900 dark:text-slate-100 flex-1">
-                        <span className="font-mono font-black text-red-600 dark:text-red-400 mr-1.5">{i + 1}-</span>
+                      <p className="text-xs font-sans font-black leading-relaxed text-slate-900 flex-1">
+                        <span className="font-mono font-black text-red-700 mr-1.5">{i + 1}-</span>
                         {reqText}
                       </p>
 
@@ -367,10 +367,10 @@ export default function AssetInspectionModal({
                         <button
                           type="button"
                           onClick={() => updateItemState(i, { status: 'Conforme' })}
-                          className={`px-3 py-1.5 text-[10px] font-mono font-black rounded-lg border transition-all flex items-center gap-1 shadow-xs cursor-pointer ${
+                          className={`px-3 py-1.5 text-[10.5px] font-mono font-black rounded-lg border transition-all flex items-center gap-1 shadow-xs cursor-pointer ${
                             state.status === 'Conforme'
                               ? 'bg-emerald-600 text-white border-emerald-700'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-750'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 font-bold'
                           }`}
                         >
                           <CheckCircle2 className="w-3.5 h-3.5" />
@@ -380,10 +380,10 @@ export default function AssetInspectionModal({
                         <button
                           type="button"
                           onClick={() => updateItemState(i, { status: 'Não Conforme' })}
-                          className={`px-3 py-1.5 text-[10px] font-mono font-black rounded-lg border transition-all flex items-center gap-1 shadow-xs cursor-pointer ${
+                          className={`px-3 py-1.5 text-[10.5px] font-mono font-black rounded-lg border transition-all flex items-center gap-1 shadow-xs cursor-pointer ${
                             state.status === 'Não Conforme'
                               ? 'bg-red-600 text-white border-red-700'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-750'
+                              : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100 font-bold'
                           }`}
                         >
                           <XCircle className="w-3.5 h-3.5" />
@@ -393,10 +393,10 @@ export default function AssetInspectionModal({
                         <button
                           type="button"
                           onClick={() => updateItemState(i, { status: 'NA' })}
-                          className={`px-2.5 py-1.5 text-[10px] font-mono font-black rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
+                          className={`px-2.5 py-1.5 text-[10.5px] font-mono font-black rounded-lg border transition-all flex items-center gap-1 cursor-pointer ${
                             state.status === 'NA'
-                              ? 'bg-slate-700 text-white border-slate-600'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200'
+                              ? 'bg-slate-700 text-white border-slate-800'
+                              : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-100 font-bold'
                           }`}
                         >
                           <MinusCircle className="w-3.5 h-3.5" />
@@ -412,11 +412,11 @@ export default function AssetInspectionModal({
                           initial={{ opacity: 0, height: 0 }}
                           animate={{ opacity: 1, height: 'auto' }}
                           exit={{ opacity: 0, height: 0 }}
-                          className="pt-3 border-t border-red-200 dark:border-red-900/60 space-y-3 font-sans"
+                          className="pt-3 border-t border-red-200 space-y-3 font-sans"
                         >
                           {/* SELETOR DE OCORRÊNCIA ENCONTRADA */}
                           <div className="space-y-1">
-                            <label className="block text-[10px] font-mono font-black uppercase text-red-700 dark:text-red-300 flex items-center gap-1">
+                            <label className="block text-[10px] font-mono font-black uppercase text-red-800 flex items-center gap-1">
                               <AlertTriangle className="w-3.5 h-3.5 text-red-600" />
                               Selecione ou Descreva a Ocorrência Encontrada *
                             </label>
@@ -429,7 +429,7 @@ export default function AssetInspectionModal({
                                     updateItemState(i, { ocorrencia: e.target.value });
                                   }
                                 }}
-                                className="w-full bg-white dark:bg-slate-950 border border-red-300 dark:border-red-900 focus:border-red-600 rounded-xl p-2.5 text-xs text-slate-900 dark:text-red-200 font-bold focus:outline-none shadow-xs"
+                                className="w-full bg-white border border-red-300 focus:border-red-600 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none shadow-xs"
                               >
                                 <option value="">SELECIONE UMA OPÇÃO DE FALHA</option>
                                 {SUGESTOES_OCORRENCIAS.map((sug, idx) => (
@@ -445,21 +445,21 @@ export default function AssetInspectionModal({
                                 value={state.ocorrencia}
                                 onChange={(e) => updateItemState(i, { ocorrencia: e.target.value })}
                                 placeholder="Descreva os detalhes específicos da não conformidade..."
-                                className="w-full bg-white dark:bg-slate-950 border border-red-300 dark:border-red-900 focus:border-red-600 rounded-xl p-2.5 text-xs text-slate-900 dark:text-slate-100 font-sans focus:outline-none shadow-xs"
+                                className="w-full bg-white border border-red-300 focus:border-red-600 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none shadow-xs"
                               />
                             </div>
                           </div>
 
                           {/* CAMPOS DE UPLOAD DUPLO DE FOTOS DE EVIDÊNCIA */}
                           <div className="space-y-1 pt-1">
-                            <label className="block text-[10px] font-mono font-black uppercase text-red-700 dark:text-red-300">
+                            <label className="block text-[10px] font-mono font-black uppercase text-red-800">
                               Fotos de Evidência da Inconformidade (2 Fotos)
                             </label>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
                               {/* SLOT EVIDÊNCIA FOTO 1 */}
-                              <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl space-y-2 text-center shadow-xs">
-                                <span className="text-[9px] font-mono font-bold uppercase text-slate-600 dark:text-slate-400 block">
+                              <div className="bg-white border border-slate-200 p-2.5 rounded-xl space-y-2 text-center shadow-xs">
+                                <span className="text-[9.5px] font-mono font-bold uppercase text-slate-700 block">
                                   Evidência Foto 1
                                 </span>
 
@@ -473,7 +473,7 @@ export default function AssetInspectionModal({
                                     <button
                                       type="button"
                                       onClick={() => handleClearEvidencePhoto(i, 1)}
-                                      className="absolute top-1.5 right-1.5 bg-red-600 text-white p-1 rounded-md shadow-md"
+                                      className="absolute top-1.5 right-1.5 bg-red-600 text-white p-1 rounded-md shadow-md cursor-pointer"
                                       title="Remover Foto 1"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -487,18 +487,18 @@ export default function AssetInspectionModal({
                                         updateItemState(i, { fotoEvidencia1: url })
                                       )
                                     }
-                                    className="w-full py-4 border-2 border-dashed border-red-300 hover:border-red-600 dark:border-red-900 bg-red-50/50 hover:bg-red-100 dark:bg-red-950/30 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-red-700 dark:text-red-300 cursor-pointer"
+                                    className="w-full py-4 border-2 border-dashed border-red-300 hover:border-red-600 bg-red-50 hover:bg-red-100 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-red-800 cursor-pointer font-bold"
                                   >
                                     <Camera className="w-5 h-5 text-red-600" />
-                                    <span className="text-[10px] font-extrabold">📸 ENVIAR FOTO EVIDÊNCIA 1</span>
-                                    <span className="text-[8px] font-sans text-slate-500 dark:text-slate-400">Câmera ou Galeria</span>
+                                    <span className="text-[10px] font-black">📸 ENVIAR FOTO EVIDÊNCIA 1</span>
+                                    <span className="text-[8.5px] font-sans text-slate-600">Câmera ou Galeria</span>
                                   </button>
                                 )}
                               </div>
 
                               {/* SLOT EVIDÊNCIA FOTO 2 */}
-                              <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-2.5 rounded-xl space-y-2 text-center shadow-xs">
-                                <span className="text-[9px] font-mono font-bold uppercase text-slate-600 dark:text-slate-400 block">
+                              <div className="bg-white border border-slate-200 p-2.5 rounded-xl space-y-2 text-center shadow-xs">
+                                <span className="text-[9.5px] font-mono font-bold uppercase text-slate-700 block">
                                   Evidência Foto 2 (Opcional)
                                 </span>
 
@@ -512,7 +512,7 @@ export default function AssetInspectionModal({
                                     <button
                                       type="button"
                                       onClick={() => handleClearEvidencePhoto(i, 2)}
-                                      className="absolute top-1.5 right-1.5 bg-red-600 text-white p-1 rounded-md shadow-md"
+                                      className="absolute top-1.5 right-1.5 bg-red-600 text-white p-1 rounded-md shadow-md cursor-pointer"
                                       title="Remover Foto 2"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -526,11 +526,11 @@ export default function AssetInspectionModal({
                                         updateItemState(i, { fotoEvidencia2: url })
                                       )
                                     }
-                                    className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-slate-700 hover:border-slate-500 bg-slate-50 dark:bg-slate-900/60 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-slate-700 dark:text-slate-300 cursor-pointer"
+                                    className="w-full py-4 border-2 border-dashed border-slate-300 hover:border-slate-500 bg-slate-50 hover:bg-slate-100 rounded-xl flex flex-col items-center justify-center gap-1 transition-all text-slate-800 cursor-pointer font-bold"
                                   >
-                                    <Camera className="w-5 h-5 text-slate-500" />
-                                    <span className="text-[10px] font-extrabold">📸 ENVIAR FOTO EVIDÊNCIA 2</span>
-                                    <span className="text-[8px] font-sans text-slate-500 dark:text-slate-400">Câmera ou Galeria</span>
+                                    <Camera className="w-5 h-5 text-slate-600" />
+                                    <span className="text-[10px] font-black">📸 ENVIAR FOTO EVIDÊNCIA 2</span>
+                                    <span className="text-[8.5px] font-sans text-slate-600">Câmera ou Galeria</span>
                                   </button>
                                 )}
                               </div>
@@ -547,23 +547,23 @@ export default function AssetInspectionModal({
 
           {/* Notas do Técnico */}
           <div className="space-y-2 pt-2">
-            <label className="block text-[10px] font-bold uppercase text-slate-700 dark:text-slate-300">
+            <label className="block text-[10px] font-black uppercase text-slate-800">
               Parecer Rápido / Observações Finais do Técnico
             </label>
             <textarea 
               value={inspectionNotes}
               onChange={(e) => setInspectionNotes(e.target.value)}
               rows={3}
-              className="w-full bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-800 rounded-xl p-3 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-600 font-mono shadow-xs" 
+              className="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-900 font-bold focus:outline-none focus:border-red-600 font-mono shadow-xs" 
               placeholder="Descreva observações de integridade, lacres, pressão ou avarias identificadas..."
             />
           </div>
         </div>
 
         {/* RODAPÉ DE AÇÕES */}
-        <div className="flex flex-wrap justify-between items-center gap-3 px-6 py-4 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 shrink-0">
-          <div className="flex items-center gap-2 text-[10px] text-slate-600 dark:text-slate-400 font-bold">
-            <Info className="w-4 h-4 text-slate-500" />
+        <div className="flex flex-wrap justify-between items-center gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 shrink-0 font-mono">
+          <div className="flex items-center gap-2 text-[11px] text-slate-800 font-bold">
+            <Info className="w-4 h-4 text-slate-600" />
             <span>
               {hasInconformity ? '🔴 Laudo marcado como NÃO CONFORME devido a falhas técnicas.' : '🟢 Todos os itens verificados estão em conformidade.'}
             </span>
@@ -573,14 +573,14 @@ export default function AssetInspectionModal({
             <button 
               type="button" 
               onClick={() => handleConfirmFinalize('Não Conforme')}
-              className="px-4 py-2 text-[10px] uppercase font-black text-red-700 dark:text-red-400 bg-red-100 dark:bg-red-950/60 hover:bg-red-200 border border-red-300 dark:border-red-900 transition-all rounded-xl cursor-pointer active:scale-[0.98]"
+              className="px-4 py-2 text-[10.5px] uppercase font-black text-red-800 bg-red-100 hover:bg-red-200 border border-red-300 transition-all rounded-xl cursor-pointer active:scale-[0.98] shadow-xs"
             >
               ⚠️ REGISTRAR NÃO CONFORME
             </button>
             <button 
               type="button" 
               onClick={() => handleConfirmFinalize('Conforme')}
-              className="px-5 py-2 text-[10px] uppercase font-black text-white bg-emerald-600 hover:bg-emerald-700 transition-all rounded-xl cursor-pointer active:scale-[0.98] shadow-md"
+              className="px-5 py-2 text-[10.5px] uppercase font-black text-white bg-emerald-600 hover:bg-emerald-700 transition-all rounded-xl cursor-pointer active:scale-[0.98] shadow-md border-none"
             >
               🟢 HOMOLOGAR LAUDO NBR
             </button>
