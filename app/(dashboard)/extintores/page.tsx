@@ -210,12 +210,12 @@ export default function ExtintoresPage() {
   const TOOLBAR_CARDS = [
     { id: 'qr', label: 'QR Code de Inspeção', icon: QrCode, borderClass: 'border-l-4 border-l-amber-500 hover:border-amber-500', iconColor: 'text-amber-500', badgeClass: 'bg-amber-100 text-amber-800' },
     { id: 'novo', label: 'Novo Extintor', icon: Plus, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeClass: 'bg-rose-100 text-rose-800' },
-    { id: 'import', label: 'Cadastro em massa', icon: Upload, borderClass: 'border-l-4 border-l-blue-500 hover:border-blue-500', iconColor: 'text-blue-600', badgeClass: 'bg-blue-100 text-blue-800', isNew: true },
-    { id: 'edit_mass', label: 'Edição em massa', icon: Settings, borderClass: 'border-l-4 border-l-emerald-500 hover:border-emerald-500', iconColor: 'text-emerald-600', badgeClass: 'bg-emerald-100 text-emerald-800', isNew: true },
-    { id: 'edit_check', label: 'Edição de checklist', icon: CheckSquare, borderClass: 'border-l-4 border-l-red-650 hover:border-red-650', iconColor: 'text-red-750', badgeClass: 'bg-red-100 text-red-800', isNew: true },
-    { id: 'history', label: 'Histórico Inspeções', icon: History, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeClass: 'bg-rose-100 text-rose-800' },
-    { id: 'manutencao', label: 'Retorno Manutenção', icon: Wrench, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeClass: 'bg-rose-100 text-rose-800' },
-    { id: 'laudos', label: 'Certificados/Laudos', icon: FileText, borderClass: 'border-l-4 border-l-teal-500 hover:border-teal-500', iconColor: 'text-teal-600', badgeClass: 'bg-teal-100 text-teal-800' },
+    { id: 'import', label: 'Cadastro em massa', icon: Upload, borderClass: 'border-l-4 border-l-blue-500 hover:border-blue-500', iconColor: 'text-blue-600', badgeClass: 'bg-blue-100 text-blue-800' },
+    { id: 'edit_mass', label: 'Edição em massa', icon: Settings, borderClass: 'border-l-4 border-l-emerald-500 hover:border-emerald-500', iconColor: 'text-emerald-600', badgeClass: 'bg-emerald-100 text-emerald-800' },
+    { id: 'edit_check', label: 'Edição de checklist', icon: CheckSquare, borderClass: 'border-l-4 border-l-red-650 hover:border-red-650', iconColor: 'text-red-750', badgeClass: 'bg-red-100 text-red-800' },
+    { id: 'history', label: 'Histórico Inspeções', icon: History, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeText: 'Desenvolvimento', badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black' },
+    { id: 'manutencao', label: 'Retorno Manutenção', icon: Wrench, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeText: 'Desenvolvimento', badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black' },
+    { id: 'laudos', label: 'Certificados/Laudos', icon: FileText, borderClass: 'border-l-4 border-l-teal-500 hover:border-teal-500', iconColor: 'text-teal-600', badgeText: 'Desenvolvimento', badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black' },
   ];
 
   const handleToolbarClick = (id: string) => {
@@ -809,11 +809,15 @@ export default function ExtintoresPage() {
               onClick={() => handleToolbarClick(card.id)}
               className={`flex flex-col items-center justify-center p-3 bg-white border border-slate-200 shadow-sm rounded-xl cursor-pointer text-center relative transition-all duration-300 min-h-[96px] ${card.borderClass}`}
             >
-              {card.isNew && (
+              {card.badgeText ? (
+                <span className={`absolute top-1.5 right-1.5 text-[7px] font-sans font-black px-1.5 py-0.5 rounded-full select-none ${card.badgeClass}`}>
+                  {card.badgeText}
+                </span>
+              ) : 'isNew' in card && (card as any).isNew ? (
                 <span className={`absolute top-1.5 right-1.5 text-[7px] font-sans font-black px-1.5 py-0.5 rounded-full select-none ${card.badgeClass}`}>
                   Novo
                 </span>
-              )}
+              ) : null}
               <IconComponent className={`w-5 h-5 mb-2 transition-transform duration-300 ${card.iconColor}`} />
               <span className="text-[8.5px] font-sans font-black uppercase leading-tight tracking-wider text-slate-800">
                 {card.label}
@@ -1314,12 +1318,12 @@ export default function ExtintoresPage() {
           <>
             {/* ═══ INSPEÇÕES NO PERÍODO ═══ */}
             <div className="space-y-3 mt-4">
-              <div className="flex items-center gap-2 pb-1.5 border-b border-slate-100">
-                <div className="w-6 h-6 rounded-lg bg-red-50 flex items-center justify-center border border-red-100 text-red-650">
-                  <ClipboardList className="w-3.5 h-3.5" />
+              <div className="flex items-center gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
+                <div className="w-7 h-7 rounded-lg bg-red-100 dark:bg-red-950/60 flex items-center justify-center border border-red-200 dark:border-red-900/60 text-red-600 dark:text-red-500 shadow-xs">
+                  <ClipboardList className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest font-mono">
+                  <h3 className="text-xs font-black text-slate-900 dark:text-slate-100 uppercase tracking-widest font-mono">
                     📋 Inspeções no Período
                   </h3>
                 </div>
@@ -1330,17 +1334,17 @@ export default function ExtintoresPage() {
                 <motion.div
                   whileHover={{ y: -3, scale: 1.01 }}
                   onClick={() => { setInspecoesFilter('ALL'); setStatusFilter('ALL'); }}
-                  className={`p-4 bg-white rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
-                    inspecoesFilter === 'ALL' && statusFilter === 'ALL' ? 'border-blue-500 ring-2 ring-blue-50 shadow-md' : 'border-slate-200 hover:border-blue-300'
+                  className={`p-4 bg-white dark:bg-slate-900 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    inspecoesFilter === 'ALL' && statusFilter === 'ALL' ? 'border-blue-500 ring-2 ring-blue-100 shadow-md' : 'border-slate-200 dark:border-slate-800 hover:border-blue-300'
                   }`}
                   style={{ boxShadow: '0 4px 20px -2px rgba(59, 130, 246, 0.08)' }}
                 >
                   <div className="absolute top-0 left-0 right-0 h-[3px] bg-blue-500" />
                   <div className="flex flex-col items-center text-center py-2">
-                    <ClipboardList className="w-5 h-5 text-blue-600 mb-1.5" />
-                    <span className="text-[8.5px] text-slate-400 uppercase tracking-widest font-extrabold block">Total Inspeções</span>
-                    <h3 className="font-['Hanken_Grotesk'] font-extrabold text-2xl text-blue-600 mt-1">{totalInspecoes}</h3>
-                    <span className="text-[8px] text-slate-400 mt-1 font-sans">Realizadas no mês</span>
+                    <ClipboardList className="w-5 h-5 text-blue-600 dark:text-blue-400 mb-1.5" />
+                    <span className="text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest font-black block">Total Inspeções</span>
+                    <h3 className="font-['Hanken_Grotesk'] font-black text-2xl text-blue-600 dark:text-blue-400 mt-1">{totalInspecoes}</h3>
+                    <span className="text-[8.5px] text-slate-600 dark:text-slate-400 mt-1 font-sans font-bold">Realizadas no mês</span>
                   </div>
                 </motion.div>
 
@@ -1348,17 +1352,17 @@ export default function ExtintoresPage() {
                 <motion.div
                   whileHover={{ y: -3, scale: 1.01 }}
                   onClick={() => { setInspecoesFilter('FEITAS'); setStatusFilter('ALL'); }}
-                  className={`p-4 bg-white rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
-                    inspecoesFilter === 'FEITAS' ? 'border-rose-500 ring-2 ring-rose-55 shadow-md' : 'border-slate-200 hover:border-rose-350'
+                  className={`p-4 bg-white dark:bg-slate-900 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    inspecoesFilter === 'FEITAS' ? 'border-rose-500 ring-2 ring-rose-100 shadow-md' : 'border-slate-200 dark:border-slate-800 hover:border-rose-350'
                   }`}
                   style={{ boxShadow: '0 4px 20px -2px rgba(244, 63, 94, 0.08)' }}
                 >
                   <div className="absolute top-0 left-0 right-0 h-[3px] bg-rose-500" />
                   <div className="flex flex-col items-center text-center py-2">
-                    <AlertTriangle className="w-5 h-5 text-rose-500 mb-1.5" />
-                    <span className="text-[8.5px] text-slate-400 uppercase tracking-widest font-extrabold block">Feitas</span>
-                    <h3 className="font-['Hanken_Grotesk'] font-extrabold text-2xl text-rose-600 mt-1">{feitasCount}</h3>
-                    <span className="text-[8px] text-rose-500/80 mt-1 font-sans font-bold">{feitasPercent}% dos ativos</span>
+                    <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 mb-1.5" />
+                    <span className="text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest font-black block">Feitas</span>
+                    <h3 className="font-['Hanken_Grotesk'] font-black text-2xl text-rose-600 dark:text-rose-400 mt-1">{feitasCount}</h3>
+                    <span className="text-[8.5px] text-rose-700 dark:text-rose-400 mt-1 font-sans font-black">{feitasPercent}% dos ativos</span>
                   </div>
                 </motion.div>
 
@@ -1366,17 +1370,17 @@ export default function ExtintoresPage() {
                 <motion.div
                   whileHover={{ y: -3, scale: 1.01 }}
                   onClick={() => { setInspecoesFilter('PENDENTES'); setStatusFilter('ALL'); }}
-                  className={`p-4 bg-white rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
-                    inspecoesFilter === 'PENDENTES' ? 'border-orange-500 ring-2 ring-orange-50 shadow-md' : 'border-slate-200 hover:border-orange-300'
+                  className={`p-4 bg-white dark:bg-slate-900 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    inspecoesFilter === 'PENDENTES' ? 'border-orange-500 ring-2 ring-orange-100 shadow-md' : 'border-slate-200 dark:border-slate-800 hover:border-orange-300'
                   }`}
                   style={{ boxShadow: '0 4px 20px -2px rgba(249, 115, 22, 0.08)' }}
                 >
                   <div className="absolute top-0 left-0 right-0 h-[3px] bg-orange-500" />
                   <div className="flex flex-col items-center text-center py-2">
-                    <Clock className="w-5 h-5 text-orange-500 mb-1.5" />
-                    <span className="text-[8.5px] text-slate-400 uppercase tracking-widest font-extrabold block">Não Feitas</span>
-                    <h3 className="font-['Hanken_Grotesk'] font-extrabold text-2xl text-orange-600 mt-1">{naoFeitasCount}</h3>
-                    <span className="text-[8px] text-orange-500/80 mt-1 font-sans font-bold">▲ {naoFeitasPercent}% pendentes</span>
+                    <Clock className="w-5 h-5 text-orange-600 dark:text-orange-400 mb-1.5" />
+                    <span className="text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest font-black block">Não Feitas</span>
+                    <h3 className="font-['Hanken_Grotesk'] font-black text-2xl text-orange-600 dark:text-orange-400 mt-1">{naoFeitasCount}</h3>
+                    <span className="text-[8.5px] text-orange-700 dark:text-orange-400 mt-1 font-sans font-black">▲ {naoFeitasPercent}% pendentes</span>
                   </div>
                 </motion.div>
 
@@ -1384,17 +1388,17 @@ export default function ExtintoresPage() {
                 <motion.div
                   whileHover={{ y: -3, scale: 1.01 }}
                   onClick={() => { setInspecoesFilter('OCORRENCIAS'); setStatusFilter('ALL'); }}
-                  className={`p-4 bg-white rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
-                    inspecoesFilter === 'OCORRENCIAS' ? 'border-emerald-500 ring-2 ring-emerald-50 shadow-md' : 'border-slate-200 hover:border-emerald-300'
+                  className={`p-4 bg-white dark:bg-slate-900 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    inspecoesFilter === 'OCORRENCIAS' ? 'border-emerald-500 ring-2 ring-emerald-100 shadow-md' : 'border-slate-200 dark:border-slate-800 hover:border-emerald-300'
                   }`}
                   style={{ boxShadow: '0 4px 20px -2px rgba(16, 185, 129, 0.08)' }}
                 >
                   <div className="absolute top-0 left-0 right-0 h-[3px] bg-emerald-500" />
                   <div className="flex flex-col items-center text-center py-2">
-                    <CheckCircle className="w-5 h-5 text-emerald-600 mb-1.5" />
-                    <span className="text-[8.5px] text-slate-400 uppercase tracking-widest font-extrabold block">Ocorrências</span>
-                    <h3 className="font-['Hanken_Grotesk'] font-extrabold text-2xl text-emerald-700 mt-1">{ocorrenciasCount}</h3>
-                    <span className="text-[8px] text-emerald-600/80 mt-1 font-sans font-bold">✓ {ocorrenciasPercent}% das vistorias</span>
+                    <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400 mb-1.5" />
+                    <span className="text-[9px] text-slate-700 dark:text-slate-300 uppercase tracking-widest font-black block">Ocorrências</span>
+                    <h3 className="font-['Hanken_Grotesk'] font-black text-2xl text-emerald-700 dark:text-emerald-400 mt-1">{ocorrenciasCount}</h3>
+                    <span className="text-[8.5px] text-emerald-700 dark:text-emerald-400 mt-1 font-sans font-black">✓ {ocorrenciasPercent}% das vistorias</span>
                   </div>
                 </motion.div>
               </div>
