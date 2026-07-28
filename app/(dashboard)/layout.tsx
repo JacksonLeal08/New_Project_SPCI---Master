@@ -402,7 +402,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex bg-[#f4f6f8] min-h-screen text-slate-800 relative overflow-hidden font-mono">
+    <div className="flex bg-slate-50 dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-200 relative overflow-hidden font-mono">
 
       {/* Overlay Backdrop do Mobile Menu */}
       <AnimatePresence>
@@ -437,7 +437,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
 
         {/* Área onde as subpáginas renderizam */}
-        <main className="flex-grow flex flex-col min-h-screen overflow-y-auto p-4 md:p-6 bg-[#f8fafc] dark:bg-[#333333] text-slate-900 dark:text-[#C4C4C4] transition-colors duration-300 relative">
+        <main className="flex-grow flex flex-col min-h-screen overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 transition-colors duration-300 relative">
           <div className="max-w-[1800px] 2xl:max-w-[2100px] mx-auto w-full flex-1 flex flex-col justify-between">
             <div className="pb-6">
               {children}
@@ -724,26 +724,26 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.2 }}
-              className="w-full max-w-sm bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl p-6 relative overflow-hidden text-center"
+              className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl p-6 relative overflow-hidden text-center"
             >
-              <div className="absolute top-0 left-0 right-0 h-1 bg-red-650" />
+              <div className="absolute top-0 left-0 right-0 h-1 bg-red-600" />
 
-              <div className="w-12 h-12 bg-red-950/50 border border-red-900/60 rounded-full flex items-center justify-center mx-auto mb-4 text-red-500 shadow-inner">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 rounded-full flex items-center justify-center mx-auto mb-4 text-red-600 dark:text-red-500 shadow-inner">
                 <LogOut className="w-6 h-6" />
               </div>
 
-              <h3 className="text-sm font-black text-slate-100 uppercase tracking-wider">
+              <h3 className="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider">
                 Encerrar Sessão no SPCI?
               </h3>
 
-              <p className="text-[10px] text-slate-400 font-sans leading-normal mt-2.5 px-2">
+              <p className="text-[10px] text-slate-600 dark:text-slate-400 font-sans leading-normal mt-2.5 px-2">
                 Deseja realmente sair do cockpit? Todas as inspeções pendentes na fila local serão preservadas no seu dispositivo.
               </p>
 
               <div className="flex gap-3 mt-6">
                 <button
                   onClick={() => setShowLogoutConfirmation(false)}
-                  className="flex-grow py-2.5 text-[10px] uppercase font-bold text-slate-405 border border-slate-850 bg-slate-950 hover:bg-slate-900 transition-all cursor-pointer rounded-xl"
+                  className="flex-grow py-2.5 text-[10px] uppercase font-bold text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 transition-all cursor-pointer rounded-xl"
                 >
                   Cancelar
                 </button>
@@ -752,7 +752,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     setShowLogoutConfirmation(false);
                     router.push('/logout?confirm=true');
                   }}
-                  className="flex-grow py-2.5 text-[10px] uppercase font-black tracking-wider text-white bg-red-650 hover:bg-red-500 shadow-md transition-all cursor-pointer rounded-xl border-none active:scale-[0.98]"
+                  className="flex-grow py-2.5 text-[10px] uppercase font-black tracking-wider text-white bg-red-600 hover:bg-red-500 shadow-md transition-all cursor-pointer rounded-xl border-none active:scale-[0.98]"
                 >
                   Confirmar Saída
                 </button>

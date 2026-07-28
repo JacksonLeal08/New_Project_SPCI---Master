@@ -16,7 +16,7 @@ export default function ThemeToggle({ className = '' }: ThemeToggleProps) {
     <button
       onClick={toggleTheme}
       type="button"
-      className={`relative flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer border border-slate-700/60 bg-slate-800/60 hover:bg-slate-700/80 text-amber-400 dark:text-sky-300 shadow-md backdrop-blur-md ${className}`}
+      className={`relative flex items-center justify-center p-2 rounded-xl transition-all cursor-pointer border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-amber-500 dark:text-sky-300 shadow-xs ${className}`}
       title={theme === 'dark' ? 'Alternar para Modo Claro (☀️)' : 'Alternar para Modo Escuro (🌙)'}
       aria-label="Alternar tema de cor"
     >

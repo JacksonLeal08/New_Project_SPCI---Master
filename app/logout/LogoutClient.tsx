@@ -71,9 +71,9 @@ export default function LogoutClient() {
   }, [isConfirmed, handleSystemLogout, router]);
 
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center font-mono relative overflow-hidden select-none text-slate-400">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center font-mono relative overflow-hidden select-none text-slate-800 dark:text-slate-100">
       {/* Decorative absolute background grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-35" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#cbd5e1_1px,transparent_1px),linear-gradient(to_bottom,#cbd5e1_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-35" />
 
       <div className="max-w-md w-full p-6 space-y-8 relative text-center z-10">
         
@@ -83,9 +83,9 @@ export default function LogoutClient() {
             animate={{ 
               scale: [1, 1.05, 1],
               boxShadow: [
-                '0 0 20px rgba(220,38,38,0.1), inset 0 0 15px rgba(220,38,38,0.1)',
+                '0 0 20px rgba(220,38,38,0.15), inset 0 0 15px rgba(220,38,38,0.15)',
                 '0 0 35px rgba(220,38,38,0.4), inset 0 0 25px rgba(220,38,38,0.3)',
-                '0 0 20px rgba(220,38,38,0.1), inset 0 0 15px rgba(220,38,38,0.1)'
+                '0 0 20px rgba(220,38,38,0.15), inset 0 0 15px rgba(220,38,38,0.15)'
               ]
             }}
             transition={{ 
@@ -93,9 +93,9 @@ export default function LogoutClient() {
               repeat: Infinity,
               ease: "easeInOut"
             }}
-            className="w-20 h-20 bg-slate-900 border-2 border-red-600 rounded-full flex items-center justify-center shadow-lg relative"
+            className="w-20 h-20 bg-white dark:bg-slate-900 border-2 border-red-600 rounded-full flex items-center justify-center shadow-lg relative"
           >
-            <Shield className="w-9 h-9 text-red-500 drop-shadow-[0_0_6px_rgba(220,38,38,0.5)]" />
+            <Shield className="w-9 h-9 text-red-600 dark:text-red-500 drop-shadow-[0_0_6px_rgba(220,38,38,0.5)]" />
           </motion.div>
         </div>
 
@@ -103,7 +103,7 @@ export default function LogoutClient() {
           <>
             {/* HUD Text Indicators */}
             <div className="space-y-3">
-              <h3 className="text-sm font-bold uppercase text-slate-100 tracking-widest">
+              <h3 className="text-sm font-bold uppercase text-slate-900 dark:text-slate-100 tracking-widest">
                 SPCI COMPLIANCE SYSTEM
               </h3>
               
@@ -113,7 +113,7 @@ export default function LogoutClient() {
                   initial={{ opacity: 0, y: 3 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="text-[10px] text-red-400 font-bold uppercase tracking-wider"
+                  className="text-[10px] text-red-600 dark:text-red-400 font-bold uppercase tracking-wider"
                 >
                   {loadingStatus}
                 </motion.p>
@@ -122,7 +122,7 @@ export default function LogoutClient() {
 
             {/* Progress bar */}
             <div className="w-full max-w-xs mx-auto space-y-2">
-              <div className="h-1 bg-slate-900 border border-slate-800 relative w-full overflow-hidden">
+              <div className="h-1 bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 relative w-full overflow-hidden rounded-full">
                 <motion.div 
                   className="h-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.7)]"
                   animate={{ width: `${progress}%` }}
@@ -138,10 +138,10 @@ export default function LogoutClient() {
         ) : (
           <div className="space-y-6">
             <div className="space-y-2">
-              <h3 className="text-sm font-black text-slate-100 uppercase tracking-widest">
+              <h3 className="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-widest">
                 Encerrar Sessão no SPCI?
               </h3>
-              <p className="text-[10px] text-slate-400 font-sans leading-relaxed px-4">
+              <p className="text-[10px] text-slate-600 dark:text-slate-400 font-sans leading-relaxed px-4">
                 Deseja realmente sair do cockpit? Todas as suas configurações e registros de sincronismo local no IndexedDB continuarão seguros neste dispositivo.
               </p>
             </div>
@@ -149,7 +149,7 @@ export default function LogoutClient() {
             <div className="flex gap-4 max-w-xs mx-auto">
               <button
                 onClick={() => router.push('/dashboard')}
-                className="flex-1 py-2.5 bg-slate-900 border border-slate-800 hover:bg-slate-850 hover:text-white text-slate-400 text-[9px] uppercase font-bold tracking-widest rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
+                className="flex-1 py-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 text-[9px] uppercase font-bold tracking-widest rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95"
               >
                 <ArrowLeft className="w-3.5 h-3.5" />
                 Cancelar
@@ -157,7 +157,7 @@ export default function LogoutClient() {
               
               <button
                 onClick={() => setIsConfirmed(true)}
-                className="flex-1 py-2.5 bg-red-700 hover:bg-red-600 text-white text-[9px] uppercase font-black tracking-widest rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 border-none shadow-md shadow-red-950/20"
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white text-[9px] uppercase font-black tracking-widest rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95 border-none shadow-md"
               >
                 <LogOut className="w-3.5 h-3.5" />
                 Sair
@@ -168,7 +168,7 @@ export default function LogoutClient() {
 
         <button
           onClick={() => router.push('/login')}
-          className="mt-6 px-4 py-2 bg-slate-900 hover:bg-slate-850 hover:text-white border border-slate-800 text-slate-400 text-[9px] uppercase font-bold tracking-widest rounded-lg transition-all cursor-pointer inline-flex items-center gap-1.5 hover:scale-[1.02] active:scale-95"
+          className="mt-6 px-4 py-2 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 text-[9px] uppercase font-bold tracking-widest rounded-xl transition-all cursor-pointer inline-flex items-center gap-1.5 hover:scale-[1.02] active:scale-95"
         >
           <LogOut className="w-3 h-3" />
           Ir para Login Manualmente

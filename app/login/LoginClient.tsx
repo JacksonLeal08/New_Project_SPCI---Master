@@ -98,33 +98,26 @@ export default function LoginClient() {
           setLoadingStatus(statusMessages[currentMsgIndex]);
         }
       }, 400);
-    }
 
-    return () => {
-      clearInterval(progressInterval);
-      clearInterval(messageInterval);
-    };
+      return () => {
+        clearInterval(progressInterval);
+        clearInterval(messageInterval);
+      };
+    }
   }, [loading]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!identifier || !password) {
-      setErrorMsg('Preencha todos os campos.');
-      return;
-    }
-
     setErrorMsg('');
     setLoading(true);
 
     try {
-      const success = await handleCredentialsLogin(identifier, password);
-      if (success) {
-        // Wait a bit to show 100% progress and final welcome status message
-        setProgress(100);
-        setLoadingStatus(statusMessages[statusMessages.length - 1]);
+      const result = await handleCredentialsLogin(identifier, password);
+      if (result) {
         setTimeout(() => {
+          setLoading(false);
           router.push('/dashboard');
-        }, 800);
+        }, 1200);
       } else {
         setLoading(false);
         setErrorMsg('Credenciais inválidas.');
@@ -156,10 +149,9 @@ export default function LoginClient() {
     }
   };
 
-
   if (authChecking) {
     return (
-      <div className="bg-slate-950 min-h-screen flex items-center justify-center text-slate-400 font-mono">
+      <div className="bg-slate-50 dark:bg-slate-950 min-h-screen flex items-center justify-center text-slate-600 dark:text-slate-400 font-mono">
         <div className="text-center space-y-4">
           <div className="w-12 h-12 border-2 border-red-600 border-t-transparent rounded-full animate-spin mx-auto"></div>
           <p className="text-xs uppercase tracking-widest text-slate-500 font-bold">Verificando Sessão...</p>
@@ -169,25 +161,25 @@ export default function LoginClient() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 flex flex-col justify-between font-mono relative overflow-hidden select-none">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col justify-between font-mono relative overflow-hidden select-none">
       
       {/* Decorative absolute background grid */}
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-35" />
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#cbd5e1_1px,transparent_1px),linear-gradient(to_bottom,#cbd5e1_1px,transparent_1px)] dark:bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-30" />
 
       {/* Main Container */}
       <div className="flex-1 flex flex-col md:flex-row w-full min-h-screen z-10">
         
         {/* LEFT COLUMN: Industrial Conceptual & Compliance (Dominante 65%) */}
-        <div className="hidden md:flex md:w-[62%] lg:w-[65%] relative flex-col justify-between p-12 overflow-hidden border-r border-slate-900">
+        <div className="hidden md:flex md:w-[62%] lg:w-[65%] relative flex-col justify-between p-12 overflow-hidden border-r border-slate-200 dark:border-slate-900">
           {/* Background image with high contrast brand gradient overlay */}
           <div 
-            className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105 filter brightness-[0.4] saturate-[0.8] transition-transform duration-10000 ease-out" 
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat scale-105 filter brightness-[0.7] dark:brightness-[0.4] saturate-[0.8] transition-transform duration-10000 ease-out" 
             style={{ backgroundImage: `url('/login-bg.png')` }}
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-slate-950 via-slate-950/80 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-slate-900/90 via-slate-900/70 to-transparent dark:from-slate-950 dark:via-slate-950/80 dark:to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-slate-900 via-transparent to-transparent dark:from-slate-950" />
 
-          {/* Logo Brand top - Grupo OMG (Solta, Vazada e Ampliada) */}
+          {/* Logo Brand top - Grupo OMG */}
           <div className="relative flex items-center gap-5">
             <img 
               src="/logo-omg.png" 
@@ -196,7 +188,7 @@ export default function LoginClient() {
             />
             <div>
               <span className="text-[10px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
-              <h2 className="text-base font-black text-slate-100 tracking-tight leading-none mt-1">SPCI MASTER</h2>
+              <h2 className="text-base font-black text-white tracking-tight leading-none mt-1">SPCI MASTER</h2>
             </div>
           </div>
 
@@ -207,37 +199,40 @@ export default function LoginClient() {
               Conformidade Legal NBR 12962 / 13434 / 13714
             </div>
             <div className="space-y-3">
-              <h1 className="text-3xl lg:text-4xl font-black text-slate-100 uppercase tracking-tight leading-tight">
+              <h1 className="text-3xl lg:text-4xl font-black text-white uppercase tracking-tight leading-tight">
                 Gestão & Governança de Combate a Incêndio
               </h1>
-              <p className="text-xs text-slate-300 font-sans leading-relaxed">
+              <p className="text-xs text-slate-200 font-sans leading-relaxed">
                 Centralização de laudos técnicos, vistorias em tempo real, rastreabilidade offline-first de ativos e relatórios executivos para governança predial e industrial.
               </p>
             </div>
           </div>
 
           {/* Footer stats bottom */}
-          <div className="relative pt-6 border-t border-slate-900/80 flex items-center justify-start text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-12">
+          <div className="relative pt-6 border-t border-slate-800/80 flex items-center justify-start text-[10px] text-slate-300 font-bold uppercase tracking-widest mt-12">
             <span>SISTEMA DE SEGURANÇA GRUPO OMG</span>
           </div>
         </div>
 
-        {/* RIGHT COLUMN: Glassmorphism Efeito Vidro Fosco (35%) */}
-        <div className="md:w-[38%] lg:w-[35%] flex-1 flex flex-col justify-between px-6 py-8 sm:px-10 bg-slate-950/65 backdrop-blur-xl border-l border-white/10 shadow-[0_0_50px_rgba(0,0,0,0.8)] relative z-20">
+        {/* RIGHT COLUMN: Light-First / Dual Theme Card (35%) */}
+        <div className="md:w-[38%] lg:w-[35%] flex-1 flex flex-col justify-between px-6 py-8 sm:px-10 bg-white/90 dark:bg-slate-950/65 backdrop-blur-xl border-l border-slate-200 dark:border-white/10 shadow-2xl relative z-20">
           
           <div className="my-auto w-full max-w-sm mx-auto space-y-8">
             {/* Header info for mobile (logo + branding) */}
             <div className="md:hidden flex items-center gap-3 mb-6">
               <img src="/logo-omg.png" alt="Logo Grupo OMG" className="h-10 w-auto object-contain drop-shadow-md" />
               <div>
-                <span className="text-[8px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
-                <h2 className="text-sm font-black text-slate-100 tracking-tight leading-none mt-1">SPCI MASTER</h2>
+                <span className="text-[8px] text-red-600 dark:text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
+                <h2 className="text-sm font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none mt-1">SPCI MASTER</h2>
               </div>
             </div>
 
-            <div className="space-y-2 text-left">
-              <h2 className="text-xl font-bold uppercase text-slate-100 tracking-wider">Acessar Cockpit</h2>
-              <p className="text-xs text-slate-400 font-sans">Entre com suas credenciais corporativas SPCI.</p>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1 text-left">
+                <h2 className="text-xl font-bold uppercase text-slate-900 dark:text-slate-100 tracking-wider">Acessar Cockpit</h2>
+                <p className="text-xs text-slate-500 dark:text-slate-400 font-sans">Entre com suas credenciais corporativas SPCI.</p>
+              </div>
+              <ThemeToggle />
             </div>
 
             {/* Error box */}
@@ -247,7 +242,7 @@ export default function LoginClient() {
                   initial={{ opacity: 0, y: -8 }} 
                   animate={{ opacity: 1, y: 0 }} 
                   exit={{ opacity: 0, y: -8 }}
-                  className="bg-red-950/40 border border-red-900/60 p-4 flex gap-3 text-red-400 rounded-xl"
+                  className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/60 p-4 flex gap-3 text-red-600 dark:text-red-400 rounded-xl"
                 >
                   <AlertTriangle className="w-5 h-5 shrink-0" />
                   <div className="text-[11px] font-bold leading-normal">
@@ -258,13 +253,14 @@ export default function LoginClient() {
               )}
             </AnimatePresence>
 
+            {/* Form */}
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-1.5">
-                <label htmlFor="identifier" className="block text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                <label htmlFor="identifier" className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 tracking-wider">
                   Usuário ou E-mail
                 </label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 dark:text-slate-500">
                     <Mail className="w-4 h-4" />
                   </span>
                   <input
@@ -274,17 +270,17 @@ export default function LoginClient() {
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder="usuario ou email@empresa.com"
-                    className="w-full bg-slate-900/90 border border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-3 pl-10 pr-4 text-xs text-slate-100 placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
+                    className="w-full bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-3 pl-10 pr-4 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label htmlFor="password" className="block text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                <label htmlFor="password" className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 tracking-wider">
                   Senha Geral
                 </label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 dark:text-slate-500">
                     <Key className="w-4 h-4" />
                   </span>
                   <input
@@ -294,18 +290,17 @@ export default function LoginClient() {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full bg-slate-900/90 border border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-3 pl-10 pr-10 text-xs text-slate-100 placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
+                    className="w-full bg-slate-50 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-3 pl-10 pr-10 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none transition-all duration-300 font-bold"
                   />
 
-                  {/* Ícone de olho visível somente quando o usuário digitar pelo menos 1 caractere */}
                   {password.length > 0 && (
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-slate-200 transition-colors border-none bg-transparent cursor-pointer"
+                      className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors border-none bg-transparent cursor-pointer"
                       aria-label={showPassword ? "Ocultar senha" : "Exibir senha"}
                     >
-                      {showPassword ? <EyeOff className="w-4 h-4 text-red-500" /> : <Eye className="w-4 h-4 text-slate-400" />}
+                      {showPassword ? <EyeOff className="w-4 h-4 text-red-600 dark:text-red-500" /> : <Eye className="w-4 h-4 text-slate-400" />}
                     </button>
                   )}
                 </div>
@@ -313,7 +308,7 @@ export default function LoginClient() {
 
               {/* Opções Adicionais: Checkbox Permanecer Logado + Link Esqueci Minha Senha */}
               <div className="flex items-center justify-between text-[11px] font-sans">
-                <label className="flex items-center gap-2 text-slate-300 cursor-pointer select-none">
+                <label className="flex items-center gap-2 text-slate-700 dark:text-slate-300 cursor-pointer select-none">
                   <input 
                     type="checkbox"
                     checked={rememberMe}
@@ -321,9 +316,9 @@ export default function LoginClient() {
                     className="sr-only"
                   />
                   {rememberMe ? (
-                    <CheckSquare className="w-4 h-4 text-red-500" />
+                    <CheckSquare className="w-4 h-4 text-red-600 dark:text-red-500" />
                   ) : (
-                    <Square className="w-4 h-4 text-slate-600" />
+                    <Square className="w-4 h-4 text-slate-400 dark:text-slate-600" />
                   )}
                   <span>Permanecer conectado</span>
                 </label>
@@ -335,7 +330,7 @@ export default function LoginClient() {
                     setForgotEmail(identifier.includes('@') ? identifier : '');
                     setShowForgotModal(true);
                   }}
-                  className="text-red-400 hover:text-red-300 font-medium transition-colors border-none bg-transparent cursor-pointer"
+                  className="text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-medium transition-colors border-none bg-transparent cursor-pointer"
                 >
                   Esqueci minha senha
                 </button>
@@ -343,7 +338,7 @@ export default function LoginClient() {
 
               <button
                 type="submit"
-                className="w-full py-3.5 bg-red-600 hover:bg-red-500 hover:shadow-[0_0_20px_rgba(220,38,38,0.35)] text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all duration-300 border-none rounded-xl active:scale-[0.98]"
+                className="w-full py-3.5 bg-red-600 hover:bg-red-500 shadow-md text-white font-black text-xs uppercase tracking-wider flex items-center justify-center gap-2 cursor-pointer transition-all duration-300 border-none rounded-xl active:scale-[0.98]"
               >
                 ENTRAR NO SISTEMA <ArrowRight className="w-4 h-4" />
               </button>
@@ -364,10 +359,10 @@ export default function LoginClient() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-slate-950 z-50 flex flex-col items-center justify-center p-6 text-center select-none"
+            className="fixed inset-0 bg-slate-50/95 dark:bg-slate-950 z-50 flex flex-col items-center justify-center p-6 text-center select-none"
           >
             <div className="max-w-md w-full space-y-8 relative">
-              {/* Pulsating Center Shield with red neon inner shadow */}
+              {/* Pulsating Center Shield */}
               <div className="relative w-24 h-24 mx-auto flex items-center justify-center">
                 <motion.div
                   animate={{ 
@@ -383,15 +378,15 @@ export default function LoginClient() {
                     repeat: Infinity,
                     ease: "easeInOut"
                   }}
-                  className="w-20 h-20 bg-slate-900 border-2 border-red-600 rounded-full flex items-center justify-center shadow-lg relative"
+                  className="w-20 h-20 bg-white dark:bg-slate-900 border-2 border-red-600 rounded-full flex items-center justify-center shadow-lg relative"
                 >
-                  <Shield className="w-9 h-9 text-red-500 drop-shadow-[0_0_6px_rgba(220,38,38,0.6)]" />
+                  <Shield className="w-9 h-9 text-red-600 dark:text-red-500 drop-shadow-[0_0_6px_rgba(220,38,38,0.6)]" />
                 </motion.div>
               </div>
 
               {/* Text indicator */}
               <div className="space-y-2">
-                <h3 className="text-sm font-bold uppercase text-slate-100 tracking-widest">
+                <h3 className="text-sm font-bold uppercase text-slate-900 dark:text-slate-100 tracking-widest">
                   ESTABELECENDO ACESSO SEGURO
                 </h3>
                 {/* Dynamically changing message status */}
@@ -403,7 +398,7 @@ export default function LoginClient() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, y: -4 }}
                       transition={{ duration: 0.15 }}
-                      className="text-[10px] text-red-400 font-bold uppercase tracking-wider"
+                      className="text-[10px] text-red-600 dark:text-red-400 font-bold uppercase tracking-wider"
                     >
                       {loadingStatus}
                     </motion.p>
@@ -413,7 +408,7 @@ export default function LoginClient() {
 
               {/* Horizontal neon progress bar */}
               <div className="w-full max-w-xs mx-auto">
-                <div className="h-1 bg-slate-900 border border-slate-800 relative w-full overflow-hidden">
+                <div className="h-1 bg-slate-200 dark:bg-slate-900 border border-slate-300 dark:border-slate-800 relative w-full overflow-hidden rounded-full">
                   <motion.div 
                     className="h-full bg-red-600 shadow-[0_0_10px_rgba(220,38,38,0.8)]"
                     animate={{ width: `${progress}%` }}
@@ -429,6 +424,7 @@ export default function LoginClient() {
           </motion.div>
         )}
       </AnimatePresence>
+
       {/* MODAL DE RECUPERAÇÃO DE SENHA */}
       <AnimatePresence>
         {showForgotModal && (
@@ -436,29 +432,29 @@ export default function LoginClient() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4"
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-slate-900 border border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl relative space-y-5"
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-6 rounded-2xl max-w-md w-full shadow-2xl relative space-y-5 text-slate-800 dark:text-slate-100"
             >
-              <div className="flex justify-between items-center border-b border-slate-800 pb-3">
-                <h3 className="text-sm font-bold uppercase text-slate-100 tracking-wider flex items-center gap-2">
-                  <Key className="w-4 h-4 text-red-500" />
+              <div className="flex justify-between items-center border-b border-slate-200 dark:border-slate-800 pb-3">
+                <h3 className="text-sm font-bold uppercase text-slate-900 dark:text-slate-100 tracking-wider flex items-center gap-2">
+                  <Key className="w-4 h-4 text-red-600 dark:text-red-500" />
                   Recuperar Acesso
                 </h3>
                 <button
                   type="button"
                   onClick={() => setShowForgotModal(false)}
-                  className="text-slate-400 hover:text-slate-200 text-xs uppercase cursor-pointer border-none bg-transparent"
+                  className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-xs uppercase cursor-pointer border-none bg-transparent"
                 >
                   ✕
                 </button>
               </div>
 
-              <p className="text-xs text-slate-300 font-sans leading-relaxed">
+              <p className="text-xs text-slate-600 dark:text-slate-300 font-sans leading-relaxed">
                 Informe o seu e-mail corporativo cadastrado para receber as instruções de redefinição de senha.
               </p>
 
@@ -466,8 +462,8 @@ export default function LoginClient() {
                 <div
                   className={`p-3 rounded-xl text-xs font-sans font-medium ${
                     forgotMsg.type === 'success'
-                      ? 'bg-emerald-950/60 border border-emerald-800 text-emerald-400'
-                      : 'bg-red-950/60 border border-red-800 text-red-400'
+                      ? 'bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400'
+                      : 'bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400'
                   }`}
                 >
                   {forgotMsg.text}
@@ -476,7 +472,7 @@ export default function LoginClient() {
 
               <form onSubmit={handleResetPassword} className="space-y-4">
                 <div className="space-y-1.5">
-                  <label htmlFor="forgot-email" className="block text-[10px] font-bold uppercase text-slate-400 tracking-wider">
+                  <label htmlFor="forgot-email" className="block text-[10px] font-bold uppercase text-slate-600 dark:text-slate-400 tracking-wider">
                     E-mail Cadastrado
                   </label>
                   <input
@@ -486,7 +482,7 @@ export default function LoginClient() {
                     value={forgotEmail}
                     onChange={(e) => setForgotEmail(e.target.value)}
                     placeholder="seu.email@empresa.com"
-                    className="w-full bg-slate-950 border border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-2.5 px-3.5 text-xs text-slate-100 placeholder-slate-600 focus:outline-none transition-all"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-800 focus:border-red-600 focus:ring-2 focus:ring-red-600/30 rounded-xl py-2.5 px-3.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none transition-all font-bold"
                   />
                 </div>
 
@@ -494,14 +490,14 @@ export default function LoginClient() {
                   <button
                     type="button"
                     onClick={() => setShowForgotModal(false)}
-                    className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold uppercase border-none cursor-pointer"
+                    className="px-4 py-2 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold uppercase border border-slate-200 dark:border-slate-700 cursor-pointer"
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
                     disabled={forgotLoading}
-                    className="px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold uppercase border-none cursor-pointer transition-all"
+                    className="px-5 py-2 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white rounded-xl text-xs font-bold uppercase border-none cursor-pointer transition-all shadow-md"
                   >
                     {forgotLoading ? 'Enviando...' : 'Enviar E-mail'}
                   </button>

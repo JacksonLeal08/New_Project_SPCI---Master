@@ -74,17 +74,17 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
   const isAdmin = userProfile?.role === 'Administrador' || userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'admin';
 
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard / Visão Geral', icon: <LayoutDashboard className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/dashboard' },
-    { id: 'extintores', label: 'Extintores', icon: <Flame className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/extintores' },
-    { id: 'hidrantes', label: 'Hidrantes & Abrigos', icon: <Droplet className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/hidrantes' },
-    { id: 'sinalizacao', label: 'Sinalização NBR', icon: <AlertTriangle className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/sinalizacao' },
-    { id: 'iluminacao', label: 'Iluminação Emergência', icon: <Lightbulb className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/iluminacao' },
-    { id: 'bombas', label: 'Casa de Bombas', icon: <Sliders className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/bombas' },
-    { id: 'ronda', label: 'Despacho & Ronda Campo', icon: <Smartphone className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/ronda' },
-    { id: 'alerts', label: 'Disparo de Alertas', icon: <Bell className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/alerts' },
-    ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'logs', label: 'Logs do Sistema', icon: <History className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/logs' }] : []),
-    ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'gestao-ativo', label: 'Gestão de Ativo', icon: <Boxes className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/gestao-ativo' }] : []),
-    ...(isAdmin ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-5 h-5 drop-shadow-[0_2px_4px_rgba(220,38,38,0.4)]" />, path: '/configuracoes' }] : [])
+    { id: 'dashboard', label: 'Dashboard / Visão Geral', icon: <LayoutDashboard className="w-5 h-5" />, path: '/dashboard' },
+    { id: 'extintores', label: 'Extintores', icon: <Flame className="w-5 h-5" />, path: '/extintores' },
+    { id: 'hidrantes', label: 'Hidrantes & Abrigos', icon: <Droplet className="w-5 h-5" />, path: '/hidrantes' },
+    { id: 'sinalizacao', label: 'Sinalização NBR', icon: <AlertTriangle className="w-5 h-5" />, path: '/sinalizacao' },
+    { id: 'iluminacao', label: 'Iluminação Emergência', icon: <Lightbulb className="w-5 h-5" />, path: '/iluminacao' },
+    { id: 'bombas', label: 'Casa de Bombas', icon: <Sliders className="w-5 h-5" />, path: '/bombas' },
+    { id: 'ronda', label: 'Despacho & Ronda Campo', icon: <Smartphone className="w-5 h-5" />, path: '/ronda' },
+    { id: 'alerts', label: 'Disparo de Alertas', icon: <Bell className="w-5 h-5" />, path: '/alerts' },
+    ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'logs', label: 'Logs do Sistema', icon: <History className="w-5 h-5" />, path: '/logs' }] : []),
+    ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'gestao-ativo', label: 'Gestão de Ativo', icon: <Boxes className="w-5 h-5" />, path: '/gestao-ativo' }] : []),
+    ...(isAdmin ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-5 h-5" />, path: '/configuracoes' }] : [])
   ];
 
   const filteredNavItems = navItems.filter(item => {
@@ -100,7 +100,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
 
   return (
     <aside 
-      className={`bg-[#1b2a32] dark:bg-[#262626] text-white flex flex-col py-6 shrink-0 shadow-2xl border-r border-[#cfd8dc]/10 z-50 h-screen select-none font-sans fixed lg:static inset-y-0 left-0 transform lg:transform-none transition-all duration-300 ${
+      className={`bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex flex-col py-6 shrink-0 shadow-xl border-r border-slate-200 dark:border-slate-800 z-50 h-screen select-none font-sans fixed lg:static inset-y-0 left-0 transform lg:transform-none transition-all duration-300 ${
         isCollapsed ? 'w-20 px-2' : 'w-72 px-4'
       } ${
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
@@ -111,7 +111,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
       {onClose && (
         <button 
           onClick={onClose}
-          className="absolute top-4 right-4 lg:hidden text-slate-400 hover:text-white border-none bg-transparent cursor-pointer p-1"
+          className="absolute top-4 right-4 lg:hidden text-slate-400 hover:text-slate-900 dark:hover:text-white border-none bg-transparent cursor-pointer p-1"
           aria-label="Fechar menu"
         >
           <X className="w-5 h-5" />
@@ -121,7 +121,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
       {/* Botão para recolher/expandir a Sidebar no Desktop */}
       <button
         onClick={toggleCollapse}
-        className="hidden lg:flex absolute -right-3.5 top-6 bg-red-600 hover:bg-red-500 text-white p-1 rounded-full border-2 border-[#1b2a32] shadow-xl cursor-pointer z-50 transition-transform hover:scale-110 active:scale-95"
+        className="hidden lg:flex absolute -right-3.5 top-6 bg-red-600 hover:bg-red-500 text-white p-1 rounded-full border-2 border-white dark:border-slate-900 shadow-xl cursor-pointer z-50 transition-transform hover:scale-110 active:scale-95"
         title={isCollapsed ? "Expandir barra lateral" : "Recolher barra lateral"}
         aria-label="Recolher/Expandir barra lateral"
       >
@@ -133,18 +133,18 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
         <img 
           src="/logo-omg.png" 
           alt="Logo Grupo OMG" 
-          className={`object-contain shrink-0 filter drop-shadow-[0_4px_12px_rgba(220,38,38,0.4)] transition-all ${
+          className={`object-contain shrink-0 filter drop-shadow-md transition-all ${
             isCollapsed ? 'h-8 w-auto max-w-[48px]' : 'h-14 w-auto'
           }`} 
         />
         {!isCollapsed && (
-          <h2 className="text-xs font-black text-slate-100 tracking-wider uppercase mt-2 leading-none text-center">
+          <h2 className="text-xs font-black text-slate-800 dark:text-slate-100 tracking-wider uppercase mt-2 leading-none text-center">
             SPCI MASTER
           </h2>
         )}
       </div>
 
-      {/* Links de navegação semânticos com ícones 3D e Tooltips no hover */}
+      {/* Links de navegação semânticos com ícones e Tooltips no hover */}
       <nav className={`flex-grow space-y-1.5 px-1 ${isCollapsed ? 'overflow-visible' : 'overflow-y-auto'}`} aria-label="Navegação do painel">
         {filteredNavItems.map(item => {
           const isActive = activeTab === item.id;
@@ -156,12 +156,12 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
                   isCollapsed ? 'justify-center px-0' : 'px-4'
                 } ${
                   isActive 
-                    ? 'bg-gradient-to-r from-red-700 via-rose-600 to-red-800 font-bold shadow-lg shadow-red-900/40 text-white border border-red-500/30' 
-                    : 'text-slate-300 hover:bg-[#37474F]/60 hover:text-white hover:translate-x-0.5'
+                    ? 'bg-gradient-to-r from-red-700 via-rose-600 to-red-800 font-bold shadow-lg shadow-red-900/30 text-white border border-red-500/30' 
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white hover:translate-x-0.5'
                 }`}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <span className="inline-flex items-center transition-transform duration-300 group-hover:scale-125 group-hover:rotate-3" aria-hidden="true">
+                <span className={`inline-flex items-center transition-transform duration-300 group-hover:scale-125 group-hover:rotate-3 ${isActive ? 'text-white' : 'text-red-600 dark:text-red-400'}`} aria-hidden="true">
                   {item.icon}
                 </span>
                 {!isCollapsed && (
@@ -185,16 +185,16 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
 
       {/* Indicador de banco conectado e versão */}
       {!isCollapsed && (
-        <div className="bg-[#2D424A]/20 border border-[#CFD8DC]/5 p-3 rounded-xl text-center text-xs space-y-1 mb-2 select-none shrink-0">
+        <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-center text-xs space-y-1 mb-2 select-none shrink-0">
           <div className="flex items-center justify-between">
-            <p className="text-emerald-450 font-bold flex items-center gap-1.5 font-['Hanken_Grotesk'] text-[11px]">
+            <p className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5 font-['Hanken_Grotesk'] text-[11px]">
               <span aria-hidden="true">🟢</span> Banco SPCI Ativo
             </p>
-            <span className="text-[9px] font-bold bg-red-600/20 text-red-400 border border-red-600/40 px-1.5 py-0.5 rounded-md">
+            <span className="text-[9px] font-bold bg-red-100 dark:bg-red-600/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-600/40 px-1.5 py-0.5 rounded-md">
               {SYSTEM_VERSION}
             </span>
           </div>
-          <p className="text-[10px] text-slate-400 font-mono leading-none truncate text-left pt-0.5">
+          <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono leading-none truncate text-left pt-0.5">
             {currentUser ? `User: ${currentUser.email?.split('@')[0]}` : 'Offline-first'}
           </p>
         </div>
@@ -204,7 +204,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
       {onLogoutClick && (
         <button
           onClick={onLogoutClick}
-          className={`mt-2 bg-[#2D424A]/30 hover:bg-[#af101a] border border-[#CFD8DC]/10 hover:border-transparent text-slate-300 hover:text-white font-['Hanken_Grotesk'] font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer shadow-xs active:scale-[0.98] relative group shrink-0 ${
+          className={`mt-2 bg-slate-100 dark:bg-slate-800/50 hover:bg-red-600 border border-slate-200 dark:border-slate-700 hover:border-transparent text-slate-600 dark:text-slate-300 hover:text-white font-['Hanken_Grotesk'] font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer shadow-xs active:scale-[0.98] relative group shrink-0 ${
             isCollapsed ? 'px-0 w-full' : 'px-4 w-full'
           }`}
           title={isCollapsed ? "Sair do Cockpit" : undefined}
