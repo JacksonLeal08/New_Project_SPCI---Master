@@ -250,18 +250,20 @@ export default function SpciChatIa() {
       {/* ALERTA DE NOVIDADES DA VERSÃO */}
       <WhatsNewModal isOpen={showWhatsNew} onClose={() => setShowWhatsNew(false)} />
 
-      {/* MODAL DE CONFIRMAÇÃO DE FECHAMENTO COM AVISO DE LIMPEZA DE DADOS */}
+      {/* MODAL DE CONFIRMAÇÃO DE FECHAMENTO COM AVISO DE LIMPEZA DE DADOS (Z-INDEX 100 PARA FICAR SOBRE O DRAWER) */}
       <AnimatePresence>
         {showConfirmClose && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs font-sans pointer-events-auto">
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md font-sans pointer-events-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4"
+              className="bg-white border border-slate-200 rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.5)] max-w-md w-full p-6 space-y-4 relative overflow-hidden"
             >
-              <div className="flex items-center gap-3 text-red-700">
-                <div className="w-10 h-10 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center shrink-0">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 rounded-t-3xl" />
+              
+              <div className="flex items-center gap-3 text-red-700 pt-1">
+                <div className="w-10 h-10 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center shrink-0 shadow-xs">
                   <AlertCircle className="w-5 h-5 text-red-700" />
                 </div>
                 <div>
@@ -269,12 +271,12 @@ export default function SpciChatIa() {
                     Limpar & Fechar Assistente?
                   </h4>
                   <p className="text-[11px] text-slate-500 font-mono">
-                    Sessão de IA 24h
+                    Sessão de IA 24h SPCI
                   </p>
                 </div>
               </div>
 
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-xs text-amber-900 font-medium leading-relaxed">
+              <div className="bg-amber-50/90 border border-amber-200/90 rounded-2xl p-3.5 text-xs text-amber-900 font-medium leading-relaxed shadow-2xs">
                 ⚠️ <strong>Aviso de Limpeza:</strong> Ao fechar o Agente de IA 24h, todo o histórico das consultas atuais será <strong>completamente limpo</strong> para manter a privacidade e o desempenho da próxima vistoria.
               </div>
 
@@ -282,14 +284,14 @@ export default function SpciChatIa() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmClose(false)}
-                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 active:scale-95 transition-all cursor-pointer"
                 >
                   Continuar Consultando
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirmCloseAndClear}
-                  className="px-4 py-2.5 rounded-xl bg-red-700 hover:bg-red-800 text-white text-xs font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                  className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-700 to-red-800 hover:from-red-800 hover:to-red-900 text-white text-xs font-black uppercase tracking-wider active:scale-95 transition-all shadow-md flex items-center gap-1.5 cursor-pointer"
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>Sim, Fechar e Limpar</span>
@@ -491,19 +493,32 @@ export default function SpciChatIa() {
         )}
       </AnimatePresence>
 
-      {/* BOTÃO FLUTUANTE INSPE IA (POSICIONADO AO LADO ESQUERDO DO FAB QUANDO FECHADO) */}
-      {!chatOpened && (
-        <button 
-          type="button"
-          onClick={() => setChatOpened(true)}
-          className="fixed bottom-6 right-24 z-40 w-14 h-14 bg-red-700 hover:bg-red-800 text-white rounded-2xl shadow-xl border border-red-800 flex flex-col items-center justify-center relative cursor-pointer pointer-events-auto transition-all transform hover:scale-105 active:scale-95"
-          aria-label="Abrir Agente de IA 24h"
-          title="Agente de IA 24h - SPCI Master"
-        >
-          <Bot className="w-6 h-6 text-white" />
-          <span className="text-[7.5px] font-black uppercase tracking-widest text-red-100 mt-0.5 font-mono">INSPE IA</span>
-        </button>
-      )}
+      {/* BOTÃO FLUTUANTE INSPE IA (POSICIONADO À ESQUERDA DO BOTÃO FAB NO CANTO INFERIOR DIREITO) */}
+      <AnimatePresence>
+        {!chatOpened && (
+          <motion.button 
+            initial={{ scale: 0.8, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.8, opacity: 0 }}
+            whileHover={{ scale: 1.08 }}
+            whileTap={{ scale: 0.92 }}
+            type="button"
+            onClick={() => setChatOpened(true)}
+            className="fixed bottom-6 right-24 z-40 w-14 h-14 bg-gradient-to-tr from-slate-900 via-red-950 to-red-700 hover:from-red-800 hover:to-slate-900 text-white rounded-2xl shadow-[0_8px_25px_rgba(185,28,28,0.4)] border border-red-500/30 flex flex-col items-center justify-center relative cursor-pointer pointer-events-auto transition-all duration-300 group"
+            aria-label="Abrir Agente de IA 24h"
+            title="Agente de IA 24h - SPCI Master"
+          >
+            {/* Indicador Pulsação de IA Operacional */}
+            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 pointer-events-none">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-slate-900"></span>
+            </span>
+
+            <Bot className="w-6 h-6 text-white group-hover:text-red-200 transition-colors" />
+            <span className="text-[7.5px] font-black uppercase tracking-widest text-red-100 mt-0.5 font-mono">INSPE IA</span>
+          </motion.button>
+        )}
+      </AnimatePresence>
     </>
   );
 }
