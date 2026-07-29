@@ -1,4 +1,4 @@
-export const SYSTEM_VERSION = 'v2.7.0';
+export const SYSTEM_VERSION = 'v2.7.1';
 export const COMPANY_NAME = 'Grupo OMG';
 export const COPYRIGHT_YEAR = '2026';
 
@@ -12,6 +12,18 @@ export interface ChangelogRelease {
 
 export const SYSTEM_CHANGELOG: ChangelogRelease[] = [
   {
+    version: 'v2.7.1',
+    date: '29-07-2026',
+    title: '🛡️ Confirmação de Limpeza da IA & FAB Responsivo Lado a Lado',
+    description: 'Release de refinamento visual e usabilidade no assistente de IA 24h e botões flutuantes.',
+    changes: [
+      '⚠️ Modal de confirmação ao fechar o assistente IA 24h, informando e limpando o histórico para a próxima sessão.',
+      '📍 Alinhamento do botão da IA ao lado esquerdo do botão FAB (+) no canto inferior direito.',
+      '↔️ Deslocamento fluido do botão FAB (+) para a extremidade esquerda do painel lateral quando a IA é aberta.',
+      '🔔 Notificação e alerta automático da nova versão v2.7.1 na tela.'
+    ]
+  },
+  {
     version: 'v2.7.0',
     date: '29-07-2026',
     title: '🤖 Agente de IA 24h Estilo Elite Coach, Guias NBR e Tema Claro Corporativo',
@@ -22,31 +34,6 @@ export const SYSTEM_CHANGELOG: ChangelogRelease[] = [
       '🔔 Sistema de Alertas e Notificações de Novidades da Versão (v2.7.0) com aviso automático na tela.',
       '🎯 Ajuste fino de posicionamento flutuante (FAB) do botão Inspe IA prevenindo qualquer sobreposição visual.',
       '☀️ Refatoração 100% Tema Claro Corporativo nos modais de Inspeção, Checklist e Assistente IA.'
-    ]
-  },
-  {
-    version: 'v2.6.0',
-    date: '27-07-2026',
-    title: '⚡ Sincronização Dinâmica de Roles RBAC, Logs sem Bloqueio e Notificação de Login',
-    description: 'Release com sincronia total de perfil no Supabase, registro Server Action de auditoria e alerta de acessos ao Desenvolvedor.',
-    changes: [
-      '💻 Desenvolvedor Master Único reservado para jacksonflr@outlook.com.br; todos os demais colaboradores leem roles 100% dinâmicos do Supabase.',
-      '📝 Gravação de Logs de Auditoria no Supabase sem bloqueios RLS (via Server Action administrativa).',
-      '🔔 Notificações e sinalização ao Desenvolvedor no ícone de sininho a cada novo login de usuário no sistema.',
-      '📌 Unificação da versão oficial v2.6.0 no rodapé, modal de changelog e tela de login.'
-    ]
-  },
-  {
-    version: 'v2.5.0',
-    date: '27-07-2026',
-    title: '🚀 CRUD Completo para Desenvolvedor, Notificações com Som e Layout Amplo',
-    description: 'Release corporativa unificada com controle administrativo total de credenciais e novidades visuais.',
-    changes: [
-      '👥 CRUD Completo de Usuários para perfil Desenvolvedor (Auth Admin + Tabela Pública).',
-      '📛 Correção de identificação de nome/e-mail nos Logs do Sistema (sem Sistema/Técnico - N/A).',
-      '🔊 Notificações com sinal sonoro de telemetria em tempo real a cada novo login de colaborador.',
-      '🖼️ Persistência de avatar/foto de perfil no F5 com tratamento gracioso de permissões RLS.',
-      '🖥️ Expansão dos modais centrais para aproveitamento horizontal amplo e responsivo em desktop/mobile.'
     ]
   }
 ];

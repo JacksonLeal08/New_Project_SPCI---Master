@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSpci } from '@/app/context/SpciContext';
 import { 
   Bot, Send, X, Sparkles, Cpu, ShieldCheck, ChevronRight, ChevronDown, 
-  HelpCircle, BookOpen, Layers, Flame, Droplets, QrCode, AlertTriangle, Info, Bell
+  HelpCircle, Layers, Flame, Droplets, QrCode, AlertTriangle, Bell, Trash2, AlertCircle
 } from 'lucide-react';
 import WhatsNewModal from './WhatsNewModal';
 import { CURRENT_SYSTEM_VERSION } from '@/lib/version';
@@ -34,6 +34,7 @@ export default function SpciChatIa() {
   const [engineUsed, setEngineUsed] = useState<string>('DeepSeek-V3 Engine');
   const [openCategory, setOpenCategory] = useState<string | null>('APRESENTAÇÃO DO SISTEMA');
   const [showWhatsNew, setShowWhatsNew] = useState<boolean>(false);
+  const [showConfirmClose, setShowConfirmClose] = useState<boolean>(false);
 
   // Telemetria em tempo real para alimentação de contexto
   const totalAssets = extintores.length + hidrantes.length + sinalizacoes.length + iluminacoes.length;
@@ -48,6 +49,12 @@ export default function SpciChatIa() {
     sinalizacoes.filter(x => x.status === 'Não Conforme').length +
     iluminacoes.filter(x => x.status === 'Atenção').length;
   const compliancePercentage = totalAssets > 0 ? Math.round(((totalAssets - totalVencidos) / totalAssets) * 100) : 100;
+
+  // Mensagem inicial padrão
+  const initialWelcomeMessage = {
+    sender: 'assistant' as const,
+    text: 'Olá Operador! Sou o assistente Inspe IA SPCI 24h. Selecione um dos tópicos do sistema acima ou digite sua dúvida no campo abaixo para esclarecimentos instantâneos!'
+  };
 
   // Tópicos organizados do sistema (Estilo Elite Coach)
   const systemTopicCategories: SystemTopicCategory[] = [
@@ -170,7 +177,6 @@ export default function SpciChatIa() {
     let usedEngineName = 'DeepSeek-V3 Engine';
 
     try {
-      // 1. Tenta comunicar com a API do DeepSeek-V3
       const dsRes = await fetch('/api/deepseek', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -190,7 +196,6 @@ export default function SpciChatIa() {
         }
       }
 
-      // 2. Fallback para Gemini 2.0 Flash se a API do DeepSeek falhou
       if (!finalAnswer) {
         const gemRes = await fetch('/api/gemini', {
           method: "POST",
@@ -212,7 +217,6 @@ export default function SpciChatIa() {
         }
       }
 
-      // 3. Fallback Garantido NBR Local (Smart Offline Engine) se ambas APIs falharem
       if (!finalAnswer) {
         finalAnswer = getSmartLocalNbrAnswer(textToQuery);
         usedEngineName = 'Base NBR Inteligente SPCI';
@@ -229,10 +233,72 @@ export default function SpciChatIa() {
     }
   };
 
+  // Solicita confirmação de fechamento
+  const handleRequestClose = () => {
+    setShowConfirmClose(true);
+  };
+
+  // Executa fechamento e limpeza de dados
+  const handleConfirmCloseAndClear = () => {
+    setChatMessages([initialWelcomeMessage]);
+    setShowConfirmClose(false);
+    setChatOpened(false);
+  };
+
   return (
     <>
       {/* ALERTA DE NOVIDADES DA VERSÃO */}
       <WhatsNewModal isOpen={showWhatsNew} onClose={() => setShowWhatsNew(false)} />
+
+      {/* MODAL DE CONFIRMAÇÃO DE FECHAMENTO COM AVISO DE LIMPEZA DE DADOS */}
+      <AnimatePresence>
+        {showConfirmClose && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs font-sans pointer-events-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="bg-white border border-slate-200 rounded-3xl shadow-2xl max-w-md w-full p-6 space-y-4"
+            >
+              <div className="flex items-center gap-3 text-red-700">
+                <div className="w-10 h-10 rounded-2xl bg-red-50 border border-red-200 flex items-center justify-center shrink-0">
+                  <AlertCircle className="w-5 h-5 text-red-700" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black uppercase font-['Hanken_Grotesk'] text-slate-900">
+                    Limpar & Fechar Assistente?
+                  </h4>
+                  <p className="text-[11px] text-slate-500 font-mono">
+                    Sessão de IA 24h
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3.5 text-xs text-amber-900 font-medium leading-relaxed">
+                ⚠️ <strong>Aviso de Limpeza:</strong> Ao fechar o Agente de IA 24h, todo o histórico das consultas atuais será <strong>completamente limpo</strong> para manter a privacidade e o desempenho da próxima vistoria.
+              </div>
+
+              <div className="flex gap-2.5 justify-end pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowConfirmClose(false)}
+                  className="px-4 py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100 transition-all cursor-pointer"
+                >
+                  Continuar Consultando
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmCloseAndClear}
+                  className="px-4 py-2.5 rounded-xl bg-red-700 hover:bg-red-800 text-white text-xs font-black uppercase tracking-wider transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>Sim, Fechar e Limpar</span>
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* DRAWER LATERAL DESLIZANTE À DIREITA (ESTILO ELITE COACH) */}
       <AnimatePresence>
@@ -243,7 +309,7 @@ export default function SpciChatIa() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              onClick={() => setChatOpened(false)}
+              onClick={handleRequestClose}
               className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 pointer-events-auto"
             />
 
@@ -254,7 +320,7 @@ export default function SpciChatIa() {
               transition={{ type: 'spring', damping: 25, stiffness: 220 }}
               className="fixed top-0 right-0 z-50 h-full w-full sm:w-[420px] md:w-[460px] bg-white border-l border-slate-200 shadow-2xl flex flex-col font-sans pointer-events-auto"
             >
-              {/* CABEÇALHO DO AGENTE DE IA 24H (ESTILO ELITE COACH) */}
+              {/* CABEÇALHO DO AGENTE DE IA 24H */}
               <div className="bg-gradient-to-r from-red-700 via-red-800 to-slate-900 text-white p-4 shrink-0 border-b border-red-900 shadow-md">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
@@ -290,9 +356,9 @@ export default function SpciChatIa() {
                     </button>
 
                     <button 
-                      onClick={() => setChatOpened(false)} 
+                      onClick={handleRequestClose} 
                       className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer border border-white/20"
-                      title="Fechar"
+                      title="Fechar e Limpar"
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -425,17 +491,19 @@ export default function SpciChatIa() {
         )}
       </AnimatePresence>
 
-      {/* BOTÃO FLUTUANTE DE ABERTURA (POSICIONAMENTO AJUSTADO BOTTOM-8 RIGHT-8) */}
-      <button 
-        type="button"
-        onClick={() => setChatOpened(!chatOpened)}
-        className="fixed bottom-8 right-8 z-40 w-14 h-14 bg-red-700 hover:bg-red-800 text-white rounded-2xl shadow-2xl border border-red-800 flex flex-col items-center justify-center relative cursor-pointer pointer-events-auto transition-transform active:scale-95"
-        aria-label="Abrir Agente de IA 24h"
-        title="Agente de IA 24h - SPCI Master"
-      >
-        <Bot className="w-6 h-6 text-white" />
-        <span className="text-[7.5px] font-black uppercase tracking-widest text-red-100 mt-0.5 font-mono">INSPE IA</span>
-      </button>
+      {/* BOTÃO FLUTUANTE INSPE IA (POSICIONADO AO LADO ESQUERDO DO FAB QUANDO FECHADO) */}
+      {!chatOpened && (
+        <button 
+          type="button"
+          onClick={() => setChatOpened(true)}
+          className="fixed bottom-6 right-24 z-40 w-14 h-14 bg-red-700 hover:bg-red-800 text-white rounded-2xl shadow-xl border border-red-800 flex flex-col items-center justify-center relative cursor-pointer pointer-events-auto transition-all transform hover:scale-105 active:scale-95"
+          aria-label="Abrir Agente de IA 24h"
+          title="Agente de IA 24h - SPCI Master"
+        >
+          <Bot className="w-6 h-6 text-white" />
+          <span className="text-[7.5px] font-black uppercase tracking-widest text-red-100 mt-0.5 font-mono">INSPE IA</span>
+        </button>
+      )}
     </>
   );
 }

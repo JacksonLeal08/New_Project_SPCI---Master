@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Plus, X, Flame, Droplet, AlertTriangle, Lightbulb, Sliders, Zap } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Plus, X, Flame, Droplet, AlertTriangle, Lightbulb, Sliders } from 'lucide-react';
 import { useSpci } from '../context/SpciContext';
 import { AssetCategory } from '@/lib/types';
 
 export default function QuickAssetFab() {
   const [isOpen, setIsOpen] = useState(false);
-  const { setShowAddForm, setSelectedAssetForInspection, setNewAssetType } = useSpci();
+  const { setShowAddForm, setSelectedAssetForInspection, setNewAssetType, chatOpened } = useSpci();
 
   const handleSelectCategory = (category: AssetCategory) => {
     const categoryMap: Record<AssetCategory, 'extintor' | 'hidrante' | 'sinalizacao' | 'iluminacao' | 'bomba'> = {
@@ -58,8 +58,11 @@ export default function QuickAssetFab() {
   ];
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 flex flex-col items-end select-none">
-      
+    <div 
+      className={`fixed bottom-6 z-50 flex flex-col items-end select-none transition-all duration-300 ease-out ${
+        chatOpened ? 'right-6 sm:right-[440px] md:right-[475px]' : 'right-6'
+      }`}
+    >
       {/* Backdrop sutil ao abrir */}
       <AnimatePresence>
         {isOpen && (
