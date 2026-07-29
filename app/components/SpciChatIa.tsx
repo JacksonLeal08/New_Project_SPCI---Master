@@ -492,33 +492,6 @@ export default function SpciChatIa() {
           </>
         )}
       </AnimatePresence>
-
-      {/* BOTÃO FLUTUANTE INSPE IA (POSICIONADO À ESQUERDA DO BOTÃO FAB NO CANTO INFERIOR DIREITO) */}
-      <AnimatePresence>
-        {!chatOpened && (
-          <motion.button 
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            whileHover={{ scale: 1.08 }}
-            whileTap={{ scale: 0.92 }}
-            type="button"
-            onClick={() => setChatOpened(true)}
-            className="fixed bottom-6 right-24 z-40 w-14 h-14 bg-gradient-to-tr from-slate-900 via-red-950 to-red-700 hover:from-red-800 hover:to-slate-900 text-white rounded-2xl shadow-[0_8px_25px_rgba(185,28,28,0.4)] border border-red-500/30 flex flex-col items-center justify-center relative cursor-pointer pointer-events-auto transition-all duration-300 group"
-            aria-label="Abrir Agente de IA 24h"
-            title="Agente de IA 24h - SPCI Master"
-          >
-            {/* Indicador Pulsação de IA Operacional */}
-            <span className="absolute -top-1 -right-1 flex h-3.5 w-3.5 pointer-events-none">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-slate-900"></span>
-            </span>
-
-            <Bot className="w-6 h-6 text-white group-hover:text-red-200 transition-colors" />
-            <span className="text-[7.5px] font-black uppercase tracking-widest text-red-100 mt-0.5 font-mono">INSPE IA</span>
-          </motion.button>
-        )}
-      </AnimatePresence>
     </>
   );
 }

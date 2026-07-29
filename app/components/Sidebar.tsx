@@ -20,7 +20,9 @@ import {
   X,
   Boxes,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Bot,
+  Sparkles
 } from 'lucide-react';
 import { SYSTEM_VERSION } from '@/config/version';
 import WhatsNewModal from './WhatsNewModal';
@@ -39,7 +41,8 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
     userProfile, 
     currentUser, 
     setShowAddForm, 
-    setSelectedAssetForInspection
+    setSelectedAssetForInspection,
+    setChatOpened
   } = useSpci();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -184,6 +187,60 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
           );
         })}
       </nav>
+
+      {/* Botão 3D Tactile Cyber-Red Inspe IA (Posicionado abaixo de Configurações) */}
+      <div className={`my-3 px-1 ${isCollapsed ? 'flex justify-center' : ''}`}>
+        <div className="relative group w-full">
+          <button
+            type="button"
+            onClick={() => setChatOpened(true)}
+            className={`w-full relative flex items-center bg-gradient-to-r from-red-700 via-rose-700 to-slate-900 hover:from-red-600 hover:to-rose-800 text-white rounded-2xl shadow-[0_5px_0_rgba(153,27,27,1)] hover:shadow-[0_6px_0_rgba(185,28,28,1)] active:translate-y-1 active:shadow-none border border-red-500/40 transition-all duration-150 cursor-pointer overflow-hidden font-sans ${
+              isCollapsed ? 'p-3 justify-center h-12 w-12' : 'p-3.5 gap-3'
+            }`}
+            title="Abrir Assistente Virtual Inspe IA SPCI 24h"
+            aria-label="Abrir Assistente Virtual Inspe IA 24h"
+          >
+            {/* Brilho diagonal de reflexo de vidro */}
+            <div className="absolute -top-10 -left-10 w-20 h-32 bg-white/10 rotate-45 transform pointer-events-none group-hover:translate-x-48 transition-transform duration-700 ease-in-out" aria-hidden="true" />
+
+            {/* Ícone Robô 3D com Indicador LED Verde Pulsante */}
+            <div className="relative shrink-0 flex items-center justify-center">
+              <div className="w-8 h-8 rounded-xl bg-red-950/80 border border-red-400/50 flex items-center justify-center shadow-inner text-white group-hover:scale-110 transition-transform">
+                <Bot className="w-5 h-5 text-red-100" />
+              </div>
+              <span className="absolute -top-1 -right-1 flex h-3 w-3 pointer-events-none">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-slate-900"></span>
+              </span>
+            </div>
+
+            {/* Rótulos e Badge quando expandida */}
+            {!isCollapsed && (
+              <div className="flex flex-col text-left min-w-0 flex-1 leading-tight">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="font-['Hanken_Grotesk'] font-black text-xs uppercase tracking-wider text-white truncate">
+                    INSPE IA SPCI
+                  </span>
+                  <span className="text-[8px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded-full shrink-0 font-mono flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5" /> 24H
+                  </span>
+                </div>
+                <span className="text-[9.5px] font-medium text-red-200/90 font-mono mt-0.5 truncate">
+                  Assistente NBR & Laudos
+                </span>
+              </div>
+            )}
+
+            {/* Tooltip quando a sidebar está recolhida */}
+            {isCollapsed && (
+              <div className="opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3.5 py-2 bg-slate-900 text-white rounded-xl shadow-2xl text-[11px] font-bold uppercase tracking-wider whitespace-nowrap z-50 border border-red-500/40 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse"></span>
+                <span>INSPE IA SPCI (AGENTE 24H)</span>
+              </div>
+            )}
+          </button>
+        </div>
+      </div>
 
       {/* Indicador de banco conectado e versão */}
       {!isCollapsed && (
