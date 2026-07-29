@@ -4,6 +4,7 @@ import { AnyAsset } from '@/lib/types';
 import AppFooter from '@/app/components/AppFooter';
 import { useSpci } from '@/app/context/SpciContext';
 import { MediaCaptureModal } from '@/app/components/MediaCaptureModal';
+import { NormasExtintorModal } from '@/app/components/NormasExtintorModal';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -15,7 +16,8 @@ import {
   CheckSquare, 
   Upload,
   Info,
-  X
+  X,
+  BookOpen
 } from 'lucide-react';
 
 interface AssetInspectionModalProps {
@@ -64,6 +66,9 @@ export default function AssetInspectionModal({
 
   // Estado para armazenar a resposta e fotos de cada quesito do checklist NBR
   const [itemStates, setItemStates] = useState<{ [key: number]: ItemInspectionState }>({});
+
+  // Estado do Modal de Normas Aplicáveis NBR
+  const [normasModalOpen, setNormasModalOpen] = useState(false);
 
   // Estado do Modal Seletor de Câmera vs Galeria
   const [pickerState, setPickerState] = useState<{
@@ -254,12 +259,25 @@ export default function AssetInspectionModal({
               </h2>
             </div>
           </div>
-          <button 
-            onClick={onClose} 
-            className="text-slate-600 hover:text-slate-900 border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-100 px-3.5 py-1.5 transition-all rounded-xl cursor-pointer font-extrabold text-xs shadow-xs"
-          >
-            DESCARTAR ×
-          </button>
+          <div className="flex items-center gap-2">
+            {asset.category === 'extintores' && (
+              <button
+                type="button"
+                onClick={() => setNormasModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-800 border border-red-200 rounded-xl text-xs font-black transition-all cursor-pointer shadow-xs"
+                title="Consultar Normas ABNT NBR do Ativo Extintor"
+              >
+                <BookOpen className="w-4 h-4 text-red-600" />
+                <span>Normas Aplicáveis</span>
+              </button>
+            )}
+            <button 
+              onClick={onClose} 
+              className="text-slate-600 hover:text-slate-900 border border-slate-300 hover:border-slate-400 bg-white hover:bg-slate-100 px-3.5 py-1.5 transition-all rounded-xl cursor-pointer font-extrabold text-xs shadow-xs"
+            >
+              DESCARTAR ×
+            </button>
+          </div>
         </div>
 
         {/* CORPO ROLÁVEL DE INSPEÇÃO */}
@@ -595,6 +613,12 @@ export default function AssetInspectionModal({
         onClose={() => setPickerState((prev) => ({ ...prev, isOpen: false }))}
         onPhotoCaptured={pickerState.onCaptured}
         title={pickerState.title}
+      />
+
+      {/* MODAL DE NORMAS ABNT APLICÁVEIS */}
+      <NormasExtintorModal
+        isOpen={normasModalOpen}
+        onClose={() => setNormasModalOpen(false)}
       />
     </div>
   );
