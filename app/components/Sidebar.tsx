@@ -23,6 +23,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { SYSTEM_VERSION } from '@/config/version';
+import WhatsNewModal from './WhatsNewModal';
 
 interface SidebarProps {
   onProfileClick?: () => void;
@@ -42,6 +43,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
   } = useSpci();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
 
   useEffect(() => {
     const savedState = localStorage.getItem('spci_sidebar_collapsed');
@@ -190,15 +192,22 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
             <p className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5 font-['Hanken_Grotesk'] text-[11px]">
               <span aria-hidden="true">🟢</span> Banco SPCI Ativo
             </p>
-            <span className="text-[9px] font-bold bg-red-100 dark:bg-red-600/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-600/40 px-1.5 py-0.5 rounded-md">
+            <button 
+              onClick={() => setShowWhatsNew(true)}
+              className="text-[9px] font-bold bg-red-100 dark:bg-red-600/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-600/40 px-1.5 py-0.5 rounded-md hover:scale-105 transition-transform cursor-pointer"
+              title="Clique para ver as novidades da versão"
+            >
               {SYSTEM_VERSION}
-            </span>
+            </button>
           </div>
           <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono leading-none truncate text-left pt-0.5">
             {currentUser ? `User: ${currentUser.email?.split('@')[0]}` : 'Offline-first'}
           </p>
         </div>
       )}
+
+      {/* Modal de Novidades da Versão */}
+      <WhatsNewModal isOpen={showWhatsNew} onClose={() => setShowWhatsNew(false)} />
 
       {/* Botão de Logout */}
       {onLogoutClick && (

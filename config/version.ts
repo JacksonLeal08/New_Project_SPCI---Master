@@ -1,4 +1,4 @@
-export const SYSTEM_VERSION = 'v2.6.0';
+export const SYSTEM_VERSION = 'v2.7.0';
 export const COMPANY_NAME = 'Grupo OMG';
 export const COPYRIGHT_YEAR = '2026';
 
@@ -11,6 +11,19 @@ export interface ChangelogRelease {
 }
 
 export const SYSTEM_CHANGELOG: ChangelogRelease[] = [
+  {
+    version: 'v2.7.0',
+    date: '29-07-2026',
+    title: '🤖 Agente de IA 24h Estilo Elite Coach, Guias NBR e Tema Claro Corporativo',
+    description: 'Release com assistente em painel lateral deslizante, tópicos de usabilidade do sistema, guiamento de normas NBR ABNT e alertas de atualização.',
+    changes: [
+      '🤖 Painel Lateral (Drawer Right) Agente de IA 24h inspirado no sistema Elite Coach com suporte DeepSeek-V3 + Gemini.',
+      '📚 Tópicos de Usabilidade do Sistema integrados para resposta instantânea da IA (NBR 12962, 12693, 13434, 13714, 15808, 15809).',
+      '🔔 Sistema de Alertas e Notificações de Novidades da Versão (v2.7.0) com aviso automático na tela.',
+      '🎯 Ajuste fino de posicionamento flutuante (FAB) do botão Inspe IA prevenindo qualquer sobreposição visual.',
+      '☀️ Refatoração 100% Tema Claro Corporativo nos modais de Inspeção, Checklist e Assistente IA.'
+    ]
+  },
   {
     version: 'v2.6.0',
     date: '27-07-2026',
