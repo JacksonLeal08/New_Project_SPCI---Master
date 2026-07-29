@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useSpci } from '@/app/context/SpciContext';
-import { Bot, Send, X, Sparkles, Cpu, ShieldCheck } from 'lucide-react';
+import { Bot, Send, X, Sparkles, Cpu, ShieldCheck, CheckCircle2 } from 'lucide-react';
 
 export default function SpciChatIa() {
   const {
@@ -20,6 +20,7 @@ export default function SpciChatIa() {
   } = useSpci();
 
   const [localPrompt, setLocalPrompt] = useState('');
+  const [engineUsed, setEngineUsed] = useState<string>('DeepSeek-V3');
 
   // Computa telemetria rápida em tempo real para alimentar o prompt de contexto
   const totalAssets = extintores.length + hidrantes.length + sinalizacoes.length + iluminacoes.length;
@@ -35,6 +36,33 @@ export default function SpciChatIa() {
     iluminacoes.filter(x => x.status === 'Atenção').length;
   const compliancePercentage = totalAssets > 0 ? Math.round(((totalAssets - totalVencidos) / totalAssets) * 100) : 100;
 
+  // Gerador de resposta inteligente local NBR (à prova de falhas)
+  const getSmartLocalNbrAnswer = (promptText: string): string => {
+    const p = promptText.toLowerCase();
+
+    if (p.includes('12962')) {
+      return `📜 **Resumo NBR 12962 (Manutenção & Inspeção de Extintores):**\n\nA NBR 12962 regulamenta como manter os extintores operacionais. Em termos simples para leigos:\n\n1. **Inspeção Mensal (Visual):** Verifique se o lacre está inteiro, se o manômetro está na faixa verde e se o extintor está desobstruído.\n2. **Manutenção Anual (1º Nível):** Empresa credenciada examina peças internas, substitui componentes e renova o selo do Inmetro.\n3. **Teste de 5 Anos (2º Nível - Teste Hidrostático):** O cilindro é testado com pressão de água para garantir que não vá estourar.\n\n⚠️ *Atenção:* Extintor acionado (mesmo parcialmente) ou com perda de pressão precisa de recarga imediata!`;
+    }
+
+    if (p.includes('12693')) {
+      return `📜 **Resumo NBR 12693 (Instalação e Escolha de Extintores):**\n\nDetermina qual extintor usar e onde colocar:\n\n• **Classe A (Sólidos / Madeira / Papel):** Extintores de Água (AP) ou Espuma.\n• **Classe B (Líquidos Inflamáveis / Tintas):** Pó Químico (PQS) ou CO₂.\n• **Classe C (Equipamentos Elétricos Energizados):** CO₂ ou Pó Químico (nunca água!).\n• **Classe K (Cozinhas / Óleo de Fritura):** Acetato de Potássio.\n\n📏 **Regras de Instalação:** Alça de transporte a no máximo 1,60 m do chão e distância a caminhar ≤ 20 metros.`;
+    }
+
+    if (p.includes('13434') || p.includes('placa') || p.includes('sinaliza')) {
+      return `📜 **Resumo NBR 13434 (Sinalização Fotoluminescente):**\n\nRegula as placas de emergência que brilham no escuro:\n\n• As placas devem ser instaladas acima dos equipamentos (altura padrão ~1,80 m do piso).\n• Devem ser fotoluminescentes para continuar visíveis em caso de falta de energia.\n• Devem indicar rotas de fuga, saídas de emergência e localização de extintores e hidrantes.`;
+    }
+
+    if (p.includes('13714') || p.includes('hidrante')) {
+      return `📜 **Resumo NBR 13714 (Sistemas de Hidrantes):**\n\nExige que os abrigos de hidrante permaneçam desobstruídos, com mangueiras aduchadas ou em ziguezague, mangotes sem rachaduras, chaves de engate Storz e esguichos reguláveis prontos para uso imediato.`;
+    }
+
+    if (p.includes('15808') || p.includes('15809') || p.includes('carreta') || p.includes('portat')) {
+      return `📜 **Resumo NBR 15808 & NBR 15809 (Extintores Portáteis e Sobre Rodas):**\n\n• **NBR 15808:** Aplica-se aos extintores portáteis de até 20 kg (portados manualmente).\n• **NBR 15809:** Aplica-se a carretas (extintores sobre rodas > 20 kg), exigindo mangueira longa (≥ 5m) e travamento de chassi.`;
+    }
+
+    return `🤖 **Inspe IA (Assistente SPCI NBR):**\n\nEntendido! Para a pergunta "${promptText}", aqui está a orientação técnica baseada no padrão ABNT da sua planta:\n\n• **Conformidade Atual:** ${compliancePercentage}% (${totalAssets} ativos monitorados, ${totalVencidos} pendências).\n• **Extintores (NBR 12962):** Lacre íntegro, ponteiro do manômetro no verde e validade anual em dia.\n• **Sinalização (NBR 13434):** Placas fotoluminescentes instaladas acima dos equipamentos e desobstruídas.\n\nComo posso ajudar detalhando algum quesito específico para a sua vistoria hoje?`;
+  };
+
   const handleAssistantSend = async () => {
     if (!localPrompt.trim()) return;
     const msg = localPrompt;
@@ -42,9 +70,12 @@ export default function SpciChatIa() {
     setLocalPrompt('');
     setAiGenerating(true);
 
+    let finalAnswer = '';
+    let usedEngineName = 'DeepSeek-V3';
+
     try {
       // 1. Tenta comunicar com a API do DeepSeek-V3
-      let response = await fetch('/api/deepseek', {
+      const dsRes = await fetch('/api/deepseek', {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -55,10 +86,18 @@ export default function SpciChatIa() {
         })
       });
 
-      // 2. Se a rota do DeepSeek retornar erro, faz fallback de segurança para o Gemini
-      if (!response.ok) {
-        console.warn('Falha na API DeepSeek. Alternando para o Gemini...');
-        response = await fetch('/api/gemini', {
+      if (dsRes.ok) {
+        const dsData = await dsRes.json();
+        if (dsData.text && !dsData.error) {
+          finalAnswer = dsData.text;
+          usedEngineName = 'DeepSeek-V3 Engine';
+        }
+      }
+
+      // 2. Fallback para Gemini 2.0 Flash se a API do DeepSeek falhou
+      if (!finalAnswer) {
+        console.warn('Alternando para Gemini 2.0 Flash...');
+        const gemRes = await fetch('/api/gemini', {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -68,16 +107,28 @@ export default function SpciChatIa() {
             systemInstruction: "Você é o assistente virtual Inspe IA SPCI. Responda em português brasileiro, de forma breve, muito precisa, baseando-se estritamente em engenharia de segurança contra incêndios."
           })
         });
+
+        if (gemRes.ok) {
+          const gemData = await gemRes.json();
+          if (gemData.text && !gemData.error) {
+            finalAnswer = gemData.text;
+            usedEngineName = 'Gemini 2.0 Flash';
+          }
+        }
       }
 
-      const data = await response.json();
-      const text = data.text || "Sem resposta da central de inteligência do SPCI.";
-      setChatMessages(prev => [...prev, { sender: 'assistant', text }]);
+      // 3. Fallback Garantido NBR Local (Smart Offline Engine) se ambas APIs falharem
+      if (!finalAnswer) {
+        finalAnswer = getSmartLocalNbrAnswer(msg);
+        usedEngineName = 'Base NBR Inteligente SPCI';
+      }
+
+      setEngineUsed(usedEngineName);
+      setChatMessages(prev => [...prev, { sender: 'assistant', text: finalAnswer }]);
     } catch (e: any) {
-      setChatMessages(prev => [...prev, { 
-        sender: 'assistant', 
-        text: `Inspe IA (Modo SPCI Offline): Erro de conexão ou indisponibilidade temporária da API.\n\nDica de segurança: Para extintores vencidos ou sem lacre, providencie recarga imediata sob NBR 12962. Para abrigos obstruídos, reordene o local de acordo com a NBR 13714.` 
-      }]);
+      const fallbackText = getSmartLocalNbrAnswer(msg);
+      setEngineUsed('Base NBR Inteligente SPCI');
+      setChatMessages(prev => [...prev, { sender: 'assistant', text: fallbackText }]);
     } finally {
       setAiGenerating(false);
     }
@@ -136,9 +187,9 @@ export default function SpciChatIa() {
                   }`}
                 >
                   {m.sender === 'assistant' && (
-                    <div className="flex items-center gap-1 text-[9px] font-mono font-black text-red-700 uppercase mb-1">
+                    <div className="flex items-center gap-1 text-[9px] font-mono font-black text-red-700 uppercase mb-1 border-b border-slate-100 pb-1">
                       <Cpu className="w-3 h-3 text-red-600" />
-                      DeepSeek-V3 Engine
+                      {engineUsed}
                     </div>
                   )}
                   <p className="whitespace-pre-wrap">{m.text}</p>
