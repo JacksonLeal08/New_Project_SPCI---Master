@@ -265,35 +265,35 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
     <motion.div 
       initial={{ opacity: 0 }} 
       animate={{ opacity: 1 }} 
-      className="fixed inset-0 z-40 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4 overflow-y-auto"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 overflow-y-auto font-sans select-none"
     >
       <motion.div 
         initial={{ opacity: 0, scale: 0.98, y: 10 }} 
         animate={{ opacity: 1, scale: 1, y: 0 }} 
-        className="w-full max-w-5xl lg:max-w-6xl 2xl:max-w-7xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl rounded-2xl relative my-8 font-mono text-xs text-slate-800 dark:text-slate-200 flex flex-col max-h-[85vh]"
+        className="w-full max-w-5xl lg:max-w-6xl 2xl:max-w-7xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl rounded-3xl relative my-8 text-xs text-slate-800 dark:text-slate-100 flex flex-col max-h-[88vh] overflow-hidden"
       >
-        <div className="absolute top-0 left-0 right-0 h-1 bg-red-600" aria-hidden="true" />
+        <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 rounded-t-3xl" aria-hidden="true" />
 
         {/* Cabeçalho */}
         <div className="bg-slate-50/90 dark:bg-slate-900/90 p-6 border-b border-slate-200 dark:border-slate-800 relative shrink-0">
           <div className="flex gap-4 items-center">
-            <div className="w-10 h-10 bg-slate-950 text-2xl border border-slate-800 flex items-center justify-center select-none rounded-none" aria-hidden="true">
+            <div className="w-12 h-12 bg-red-50 dark:bg-red-950/50 text-2xl border border-red-200 dark:border-red-800/60 flex items-center justify-center select-none rounded-2xl shrink-0 shadow-xs" aria-hidden="true">
               {asset.category === 'extintores' ? '🧯' : asset.category === 'hidrantes' ? '💧' : asset.category === 'sinalizacoes' ? '⚠️' : asset.category === 'iluminacao' ? '💡' : '⚙️'}
             </div>
             <div className="min-w-0 flex-grow">
-              <span className="text-[9px] bg-red-950 text-red-400 border border-red-950 uppercase font-bold px-2 py-0.5 tracking-wider">
+              <span className="text-[9px] bg-red-100 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 uppercase font-black px-2.5 py-0.5 tracking-wider rounded-md font-mono">
                 {asset.category} • {assetId}
               </span>
-              <h3 className="text-sm font-bold text-slate-100 uppercase tracking-wider mt-1 truncate">
+              <h3 className="text-base font-extrabold text-slate-900 dark:text-white uppercase tracking-tight mt-1 truncate font-['Hanken_Grotesk']">
                 {(asset as any).model || 'Ativo SPCI'}
               </h3>
-              <p className="text-slate-400 text-[10px] mt-0.5">
+              <p className="text-slate-500 dark:text-slate-400 text-xs mt-0.5 font-medium flex items-center gap-1">
                 📍 {asset.location} — {asset.subLocation || 'Sem subsetor'}
               </p>
             </div>
             <button 
               onClick={onClose} 
-              className="text-slate-400 hover:text-slate-100 border border-slate-800 hover:border-slate-700 bg-slate-850 px-2 py-1 transition-all rounded-none cursor-pointer text-xs uppercase"
+              className="text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white border border-slate-200 hover:border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 transition-all rounded-xl cursor-pointer text-xs font-bold uppercase tracking-wider shadow-xs hover:scale-105 active:scale-95"
             >
               FECHAR ×
             </button>
@@ -301,53 +301,53 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
         </div>
 
         {/* Área de Informação e Timeline (scroll com barra oculta) */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-900/40 scrollbar-none">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-slate-50/70 dark:bg-slate-950/60 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
           
           {/* Métricas KPI */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-none flex flex-col justify-between">
-              <span className="text-[9px] text-slate-500 uppercase tracking-wider pb-1 border-b border-slate-850">Status Operacional</span>
+            <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 p-4.5 rounded-2xl shadow-xs flex flex-col justify-between">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-black tracking-wider pb-1 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between font-mono">Status Operacional</span>
               <div className="flex items-center gap-2 mt-2">
                 <span className={`w-2.5 h-2.5 rounded-full animate-pulse ${
                   localStatus === 'Conforme' || localStatus === 'Operacional' || localStatus === 'Standby' ? 'bg-emerald-500' : 'bg-red-500'
                 }`} aria-hidden="true"></span>
-                <p className="font-bold text-xs text-slate-100 uppercase">{localStatus}</p>
+                <p className="font-black text-sm text-slate-900 dark:text-white uppercase tracking-tight">{localStatus}</p>
               </div>
             </div>
 
-            <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-none flex flex-col justify-between">
-              <span className="text-[9px] text-slate-500 uppercase tracking-wider pb-1 border-b border-slate-850">Total de Ocorrências</span>
-              <p className="text-sm font-bold text-slate-100 mt-2">
+            <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 p-4.5 rounded-2xl shadow-xs flex flex-col justify-between">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-black tracking-wider pb-1 border-b border-slate-100 dark:border-slate-800 font-mono">Total de Ocorrências</span>
+              <p className="text-sm font-black text-slate-900 dark:text-white mt-2 font-mono">
                 {timelineEvents.length} Registros
               </p>
             </div>
 
-            <div className="bg-slate-950/40 border border-slate-850 p-4 rounded-none flex flex-col justify-between">
-              <span className="text-[9px] text-slate-500 uppercase tracking-wider pb-1 border-b border-slate-850">Taxa de Conformidade</span>
-              <p className="text-sm font-bold text-emerald-400 mt-2">
+            <div className="bg-white dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 p-4.5 rounded-2xl shadow-xs flex flex-col justify-between">
+              <span className="text-[10px] text-slate-500 dark:text-slate-400 uppercase font-black tracking-wider pb-1 border-b border-slate-100 dark:border-slate-800 font-mono">Taxa de Conformidade</span>
+              <p className="text-sm font-black text-emerald-600 dark:text-emerald-400 mt-2 font-mono">
                 {complianceScore}%
               </p>
             </div>
           </div>
 
           {/* Adição de Evento Manual */}
-          <div className="border border-slate-800 bg-slate-950/30 p-4 rounded-none">
+          <div className="border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/90 p-5 rounded-2xl shadow-xs">
             {!showAddCustomHistory ? (
               <button 
                 type="button"
                 onClick={() => setShowAddCustomHistory(true)}
-                className="w-full py-2 bg-slate-800 border border-slate-700 hover:bg-slate-700 text-slate-200 text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer rounded-none"
+                className="w-full py-2.5 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-extrabold uppercase tracking-wider transition-all cursor-pointer rounded-xl shadow-xs flex items-center justify-center gap-2 active:scale-98"
               >
                 ➕ ADICIONAR REGISTRO MANUAL DE AUDITORIA
               </button>
             ) : (
               <form onSubmit={handleAddCustomHistoryEvent} className="space-y-4">
-                <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-                  <h4 className="text-[10px] font-bold uppercase text-slate-400">Novo Registro Administrativo</h4>
+                <div className="flex justify-between items-center pb-2 border-b border-slate-200 dark:border-slate-800">
+                  <h4 className="text-xs font-black uppercase text-slate-700 dark:text-slate-300 font-mono">Novo Registro Administrativo</h4>
                   <button 
                     type="button" 
                     onClick={() => setShowAddCustomHistory(false)} 
-                    className="text-[10px] text-red-400 font-bold uppercase border-none bg-transparent cursor-pointer font-mono"
+                    className="text-[10px] text-red-600 dark:text-red-400 font-bold uppercase border-none bg-transparent cursor-pointer font-mono hover:underline"
                   >
                     Fechar
                   </button>
@@ -355,11 +355,11 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-[9px] font-bold uppercase text-slate-500 mb-1">Título do Evento</label>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1 font-mono">Título do Evento</label>
                     <select 
                       value={customEventTitle} 
                       onChange={(e) => setCustomEventTitle(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 p-2 text-xs text-slate-300 focus:outline-none"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-2.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 rounded-xl font-medium"
                     >
                       <option value="Recarga Manual NBR">🧯 Recarga Periódica Inmetro</option>
                       <option value="Teste Hidrostático Concluído">🔄 Teste Hidrostático de Cilindro</option>
@@ -371,11 +371,11 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
                   </div>
 
                   <div>
-                    <label className="block text-[9px] font-bold uppercase text-slate-500 mb-1">Conformidade</label>
+                    <label className="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1 font-mono">Conformidade</label>
                     <select 
                       value={customEventStatus} 
                       onChange={(e) => setCustomEventStatus(e.target.value)}
-                      className="w-full bg-slate-950 border border-slate-800 p-2 text-xs text-slate-300 focus:outline-none"
+                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-2.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 rounded-xl font-medium"
                     >
                       <option value="Conforme">🟢 Conforme / Operacional</option>
                       <option value="Vencido">🔴 Vencido / Fora da Validade</option>
@@ -386,20 +386,20 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
                 </div>
 
                 <div>
-                  <label className="block text-[9px] font-bold uppercase text-slate-500 mb-1">Notas Administrativas</label>
+                  <label className="block text-[10px] font-bold uppercase text-slate-500 dark:text-slate-400 mb-1 font-mono">Notas Administrativas</label>
                   <textarea 
                     value={customEventNotes}
                     onChange={(e) => setCustomEventNotes(e.target.value)}
                     rows={2}
                     placeholder="Descrição técnica do procedimento efetuado, lacres anexados ou motivos administrativos..."
-                    className="w-full bg-slate-950 border border-slate-800 p-2 text-xs text-slate-300 focus:outline-none font-mono"
+                    className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-2.5 text-xs text-slate-900 dark:text-slate-100 focus:outline-none focus:border-red-500 rounded-xl font-sans"
                     required
                   />
                 </div>
 
                 <button 
                   type="submit" 
-                  className="w-full py-2 bg-emerald-500 text-slate-950 font-bold text-xs uppercase tracking-wider hover:bg-emerald-450 transition-all cursor-pointer border-none rounded-none"
+                  className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer border-none rounded-xl shadow-sm active:scale-98 flex items-center justify-center gap-1.5"
                 >
                   REGISTRAR NA LINHA DO TEMPO
                 </button>
@@ -408,12 +408,12 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
           </div>
 
           {/* Filtros da Linha de Tempo */}
-          <div className="flex gap-2 border-b border-slate-800 pb-2">
+          <div className="flex gap-2 border-b border-slate-200 dark:border-slate-800 pb-3 font-mono">
             <button 
               type="button"
               onClick={() => setHistoryFilter('all')} 
-              className={`px-3 py-1 text-[9px] font-bold uppercase transition-all border-none cursor-pointer rounded-none ${
-                historyFilter === 'all' ? 'bg-red-600 text-slate-950' : 'bg-slate-800 text-slate-400'
+              className={`px-3 py-1.5 text-[10px] font-black uppercase transition-all border cursor-pointer rounded-xl active:scale-95 ${
+                historyFilter === 'all' ? 'bg-red-700 text-white border-red-800 shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
               }`}
             >
               Todos ({timelineEvents.length})
@@ -421,8 +421,8 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
             <button 
               type="button"
               onClick={() => setHistoryFilter('non_conforming')} 
-              className={`px-3 py-1 text-[9px] font-bold uppercase transition-all border-none cursor-pointer rounded-none ${
-                historyFilter === 'non_conforming' ? 'bg-red-950 border border-red-900 text-red-400' : 'bg-slate-800 text-slate-400'
+              className={`px-3 py-1.5 text-[10px] font-black uppercase transition-all border cursor-pointer rounded-xl active:scale-95 ${
+                historyFilter === 'non_conforming' ? 'bg-red-700 text-white border-red-800 shadow-xs' : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
               }`}
             >
               Não Conformidades ({timelineEvents.filter(e => e.status !== 'Conforme' && e.status !== 'Operacional' && e.status !== 'Standby' && e.status !== 'Cadastro Ativo').length})
@@ -430,7 +430,7 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
           </div>
 
           {/* Lista de Ocorrências */}
-          <div className="relative border-l-2 border-slate-800 pl-6 ml-4 space-y-6">
+          <div className="relative border-l-2 border-slate-200 dark:border-slate-800 pl-6 ml-4 space-y-6 font-sans">
             {timelineEvents
               .filter((event: any) => {
                 if (historyFilter === 'non_conforming') {
@@ -442,36 +442,36 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
                 const isOk = event.status === 'Conforme' || event.status === 'Operacional' || event.status === 'Cadastro Ativo' || event.status === 'Standby';
                 return (
                   <div key={event.id || index} className="relative group">
-                    <div className={`absolute -left-[35px] top-1 w-5 h-5 rounded-none flex items-center justify-center text-[10px] shadow-md border ${
-                      isOk ? 'bg-emerald-950 border-emerald-800 text-emerald-450' : 'bg-red-950 border-red-950 text-red-400'
+                    <div className={`absolute -left-[35px] top-1 w-6 h-6 rounded-full flex items-center justify-center text-xs shadow-sm border ${
+                      isOk ? 'bg-emerald-50 dark:bg-emerald-950/80 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300' : 'bg-red-50 dark:bg-red-950/80 border-red-300 dark:border-red-700 text-red-700 dark:text-red-300'
                     }`}>
                       {event.icon || '📝'}
                     </div>
 
-                    <div className="bg-slate-950/20 border border-slate-850 p-4 transition-all hover:border-slate-800">
-                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5 pb-2 border-b border-slate-900">
-                        <span className="text-[9px] text-slate-500">
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4.5 rounded-2xl shadow-xs transition-all hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 group">
+                      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-1.5 pb-2.5 border-b border-slate-100 dark:border-slate-800">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 font-mono font-bold flex items-center gap-1">
                           📅 {event.date} • {event.time || '08:00:00'}
                         </span>
-                        <span className={`inline-block px-2 py-0.5 text-[8px] font-bold uppercase border ${
+                        <span className={`inline-block px-2.5 py-0.5 text-[9px] font-black uppercase rounded-full border ${
                           isOk 
-                            ? 'text-emerald-400 border-emerald-950 bg-emerald-950/20' 
-                            : 'text-red-400 border-red-950 bg-red-950/20'
+                            ? 'text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40' 
+                            : 'text-red-700 dark:text-red-300 border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/40'
                         }`}>
                           {event.status}
                         </span>
                       </div>
 
-                      <h4 className="font-bold text-slate-200 text-xs mt-2 uppercase tracking-wide">
+                      <h4 className="font-extrabold text-slate-900 dark:text-white text-xs mt-2 uppercase tracking-wide font-['Hanken_Grotesk']">
                         {event.title}
                       </h4>
-                      <p className="text-slate-400 mt-1 leading-relaxed font-sans text-xs whitespace-pre-wrap">
+                      <p className="text-slate-600 dark:text-slate-300 mt-1.5 leading-relaxed font-sans text-xs whitespace-pre-wrap font-medium">
                         {event.description}
                       </p>
 
-                      <div className="mt-3 flex justify-between items-center border-t border-slate-900 pt-2 text-[9px] text-slate-500">
-                        <span>👤 Responsável: <strong className="text-slate-400">{event.author || 'Técnico Autorizado'}</strong></span>
-                        <span className="font-mono text-slate-650">#SPCI-{event.id?.slice(-4) || 'AUTO'}</span>
+                      <div className="mt-3 flex justify-between items-center border-t border-slate-100 dark:border-slate-800/80 pt-2.5 text-[10px] text-slate-500 dark:text-slate-400 font-mono">
+                        <span>👤 Responsável: <strong className="text-slate-700 dark:text-slate-300">{event.author || 'Técnico Autorizado'}</strong></span>
+                        <span className="font-mono text-slate-400">#SPCI-{event.id?.slice(-4) || 'AUTO'}</span>
                       </div>
                     </div>
                   </div>
@@ -481,18 +481,18 @@ export default function AssetHistoryModal({ isOpen, asset, onClose }: AssetHisto
         </div>
 
         {/* Rodapé de Ações */}
-        <div className="p-4 bg-slate-950/40 border-t border-slate-800 shrink-0 flex justify-between items-center gap-4">
+        <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shrink-0 flex justify-between items-center gap-4">
           <button 
             type="button"
             onClick={handleGenerateIAParecer} 
-            className="px-4 py-2.5 bg-gradient-to-r from-red-800 to-amber-700 hover:opacity-90 text-slate-100 font-bold text-[10px] uppercase tracking-wider transition-all rounded-none cursor-pointer border-none shadow-md"
+            className="px-5 py-2.5 bg-gradient-to-r from-red-700 via-rose-700 to-red-800 hover:from-red-800 hover:to-red-900 text-white font-extrabold text-xs uppercase tracking-wider transition-all rounded-xl cursor-pointer border-none shadow-sm hover:scale-[1.02] active:scale-95 flex items-center gap-2 font-['Hanken_Grotesk']"
           >
             🤖 GERAR PARECER TÉCNICO IA
           </button>
           <button 
             type="button"
             onClick={onClose} 
-            className="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-[10px] uppercase tracking-widest transition-all rounded-none cursor-pointer border border-slate-700"
+            className="px-6 py-2.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs uppercase tracking-wider transition-all rounded-xl cursor-pointer border border-slate-300 dark:border-slate-700 hover:scale-[1.02] active:scale-95 font-['Hanken_Grotesk']"
           >
             FECHAR HISTÓRICO
           </button>
