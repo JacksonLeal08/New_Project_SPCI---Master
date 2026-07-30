@@ -38,6 +38,25 @@ const MONTHS = [
   { value: 12, label: 'Dezembro' }
 ];
 
+const DEFAULT_AREAS = [
+  'ÁREA 01',
+  'ÁREA 02',
+  'ÁREA 03',
+  'ÁREA 04',
+  'ÁREA 05',
+  'ÁREA 06',
+  'ÁREA 07',
+  'ÁREA 08',
+  'ÁREA 09',
+  'ÁREA 10'
+];
+
+const DEFAULT_PROJETOS = [
+  'SALOBO I E II',
+  'SALOBO III',
+  'SALOBO I, II E III'
+];
+
 export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalProps) {
   const {
     extintores,
@@ -90,6 +109,15 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
   const [selectedLocalId, setSelectedLocalId] = useState(''); // local ID or "NEW"
   const [newLocalName, setNewLocalName] = useState('');
   const [formSubLocal, setFormSubLocal] = useState('');
+
+  // Novas Áreas & Projetos
+  const [areasList, setAreasList] = useState<string[]>(DEFAULT_AREAS);
+  const [selectedArea, setSelectedArea] = useState<string>('ÁREA 01');
+  const [newAreaInput, setNewAreaInput] = useState<string>('');
+
+  const [projetosList, setProjetosList] = useState<string[]>(DEFAULT_PROJETOS);
+  const [selectedProjeto, setSelectedProjeto] = useState<string>('SALOBO I E II');
+  const [newProjetoInput, setNewProjetoInput] = useState<string>('');
 
   // --- IMAGE & COMPRESSION STATES ---
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -188,6 +216,26 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
             .order('nome', { ascending: true });
           
           setSubLocaisList(subLocales || []);
+
+          // Carrega áreas e projetos customizados do localStorage
+          try {
+            const savedAreas = localStorage.getItem('spci_custom_areas');
+            if (savedAreas) {
+              const parsedA = JSON.parse(savedAreas);
+              if (Array.isArray(parsedA)) {
+                setAreasList(Array.from(new Set([...DEFAULT_AREAS, ...parsedA])));
+              }
+            }
+            const savedProjetos = localStorage.getItem('spci_custom_projetos');
+            if (savedProjetos) {
+              const parsedP = JSON.parse(savedProjetos);
+              if (Array.isArray(parsedP)) {
+                setProjetosList(Array.from(new Set([...DEFAULT_PROJETOS, ...parsedP])));
+              }
+            }
+          } catch (err) {
+            console.warn('Erro ao carregar áreas/projetos do localStorage:', err);
+          }
         } catch (e) {
           console.error('Error fetching locales/sub_locales:', e);
         } finally {
@@ -224,6 +272,10 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         setFormSubLocal('');
         setSelectedSubLocalId('');
         setNewSubLocalName('');
+        setSelectedArea(DEFAULT_AREAS[0]);
+        setNewAreaInput('');
+        setSelectedProjeto(DEFAULT_PROJETOS[0]);
+        setNewProjetoInput('');
         setIsScannerOpen(false);
         setSelectedModel('');
         setCustomModelName('');
@@ -331,6 +383,10 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     setSelectedSubLocalId('');
     setNewSubLocalName('');
     setFormSubLocal('');
+    setSelectedArea(DEFAULT_AREAS[0]);
+    setNewAreaInput('');
+    setSelectedProjeto(DEFAULT_PROJETOS[0]);
+    setNewProjetoInput('');
     setSelectedFile(null);
     setPreviewUrl(null);
     setCompressionDetails(null);
@@ -360,6 +416,16 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     // Verify duplicate sector
     if (selectedLocalId === 'NEW' && !newLocalName.trim()) {
       alert("Por favor, preencha o nome do novo setor.");
+      return;
+    }
+
+    if (selectedArea === 'NEW_AREA' && !newAreaInput.trim()) {
+      alert("Por favor, preencha o nome da nova Área.");
+      return;
+    }
+
+    if (selectedProjeto === 'NEW_PROJETO' && !newProjetoInput.trim()) {
+      alert("Por favor, preencha o nome do novo Projeto.");
       return;
     }
 
@@ -442,6 +508,39 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         finalSubLocalName = subLocaisList.find(s => s.id === selectedSubLocalId)?.nome || '';
       }
 
+      // 1.6. Dynamic Area & Projeto resolution
+      let finalAreaName = selectedArea;
+      if (selectedArea === 'NEW_AREA') {
+        finalAreaName = newAreaInput.trim().toUpperCase();
+        const updatedAreas = Array.from(new Set([...areasList, finalAreaName]));
+        setAreasList(updatedAreas);
+        const customOnlyAreas = updatedAreas.filter(a => !DEFAULT_AREAS.includes(a));
+        localStorage.setItem('spci_custom_areas', JSON.stringify(customOnlyAreas));
+
+        // Insere na tabela 'areas' do Supabase se disponível
+        try {
+          await supabase.from('areas').insert({ nome: finalAreaName });
+        } catch (e) {
+          console.warn('Fallback Supabase insert em areas:', e);
+        }
+      }
+
+      let finalProjetoName = selectedProjeto;
+      if (selectedProjeto === 'NEW_PROJETO') {
+        finalProjetoName = newProjetoInput.trim().toUpperCase();
+        const updatedProjetos = Array.from(new Set([...projetosList, finalProjetoName]));
+        setProjetosList(updatedProjetos);
+        const customOnlyProjetos = updatedProjetos.filter(p => !DEFAULT_PROJETOS.includes(p));
+        localStorage.setItem('spci_custom_projetos', JSON.stringify(customOnlyProjetos));
+
+        // Insere na tabela 'projetos' do Supabase se disponível
+        try {
+          await supabase.from('projetos').insert({ nome: finalProjetoName });
+        } catch (e) {
+          console.warn('Fallback Supabase insert em projetos:', e);
+        }
+      }
+
       // 2. Dynamic Model creation if custom and register in supabase modelos_extintores
       let finalModelName = selectedModel === 'CUSTOM' ? customModelName.trim().toUpperCase() : selectedModel;
       
@@ -494,6 +593,8 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         category: 'extintores',
         location: finalLocalName,
         subLocation: finalSubLocalName || formSubLocal || 'GERAL',
+        area: finalAreaName,
+        projeto: finalProjetoName,
         status: 'Conforme',
         
         local_id: finalLocalId || null,
@@ -902,7 +1003,77 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
               </h3>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
+
+                {/* Campo ÁREA */}
+                <div>
+                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
+                    Área *
+                  </label>
+                  <select 
+                    value={selectedArea}
+                    onChange={(e) => setSelectedArea(e.target.value)}
+                    className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
+                    required
+                  >
+                    {areasList.map(a => (
+                      <option key={a} value={a}>{a}</option>
+                    ))}
+                    <option value="NEW_AREA">+ Adicionar Nova Área...</option>
+                  </select>
+                </div>
+
+                {/* Campo Novo Input de ÁREA */}
+                {selectedArea === 'NEW_AREA' && (
+                  <div>
+                    <label className="block text-[9px] font-extrabold uppercase text-red-600 mb-1.5">
+                      Nome da Nova Área *
+                    </label>
+                    <input 
+                      type="text" 
+                      value={newAreaInput}
+                      onChange={(e) => setNewAreaInput(e.target.value)}
+                      placeholder="Ex: ÁREA 11 - ALMOXARIFADO"
+                      className="w-full bg-white border border-red-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold uppercase"
+                      required
+                    />
+                  </div>
+                )}
+
+                {/* Campo PROJETO */}
+                <div>
+                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
+                    Projeto *
+                  </label>
+                  <select 
+                    value={selectedProjeto}
+                    onChange={(e) => setSelectedProjeto(e.target.value)}
+                    className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
+                    required
+                  >
+                    {projetosList.map(p => (
+                      <option key={p} value={p}>{p}</option>
+                    ))}
+                    <option value="NEW_PROJETO">+ Adicionar Novo Projeto...</option>
+                  </select>
+                </div>
+
+                {/* Campo Novo Input de PROJETO */}
+                {selectedProjeto === 'NEW_PROJETO' && (
+                  <div>
+                    <label className="block text-[9px] font-extrabold uppercase text-red-600 mb-1.5">
+                      Nome do Novo Projeto *
+                    </label>
+                    <input 
+                      type="text" 
+                      value={newProjetoInput}
+                      onChange={(e) => setNewProjetoInput(e.target.value)}
+                      placeholder="Ex: SALOBO IV"
+                      className="w-full bg-white border border-red-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold uppercase"
+                      required
+                    />
+                  </div>
+                )}
+
                 {/* Sector / Setor */}
                 <div>
                   <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
@@ -924,7 +1095,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                 {/* New Sector Input (if selected NEW) */}
                 {selectedLocalId === 'NEW' && (
                   <div>
-                    <label className="block text-[9px] font-extrabold uppercase text-red-655 mb-1.5">
+                    <label className="block text-[9px] font-extrabold uppercase text-red-600 mb-1.5">
                       Nome do Novo Setor *
                     </label>
                     <input 
@@ -964,7 +1135,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                 {/* New Sub-Local Input (if selected NEW) */}
                 {selectedSubLocalId === 'NEW' && (
                   <div>
-                    <label className="block text-[9px] font-extrabold uppercase text-red-655 mb-1.5">
+                    <label className="block text-[9px] font-extrabold uppercase text-red-600 mb-1.5">
                       Nome do Novo Sub-Local *
                     </label>
                     <input
