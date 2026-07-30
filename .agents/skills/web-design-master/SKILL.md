@@ -1,3 +1,8 @@
+---
+name: web-design-master
+description: Modern Corporate & Luxury Web Design guidelines (Bento Grids, Glassmorphism, Micro-interactions, Design Tokens) for UI formatting and aesthetics.
+---
+
 # Antigravity Skill: Modern Corporate & Luxury Web Design (2026)
 
 ## 1. Visual Identity & Typography (Corporate Trends)
