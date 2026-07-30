@@ -40,9 +40,10 @@ export async function createUserAction(payload: {
   password: string;
   expiresAt: string | null;
   allowedModules: string[] | null;
+  site?: string | null;
 }) {
   try {
-    const { email, username, name, role, phone, password, expiresAt, allowedModules } = payload;
+    const { email, username, name, role, phone, password, expiresAt, allowedModules, site } = payload;
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -70,7 +71,8 @@ export async function createUserAction(payload: {
       user_metadata: {
         user_name: username,
         full_name: name,
-        perfil_acesso: role
+        perfil_acesso: role,
+        site: site || 'TODOS'
       }
     });
 
@@ -94,7 +96,8 @@ export async function createUserAction(payload: {
           telefone_whatsapp: phone || '',
           perfil_acesso: role,
           status_conta: 'Ativo',
-          data_expiracao: expiresAt || null
+          data_expiracao: expiresAt || null,
+          site: site || 'TODOS'
         }
       ],
       { onConflict: 'id' }
@@ -266,6 +269,7 @@ export async function updateFullUserAction(
     expiresAt: string | null;
     password?: string;
     allowedModules?: string[] | null;
+    site?: string | null;
   }
 ) {
   try {
@@ -274,7 +278,7 @@ export async function updateFullUserAction(
     }
     const supabaseAdmin = getSupabaseAdminClient();
 
-    const { name, username, email, phone, role, status, expiresAt, password, allowedModules } = payload;
+    const { name, username, email, phone, role, status, expiresAt, password, allowedModules, site } = payload;
 
     // 1. Atualizar no Supabase Auth Admin
     const authUpdatePayload: any = {
@@ -283,7 +287,8 @@ export async function updateFullUserAction(
         full_name: name,
         user_name: username,
         perfil_acesso: role,
-        data_expiracao: expiresAt
+        data_expiracao: expiresAt,
+        site: site || 'TODOS'
       }
     };
 
@@ -312,6 +317,7 @@ export async function updateFullUserAction(
       perfil_acesso: role,
       status_conta: status,
       data_expiracao: expiresAt || null,
+      site: site || 'TODOS',
       updated_at: new Date().toISOString()
     };
 
@@ -387,6 +393,7 @@ export async function getUsersListAction() {
         phone: meta.telefone_whatsapp || authUser.phone || '',
         role: meta.perfil_acesso || meta.role || 'Usuário',
         status: authUser.banned_until ? 'Inativo/Suspenso' : 'Ativo',
+        site: meta.site || 'TODOS',
         dataExpiracao: meta.data_expiracao || null,
         createdAt: authUser.created_at || new Date().toISOString()
       });
@@ -403,6 +410,7 @@ export async function getUsersListAction() {
         phone: u.telefone_whatsapp || existing?.phone || '',
         role: u.perfil_acesso || existing?.role || 'Usuário',
         status: u.status_conta || existing?.status || 'Ativo',
+        site: u.site || existing?.site || 'TODOS',
         dataExpiracao: u.data_expiracao || existing?.dataExpiracao || null,
         createdAt: u.created_at || existing?.createdAt || new Date().toISOString()
       });

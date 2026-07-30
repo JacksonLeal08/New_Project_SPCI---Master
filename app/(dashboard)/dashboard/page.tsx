@@ -88,25 +88,48 @@ export default function DashboardPage() {
     ...bombas.map(x => ({ ...x, category: 'Bomba', idAtivo: x.code || x.idAtivo || x.id, location: x.location || 'Casa de Bombas' }))
   ];
 
+  const [selectedHeatmapCategory, setSelectedHeatmapCategory] = React.useState<string>('ALL');
+
   const heatmapSectors = ['MANGANÊS', 'ALMOXARIFADO', 'SALA ELÉTRICA', 'BARRAGEM DO AZUL', 'ROTA DE FUGA 01', 'ROTA DE FUGA 02', 'RECEPÇÃO', 'COBRE', 'FERRO', 'PRODUÇÃO', 'LOGÍSTICA'];
+
+  const inspectedAssetIds = new Set(complianceLogs.map((l: any) => l.assetId));
 
   const sectorStats = heatmapSectors.map(sector => {
     const assetsInSector = allAssets.filter(asset => getNormalizedSector(asset.location) === sector);
-    const nonConformingCount = assetsInSector.filter(asset => {
+    
+    const filteredAssets = selectedHeatmapCategory === 'ALL'
+      ? assetsInSector
+      : assetsInSector.filter(asset => asset.category === selectedHeatmapCategory);
+
+    const nonConformingCount = filteredAssets.filter(asset => {
       const s = asset.status;
       return s !== 'Conforme' && s !== 'Operacional' && s !== 'Cadastro Ativo' && s !== 'Standby';
     }).length;
-    const conformingCount = assetsInSector.length - nonConformingCount;
-    
+
+    const conformingCount = filteredAssets.length - nonConformingCount;
+
+    const inspectedInFiltered = filteredAssets.filter(asset => inspectedAssetIds.has(asset.idAtivo || asset.id)).length;
+    const totalFilteredCount = filteredAssets.length;
+    const inspectedPercent = totalFilteredCount > 0 ? Math.round((inspectedInFiltered / totalFilteredCount) * 100) : 0;
+
+    const breakdown = {
+      extintores: assetsInSector.filter(a => a.category === 'Extintor').length,
+      hidrantes: assetsInSector.filter(a => a.category === 'Hidrante').length,
+      sinalizacoes: assetsInSector.filter(a => a.category === 'Sinalização').length,
+      iluminacoes: assetsInSector.filter(a => a.category === 'Iluminação').length,
+      bombas: assetsInSector.filter(a => a.category === 'Bomba').length,
+    };
+
     return {
       sector,
       nonConformingCount,
       conformingCount,
-      totalCount: assetsInSector.length
+      totalCount: totalFilteredCount,
+      inspectedCount: inspectedInFiltered,
+      inspectedPercent,
+      breakdown
     };
   });
-
-
 
   const handleExportInspectionCSV = () => {
     if (complianceLogs.length === 0) {
@@ -337,7 +360,11 @@ export default function DashboardPage() {
       </motion.div>
 
       {/* Mapa Térmico D3 de Zonas de Risco */}
-      <D3SectorHeatmap data={sectorStats} />
+      <D3SectorHeatmap 
+        data={sectorStats} 
+        selectedCategory={selectedHeatmapCategory}
+        onSelectCategory={setSelectedHeatmapCategory}
+      />
 
       {/* Estatísticas por Setor e Logs Recentes */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

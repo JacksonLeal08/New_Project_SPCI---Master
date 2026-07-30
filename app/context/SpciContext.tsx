@@ -150,8 +150,8 @@ interface SpciContextType {
   handleUpdateLogoAndProfile: (logoUrl: string, name: string) => Promise<void>;
   handleAdminRoleStatusChange: (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => Promise<void>;
   handleAdminDeleteUser: (uid: string) => Promise<void>;
-  handleUpdateUserFull: (uid: string, payload: { name: string; username: string; email: string; phone: string; role: 'Desenvolvedor' | 'Administrador' | 'Usuário'; status: 'Ativo' | 'Pendente' | 'Inativo/Suspenso'; expiresAt: string | null; password?: string; allowedModules?: string[] | null; }) => Promise<any>;
-  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', password: string, phone: string, expiresAt?: string | null, allowedModules?: string[] | null) => Promise<any>;
+  handleUpdateUserFull: (uid: string, payload: { name: string; username: string; email: string; phone: string; role: 'Desenvolvedor' | 'Administrador' | 'Usuário'; status: 'Ativo' | 'Pendente' | 'Inativo/Suspenso'; expiresAt: string | null; password?: string; allowedModules?: string[] | null; site?: string | null; }) => Promise<any>;
+  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', password: string, phone: string, expiresAt?: string | null, allowedModules?: string[] | null, site?: string | null) => Promise<any>;
   handleCredentialsLogin: (identifier: string, pass: string) => Promise<boolean>;
   isGoogleUser: boolean;
   fetchUsers: () => Promise<void>;
@@ -1180,6 +1180,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       expiresAt: string | null;
       password?: string;
       allowedModules?: string[] | null;
+      site?: string | null;
     }
   ) => {
     try {
@@ -1219,7 +1220,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     password: string,
     phone: string,
     expiresAt: string | null = null,
-    allowedModules: string[] | null = null
+    allowedModules: string[] | null = null,
+    site: string | null = 'TODOS'
   ) => {
     addConsoleLog(`[Onboarding] Cadastrando colaborador ${name} (${role})...`);
     try {
@@ -1231,7 +1233,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         phone,
         password,
         expiresAt,
-        allowedModules
+        allowedModules,
+        site
       });
       
       if (!data || data.success === false) {
@@ -1248,6 +1251,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         photoURL: '',
         logoUrl: '',
         role: role,
+        site: site || 'TODOS',
         status: 'Ativo',
         telefoneWhatsapp: phone || '',
         dataExpiracao: expiresAt,

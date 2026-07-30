@@ -62,6 +62,7 @@ export default function ConfiguracoesPage() {
   const [inviteName, setInviteName] = useState('');
   const [invitePhone, setInvitePhone] = useState('');
   const [inviteRole, setInviteRole] = useState<'Desenvolvedor' | 'Administrador' | 'Usuário'>('Usuário');
+  const [inviteSite, setInviteSite] = useState<string>('TODOS');
   const [inviteExpiresAt, setInviteExpiresAt] = useState('');
   const [invitePassword, setInvitePassword] = useState('');
   const [inviting, setInviting] = useState(false);
@@ -82,6 +83,7 @@ export default function ConfiguracoesPage() {
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editRole, setEditRole] = useState<'Desenvolvedor' | 'Administrador' | 'Usuário'>('Usuário');
+  const [editSite, setEditSite] = useState<string>('TODOS');
   const [editStatus, setEditStatus] = useState<'Ativo' | 'Pendente' | 'Inativo/Suspenso'>('Ativo');
   const [editExpiresAt, setEditExpiresAt] = useState('');
   const [editPassword, setEditPassword] = useState('');
@@ -97,6 +99,7 @@ export default function ConfiguracoesPage() {
     setEditEmail(user.email || '');
     setEditPhone(user.telefoneWhatsapp || user.phone || '');
     setEditRole(user.role || 'Usuário');
+    setEditSite(user.site || 'TODOS');
     setEditStatus(
       user.status === 'active' || user.status === 'Ativo' 
         ? 'Ativo' 
@@ -465,6 +468,7 @@ export default function ConfiguracoesPage() {
                       <tr className="bg-slate-50 text-slate-550 uppercase tracking-wider text-[9px] font-bold border-b border-slate-200">
                         <th className="p-4 font-black">Colaborador</th>
                         <th className="p-4 font-black">Username / E-mail</th>
+                        <th className="p-4 font-black">Site / Planta</th>
                         <th className="p-4 font-black">Nível de Acesso (RBAC)</th>
                         <th className="p-4 font-black">Status de Acesso</th>
                         <th className="p-4 text-center font-black">Ações</th>
@@ -510,6 +514,11 @@ export default function ConfiguracoesPage() {
                               {u.telefoneWhatsapp && (
                                 <p className="text-emerald-600 font-bold mt-0.5">📞 {u.telefoneWhatsapp}</p>
                               )}
+                            </td>
+                            <td className="p-4">
+                              <span className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-md font-mono text-[9px] font-bold uppercase inline-block">
+                                🏢 {u.site || 'TODOS OS SITES'}
+                              </span>
                             </td>
                             <td className="p-4">
                               <select 
@@ -610,14 +619,16 @@ export default function ConfiguracoesPage() {
                   invitePassword,
                   invitePhone,
                   expiresAtIso,
-                  userProfile?.role === 'Desenvolvedor' ? selectedModules : null
+                  userProfile?.role === 'Desenvolvedor' ? selectedModules : null,
+                  inviteSite
                 );
                 
                 setCreatedCredentials({ 
                   ...creds, 
                   password: invitePassword,
                   phone: invitePhone,
-                  expires_at: expiresAtIso
+                  expires_at: expiresAtIso,
+                  site: inviteSite
                 });
                 
                 await fetchUsers();
@@ -628,6 +639,7 @@ export default function ConfiguracoesPage() {
                 setInvitePhone('');
                 setInvitePassword('');
                 setInviteRole('Usuário');
+                setInviteSite('TODOS');
                 setInviteExpiresAt('');
                 setSelectedModules([
                   'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
@@ -684,6 +696,23 @@ export default function ConfiguracoesPage() {
                   placeholder="Ex: 5511999999999 (somente números)"
                   className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
                 />
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[9px] font-bold uppercase text-slate-500">Site / Planta (Localidade dos Ativos)</label>
+                <select 
+                  value={inviteSite} 
+                  onChange={(e) => setInviteSite(e.target.value)}
+                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
+                >
+                  <option value="TODOS">🌐 TODOS OS SITES (Acesso Global)</option>
+                  <option value="Salobo I e II">📍 Salobo I e II</option>
+                  <option value="Salobo III">📍 Salobo III</option>
+                  <option value="Salobo I, II E III">📍 Salobo I, II E III</option>
+                  <option value="Sossego">📍 Sossego</option>
+                  <option value="Onça Puma">📍 Onça Puma</option>
+                  <option value="Carajás">📍 Carajás</option>
+                </select>
               </div>
 
               <div className="space-y-1">
@@ -1024,7 +1053,8 @@ export default function ConfiguracoesPage() {
                     status: editStatus,
                     expiresAt: expiresAtIso,
                     password: editPassword || undefined,
-                    allowedModules: userProfile?.role === 'Desenvolvedor' ? editModules : null
+                    allowedModules: userProfile?.role === 'Desenvolvedor' ? editModules : null,
+                    site: editSite
                   });
                   setEditingUser(null);
                 } catch (err: any) {
@@ -1084,6 +1114,23 @@ export default function ConfiguracoesPage() {
                     className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
                   />
                 </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="block text-[9px] font-bold uppercase text-slate-500">Site / Planta (Localidade dos Ativos)</label>
+                <select
+                  value={editSite}
+                  onChange={(e) => setEditSite(e.target.value)}
+                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
+                >
+                  <option value="TODOS">🌐 TODOS OS SITES (Acesso Global)</option>
+                  <option value="Salobo I e II">📍 Salobo I e II</option>
+                  <option value="Salobo III">📍 Salobo III</option>
+                  <option value="Salobo I, II E III">📍 Salobo I, II E III</option>
+                  <option value="Sossego">📍 Sossego</option>
+                  <option value="Onça Puma">📍 Onça Puma</option>
+                  <option value="Carajás">📍 Carajás</option>
+                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
