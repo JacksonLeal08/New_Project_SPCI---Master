@@ -14,6 +14,16 @@ import {
 import { copyToClipboard } from '@/lib/utils';
 
 
+const DEFAULT_SITES = [
+  'TODOS OS SITES (Acesso Global)',
+  'SALOBO I E II',
+  'SALOBO III',
+  'SALOBO I, II E III',
+  'SOSSEGO',
+  'ONÇA PUMA',
+  'CARAJÁS'
+];
+
 export default function ConfiguracoesPage() {
   const router = useRouter();
   
@@ -45,6 +55,70 @@ export default function ConfiguracoesPage() {
   const [profileLogoUrlInput, setProfileLogoUrlInput] = useState('');
   const [updatingProfile, setUpdatingProfile] = useState(false);
 
+  // --- SITES DINÂMICOS STATES ---
+  const [sitesList, setSitesList] = useState<string[]>(DEFAULT_SITES);
+  const [newInviteSiteInput, setNewInviteSiteInput] = useState<string>('');
+  const [showNewInviteSiteInput, setShowNewInviteSiteInput] = useState<boolean>(false);
+
+  const [newEditSiteInput, setNewEditSiteInput] = useState<string>('');
+  const [showNewEditSiteInput, setShowNewEditSiteInput] = useState<boolean>(false);
+
+  // Sync sites with localStorage & existing userList sites on load
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('spci_custom_sites');
+      let customSites: string[] = stored ? JSON.parse(stored) : [];
+      const userSites = userList.map(u => u.site).filter(Boolean);
+
+      const combined = Array.from(new Set([...DEFAULT_SITES, ...customSites, ...userSites]));
+      setSitesList(combined);
+    } catch (e) {
+      console.warn('Erro ao carregar lista de sites:', e);
+    }
+  }, [userList]);
+
+  const handleAddNewSite = (newSiteName: string, targetModal: 'invite' | 'edit') => {
+    const trimmed = newSiteName.trim().toUpperCase();
+    if (!trimmed) return;
+
+    // Check duplicate (case-insensitive)
+    const existing = sitesList.find(s => s.toLowerCase() === trimmed.toLowerCase());
+    if (existing) {
+      alert(`O site "${existing}" já está cadastrado no sistema!`);
+      if (targetModal === 'invite') {
+        setInviteSite(existing);
+        setShowNewInviteSiteInput(false);
+        setNewInviteSiteInput('');
+      } else {
+        setEditSite(existing);
+        setShowNewEditSiteInput(false);
+        setNewEditSiteInput('');
+      }
+      return;
+    }
+
+    const updatedSites = [...sitesList, trimmed];
+    setSitesList(updatedSites);
+    try {
+      const customOnly = updatedSites.filter(s => !DEFAULT_SITES.includes(s));
+      localStorage.setItem('spci_custom_sites', JSON.stringify(customOnly));
+    } catch (e) {
+      console.warn('Erro salvando novos sites:', e);
+    }
+
+    if (targetModal === 'invite') {
+      setInviteSite(trimmed);
+      setShowNewInviteSiteInput(false);
+      setNewInviteSiteInput('');
+    } else {
+      setEditSite(trimmed);
+      setShowNewEditSiteInput(false);
+      setNewEditSiteInput('');
+    }
+
+    triggerSuccessNotification('Novo Site Cadastrado! 🏢', `O site "${trimmed}" foi registrado e salvo no sistema.`);
+  };
+
   // Sync profile details locally on profile load
   useEffect(() => {
     if (userProfile) {
@@ -62,7 +136,7 @@ export default function ConfiguracoesPage() {
   const [inviteName, setInviteName] = useState('');
   const [invitePhone, setInvitePhone] = useState('');
   const [inviteRole, setInviteRole] = useState<'Desenvolvedor' | 'Administrador' | 'Usuário'>('Usuário');
-  const [inviteSite, setInviteSite] = useState<string>('TODOS');
+  const [inviteSite, setInviteSite] = useState<string>('TODOS OS SITES (Acesso Global)');
   const [inviteExpiresAt, setInviteExpiresAt] = useState('');
   const [invitePassword, setInvitePassword] = useState('');
   const [inviting, setInviting] = useState(false);
@@ -83,7 +157,7 @@ export default function ConfiguracoesPage() {
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editRole, setEditRole] = useState<'Desenvolvedor' | 'Administrador' | 'Usuário'>('Usuário');
-  const [editSite, setEditSite] = useState<string>('TODOS');
+  const [editSite, setEditSite] = useState<string>('TODOS OS SITES (Acesso Global)');
   const [editStatus, setEditStatus] = useState<'Ativo' | 'Pendente' | 'Inativo/Suspenso'>('Ativo');
   const [editExpiresAt, setEditExpiresAt] = useState('');
   const [editPassword, setEditPassword] = useState('');
@@ -99,7 +173,8 @@ export default function ConfiguracoesPage() {
     setEditEmail(user.email || '');
     setEditPhone(user.telefoneWhatsapp || user.phone || '');
     setEditRole(user.role || 'Usuário');
-    setEditSite(user.site || 'TODOS');
+    setEditSite(user.site || 'TODOS OS SITES (Acesso Global)');
+    setShowNewEditSiteInput(false);
     setEditStatus(
       user.status === 'active' || user.status === 'Ativo' 
         ? 'Ativo' 
@@ -701,18 +776,51 @@ export default function ConfiguracoesPage() {
               <div className="space-y-1">
                 <label className="block text-[9px] font-bold uppercase text-slate-500">Site / Planta (Localidade dos Ativos)</label>
                 <select 
-                  value={inviteSite} 
-                  onChange={(e) => setInviteSite(e.target.value)}
+                  value={showNewInviteSiteInput ? '+ ADD_NEW_SITE' : inviteSite} 
+                  onChange={(e) => {
+                    if (e.target.value === '+ ADD_NEW_SITE') {
+                      setShowNewInviteSiteInput(true);
+                    } else {
+                      setShowNewInviteSiteInput(false);
+                      setInviteSite(e.target.value);
+                    }
+                  }}
                   className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
                 >
-                  <option value="TODOS">🌐 TODOS OS SITES (Acesso Global)</option>
-                  <option value="Salobo I e II">📍 Salobo I e II</option>
-                  <option value="Salobo III">📍 Salobo III</option>
-                  <option value="Salobo I, II E III">📍 Salobo I, II E III</option>
-                  <option value="Sossego">📍 Sossego</option>
-                  <option value="Onça Puma">📍 Onça Puma</option>
-                  <option value="Carajás">📍 Carajás</option>
+                  {sitesList.map((site) => (
+                    <option key={site} value={site}>
+                      {site.startsWith('TODOS') ? '🌐 TODOS OS SITES (Acesso Global)' : `📍 ${site}`}
+                    </option>
+                  ))}
+                  <option value="+ ADD_NEW_SITE">➕ + Adicionar Novo Site</option>
                 </select>
+
+                {showNewInviteSiteInput && (
+                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 pt-2">
+                    <input 
+                      type="text" 
+                      autoFocus 
+                      value={newInviteSiteInput} 
+                      onChange={(e) => setNewInviteSiteInput(e.target.value)}
+                      placeholder="Digite o nome do novo Site (ex: SALOBO IV)"
+                      className="flex-1 bg-white border border-red-400 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => handleAddNewSite(newInviteSiteInput, 'invite')}
+                      className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer border-none"
+                    >
+                      ➕ Cadastrar
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => { setShowNewInviteSiteInput(false); setNewInviteSiteInput(''); }}
+                      className="px-2.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl cursor-pointer border-none"
+                    >
+                      Cancelar
+                    </button>
+                  </motion.div>
+                )}
               </div>
 
               <div className="space-y-1">
@@ -1119,18 +1227,51 @@ export default function ConfiguracoesPage() {
               <div className="space-y-1">
                 <label className="block text-[9px] font-bold uppercase text-slate-500">Site / Planta (Localidade dos Ativos)</label>
                 <select
-                  value={editSite}
-                  onChange={(e) => setEditSite(e.target.value)}
+                  value={showNewEditSiteInput ? '+ ADD_NEW_SITE' : editSite}
+                  onChange={(e) => {
+                    if (e.target.value === '+ ADD_NEW_SITE') {
+                      setShowNewEditSiteInput(true);
+                    } else {
+                      setShowNewEditSiteInput(false);
+                      setEditSite(e.target.value);
+                    }
+                  }}
                   className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
                 >
-                  <option value="TODOS">🌐 TODOS OS SITES (Acesso Global)</option>
-                  <option value="Salobo I e II">📍 Salobo I e II</option>
-                  <option value="Salobo III">📍 Salobo III</option>
-                  <option value="Salobo I, II E III">📍 Salobo I, II E III</option>
-                  <option value="Sossego">📍 Sossego</option>
-                  <option value="Onça Puma">📍 Onça Puma</option>
-                  <option value="Carajás">📍 Carajás</option>
+                  {sitesList.map((site) => (
+                    <option key={site} value={site}>
+                      {site.startsWith('TODOS') ? '🌐 TODOS OS SITES (Acesso Global)' : `📍 ${site}`}
+                    </option>
+                  ))}
+                  <option value="+ ADD_NEW_SITE">➕ + Adicionar Novo Site</option>
                 </select>
+
+                {showNewEditSiteInput && (
+                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 pt-2">
+                    <input 
+                      type="text" 
+                      autoFocus 
+                      value={newEditSiteInput} 
+                      onChange={(e) => setNewEditSiteInput(e.target.value)}
+                      placeholder="Digite o nome do novo Site (ex: SALOBO IV)"
+                      className="flex-1 bg-white border border-red-400 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => handleAddNewSite(newEditSiteInput, 'edit')}
+                      className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer border-none"
+                    >
+                      ➕ Cadastrar
+                    </button>
+                    <button 
+                      type="button" 
+                      onClick={() => { setShowNewEditSiteInput(false); setNewEditSiteInput(''); }}
+                      className="px-2.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl cursor-pointer border-none"
+                    >
+                      Cancelar
+                    </button>
+                  </motion.div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
