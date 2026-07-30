@@ -17,7 +17,9 @@ import {
   Upload,
   Info,
   X,
-  BookOpen
+  BookOpen,
+  RotateCcw,
+  Save
 } from 'lucide-react';
 
 interface AssetInspectionModalProps {
@@ -33,7 +35,7 @@ interface AssetInspectionModalProps {
 }
 
 export interface ItemInspectionState {
-  status: 'Conforme' | 'Não Conforme' | 'NA';
+  status: 'Conforme' | 'Não Conforme' | 'NA' | null;
   ocorrencia: string;
   fotoEvidencia1: string | null;
   fotoEvidencia2: string | null;
@@ -69,6 +71,9 @@ export default function AssetInspectionModal({
 
   // Estado do Modal de Normas Aplicáveis NBR
   const [normasModalOpen, setNormasModalOpen] = useState(false);
+
+  // Mensagem de feedback ao gravar dados
+  const [saveSuccessMsg, setSaveSuccessMsg] = useState(false);
 
   // Estado do Modal Seletor de Câmera vs Galeria
   const [pickerState, setPickerState] = useState<{
@@ -176,7 +181,7 @@ export default function AssetInspectionModal({
 
   const getItemState = (index: number): ItemInspectionState => {
     return itemStates[index] || {
-      status: 'Conforme',
+      status: null,
       ocorrencia: '',
       fotoEvidencia1: null,
       fotoEvidencia2: null
@@ -212,6 +217,31 @@ export default function AssetInspectionModal({
 
   // Avalia se há alguma inconformidade na lista
   const hasInconformity = requirements.some((_, idx) => getItemState(idx).status === 'Não Conforme');
+
+  // Limpa todas as opções selecionadas, notas e pareceres
+  const handleClearAll = () => {
+    setItemStates({});
+    setInspectionNotes('');
+  };
+
+  // Grava os dados atualmente inseridos
+  const handleSaveDraft = () => {
+    let compiledNotes = inspectionNotes ? `${inspectionNotes}\n\n` : '';
+    const inconformities = requirements
+      .map((req, idx) => ({ req, state: getItemState(idx), idx: idx + 1 }))
+      .filter((item) => item.state.status === 'Não Conforme');
+
+    if (inconformities.length > 0) {
+      compiledNotes += `⚠️ INCONFORMIDADES REGISTRADAS NO CHECKLIST:\n`;
+      inconformities.forEach((inc) => {
+        compiledNotes += `- Item ${inc.idx}: ${inc.req}\n  Ocorrência: ${inc.state.ocorrencia || 'Não especificada'}\n`;
+      });
+    }
+
+    setInspectionNotes(compiledNotes.trim());
+    setSaveSuccessMsg(true);
+    setTimeout(() => setSaveSuccessMsg(false), 3500);
+  };
 
   const handleConfirmFinalize = (userChoiceStatus?: 'Conforme' | 'Não Conforme') => {
     const finalStatus = userChoiceStatus || (hasInconformity ? 'Não Conforme' : 'Conforme');
@@ -352,9 +382,16 @@ export default function AssetInspectionModal({
                 <CheckSquare className="w-4 h-4 text-red-600" />
                 Checklist de Verificação Técnica NBR ({requirements.length} itens)
               </h3>
-              <span className="text-[11px] text-slate-700 font-bold font-sans">
-                {requirements.filter((_, idx) => getItemState(idx).status === 'Não Conforme').length} inconformidade(s)
-              </span>
+              <div className="flex items-center gap-3 text-[11px] font-sans">
+                <span className="text-slate-600 font-bold">
+                  {requirements.filter((_, idx) => getItemState(idx).status !== null).length} de {requirements.length} verificados
+                </span>
+                {requirements.filter((_, idx) => getItemState(idx).status === 'Não Conforme').length > 0 && (
+                  <span className="text-red-600 font-black bg-red-50 border border-red-200 px-2 py-0.5 rounded-md">
+                    {requirements.filter((_, idx) => getItemState(idx).status === 'Não Conforme').length} inconformidade(s)
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -578,16 +615,51 @@ export default function AssetInspectionModal({
           </div>
         </div>
 
+        {/* BANNER NOTIFICAÇÃO DE GRAVAÇÃO */}
+        <AnimatePresence>
+          {saveSuccessMsg && (
+            <motion.div
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -10 }}
+              className="bg-blue-600 text-white px-4 py-2.5 text-center text-xs font-bold font-sans flex items-center justify-center gap-2"
+            >
+              <Save className="w-4 h-4" />
+              <span>Dados da inspeção gravados com sucesso! Você pode prosseguir ou homologar o laudo.</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* RODAPÉ DE AÇÕES */}
         <div className="flex flex-wrap justify-between items-center gap-3 px-6 py-4 border-t border-slate-200 bg-slate-50 shrink-0 font-mono">
           <div className="flex items-center gap-2 text-[11px] text-slate-800 font-bold">
             <Info className="w-4 h-4 text-slate-600" />
             <span>
-              {hasInconformity ? '🔴 Laudo marcado como NÃO CONFORME devido a falhas técnicas.' : '🟢 Todos os itens verificados estão em conformidade.'}
+              {hasInconformity ? '🔴 Laudo marcado como NÃO CONFORME devido a falhas técnicas.' : '🟢 Todos os itens verificados em conformidade.'}
             </span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <button 
+              type="button" 
+              onClick={handleClearAll}
+              className="px-3.5 py-2 text-[10.5px] uppercase font-black text-slate-700 hover:text-slate-900 bg-slate-200/80 hover:bg-slate-300 border border-slate-300 transition-all rounded-xl cursor-pointer active:scale-[0.98] shadow-xs flex items-center gap-1.5"
+              title="Limpar todas as marcações, fotos e pareceres"
+            >
+              <RotateCcw className="w-3.5 h-3.5 text-slate-600" />
+              <span>LIMPAR DADOS</span>
+            </button>
+
+            <button 
+              type="button" 
+              onClick={handleSaveDraft}
+              className="px-4 py-2 text-[10.5px] uppercase font-black text-blue-900 bg-blue-100 hover:bg-blue-200 border border-blue-300 transition-all rounded-xl cursor-pointer active:scale-[0.98] shadow-xs flex items-center gap-1.5"
+              title="Gravar informações inseridas e marcações realizadas"
+            >
+              <Save className="w-3.5 h-3.5 text-blue-600" />
+              <span>GRAVAR DADOS</span>
+            </button>
+
             <button 
               type="button" 
               onClick={() => handleConfirmFinalize('Não Conforme')}
@@ -595,12 +667,14 @@ export default function AssetInspectionModal({
             >
               ⚠️ REGISTRAR NÃO CONFORME
             </button>
+
             <button 
               type="button" 
               onClick={() => handleConfirmFinalize('Conforme')}
-              className="px-5 py-2 text-[10.5px] uppercase font-black text-white bg-emerald-600 hover:bg-emerald-700 transition-all rounded-xl cursor-pointer active:scale-[0.98] shadow-md border-none"
+              className="px-5 py-2 text-[10.5px] uppercase font-black text-white bg-emerald-600 hover:bg-emerald-700 transition-all rounded-xl cursor-pointer active:scale-[0.98] shadow-md border-none flex items-center gap-1.5"
             >
-              🟢 HOMOLOGAR LAUDO NBR
+              <CheckCircle2 className="w-4 h-4" />
+              <span>HOMOLOGAR LAUDO NBR</span>
             </button>
           </div>
         </div>
