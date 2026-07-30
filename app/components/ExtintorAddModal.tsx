@@ -96,13 +96,13 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
   const [formEtiquetaGarantia, setFormEtiquetaGarantia] = useState('');
 
   // Month/Year selects
-  const [lastRechargeMonth, setLastRechargeMonth] = useState(new Date().getMonth() + 1);
-  const [lastRechargeYear, setLastRechargeYear] = useState(new Date().getFullYear());
-  const [expiryMonth, setExpiryMonth] = useState(new Date().getMonth() + 1);
-  const [expiryYear, setExpiryYear] = useState(new Date().getFullYear() + 1);
+  const [lastRechargeMonth, setLastRechargeMonth] = useState<number | ''>('');
+  const [lastRechargeYear, setLastRechargeYear] = useState<number | ''>('');
+  const [expiryMonth, setExpiryMonth] = useState<number | ''>('');
+  const [expiryYear, setExpiryYear] = useState<number | ''>('');
   
-  const [formAnoTesteHidro, setFormAnoTesteHidro] = useState(new Date().getFullYear().toString());
-  const [formAnoFabricacao, setFormAnoFabricacao] = useState(new Date().getFullYear().toString());
+  const [formAnoTesteHidro, setFormAnoTesteHidro] = useState('');
+  const [formAnoFabricacao, setFormAnoFabricacao] = useState('');
   const [formDataPesagemCo2, setFormDataPesagemCo2] = useState('');
 
   // Section 3: Localização
@@ -179,13 +179,16 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
 
   // --- DYNAMIC CALCULATIONS ---
   // 1. Recharge validity (months difference)
-  const calculatedValidityMonths = (expiryYear - lastRechargeYear) * 12 + (expiryMonth - lastRechargeMonth);
+  const calculatedValidityMonths = (expiryYear && lastRechargeYear && expiryMonth && lastRechargeMonth)
+    ? (Number(expiryYear) - Number(lastRechargeYear)) * 12 + (Number(expiryMonth) - Number(lastRechargeMonth))
+    : 0;
 
   // 2. Days remaining to expiration
   const getDaysRemaining = () => {
+    if (!expiryYear || !expiryMonth) return 0;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const expiryDate = new Date(expiryYear, expiryMonth - 1, 1);
+    const expiryDate = new Date(Number(expiryYear), Number(expiryMonth) - 1, 1);
     const diffTime = expiryDate.getTime() - today.getTime();
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   };
@@ -206,9 +209,6 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
           
           const loadedLocales = locales || [];
           setLocaisList(loadedLocales);
-          if (loadedLocales.length > 0) {
-            setSelectedLocalId(loadedLocales[0].id);
-          }
 
           const { data: subLocales } = await supabase
             .from('sub_locais')
@@ -276,6 +276,13 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         setNewAreaInput('');
         setSelectedProjeto('');
         setNewProjetoInput('');
+        setSelectedLocalId('');
+        setLastRechargeMonth('');
+        setLastRechargeYear('');
+        setExpiryMonth('');
+        setExpiryYear('');
+        setFormAnoTesteHidro('');
+        setFormAnoFabricacao('');
         setIsScannerOpen(false);
         setSelectedModel('');
         setCustomModelName('');
@@ -308,15 +315,17 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
   }, [selectedLocalId]);
 
   // Adjust expiry automatically to lastRecharge + 12 months when lastRecharge changes
-  const handleLastRechargeChange = (month: number, year: number) => {
+  const handleLastRechargeChange = (month: number | '', year: number | '') => {
     setLastRechargeMonth(month);
     setLastRechargeYear(year);
 
-    let expM = month;
-    let expY = year + 1; // + 12 months
-    
-    setExpiryMonth(expM);
-    setExpiryYear(expY);
+    if (month && year) {
+      let expM = Number(month);
+      let expY = Number(year) + 1; // + 12 months
+      
+      setExpiryMonth(expM);
+      setExpiryYear(expY);
+    }
   };
 
   if (!isOpen) return null;
@@ -371,12 +380,12 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     setCustomModelName('');
     setFormWeightCap('');
     setFormEtiquetaGarantia('');
-    setLastRechargeMonth(new Date().getMonth() + 1);
-    setLastRechargeYear(new Date().getFullYear());
-    setExpiryMonth(new Date().getMonth() + 1);
-    setExpiryYear(new Date().getFullYear() + 1);
-    setFormAnoTesteHidro(new Date().getFullYear().toString());
-    setFormAnoFabricacao(new Date().getFullYear().toString());
+    setLastRechargeMonth('');
+    setLastRechargeYear('');
+    setExpiryMonth('');
+    setExpiryYear('');
+    setFormAnoTesteHidro('');
+    setFormAnoFabricacao('');
     setFormDataPesagemCo2('');
     setSelectedLocalId('');
     setNewLocalName('');
@@ -881,16 +890,20 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                   <div className="grid grid-cols-2 gap-2">
                     <select 
                       value={lastRechargeMonth}
-                      onChange={(e) => handleLastRechargeChange(parseInt(e.target.value, 10), lastRechargeYear)}
+                      onChange={(e) => handleLastRechargeChange(e.target.value ? parseInt(e.target.value, 10) : '', lastRechargeYear)}
                       className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none cursor-pointer"
+                      required
                     >
+                      <option value="">Mês...</option>
                       {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                     </select>
                     <select 
                       value={lastRechargeYear}
-                      onChange={(e) => handleLastRechargeChange(lastRechargeMonth, parseInt(e.target.value, 10))}
+                      onChange={(e) => handleLastRechargeChange(lastRechargeMonth, e.target.value ? parseInt(e.target.value, 10) : '')}
                       className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none cursor-pointer"
+                      required
                     >
+                      <option value="">Ano...</option>
                       {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                   </div>
@@ -904,25 +917,31 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                   <div className="grid grid-cols-2 gap-2">
                     <select 
                       value={expiryMonth}
-                      onChange={(e) => setExpiryMonth(parseInt(e.target.value, 10))}
+                      onChange={(e) => setExpiryMonth(e.target.value ? parseInt(e.target.value, 10) : '')}
                       className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none cursor-pointer"
+                      required
                     >
+                      <option value="">Mês...</option>
                       {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
                     </select>
                     <select 
                       value={expiryYear}
-                      onChange={(e) => setExpiryYear(parseInt(e.target.value, 10))}
+                      onChange={(e) => setExpiryYear(e.target.value ? parseInt(e.target.value, 10) : '')}
                       className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none cursor-pointer"
+                      required
                     >
+                      <option value="">Ano...</option>
                       {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
                     </select>
                   </div>
                   {/* Days remaining display */}
-                  <div className="mt-1 flex items-center gap-1.5">
-                    <span className={`text-[8.5px] font-bold ${isExpired ? 'text-rose-600' : 'text-emerald-700 bg-emerald-50 border border-emerald-100/60 px-1.5 py-0.5 rounded'}`}>
-                      {isExpired ? `⚠️ Expirado há ${Math.abs(daysRemaining)} dias` : `⏱️ ${daysRemaining} dias restantes para vencimento`}
-                    </span>
-                  </div>
+                  {expiryYear && expiryMonth && (
+                    <div className="mt-1 flex items-center gap-1.5">
+                      <span className={`text-[8.5px] font-bold ${isExpired ? 'text-rose-600' : 'text-emerald-700 bg-emerald-50 border border-emerald-100/60 px-1.5 py-0.5 rounded'}`}>
+                        {isExpired ? `⚠️ Expirado há ${Math.abs(daysRemaining)} dias` : `⏱️ ${daysRemaining} dias restantes para vencimento`}
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Validade Recarga (Meses) - Bloqueado */}
@@ -949,6 +968,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                     onChange={(e) => setFormAnoTesteHidro(e.target.value)}
                     min="1950"
                     max="2100"
+                    placeholder="Ex: 2026"
                     className="w-full bg-white border border-slate-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold"
                     required
                   />
@@ -965,6 +985,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                     onChange={(e) => setFormAnoFabricacao(e.target.value)}
                     min="1900"
                     max="2100"
+                    placeholder="Ex: 2026"
                     className="w-full bg-white border border-slate-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold"
                     required
                   />

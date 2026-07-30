@@ -120,10 +120,6 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
             if (seeded) loadedLocales = seeded;
           }
           setLocaisList(loadedLocales);
-          if (loadedLocales.length > 0) {
-            setSelectedLocalId(loadedLocales[0].id);
-            setFormLocal(loadedLocales[0].nome);
-          }
 
           // 2. Buscar modelos_extintores
           const { data: models, error: modErr } = await supabase
