@@ -194,7 +194,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
           <button
             type="button"
             onClick={() => setChatOpened(true)}
-            className={`w-full relative flex items-center bg-gradient-to-r from-red-700 via-rose-700 to-slate-900 hover:from-red-600 hover:to-rose-800 text-white rounded-2xl shadow-[0_5px_0_rgba(153,27,27,1)] hover:shadow-[0_6px_0_rgba(185,28,28,1)] active:translate-y-1 active:shadow-none border border-red-500/40 transition-all duration-150 cursor-pointer overflow-hidden font-sans ${
+            className={`w-full relative flex items-center bg-gradient-to-r from-red-700 via-rose-700 to-slate-900 hover:from-red-600 hover:to-rose-800 text-white rounded-2xl shadow-lg shadow-rose-950/40 hover:shadow-xl hover:shadow-rose-950/60 active:translate-y-0.5 border border-rose-500/30 hover:border-rose-400/50 transition-all duration-200 cursor-pointer overflow-hidden font-sans ${
               isCollapsed ? 'p-3 justify-center h-12 w-12' : 'p-3.5 gap-3'
             }`}
             title="Abrir Assistente Virtual Inspe IA SPCI 24h"

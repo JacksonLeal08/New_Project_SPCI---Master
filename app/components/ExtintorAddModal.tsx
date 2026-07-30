@@ -286,14 +286,8 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         setIsScannerOpen(false);
         setSelectedModel('');
         setCustomModelName('');
-        setFormWeightCap('6KG');
+        setFormWeightCap('');
         setFormEtiquetaGarantia('');
-        setLastRechargeMonth(new Date().getMonth() + 1);
-        setLastRechargeYear(new Date().getFullYear());
-        setExpiryMonth(new Date().getMonth() + 1);
-        setExpiryYear(new Date().getFullYear() + 1);
-        setFormAnoTesteHidro(new Date().getFullYear().toString());
-        setFormAnoFabricacao(new Date().getFullYear().toString());
         setFormDataPesagemCo2('');
       }, 0);
     }
