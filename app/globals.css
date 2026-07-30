@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 @layer base {
   body {
@@ -41,6 +42,6 @@ html.dark {
 }
 
 html.dark body {
-  background-color: #020617;
+  background-color: #0f172a;
   color: #e2e8f0;
 }

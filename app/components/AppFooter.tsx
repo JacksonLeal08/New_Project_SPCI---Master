@@ -13,7 +13,7 @@ export default function AppFooter({ variant = 'flow', className = '' }: AppFoote
 
   if (variant === 'fixed') {
     return (
-      <footer className={`w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 px-4 py-1.5 text-center text-[10px] font-mono text-slate-500 dark:text-slate-400 select-none shrink-0 ${className}`}>
+      <footer className={`w-full bg-transparent px-4 py-4 text-center text-[10px] font-mono text-slate-500 dark:text-slate-400 select-none shrink-0 ${className}`}>
         <p className="tracking-wide truncate">
           {textContent}
         </p>
