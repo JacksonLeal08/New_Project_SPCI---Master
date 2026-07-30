@@ -178,9 +178,11 @@ export default function ConfiguracoesPage() {
     );
     setEditExpiresAt(user.dataExpiracao ? new Date(user.dataExpiracao).toISOString().split('T')[0] : '');
     setEditPassword('');
-    setEditModules([
-      'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
-    ]);
+    setEditModules(
+      user.role === 'Desenvolvedor' || userProfile?.role === 'Desenvolvedor'
+        ? ['dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts', 'configuracoes']
+        : ['dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts']
+    );
   };
 
   // Load user list on mount and tab switch
@@ -514,9 +516,9 @@ export default function ConfiguracoesPage() {
                       }
                       setShowInviteModal(true);
                     }}
-                    className="px-3.5 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-[10px] uppercase cursor-pointer rounded-xl transition-all active:scale-95 flex items-center gap-1.5 border-none shadow-sm"
+                    className="px-3.5 py-2 bg-red-650 hover:bg-red-700 text-white font-black text-[10px] uppercase cursor-pointer rounded-xl transition-all active:scale-95 flex items-center gap-1.5 border-none shadow-sm"
                   >
-                    <UserPlus className="w-3.5 h-3.5" /> Convidar Colaborador
+                    <UserPlus className="w-3.5 h-3.5" /> NOVO USUÁRIO
                   </button>
                 </div>
               </div>
@@ -656,17 +658,31 @@ export default function ConfiguracoesPage() {
 
       {/* --- FLOATING DIALOGS & OVERLAYS --- */}
 
-      {/* 2. Modal: Invite Colaborador User */}
+      {/* 2. Modal: NOVO USUÁRIO */}
       {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl p-6 relative overflow-hidden space-y-4 text-xs text-slate-700">
-            <div className="absolute top-0 left-0 right-0 h-[3px] bg-red-600 rounded-t-2xl" />
-            <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-              <span>➕</span> Convidar Novo Colaborador
-            </h3>
-            <p className="text-[10px] text-slate-500 font-sans leading-relaxed">
-              O colaborador será registrado no Supabase Auth com senha personalizada e termo de validade opcional. O login estará ativado de forma imediata.
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-sans select-none">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.96, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.96, y: 12 }}
+            className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl lg:max-w-2xl shadow-2xl p-6 relative overflow-hidden space-y-4 text-xs text-slate-800 max-h-[92vh] flex flex-col"
+          >
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-650 rounded-t-3xl" />
+
+            {/* Modal Header */}
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100 shrink-0">
+              <div className="w-11 h-11 bg-red-50 border border-red-100 text-red-650 rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-inner font-bold">
+                👤
+              </div>
+              <div>
+                <h3 className="font-black text-sm text-slate-900 uppercase tracking-wide flex items-center gap-2 font-mono">
+                  NOVO USUÁRIO
+                </h3>
+                <p className="text-[10px] text-slate-500 mt-0.5 font-sans leading-relaxed">
+                  Registro de credenciais corporativas no Supabase Auth com atribuição de perfil RBAC e localidade.
+                </p>
+              </div>
+            </div>
 
             <form onSubmit={async (e) => {
               e.preventDefault();
@@ -708,7 +724,7 @@ export default function ConfiguracoesPage() {
                 setInvitePhone('');
                 setInvitePassword('');
                 setInviteRole('Usuário');
-                setInviteSite('TODOS');
+                setInviteSite('TODOS OS SITES (Acesso Global)');
                 setInviteExpiresAt('');
                 setSelectedModules([
                   'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
@@ -718,147 +734,178 @@ export default function ConfiguracoesPage() {
               } finally {
                 setInviting(false);
               }
-            }} className="space-y-4">
-              <div className="space-y-1">
-                <label className="block text-[9px] font-bold uppercase text-slate-500">Nome Completo</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={inviteName}
-                  onChange={(e) => setInviteName(e.target.value)}
-                  placeholder="Ex: João da Silva"
-                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold shadow-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[9px] font-bold uppercase text-slate-500">Nome de Usuário (Username)</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={inviteUsername}
-                  onChange={(e) => setInviteUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                  placeholder="Ex: joaosilva (sem espaços)"
-                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold shadow-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[9px] font-bold uppercase text-slate-500">E-mail Corporativo</label>
-                <input 
-                  type="email" 
-                  required 
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="Ex: joao.silva@empresa.com"
-                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[9px] font-bold uppercase text-slate-500">Telefone / WhatsApp</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={invitePhone}
-                  onChange={(e) => setInvitePhone(e.target.value)}
-                  placeholder="Ex: 5511999999999 (somente números)"
-                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[9px] font-bold uppercase text-slate-500">Site / Planta (Localidade dos Ativos)</label>
-                <select 
-                  value={showNewInviteSiteInput ? '+ ADD_NEW_SITE' : inviteSite} 
-                  onChange={(e) => {
-                    if (e.target.value === '+ ADD_NEW_SITE') {
-                      setShowNewInviteSiteInput(true);
-                    } else {
-                      setShowNewInviteSiteInput(false);
-                      setInviteSite(e.target.value);
-                    }
-                  }}
-                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
-                >
-                  {sitesList.map((site) => (
-                    <option key={site} value={site}>
-                      {site.startsWith('TODOS') ? '🌐 TODOS OS SITES (Acesso Global)' : `📍 ${site}`}
-                    </option>
-                  ))}
-                  <option value="+ ADD_NEW_SITE">➕ + Adicionar Novo Site</option>
-                </select>
-
-                {showNewInviteSiteInput && (
-                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 pt-2">
+            }} className="space-y-4 overflow-y-auto pr-1 flex-1 scrollbar-thin">
+              
+              {/* Card 1: Identificação do Usuário */}
+              <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                <h4 className="text-[10px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5 font-mono">
+                  <span>👤</span> Identificação do Usuário
+                </h4>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold uppercase text-slate-500">Nome Completo</label>
                     <input 
                       type="text" 
-                      autoFocus 
-                      value={newInviteSiteInput} 
-                      onChange={(e) => setNewInviteSiteInput(e.target.value)}
-                      placeholder="Digite o nome do novo Site (ex: SALOBO IV)"
-                      className="flex-1 bg-white border border-red-400 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold"
+                      required 
+                      value={inviteName}
+                      onChange={(e) => setInviteName(e.target.value)}
+                      placeholder="Ex: João da Silva"
+                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none font-bold shadow-xs"
                     />
-                    <button 
-                      type="button" 
-                      onClick={() => handleAddNewSite(newInviteSiteInput, 'invite')}
-                      className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer border-none"
-                    >
-                      ➕ Cadastrar
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => { setShowNewInviteSiteInput(false); setNewInviteSiteInput(''); }}
-                      className="px-2.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl cursor-pointer border-none"
-                    >
-                      Cancelar
-                    </button>
-                  </motion.div>
-                )}
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold uppercase text-slate-500">Nome de Usuário (@username)</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={inviteUsername}
+                      onChange={(e) => setInviteUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
+                      placeholder="Ex: joaosilva (sem espaços)"
+                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-red-650 focus:outline-none font-mono font-bold shadow-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold uppercase text-slate-500">E-mail Corporativo</label>
+                    <input 
+                      type="email" 
+                      required 
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="Ex: joao.silva@empresa.com"
+                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-850 focus:outline-none shadow-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold uppercase text-slate-500">Telefone / WhatsApp</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={invitePhone}
+                      onChange={(e) => setInvitePhone(e.target.value)}
+                      placeholder="Ex: 5511999999999 (somente números)"
+                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div className="space-y-1">
-                <label className="block text-[9px] font-bold uppercase text-slate-500">Senha de Acesso (Mínimo 6 caracteres)</label>
-                <input 
-                  type="text" 
-                  required 
-                  value={invitePassword}
-                  onChange={(e) => setInvitePassword(e.target.value)}
-                  placeholder="Defina a senha de acesso"
-                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
-                />
-              </div>
+              {/* Card 2: Localidade e Credenciais */}
+              <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 space-y-3">
+                <h4 className="text-[10px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5 font-mono">
+                  <span>🏢</span> Localidade e Credenciais de Acesso
+                </h4>
 
-              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Nível de Conta</label>
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Site / Planta (Localidade dos Ativos)</label>
                   <select 
-                    value={inviteRole} 
-                    onChange={(e) => setInviteRole(e.target.value as any)}
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
+                    value={showNewInviteSiteInput ? '+ ADD_NEW_SITE' : inviteSite} 
+                    onChange={(e) => {
+                      if (e.target.value === '+ ADD_NEW_SITE') {
+                        setShowNewInviteSiteInput(true);
+                      } else {
+                        setShowNewInviteSiteInput(false);
+                        setInviteSite(e.target.value);
+                      }
+                    }}
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
                   >
-                    {userProfile?.role === 'Desenvolvedor' && <option value="Desenvolvedor">💻 Desenvolvedor</option>}
-                    <option value="Administrador">🛡️ Administrador</option>
-                    <option value="Usuário">👷 Técnico</option>
+                    {sitesList.map((site) => (
+                      <option key={site} value={site}>
+                        {site.startsWith('TODOS') ? '🌐 TODOS OS SITES (Acesso Global)' : `📍 ${site}`}
+                      </option>
+                    ))}
+                    <option value="+ ADD_NEW_SITE">➕ + Adicionar Novo Site</option>
                   </select>
+
+                  {showNewInviteSiteInput && (
+                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 pt-2">
+                      <input 
+                        type="text" 
+                        autoFocus 
+                        value={newInviteSiteInput} 
+                        onChange={(e) => setNewInviteSiteInput(e.target.value)}
+                        placeholder="Digite o nome do novo Site (ex: SALOBO IV)"
+                        className="flex-1 bg-white border border-red-400 rounded-xl p-2 text-xs text-slate-800 focus:outline-none font-bold"
+                      />
+                      <button 
+                        type="button" 
+                        onClick={() => handleAddNewSite(newInviteSiteInput, 'invite')}
+                        className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer border-none"
+                      >
+                        ➕ Cadastrar
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => { setShowNewInviteSiteInput(false); setNewInviteSiteInput(''); }}
+                        className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl cursor-pointer border-none"
+                      >
+                        Cancelar
+                      </button>
+                    </motion.div>
+                  )}
                 </div>
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Data de Expiração</label>
-                  <input 
-                    type="date" 
-                    value={inviteExpiresAt}
-                    onChange={(e) => setInviteExpiresAt(e.target.value)}
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-bold"
-                  />
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold uppercase text-slate-500">Nível de Conta (RBAC)</label>
+                    <select 
+                      value={inviteRole} 
+                      onChange={(e) => {
+                        const newRole = e.target.value as any;
+                        setInviteRole(newRole);
+                        if (newRole === 'Desenvolvedor' && !selectedModules.includes('configuracoes')) {
+                          setSelectedModules(prev => [...prev, 'configuracoes']);
+                        }
+                      }}
+                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
+                    >
+                      {userProfile?.role === 'Desenvolvedor' && <option value="Desenvolvedor">💻 Desenvolvedor</option>}
+                      <option value="Administrador">🛡️ Administrador</option>
+                      <option value="Usuário">👷 Técnico de Campo</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold uppercase text-slate-500">Senha de Acesso</label>
+                    <input 
+                      type="text" 
+                      required 
+                      value={invitePassword}
+                      onChange={(e) => setInvitePassword(e.target.value)}
+                      placeholder="Mínimo 6 dígitos"
+                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[9px] font-bold uppercase text-slate-500">Data de Expiração</label>
+                    <input 
+                      type="date" 
+                      value={inviteExpiresAt}
+                      onChange={(e) => setInviteExpiresAt(e.target.value)}
+                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-850 focus:outline-none shadow-xs font-bold"
+                    />
+                  </div>
                 </div>
               </div>
 
+              {/* Card 3: Módulos Autorizados */}
               {userProfile?.role === 'Desenvolvedor' && (
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">
-                    Módulos Autorizados (Abas de Elementos)
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 mt-1">
+                <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 space-y-2">
+                  <h4 className="text-[10px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5 font-mono">
+                    <span>🛡️</span> Módulos e Elementos Autorizados
+                  </h4>
+                  <p className="text-[9px] text-slate-500">
+                    Defina quais módulos estarão visíveis no menu lateral para este usuário.
+                  </p>
+                  
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
                     {[
                       { id: 'dashboard', label: '📊 Dashboard' },
                       { id: 'extintores', label: '🧯 Extintores' },
@@ -867,11 +914,16 @@ export default function ConfiguracoesPage() {
                       { id: 'iluminacao', label: '💡 Iluminação' },
                       { id: 'bombas', label: '🔧 Casa de Bombas' },
                       { id: 'ronda', label: '📱 Ronda & Campo' },
-                      { id: 'alerts', label: '🔔 Alertas' }
+                      { id: 'alerts', label: '🔔 Alertas' },
+                      ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'configuracoes', label: '⚙️ Configurações' }] : [])
                     ].map(mod => (
                       <label 
                         key={mod.id} 
-                        className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-all select-none text-[10px]"
+                        className={`flex items-center gap-2 p-2 rounded-xl cursor-pointer border transition-all select-none text-[10px] ${
+                          selectedModules.includes(mod.id)
+                            ? 'bg-red-50/80 border-red-200 text-red-950 font-black shadow-2xs'
+                            : 'bg-white border-slate-200 text-slate-600 font-bold hover:bg-slate-100'
+                        }`}
                       >
                         <input 
                           type="checkbox"
@@ -883,16 +935,17 @@ export default function ConfiguracoesPage() {
                               setSelectedModules(prev => prev.filter(id => id !== mod.id));
                             }
                           }}
-                          className="rounded border-slate-350 text-red-600 focus:ring-red-500 w-3.5 h-3.5"
+                          className="rounded border-slate-350 text-red-650 focus:ring-red-500 w-3.5 h-3.5 cursor-pointer"
                         />
-                        <span className="font-bold text-slate-700">{mod.label}</span>
+                        <span>{mod.label}</span>
                       </label>
                     ))}
                   </div>
                 </div>
               )}
 
-              <div className="flex gap-2.5 pt-3 border-t border-slate-100 justify-end">
+              {/* Modal Actions Footer */}
+              <div className="flex gap-2.5 pt-3 border-t border-slate-100 justify-end shrink-0">
                 <button 
                   type="button" 
                   onClick={() => {
@@ -901,25 +954,27 @@ export default function ConfiguracoesPage() {
                       'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
                     ]);
                   }}
-                  className="px-4 py-2.5 border border-slate-200 hover:border-slate-350 bg-white text-slate-550 font-bold rounded-xl cursor-pointer text-[10px] uppercase transition-all shadow-xs"
+                  className="px-4 py-2.5 border border-slate-200 hover:border-slate-350 bg-white text-slate-600 font-bold rounded-xl cursor-pointer text-[10px] uppercase transition-all shadow-xs"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit" 
                   disabled={inviting}
-                  className="px-5 py-2.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl hover:opacity-90 disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer border-none text-[10px] uppercase shadow-sm"
+                  className="px-5 py-2.5 bg-red-650 hover:bg-red-700 text-white font-black rounded-xl hover:opacity-95 disabled:opacity-40 transition-all flex items-center gap-2 cursor-pointer border-none text-[10px] uppercase shadow-md active:scale-95"
                 >
                   {inviting ? (
                     <>
                       <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full inline-block"></span>
-                      PROCESSANDO...
+                      Cadastrando...
                     </>
-                  ) : 'Cadastrar Colaborador'}
+                  ) : (
+                    <>💾 CADASTRAR USUÁRIO</>
+                  )}
                 </button>
               </div>
             </form>
-          </div>
+          </motion.div>
         </div>
       )}
 
@@ -1333,7 +1388,8 @@ export default function ConfiguracoesPage() {
                       { id: 'iluminacao', label: '💡 Iluminação' },
                       { id: 'bombas', label: '🔧 Casa de Bombas' },
                       { id: 'ronda', label: '📱 Ronda & Campo' },
-                      { id: 'alerts', label: '🔔 Alertas' }
+                      { id: 'alerts', label: '🔔 Alertas' },
+                      ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'configuracoes', label: '⚙️ Configurações' }] : [])
                     ].map(mod => (
                       <label
                         key={mod.id}
