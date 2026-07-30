@@ -38,16 +38,20 @@ interface ValidatedRow {
   id: string;
   rowNum: number;
   numero_patrimonio: string;
-  local: string;
-  sub_local: string;
-  modelo: string;
-  selo_inmetro: string;
   chassi: string;
+  selo_inmetro: string;
+  modelo: string;
   peso_capacidade: string;
+  etiqueta_garantia: string;
   data_ultima_recarga: string;
   meses_validade_recarga: number;
   ano_ultimo_teste_hidro: number;
+  ano_fabricacao: string;
   data_pesagem_co2: string;
+  area: string;
+  projeto: string;
+  local: string;
+  sub_local: string;
   errors: string[];
   isValid: boolean;
 }
@@ -279,11 +283,27 @@ export default function ExtintoresPage() {
   // --- GERAÇÃO E DOWNLOAD DE MODELO DE IMPORTAÇÃO ---
   const handleDownloadTemplate = (format: 'xlsx' | 'csv') => {
     const headers = [
-      ['numero_patrimonio', 'local', 'sub_local', 'modelo', 'selo_inmetro', 'chassi', 'peso_capacidade', 'data_ultima_recarga', 'meses_validade_recarga', 'ano_ultimo_teste_hidro', 'data_pesagem_co2']
+      [
+        'numero_patrimonio',
+        'chassi',
+        'selo_inmetro',
+        'modelo',
+        'peso_capacidade',
+        'etiqueta_garantia',
+        'data_ultima_recarga',
+        'meses_validade_recarga',
+        'ano_ultimo_teste_hidro',
+        'ano_fabricacao',
+        'data_pesagem_co2',
+        'area',
+        'projeto',
+        'local',
+        'sub_local'
+      ]
     ];
     const sampleData = [
-      ['EXT-1090', 'ALMOXARIFADO', 'DOCA DE CARGA 2', 'PQS ABC - 8KG', 'S-992389', 'CH-9921', '8KG', '2025-06-01', '12', '2024', ''],
-      ['EXT-1091', 'MANGANÊS', 'SALA DE GERADORES', 'CO2 - 6KG', 'S-992390', 'CH-9922', '6KG', '2025-05-15', '12', '2023', '2025-05-15']
+      ['EXT-1090', 'CH-9921', 'S-992389', 'PQS ABC', '8KG', 'GAR-8921', '2025-06-01', '12', '2024', '2022', '', 'ÁREA 01', 'SALOBO I E II', 'ALMOXARIFADO', 'DOCA DE CARGA 2'],
+      ['EXT-1091', 'CH-9922', 'S-992390', 'CO2', '6KG', 'GAR-8922', '2025-05-15', '12', '2023', '2021', '2025-05-15', 'ÁREA 02', 'SALOBO III', 'MANGANÊS', 'SALA DE GERADORES']
     ];
     const sheetData = [...headers, ...sampleData];
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
@@ -303,28 +323,48 @@ export default function ExtintoresPage() {
       link.click();
       document.body.removeChild(link);
     }
-    triggerSuccessNotification('Modelo Baixado!', `Planilha de modelo em formato ${format.toUpperCase()} foi baixada.`);
+    triggerSuccessNotification('Modelo Baixado!', `Planilha de modelo em formato ${format.toUpperCase()} foi baixada com 15 colunas padronizadas.`);
   };
 
   // --- GERAÇÃO E DOWNLOAD DE DADOS ATUAIS PARA EDIÇÃO ---
   const handleDownloadCurrentAssets = (format: 'xlsx' | 'csv') => {
     const headers = [
-      ['numero_patrimonio', 'local', 'sub_local', 'modelo', 'selo_inmetro', 'chassi', 'peso_capacidade', 'data_ultima_recarga', 'meses_validade_recarga', 'ano_ultimo_teste_hidro', 'data_pesagem_co2']
+      [
+        'numero_patrimonio',
+        'chassi',
+        'selo_inmetro',
+        'modelo',
+        'peso_capacidade',
+        'etiqueta_garantia',
+        'data_ultima_recarga',
+        'meses_validade_recarga',
+        'ano_ultimo_teste_hidro',
+        'ano_fabricacao',
+        'data_pesagem_co2',
+        'area',
+        'projeto',
+        'local',
+        'sub_local'
+      ]
     ];
     
     const dataRows = extintores.map((ext: any) => {
       return [
         ext.idAtivo || '',
-        ext.location || '',
-        ext.subLocation || '',
-        ext.model || '',
-        ext.seloInmetro || '',
         ext.chassi || '',
+        ext.seloInmetro || '',
+        ext.model || '',
         ext.peso_capacidade || ext.peso || '',
+        ext.etiqueta_garantia || ext.etiquetaGarantia || '',
         ext.data_ultima_recarga || ext.lastRecarga || '',
         ext.meses_validade_recarga || ext.validadeRecargaMeses || 12,
         ext.ano_ultimo_teste_hidro || ext.ultimoTesteHidro || ext.anoUltimoTesteHidro || new Date().getFullYear(),
-        ext.data_pesagem_co2 || ''
+        ext.ano_fabricacao || ext.anoFabricacao || '',
+        ext.data_pesagem_co2 || '',
+        ext.area || 'ÁREA 01',
+        ext.projeto || 'SALOBO I E II',
+        ext.location || '',
+        ext.subLocation || ''
       ];
     });
 
@@ -346,7 +386,7 @@ export default function ExtintoresPage() {
       link.click();
       document.body.removeChild(link);
     }
-    triggerSuccessNotification('Dados Exportados!', `Planilha com os dados dos ativos em formato ${format.toUpperCase()} foi baixada.`);
+    triggerSuccessNotification('Dados Exportados!', `Planilha com os dados dos ativos em formato ${format.toUpperCase()} foi baixada com 15 colunas.`);
   };
 
   // --- PARSING E VALIDAÇÃO DE EDIÇÃO EM MASSA ---
@@ -404,13 +444,17 @@ export default function ExtintoresPage() {
       const pat = String(row.numero_patrimonio || '').trim().toUpperCase();
       const local = String(row.local || '').trim().toUpperCase();
       const subLocal = String(row.sub_local || '').trim().toUpperCase();
+      const area = String(row.area || '').trim().toUpperCase() || 'ÁREA 01';
+      const projeto = String(row.projeto || '').trim().toUpperCase() || 'SALOBO I E II';
       const modelo = String(row.modelo || '').trim().toUpperCase();
       const selo = String(row.selo_inmetro || '').trim().toUpperCase();
       const chassi = String(row.chassi || '').trim().toUpperCase();
       const pesoCap = String(row.peso_capacidade || '').trim().toUpperCase();
+      const etiquetaGarantia = String(row.etiqueta_garantia || '').trim().toUpperCase();
       const recargaRaw = parseExcelDate(row.data_ultima_recarga);
       const validadeMeses = parseInt(row.meses_validade_recarga || '12', 10);
       const testeHidro = parseInt(row.ano_ultimo_teste_hidro || new Date().getFullYear().toString(), 10);
+      const anoFabricacao = String(row.ano_fabricacao || '').trim();
       const pesagemCo2 = row.data_pesagem_co2 ? parseExcelDate(row.data_pesagem_co2) : '';
 
       // Find original asset
@@ -424,18 +468,22 @@ export default function ExtintoresPage() {
           numero_patrimonio: pat,
           local,
           sub_local: subLocal,
+          area,
+          projeto,
           modelo,
           selo_inmetro: selo,
           chassi,
           peso_capacidade: pesoCap,
+          etiqueta_garantia: etiquetaGarantia,
           data_ultima_recarga: recargaRaw,
           meses_validade_recarga: validadeMeses,
           ano_ultimo_teste_hidro: testeHidro,
+          ano_fabricacao: anoFabricacao,
           data_pesagem_co2: pesagemCo2,
           changes: {
-            local: false, sub_local: false, modelo: false, selo_inmetro: false, chassi: false,
-            peso_capacidade: false, data_ultima_recarga: false, meses_validade_recarga: false,
-            ano_ultimo_teste_hidro: false, data_pesagem_co2: false
+            local: false, sub_local: false, area: false, projeto: false, modelo: false, selo_inmetro: false, chassi: false,
+            peso_capacidade: false, etiqueta_garantia: false, data_ultima_recarga: false, meses_validade_recarga: false,
+            ano_ultimo_teste_hidro: false, ano_fabricacao: false, data_pesagem_co2: false
           },
           errors,
           isValid: false,
@@ -452,18 +500,22 @@ export default function ExtintoresPage() {
           numero_patrimonio: pat,
           local,
           sub_local: subLocal,
+          area,
+          projeto,
           modelo,
           selo_inmetro: selo,
           chassi,
           peso_capacidade: pesoCap,
+          etiqueta_garantia: etiquetaGarantia,
           data_ultima_recarga: recargaRaw,
           meses_validade_recarga: validadeMeses,
           ano_ultimo_teste_hidro: testeHidro,
+          ano_fabricacao: anoFabricacao,
           data_pesagem_co2: pesagemCo2,
           changes: {
-            local: false, sub_local: false, modelo: false, selo_inmetro: false, chassi: false,
-            peso_capacidade: false, data_ultima_recarga: false, meses_validade_recarga: false,
-            ano_ultimo_teste_hidro: false, data_pesagem_co2: false
+            local: false, sub_local: false, area: false, projeto: false, modelo: false, selo_inmetro: false, chassi: false,
+            peso_capacidade: false, etiqueta_garantia: false, data_ultima_recarga: false, meses_validade_recarga: false,
+            ano_ultimo_teste_hidro: false, ano_fabricacao: false, data_pesagem_co2: false
           },
           errors,
           isValid: false,
@@ -476,13 +528,17 @@ export default function ExtintoresPage() {
       const changes = {
         local: local !== (original.location || '').trim().toUpperCase(),
         sub_local: subLocal !== (original.subLocation || '').trim().toUpperCase(),
+        area: area !== (original.area || '').trim().toUpperCase(),
+        projeto: projeto !== (original.projeto || '').trim().toUpperCase(),
         modelo: modelo !== (original.model || '').trim().toUpperCase(),
         selo_inmetro: selo !== (original.seloInmetro || '').trim().toUpperCase(),
         chassi: chassi !== (original.chassi || '').trim().toUpperCase(),
         peso_capacidade: pesoCap !== (original.peso_capacidade || original.peso || '').trim().toUpperCase(),
+        etiqueta_garantia: etiquetaGarantia !== (original.etiqueta_garantia || original.etiquetaGarantia || '').trim().toUpperCase(),
         data_ultima_recarga: recargaRaw !== (original.data_ultima_recarga || original.lastRecarga || '').trim(),
         meses_validade_recarga: validadeMeses !== parseInt(original.meses_validade_recarga || original.validadeRecargaMeses || '12', 10),
         ano_ultimo_teste_hidro: testeHidro !== parseInt(original.ano_ultimo_teste_hidro || original.ultimoTesteHidro || original.anoUltimoTesteHidro || '2025', 10),
+        ano_fabricacao: anoFabricacao !== String(original.ano_fabricacao || original.anoFabricacao || '').trim(),
         data_pesagem_co2: pesagemCo2 !== (original.data_pesagem_co2 || '').trim()
       };
 
@@ -525,13 +581,17 @@ export default function ExtintoresPage() {
         numero_patrimonio: pat,
         local,
         sub_local: subLocal,
+        area,
+        projeto,
         modelo,
         selo_inmetro: selo,
         chassi,
         peso_capacidade: pesoCap,
+        etiqueta_garantia: etiquetaGarantia,
         data_ultima_recarga: recargaRaw,
         meses_validade_recarga: validadeMeses,
         ano_ultimo_teste_hidro: testeHidro,
+        ano_fabricacao: anoFabricacao,
         data_pesagem_co2: pesagemCo2,
         changes,
         errors,
@@ -542,7 +602,7 @@ export default function ExtintoresPage() {
     });
 
     setValidatedEditRows(validated);
-    triggerSuccessNotification('Planilha de Edição Carregada', `Processadas ${validated.length} linhas para edição.`);
+    triggerSuccessNotification('Planilha de Edição Carregada', `Processadas ${validated.length} linhas para edição com 15 colunas.`);
   };
 
   const handleConfirmEdit = async () => {
@@ -570,15 +630,21 @@ export default function ExtintoresPage() {
         ...original,
         location: row.local,
         subLocation: row.sub_local || 'GERAL',
+        area: row.area,
+        projeto: row.projeto,
         model: row.modelo,
         peso_capacidade: row.peso_capacidade,
         peso: row.peso_capacidade.replace(/\D/g, ''),
+        etiqueta_garantia: row.etiqueta_garantia,
+        etiquetaGarantia: row.etiqueta_garantia,
         data_ultima_recarga: row.data_ultima_recarga,
         lastRecarga: row.data_ultima_recarga,
         meses_validade_recarga: row.meses_validade_recarga,
         validadeRecargaMeses: row.meses_validade_recarga,
         ano_ultimo_teste_hidro: row.ano_ultimo_teste_hidro,
         ultimoTesteHidro: row.ano_ultimo_teste_hidro,
+        ano_fabricacao: row.ano_fabricacao,
+        anoFabricacao: row.ano_fabricacao,
         data_pesagem_co2: row.data_pesagem_co2 || null,
         validadeRecarga: validadeRecargaStr
       };
@@ -675,13 +741,20 @@ export default function ExtintoresPage() {
       const errors: string[] = [];
       
       const pat = String(row.numero_patrimonio || '').trim().toUpperCase();
-      const local = String(row.local || '').trim().toUpperCase();
+      const chassi = String(row.chassi || '').trim().toUpperCase();
+      const selo = String(row.selo_inmetro || '').trim().toUpperCase();
       const model = String(row.modelo || '').trim().toUpperCase();
       const cap = String(row.peso_capacidade || '').trim().toUpperCase();
+      const etiquetaGarantia = String(row.etiqueta_garantia || '').trim().toUpperCase();
       const recargaRaw = parseExcelDate(row.data_ultima_recarga);
       const validadeMeses = parseInt(row.meses_validade_recarga || '12', 10);
       const testeHidro = parseInt(row.ano_ultimo_teste_hidro || new Date().getFullYear().toString(), 10);
+      const anoFabricacao = String(row.ano_fabricacao || '').trim();
       const pesagemCo2 = row.data_pesagem_co2 ? parseExcelDate(row.data_pesagem_co2) : '';
+      const area = String(row.area || '').trim().toUpperCase() || 'ÁREA 01';
+      const projeto = String(row.projeto || '').trim().toUpperCase() || 'SALOBO I E II';
+      const local = String(row.local || '').trim().toUpperCase();
+      const subLocal = String(row.sub_local || '').trim().toUpperCase();
 
       // Regras de validação
       if (!pat) {
@@ -724,23 +797,27 @@ export default function ExtintoresPage() {
         id: generateUUID(),
         rowNum: index + 2,
         numero_patrimonio: pat,
-        local,
-        sub_local: String(row.sub_local || '').trim().toUpperCase(),
+        chassi,
+        selo_inmetro: selo,
         modelo: model,
-        selo_inmetro: String(row.selo_inmetro || '').trim().toUpperCase(),
-        chassi: String(row.chassi || '').trim().toUpperCase(),
         peso_capacidade: cap,
+        etiqueta_garantia: etiquetaGarantia,
         data_ultima_recarga: recargaRaw,
         meses_validade_recarga: validadeMeses,
         ano_ultimo_teste_hidro: testeHidro,
+        ano_fabricacao: anoFabricacao,
         data_pesagem_co2: pesagemCo2,
+        area,
+        projeto,
+        local,
+        sub_local: subLocal,
         errors,
         isValid: errors.length === 0
       };
     });
 
     setValidatedRows(validated);
-    triggerSuccessNotification('Planilha Carregada', `Processadas ${validated.length} linhas no cockpit.`);
+    triggerSuccessNotification('Planilha Carregada', `Processadas ${validated.length} linhas com 15 colunas no cockpit.`);
   };
 
   const handleConfirmImport = async () => {
@@ -761,18 +838,24 @@ export default function ExtintoresPage() {
         category: 'extintores',
         location: row.local,
         subLocation: row.sub_local || 'GERAL',
+        area: row.area,
+        projeto: row.projeto,
         status: 'Conforme',
         model: row.modelo,
         peso_capacidade: row.peso_capacidade,
         peso: row.peso_capacidade.replace(/\D/g, ''),
         seloInmetro: row.selo_inmetro || 'NBR',
         chassi: row.chassi || 'N/A',
+        etiqueta_garantia: row.etiqueta_garantia,
+        etiquetaGarantia: row.etiqueta_garantia,
         data_ultima_recarga: row.data_ultima_recarga,
         lastRecarga: row.data_ultima_recarga,
         meses_validade_recarga: row.meses_validade_recarga,
         validadeRecargaMeses: row.meses_validade_recarga,
         ano_ultimo_teste_hidro: row.ano_ultimo_teste_hidro,
         ultimoTesteHidro: row.ano_ultimo_teste_hidro,
+        ano_fabricacao: row.ano_fabricacao,
+        anoFabricacao: row.ano_fabricacao,
         data_pesagem_co2: row.data_pesagem_co2 || null,
         validadeRecarga: validadeRecargaStr
       };
@@ -987,10 +1070,11 @@ export default function ExtintoresPage() {
                         <tr>
                           <th className="p-3 text-center w-12">Row</th>
                           <th className="p-3">Patrimônio</th>
-                          <th className="p-3">Localização</th>
-                          <th className="p-3">Modelo</th>
-                          <th className="p-3">Capacidade</th>
-                          <th className="p-3">Recarga</th>
+                          <th className="p-3">Área / Projeto</th>
+                          <th className="p-3">Setor / Sub-Local</th>
+                          <th className="p-3">Modelo / Selo</th>
+                          <th className="p-3">Carga / Etiqueta</th>
+                          <th className="p-3">Recarga / Hidro / Fab</th>
                           <th className="p-3">Status/Erros</th>
                         </tr>
                       </thead>
@@ -1005,14 +1089,30 @@ export default function ExtintoresPage() {
                             }`}
                           >
                             <td className="p-3 text-center font-bold text-slate-400">{row.rowNum}</td>
-                            <td className="p-3 font-bold">{row.numero_patrimonio || '---'}</td>
+                            <td className="p-3 font-bold">
+                              {row.numero_patrimonio || '---'}
+                              {row.chassi && <span className="text-[8px] text-slate-400 block font-mono">CH: {row.chassi}</span>}
+                            </td>
+                            <td className="p-3 font-medium">
+                              <span className="font-bold text-slate-800">{row.area || 'ÁREA 01'}</span>
+                              <span className="text-[8px] text-slate-500 block font-sans">{row.projeto || 'SALOBO I E II'}</span>
+                            </td>
                             <td className="p-3 font-medium">
                               {row.local || '---'}
                               {row.sub_local && <span className="text-[8px] text-slate-400 block font-sans">{row.sub_local}</span>}
                             </td>
-                            <td className="p-3 font-medium">{row.modelo || '---'}</td>
-                            <td className="p-3 font-bold">{row.peso_capacidade || '---'}</td>
-                            <td className="p-3 font-mono">{row.data_ultima_recarga || '---'}</td>
+                            <td className="p-3 font-medium">
+                              {row.modelo || '---'}
+                              {row.selo_inmetro && <span className="text-[8px] text-slate-400 block font-mono">Selo: {row.selo_inmetro}</span>}
+                            </td>
+                            <td className="p-3 font-bold">
+                              {row.peso_capacidade || '---'}
+                              {row.etiqueta_garantia && <span className="text-[8px] text-emerald-600 block font-mono">GAR: {row.etiqueta_garantia}</span>}
+                            </td>
+                            <td className="p-3 font-mono text-[9px]">
+                              <div>Recarga: {row.data_ultima_recarga || '---'}</div>
+                              <div className="text-[8px] text-slate-400">Hidro: {row.ano_ultimo_teste_hidro} {row.ano_fabricacao ? `| Fab: ${row.ano_fabricacao}` : ''}</div>
+                            </td>
                             <td className="p-3">
                               {row.isValid ? (
                                 <span className="inline-flex items-center gap-1 text-emerald-700 font-bold uppercase bg-emerald-50 border border-emerald-100 px-2 py-0.5 rounded">
@@ -1211,10 +1311,11 @@ export default function ExtintoresPage() {
                         <tr>
                           <th className="p-3 text-center w-12">Row</th>
                           <th className="p-3">Patrimônio</th>
-                          <th className="p-3">Localização</th>
-                          <th className="p-3">Modelo</th>
-                          <th className="p-3">Capacidade</th>
-                          <th className="p-3">Recarga</th>
+                          <th className="p-3">Área / Projeto</th>
+                          <th className="p-3">Setor / Sub-Local</th>
+                          <th className="p-3">Modelo / Selo</th>
+                          <th className="p-3">Carga / Etiqueta</th>
+                          <th className="p-3">Recarga / Hidro / Fab</th>
                           <th className="p-3">Status/Erros</th>
                         </tr>
                       </thead>
@@ -1239,41 +1340,57 @@ export default function ExtintoresPage() {
                               }`}
                             >
                               <td className="p-3 text-center font-bold text-slate-400">{row.rowNum}</td>
-                              <td className="p-3 font-bold">{row.numero_patrimonio || '---'}</td>
-                              
+                              <td className="p-3 font-bold">
+                                {row.numero_patrimonio || '---'}
+                                {row.chassi && <span className="text-[8px] text-slate-400 block font-mono">CH: {row.chassi}</span>}
+                              </td>
+
+                              <td className={`p-3 font-medium ${row.changes.area || row.changes.projeto ? 'bg-amber-50/60' : ''}`}>
+                                <span className="font-bold text-slate-800">{row.area}</span>
+                                <span className="text-[8px] text-slate-500 block font-sans">{row.projeto}</span>
+                                {(row.changes.area || row.changes.projeto) && (
+                                  <span className="text-[8px] text-amber-700 block font-sans leading-none mt-1">
+                                    Antes: {row.originalAsset?.area || 'ÁREA 01'} - {row.originalAsset?.projeto || 'SALOBO I E II'}
+                                  </span>
+                                )}
+                              </td>
+
                               <td className={`p-3 font-medium ${row.changes.local || row.changes.sub_local ? 'bg-amber-50/60' : ''}`}>
                                 {row.local}
                                 {row.sub_local && <span className="text-[8px] text-slate-400 block font-sans">{row.sub_local}</span>}
                                 {(row.changes.local || row.changes.sub_local) && (
-                                  <span className="text-[8px] text-slate-500 block font-sans leading-none mt-1">
+                                  <span className="text-[8px] text-amber-700 block font-sans leading-none mt-1">
                                     Antes: {row.originalAsset?.location || '---'} 
                                     {row.originalAsset?.subLocation ? ` - ${row.originalAsset.subLocation}` : ''}
                                   </span>
                                 )}
                               </td>
 
-                              <td className={`p-3 font-medium ${row.changes.modelo ? 'bg-amber-50/60' : ''}`}>
+                              <td className={`p-3 font-medium ${row.changes.modelo || row.changes.selo_inmetro ? 'bg-amber-50/60' : ''}`}>
                                 {row.modelo}
-                                {row.changes.modelo && (
-                                  <span className="text-[8px] text-slate-500 block font-sans leading-none mt-1">
+                                {row.selo_inmetro && <span className="text-[8px] text-slate-400 block font-mono">Selo: {row.selo_inmetro}</span>}
+                                {(row.changes.modelo || row.changes.selo_inmetro) && (
+                                  <span className="text-[8px] text-amber-700 block font-sans leading-none mt-1">
                                     Antes: {row.originalAsset?.model || '---'}
                                   </span>
                                 )}
                               </td>
 
-                              <td className={`p-3 font-bold ${row.changes.peso_capacidade ? 'bg-amber-50/60' : ''}`}>
+                              <td className={`p-3 font-bold ${row.changes.peso_capacidade || row.changes.etiqueta_garantia ? 'bg-amber-50/60' : ''}`}>
                                 {row.peso_capacidade}
-                                {row.changes.peso_capacidade && (
-                                  <span className="text-[8px] text-slate-500 block font-sans leading-none mt-1">
+                                {row.etiqueta_garantia && <span className="text-[8px] text-emerald-600 block font-mono">GAR: {row.etiqueta_garantia}</span>}
+                                {(row.changes.peso_capacidade || row.changes.etiqueta_garantia) && (
+                                  <span className="text-[8px] text-amber-700 block font-sans leading-none mt-1">
                                     Antes: {row.originalAsset?.peso_capacidade || row.originalAsset?.peso || '---'}
                                   </span>
                                 )}
                               </td>
 
-                              <td className={`p-3 font-mono ${row.changes.data_ultima_recarga ? 'bg-amber-50/60' : ''}`}>
-                                {row.data_ultima_recarga}
-                                {row.changes.data_ultima_recarga && (
-                                  <span className="text-[8px] text-slate-500 block font-sans leading-none mt-1">
+                              <td className={`p-3 font-mono text-[9px] ${row.changes.data_ultima_recarga || row.changes.ano_ultimo_teste_hidro || row.changes.ano_fabricacao ? 'bg-amber-50/60' : ''}`}>
+                                <div>Recarga: {row.data_ultima_recarga}</div>
+                                <div className="text-[8px] text-slate-400">Hidro: {row.ano_ultimo_teste_hidro} {row.ano_fabricacao ? `| Fab: ${row.ano_fabricacao}` : ''}</div>
+                                {(row.changes.data_ultima_recarga || row.changes.ano_ultimo_teste_hidro || row.changes.ano_fabricacao) && (
+                                  <span className="text-[8px] text-amber-700 block font-sans leading-none mt-1">
                                     Antes: {row.originalAsset?.data_ultima_recarga || row.originalAsset?.lastRecarga || '---'}
                                   </span>
                                 )}
