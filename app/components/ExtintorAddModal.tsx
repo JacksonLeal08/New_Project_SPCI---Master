@@ -92,9 +92,9 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
   // Section 2: Dados Técnicos
   const [selectedModel, setSelectedModel] = useState(''); // "AB", "ABC", "ABC-PREMIUM", "CO²", "CUSTOM"
   const [customModelName, setCustomModelName] = useState('');
-  const [formWeightCap, setFormWeightCap] = useState('6KG');
+  const [formWeightCap, setFormWeightCap] = useState('');
   const [formEtiquetaGarantia, setFormEtiquetaGarantia] = useState('');
-  
+
   // Month/Year selects
   const [lastRechargeMonth, setLastRechargeMonth] = useState(new Date().getMonth() + 1);
   const [lastRechargeYear, setLastRechargeYear] = useState(new Date().getFullYear());
@@ -112,11 +112,11 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
 
   // Novas Áreas & Projetos
   const [areasList, setAreasList] = useState<string[]>(DEFAULT_AREAS);
-  const [selectedArea, setSelectedArea] = useState<string>('ÁREA 01');
+  const [selectedArea, setSelectedArea] = useState<string>('');
   const [newAreaInput, setNewAreaInput] = useState<string>('');
 
   const [projetosList, setProjetosList] = useState<string[]>(DEFAULT_PROJETOS);
-  const [selectedProjeto, setSelectedProjeto] = useState<string>('SALOBO I E II');
+  const [selectedProjeto, setSelectedProjeto] = useState<string>('');
   const [newProjetoInput, setNewProjetoInput] = useState<string>('');
 
   // --- IMAGE & COMPRESSION STATES ---
@@ -272,9 +272,9 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         setFormSubLocal('');
         setSelectedSubLocalId('');
         setNewSubLocalName('');
-        setSelectedArea(DEFAULT_AREAS[0]);
+        setSelectedArea('');
         setNewAreaInput('');
-        setSelectedProjeto(DEFAULT_PROJETOS[0]);
+        setSelectedProjeto('');
         setNewProjetoInput('');
         setIsScannerOpen(false);
         setSelectedModel('');
@@ -369,7 +369,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     setFormSelo('');
     setSelectedModel('');
     setCustomModelName('');
-    setFormWeightCap('6KG');
+    setFormWeightCap('');
     setFormEtiquetaGarantia('');
     setLastRechargeMonth(new Date().getMonth() + 1);
     setLastRechargeYear(new Date().getFullYear());
@@ -378,14 +378,14 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     setFormAnoTesteHidro(new Date().getFullYear().toString());
     setFormAnoFabricacao(new Date().getFullYear().toString());
     setFormDataPesagemCo2('');
-    setSelectedLocalId(locaisList.length > 0 ? locaisList[0].id : '');
+    setSelectedLocalId('');
     setNewLocalName('');
     setSelectedSubLocalId('');
     setNewSubLocalName('');
     setFormSubLocal('');
-    setSelectedArea(DEFAULT_AREAS[0]);
+    setSelectedArea('');
     setNewAreaInput('');
-    setSelectedProjeto(DEFAULT_PROJETOS[0]);
+    setSelectedProjeto('');
     setNewProjetoInput('');
     setSelectedFile(null);
     setPreviewUrl(null);
@@ -414,8 +414,8 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     }
 
     // Verify duplicate sector
-    if (selectedLocalId === 'NEW' && !newLocalName.trim()) {
-      alert("Por favor, preencha o nome do novo setor.");
+    if (!selectedArea) {
+      alert("Por favor, selecione a Área.");
       return;
     }
 
@@ -424,8 +424,28 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       return;
     }
 
+    if (!selectedProjeto) {
+      alert("Por favor, selecione o Projeto.");
+      return;
+    }
+
     if (selectedProjeto === 'NEW_PROJETO' && !newProjetoInput.trim()) {
       alert("Por favor, preencha o nome do novo Projeto.");
+      return;
+    }
+
+    if (!selectedLocalId) {
+      alert("Por favor, selecione o Setor da Planta.");
+      return;
+    }
+
+    if (selectedLocalId === 'NEW' && !newLocalName.trim()) {
+      alert("Por favor, preencha o nome do novo setor.");
+      return;
+    }
+
+    if (!selectedSubLocalId) {
+      alert("Por favor, selecione o Sub-Local (Posição Física).");
       return;
     }
 
@@ -822,6 +842,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                       className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
                       required
                     >
+                      <option value="">Selecione...</option>
                       <option value="2KG">2KG</option>
                       <option value="4KG">4KG</option>
                       <option value="4,5KG">4,5KG</option>
@@ -1015,6 +1036,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                     className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
                     required
                   >
+                    <option value="">Selecione...</option>
                     {areasList.map(a => (
                       <option key={a} value={a}>{a}</option>
                     ))}
@@ -1050,6 +1072,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                     className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
                     required
                   >
+                    <option value="">Selecione...</option>
                     {projetosList.map(p => (
                       <option key={p} value={p}>{p}</option>
                     ))}
@@ -1085,6 +1108,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                     className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
                     required
                   >
+                    <option value="">Selecione...</option>
                     {locaisList.map(loc => (
                       <option key={loc.id} value={loc.id}>{loc.nome}</option>
                     ))}
