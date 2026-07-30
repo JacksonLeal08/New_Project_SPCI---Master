@@ -15,13 +15,7 @@ import { copyToClipboard } from '@/lib/utils';
 
 
 const DEFAULT_SITES = [
-  'TODOS OS SITES (Acesso Global)',
-  'SALOBO I E II',
-  'SALOBO III',
-  'SALOBO I, II E III',
-  'SOSSEGO',
-  'ONÇA PUMA',
-  'CARAJÁS'
+  'TODOS OS SITES (Acesso Global)'
 ];
 
 export default function ConfiguracoesPage() {
