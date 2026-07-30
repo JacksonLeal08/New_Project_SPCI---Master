@@ -86,22 +86,27 @@ export async function createUserAction(payload: {
     }
 
     // 2. Upsert na tabela pública public.usuarios (tolerante a duplicatas)
-    const { error: dbError } = await supabaseAdmin.from('usuarios').upsert(
-      [
-        {
-          id: userId,
-          user_name: username,
-          email: email,
-          nome_completo: name,
-          telefone_whatsapp: phone || '',
-          perfil_acesso: role,
-          status_conta: 'Ativo',
-          data_expiracao: expiresAt || null,
-          site: site || 'TODOS'
-        }
-      ],
-      { onConflict: 'id' }
-    );
+    const userPayload: any = {
+      id: userId,
+      user_name: username,
+      email: email,
+      nome_completo: name,
+      telefone_whatsapp: phone || '',
+      perfil_acesso: role,
+      status_conta: 'Ativo',
+      data_expiracao: expiresAt || null,
+      site: site || 'TODOS'
+    };
+
+    let { error: dbError } = await supabaseAdmin.from('usuarios').upsert([userPayload], { onConflict: 'id' });
+
+    // Fallback: se a coluna site não existir no schema da tabela usuarios, remove site e tenta novamente
+    if (dbError && dbError.message.includes('site')) {
+      console.warn('[createUserAction] Coluna site não encontrada em usuarios. Salvando site exclusivamente no Auth metadata...');
+      delete userPayload.site;
+      const fallbackRes = await supabaseAdmin.from('usuarios').upsert([userPayload], { onConflict: 'id' });
+      dbError = fallbackRes.error;
+    }
 
     if (dbError) {
       // Erro crítico: reverter criação no Auth para não deixar órfão
@@ -308,7 +313,7 @@ export async function updateFullUserAction(
     }
 
     // 2. Atualizar ou Upsert na tabela publica usuarios
-    const userPayload = {
+    const userPayload: any = {
       id: userId,
       nome_completo: name,
       user_name: username,
@@ -321,11 +326,21 @@ export async function updateFullUserAction(
       updated_at: new Date().toISOString()
     };
 
-    // Tenta UPDATE direto no ID primeiro (evita checagem de política INSERT do RLS no PostgreSQL)
-    const { error: updateErr } = await supabaseAdmin
+    // Tenta UPDATE direto no ID primeiro
+    let { error: updateErr } = await supabaseAdmin
       .from('usuarios')
       .update(userPayload)
       .eq('id', userId);
+
+    if (updateErr && updateErr.message.includes('site')) {
+      console.warn('[updateFullUserAction] Coluna site ausente no schema da tabela usuarios. Salvando site exclusivamente no Auth metadata...');
+      delete userPayload.site;
+      const fallbackRes = await supabaseAdmin
+        .from('usuarios')
+        .update(userPayload)
+        .eq('id', userId);
+      updateErr = fallbackRes.error;
+    }
 
     if (updateErr) {
       console.warn('[updateFullUserAction] Update direto falhou, tentando upsert:', updateErr.message);
