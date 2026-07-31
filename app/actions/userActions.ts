@@ -300,7 +300,9 @@ export async function updateFullUserAction(
 
     const { name, username, email, phone, role, status, expiresAt, password, allowedModules, site } = payload;
 
-    // 1. Atualizar no Supabase Auth Admin
+    const resolvedSite = site || 'TODOS OS SITES (Acesso Global)';
+
+    // 1. Atualizar no Supabase Auth Admin (FONTE DE VERDADE para o campo site)
     const authUpdatePayload: any = {
       email,
       user_metadata: {
@@ -308,7 +310,7 @@ export async function updateFullUserAction(
         user_name: username,
         perfil_acesso: role,
         data_expiracao: expiresAt,
-        site: site || 'TODOS OS SITES (Acesso Global)'
+        site: resolvedSite
       }
     };
 
@@ -325,9 +327,10 @@ export async function updateFullUserAction(
     const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(userId, authUpdatePayload);
     if (authErr) {
       console.warn('[updateFullUserAction] Auth update warning:', authErr.message);
+      // Não interrompe: o Auth metadata pode falhar em campos ban, mas o site é o mais importante
     }
 
-    // 2. Atualizar ou Upsert na tabela publica usuarios
+    // 2. Atualizar ou Upsert na tabela publica usuarios (com fallback para coluna site)
     const userPayload: any = {
       id: userId,
       nome_completo: name,
@@ -337,7 +340,7 @@ export async function updateFullUserAction(
       perfil_acesso: role,
       status_conta: status,
       data_expiracao: expiresAt || null,
-      site: site || 'TODOS OS SITES (Acesso Global)',
+      site: resolvedSite,
       updated_at: new Date().toISOString()
     };
 
@@ -347,14 +350,36 @@ export async function updateFullUserAction(
       .update(userPayload)
       .eq('id', userId);
 
+    // Fallback: se a coluna site não existir no schema, remove e tenta novamente
+    if (updateErr && (updateErr.message.includes('site') || updateErr.message.includes('column'))) {
+      console.warn('[updateFullUserAction] Coluna site não encontrada. Salvando site exclusivamente no Auth metadata.');
+      delete userPayload.site;
+      const { error: retryErr } = await supabaseAdmin
+        .from('usuarios')
+        .update(userPayload)
+        .eq('id', userId);
+      updateErr = retryErr;
+    }
+
     if (updateErr) {
       console.warn('[updateFullUserAction] Update direto falhou, tentando upsert:', updateErr.message);
-      const { error: upsertErr } = await supabaseAdmin
+      // Re-adiciona site para o upsert (pode funcionar se a tabela aceitar)
+      userPayload.site = resolvedSite;
+      let { error: upsertErr } = await supabaseAdmin
         .from('usuarios')
         .upsert([userPayload], { onConflict: 'id' });
 
+      // Fallback upsert sem site
+      if (upsertErr && (upsertErr.message.includes('site') || upsertErr.message.includes('column'))) {
+        delete userPayload.site;
+        const { error: upsertRetry } = await supabaseAdmin
+          .from('usuarios')
+          .upsert([userPayload], { onConflict: 'id' });
+        upsertErr = upsertRetry;
+      }
+
       if (upsertErr) {
-        console.warn('[updateFullUserAction] Erro no upsert:', upsertErr.message);
+        return { success: false, error: `Erro ao atualizar perfil no banco: ${upsertErr.message}` };
       }
     }
 
@@ -423,14 +448,25 @@ export async function getUsersListAction() {
     (dbUsers || []).forEach((u: any) => {
       const existing = userMap.get(u.id);
 
-      // Resolve o site priorizando nome especifico entre banco publico e Auth metadata
-      let resolvedSite = u.site;
-      if (!resolvedSite || resolvedSite === 'TODOS OS SITES (Acesso Global)' || resolvedSite === 'TODOS') {
-        if (existing?.site && existing.site !== 'TODOS OS SITES (Acesso Global)' && existing.site !== 'TODOS') {
-          resolvedSite = existing.site;
-        }
-      }
-      if (!resolvedSite) {
+      // Função auxiliar: determina se um site é genérico (default) ou específico
+      const isGenericSite = (s: string | null | undefined): boolean => {
+        if (!s) return true;
+        const normalized = s.trim().toUpperCase();
+        return normalized === '' || normalized === 'TODOS' || normalized === 'TODOS OS SITES (ACESSO GLOBAL)';
+      };
+
+      // Resolve o site: prioriza o valor mais específico entre banco e Auth metadata
+      const dbSite = u.site;
+      const authSite = existing?.site;
+      let resolvedSite: string;
+
+      if (!isGenericSite(dbSite)) {
+        // Banco tem site específico → usa o do banco
+        resolvedSite = dbSite;
+      } else if (!isGenericSite(authSite)) {
+        // Auth tem site específico mas banco não → usa o do Auth
+        resolvedSite = authSite;
+      } else {
         resolvedSite = 'TODOS OS SITES (Acesso Global)';
       }
 
@@ -504,6 +540,7 @@ export async function createLogAction(payload: {
 
 /**
  * Server Action para salvar um novo Site na tabela "locais" do Supabase.
+ * Verifica duplicatas antes de inserir (não depende de constraint UNIQUE).
  */
 export async function createSiteAction(siteName: string) {
   try {
@@ -511,11 +548,28 @@ export async function createSiteAction(siteName: string) {
     const trimmed = siteName.trim().toUpperCase();
     if (!trimmed) return { success: false, error: 'Nome do site não pode ser vazio.' };
 
+    // Verifica se o site já existe na tabela locais
+    const { data: existing } = await supabaseAdmin
+      .from('locais')
+      .select('id, nome')
+      .ilike('nome', trimmed)
+      .limit(1);
+
+    if (existing && existing.length > 0) {
+      // Já existe — retorna sucesso sem duplicar
+      return { success: true, alreadyExists: true };
+    }
+
+    // Insere novo registro
     const { error } = await supabaseAdmin
       .from('locais')
-      .upsert({ nome: trimmed }, { onConflict: 'nome' });
+      .insert({ nome: trimmed });
 
     if (error) {
+      // Fallback: pode ser um erro de constraint duplicada (409)
+      if (error.message.includes('duplicate') || error.message.includes('unique') || error.code === '23505') {
+        return { success: true, alreadyExists: true };
+      }
       console.warn('[createSiteAction] Aviso ao salvar site na tabela locais:', error.message);
       return { success: false, error: error.message };
     }

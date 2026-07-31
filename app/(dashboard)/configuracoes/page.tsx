@@ -84,7 +84,7 @@ export default function ConfiguracoesPage() {
     return () => { isMounted = false; };
   }, [userList]);
 
-  const handleAddNewSite = (newSiteName: string, targetModal: 'invite' | 'edit') => {
+  const handleAddNewSite = async (newSiteName: string, targetModal: 'invite' | 'edit') => {
     const trimmed = newSiteName.trim().toUpperCase();
     if (!trimmed) return;
 
@@ -113,8 +113,15 @@ export default function ConfiguracoesPage() {
       console.warn('Erro salvando novos sites:', e);
     }
 
-    // Persiste no banco Supabase (tabela public.locais)
-    createSiteAction(trimmed).catch(console.error);
+    // Persiste no banco Supabase (tabela public.locais) e aguarda resultado
+    try {
+      const siteRes = await createSiteAction(trimmed);
+      if (!siteRes.success) {
+        showAlertModal('Erro ao Salvar Site ❌', `O site "${trimmed}" foi adicionado localmente, mas falhou ao gravar no Supabase: ${siteRes.error}`, 'error');
+      }
+    } catch (dbErr: any) {
+      showAlertModal('Erro ao Salvar Site ❌', `Falha ao gravar "${trimmed}" no banco de dados: ${dbErr?.message || dbErr}`, 'error');
+    }
 
     if (targetModal === 'invite') {
       setInviteSite(trimmed);
