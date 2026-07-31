@@ -36,7 +36,8 @@ export default function ConfiguracoesPage() {
     handleInviteUser,
     handleUpdateLogoAndProfile,
     triggerSuccessNotification,
-    addConsoleLog
+    addConsoleLog,
+    showAlertModal
   } = useSpci();
 
   // Navigation tab state
@@ -90,7 +91,7 @@ export default function ConfiguracoesPage() {
     // Check duplicate (case-insensitive)
     const existing = sitesList.find(s => s.toLowerCase() === trimmed.toLowerCase());
     if (existing) {
-      alert(`O site "${existing}" já está cadastrado no sistema!`);
+      showAlertModal('Site Já Cadastrado 🏢', `O site "${existing}" já está registrado e disponível no sistema!`, 'warning');
       if (targetModal === 'invite') {
         setInviteSite(existing);
         setShowNewInviteSiteInput(false);
@@ -1234,7 +1235,7 @@ export default function ConfiguracoesPage() {
                   });
                   setEditingUser(null);
                 } catch (err: any) {
-                  alert(`Erro ao salvar perfil: ${err.message || err}`);
+                  showAlertModal('Erro ao Salvar Perfil ❌', err.message || 'Ocorreu um erro ao atualizar os dados no Supabase.', 'error');
                 } finally {
                   setSavingEdit(false);
                 }

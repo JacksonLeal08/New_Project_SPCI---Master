@@ -29,6 +29,7 @@ import { NotificationItem } from '@/lib/types';
 import { createUserAction, deleteUserAction, updateUserStatusAction, updateFullUserAction, createLogAction } from '@/app/actions/userActions';
 import { getChecklistItemsAction } from '@/app/actions/checklistActions';
 import { DEFAULT_EXTINTOR_CHECKLIST } from '@/app/components/ChecklistEditModal';
+import { CustomAlertDialog, AlertType } from '@/app/components/CustomAlertDialog';
 
 
 // --- INITIAL SEED DATA ---
@@ -177,6 +178,9 @@ interface SpciContextType {
   markAllNotificationsAsRead: () => Promise<void>;
   deleteNotification: (id: string) => Promise<void>;
   clearAllNotifications: () => Promise<void>;
+
+  // Custom Alert Modal System
+  showAlertModal: (title: string, message: string, type?: AlertType) => void;
 }
 
 const generateUUID = () => {
@@ -199,6 +203,32 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [authChecking, setAuthChecking] = useState<boolean>(true);
   const [userList, setUserList] = useState<any[]>([]);
   const [loadingUsersList, setLoadingUsersList] = useState(false);
+
+  // Custom Alert Modal State
+  const [alertModalState, setAlertModalState] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: AlertType;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'warning'
+  });
+
+  const showAlertModal = useCallback((title: string, message: string, type: AlertType = 'warning') => {
+    setAlertModalState({
+      isOpen: true,
+      title,
+      message,
+      type
+    });
+  }, []);
+
+  const closeAlertModal = useCallback(() => {
+    setAlertModalState(prev => ({ ...prev, isOpen: false }));
+  }, []);
 
   // Data lists
   const [extintores, setExtintores] = useState<any[]>([]);
@@ -1470,9 +1500,17 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       requestAssetDeletion,
       lastSyncTime,
       auditLogs,
-      logSystemAction
+      logSystemAction,
+      showAlertModal
     }}>
       {children}
+      <CustomAlertDialog
+        isOpen={alertModalState.isOpen}
+        title={alertModalState.title}
+        message={alertModalState.message}
+        type={alertModalState.type}
+        onClose={closeAlertModal}
+      />
     </SpciContext.Provider>
   );
 };
