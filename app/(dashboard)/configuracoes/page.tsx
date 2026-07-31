@@ -587,9 +587,13 @@ export default function ConfiguracoesPage() {
                               )}
                             </td>
                             <td className="p-4">
-                              <span className="px-2 py-1 bg-blue-50 text-blue-700 border border-blue-100 rounded-md font-mono text-[9px] font-bold uppercase inline-block">
-                                🏢 {u.site || 'TODOS OS SITES'}
-                              </span>
+                               <span className={`px-2.5 py-1 rounded-md font-mono text-[9px] font-extrabold uppercase inline-block border shadow-xs ${
+                                 !u.site || u.site.startsWith('TODOS')
+                                   ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                   : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                               }`}>
+                                 {!u.site || u.site.startsWith('TODOS') ? '🌐 TODOS OS SITES' : `📍 ${u.site}`}
+                               </span>
                             </td>
                             <td className="p-4">
                               <select 

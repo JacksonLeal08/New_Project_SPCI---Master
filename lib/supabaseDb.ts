@@ -12,6 +12,7 @@ export interface UserProfile {
   logoUrl: string;
   role: 'Desenvolvedor' | 'Administrador' | 'Usuário';
   status: string;
+  site?: string;
   telefoneWhatsapp: string;
   dataExpiracao?: string | null;
   createdAt: string;
@@ -54,6 +55,7 @@ const deserializeProfile = (row: any): UserProfile => {
     logoUrl: row.logo_url || '',
     role: (row.perfil_acesso || row.role) as 'Desenvolvedor' | 'Administrador' | 'Usuário',
     status: mappedStatus,
+    site: row.site || 'TODOS OS SITES (Acesso Global)',
     telefoneWhatsapp: row.telefone_whatsapp || '',
     dataExpiracao: row.data_expiracao || null,
     createdAt: row.created_at,
@@ -432,6 +434,7 @@ export async function getAllUserProfiles(): Promise<UserProfile[]> {
         logoUrl: '',
         role: u.role as any,
         status: u.status,
+        site: u.site || 'TODOS OS SITES (Acesso Global)',
         telefoneWhatsapp: u.phone || '',
         dataExpiracao: u.dataExpiracao,
         createdAt: u.createdAt || new Date().toISOString(),

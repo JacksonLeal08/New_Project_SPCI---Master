@@ -72,7 +72,7 @@ export async function createUserAction(payload: {
         user_name: username,
         full_name: name,
         perfil_acesso: role,
-        site: site || 'TODOS'
+        site: site || 'TODOS OS SITES (Acesso Global)'
       }
     });
 
@@ -293,7 +293,7 @@ export async function updateFullUserAction(
         user_name: username,
         perfil_acesso: role,
         data_expiracao: expiresAt,
-        site: site || 'TODOS'
+        site: site || 'TODOS OS SITES (Acesso Global)'
       }
     };
 
@@ -322,7 +322,7 @@ export async function updateFullUserAction(
       perfil_acesso: role,
       status_conta: status,
       data_expiracao: expiresAt || null,
-      site: site || 'TODOS',
+      site: site || 'TODOS OS SITES (Acesso Global)',
       updated_at: new Date().toISOString()
     };
 
@@ -408,7 +408,7 @@ export async function getUsersListAction() {
         phone: meta.telefone_whatsapp || authUser.phone || '',
         role: meta.perfil_acesso || meta.role || 'Usuário',
         status: authUser.banned_until ? 'Inativo/Suspenso' : 'Ativo',
-        site: meta.site || 'TODOS',
+        site: meta.site || 'TODOS OS SITES (Acesso Global)',
         dataExpiracao: meta.data_expiracao || null,
         createdAt: authUser.created_at || new Date().toISOString()
       });
@@ -425,7 +425,7 @@ export async function getUsersListAction() {
         phone: u.telefone_whatsapp || existing?.phone || '',
         role: u.perfil_acesso || existing?.role || 'Usuário',
         status: u.status_conta || existing?.status || 'Ativo',
-        site: u.site || existing?.site || 'TODOS',
+        site: u.site || existing?.site || 'TODOS OS SITES (Acesso Global)',
         dataExpiracao: u.data_expiracao || existing?.dataExpiracao || null,
         createdAt: u.created_at || existing?.createdAt || new Date().toISOString()
       });
