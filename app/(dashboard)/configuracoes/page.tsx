@@ -12,6 +12,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
+import { createSiteAction, fetchSitesAction } from '@/app/actions/userActions';
 
 
 const DEFAULT_SITES = [
@@ -57,18 +58,29 @@ export default function ConfiguracoesPage() {
   const [newEditSiteInput, setNewEditSiteInput] = useState<string>('');
   const [showNewEditSiteInput, setShowNewEditSiteInput] = useState<boolean>(false);
 
-  // Sync sites with localStorage & existing userList sites on load
+  // Sync sites with localStorage, public.locais table & existing userList sites on load
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('spci_custom_sites');
-      let customSites: string[] = stored ? JSON.parse(stored) : [];
-      const userSites = userList.map(u => u.site).filter(Boolean);
+    let isMounted = true;
+    const syncAllSites = async () => {
+      try {
+        const stored = localStorage.getItem('spci_custom_sites');
+        let customSites: string[] = stored ? JSON.parse(stored) : [];
+        const userSites = userList.map(u => u.site).filter(Boolean);
 
-      const combined = Array.from(new Set([...DEFAULT_SITES, ...customSites, ...userSites]));
-      setSitesList(combined);
-    } catch (e) {
-      console.warn('Erro ao carregar lista de sites:', e);
-    }
+        const dbRes = await fetchSitesAction();
+        const dbSites = dbRes.sites || [];
+
+        if (isMounted) {
+          const combined = Array.from(new Set([...DEFAULT_SITES, ...customSites, ...userSites, ...dbSites]));
+          setSitesList(combined);
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar lista de sites:', e);
+      }
+    };
+
+    syncAllSites();
+    return () => { isMounted = false; };
   }, [userList]);
 
   const handleAddNewSite = (newSiteName: string, targetModal: 'invite' | 'edit') => {
@@ -100,6 +112,9 @@ export default function ConfiguracoesPage() {
       console.warn('Erro salvando novos sites:', e);
     }
 
+    // Persiste no banco Supabase (tabela public.locais)
+    createSiteAction(trimmed).catch(console.error);
+
     if (targetModal === 'invite') {
       setInviteSite(trimmed);
       setShowNewInviteSiteInput(false);
@@ -110,7 +125,7 @@ export default function ConfiguracoesPage() {
       setNewEditSiteInput('');
     }
 
-    triggerSuccessNotification('Novo Site Cadastrado! 🏢', `O site "${trimmed}" foi registrado e salvo no sistema.`);
+    triggerSuccessNotification('Novo Site Cadastrado! 🏢', `O site "${trimmed}" foi registrado e salvo no Supabase (tabela locais).`);
   };
 
   // Sync profile details locally on profile load

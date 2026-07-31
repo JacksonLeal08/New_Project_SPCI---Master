@@ -332,16 +332,6 @@ export async function updateFullUserAction(
       .update(userPayload)
       .eq('id', userId);
 
-    if (updateErr && updateErr.message.includes('site')) {
-      console.warn('[updateFullUserAction] Coluna site ausente no schema da tabela usuarios. Salvando site exclusivamente no Auth metadata...');
-      delete userPayload.site;
-      const fallbackRes = await supabaseAdmin
-        .from('usuarios')
-        .update(userPayload)
-        .eq('id', userId);
-      updateErr = fallbackRes.error;
-    }
-
     if (updateErr) {
       console.warn('[updateFullUserAction] Update direto falhou, tentando upsert:', updateErr.message);
       const { error: upsertErr } = await supabaseAdmin
@@ -349,7 +339,7 @@ export async function updateFullUserAction(
         .upsert([userPayload], { onConflict: 'id' });
 
       if (upsertErr) {
-        return { success: false, error: `Erro ao salvar atualizações na tabela usuarios: ${upsertErr.message}` };
+        console.warn('[updateFullUserAction] Erro no upsert:', upsertErr.message);
       }
     }
 
@@ -417,6 +407,18 @@ export async function getUsersListAction() {
     // Sobrescreve com dados atualizados da tabela publica "usuarios" (prioridade ao banco)
     (dbUsers || []).forEach((u: any) => {
       const existing = userMap.get(u.id);
+
+      // Resolve o site priorizando nome especifico entre banco publico e Auth metadata
+      let resolvedSite = u.site;
+      if (!resolvedSite || resolvedSite === 'TODOS OS SITES (Acesso Global)' || resolvedSite === 'TODOS') {
+        if (existing?.site && existing.site !== 'TODOS OS SITES (Acesso Global)' && existing.site !== 'TODOS') {
+          resolvedSite = existing.site;
+        }
+      }
+      if (!resolvedSite) {
+        resolvedSite = 'TODOS OS SITES (Acesso Global)';
+      }
+
       userMap.set(u.id, {
         uid: u.id,
         name: u.nome_completo || u.user_name || existing?.name || 'Sem nome',
@@ -425,7 +427,7 @@ export async function getUsersListAction() {
         phone: u.telefone_whatsapp || existing?.phone || '',
         role: u.perfil_acesso || existing?.role || 'Usuário',
         status: u.status_conta || existing?.status || 'Ativo',
-        site: u.site || existing?.site || 'TODOS OS SITES (Acesso Global)',
+        site: resolvedSite,
         dataExpiracao: u.data_expiracao || existing?.dataExpiracao || null,
         createdAt: u.created_at || existing?.createdAt || new Date().toISOString()
       });
@@ -482,5 +484,52 @@ export async function createLogAction(payload: {
   } catch (err: any) {
     console.warn('[createLogAction Catch]:', err);
     return { success: false, error: err.message || 'Erro ao gravar log.' };
+  }
+}
+
+/**
+ * Server Action para salvar um novo Site na tabela "locais" do Supabase.
+ */
+export async function createSiteAction(siteName: string) {
+  try {
+    const supabaseAdmin = getSupabaseAdminClient();
+    const trimmed = siteName.trim().toUpperCase();
+    if (!trimmed) return { success: false, error: 'Nome do site não pode ser vazio.' };
+
+    const { error } = await supabaseAdmin
+      .from('locais')
+      .upsert({ nome: trimmed }, { onConflict: 'nome' });
+
+    if (error) {
+      console.warn('[createSiteAction] Aviso ao salvar site na tabela locais:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('[createSiteAction Catch]', err);
+    return { success: false, error: err.message || 'Erro ao salvar site.' };
+  }
+}
+
+/**
+ * Server Action para buscar todos os Sites cadastrados na tabela "locais" do Supabase.
+ */
+export async function fetchSitesAction() {
+  try {
+    const supabaseAdmin = getSupabaseAdminClient();
+    const { data, error } = await supabaseAdmin
+      .from('locais')
+      .select('nome')
+      .order('nome', { ascending: true });
+
+    if (error) {
+      console.warn('[fetchSitesAction] Aviso ao buscar locais:', error.message);
+      return { success: false, sites: [] };
+    }
+    const sites = (data || []).map((r: any) => r.nome).filter(Boolean);
+    return { success: true, sites };
+  } catch (err: any) {
+    console.error('[fetchSitesAction Catch]', err);
+    return { success: false, sites: [] };
   }
 }

@@ -1221,7 +1221,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     phone: string,
     expiresAt: string | null = null,
     allowedModules: string[] | null = null,
-    site: string | null = 'TODOS'
+    site: string | null = 'TODOS OS SITES (Acesso Global)'
   ) => {
     addConsoleLog(`[Onboarding] Cadastrando colaborador ${name} (${role})...`);
     try {
@@ -1251,7 +1251,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         photoURL: '',
         logoUrl: '',
         role: role,
-        site: site || 'TODOS',
+        site: site || 'TODOS OS SITES (Acesso Global)',
         status: 'Ativo',
         telefoneWhatsapp: phone || '',
         dataExpiracao: expiresAt,
