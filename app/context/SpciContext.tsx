@@ -1230,17 +1230,27 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const handleAdminDeleteUser = useCallback(async (uid: string) => {
     try {
+      if (currentUser && currentUser.uid === uid) {
+        showAlertModal("Ação Não Permitida 🔒", "Você não pode excluir sua própria conta enquanto estiver conectado com ela.", "warning");
+        return;
+      }
+      const targetUser = userList.find(u => u.uid === uid);
+      if (targetUser && targetUser.email?.toLowerCase() === 'jacksonflr@outlook.com.br') {
+        showAlertModal("Ação Não Permitida 🛡️", "O perfil Desenvolvedor Master é protegido contra exclusões no sistema.", "warning");
+        return;
+      }
+
       const res = await deleteUserAction(uid);
       if (!res.success) {
         throw new Error(res.error || 'Falha ao excluir colaborador.');
       }
       await fetchUsers();
-      triggerSuccessNotification("Excluído com Sucesso! 🗑️", "A credencial foi deletada de forma definitiva.");
+      triggerSuccessNotification("Excluído com Sucesso! 🗑️", "A credencial do colaborador foi removida do sistema.");
     } catch (err: any) {
       console.error(err);
-      triggerSuccessNotification("Falha ao Deletar ❌", err.message || "Permissão insuficiente.");
+      showAlertModal("Falha ao Deletar ❌", err.message || "Permissão insuficiente para excluir a conta.", "error");
     }
-  }, [fetchUsers, triggerSuccessNotification]);
+  }, [currentUser, userList, fetchUsers, triggerSuccessNotification, showAlertModal]);
 
   const handleInviteUser = useCallback(async (
     email: string, 

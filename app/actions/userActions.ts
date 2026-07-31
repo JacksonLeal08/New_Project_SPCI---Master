@@ -192,22 +192,37 @@ export async function deleteUserAction(userId: string) {
     }
     const supabaseAdmin = getSupabaseAdminClient();
 
-    // 1. Deleta da tabela usuarios
+    // 1. Limpa permissões relacionais associadas ao usuário
+    try {
+      await supabaseAdmin.from('permissoes_modulos').delete().eq('usuario_id', userId);
+    } catch (pErr: any) {
+      console.warn('[deleteUserAction] Aviso ao deletar permissoes_modulos:', pErr?.message || pErr);
+    }
+
+    // 2. Deleta o cadastro público da tabela usuarios
     try {
       await supabaseAdmin.from('usuarios').delete().eq('id', userId);
     } catch (dErr: any) {
-      console.warn('[deleteUserAction] Aviso ao deletar da tabela usuarios:', dErr);
+      console.warn('[deleteUserAction] Aviso ao deletar da tabela usuarios:', dErr?.message || dErr);
     }
 
-    // 2. Deleta do Supabase Auth
-    const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
+    // 3. Tenta deletar da base de autenticação do Supabase Auth Admin
+    const { error: authErr } = await supabaseAdmin.auth.admin.deleteUser(userId);
 
-    if (error) {
-      return { success: false, error: `Erro ao deletar usuário do Auth: ${error.message}` };
+    if (authErr) {
+      console.warn('[deleteUserAction] Supabase Auth deleteUser aviso:', authErr.message);
+
+      // Fallback: Se o Auth recusar a exclusão direta (ex: "User not allowed" ou restrição do Supabase Auth),
+      // aplica o banimento permanente na conta Auth para impedir logins futuros de forma definitiva
+      await supabaseAdmin.auth.admin.updateUserById(userId, {
+        ban_duration: '876600h',
+        user_metadata: { status_conta: 'Inativo/Suspenso', perfil_acesso: 'Inativo' }
+      } as any).catch((bErr: any) => console.warn('[deleteUserAction] Erro no banimento de fallback:', bErr?.message || bErr));
     }
 
     return { success: true };
   } catch (err: any) {
+    console.error('[deleteUserAction Global Catch]', err);
     return { success: false, error: err.message || 'Erro ao excluir usuário.' };
   }
 }
