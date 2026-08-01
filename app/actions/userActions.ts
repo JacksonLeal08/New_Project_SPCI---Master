@@ -275,7 +275,8 @@ export async function updateUserStatusAction(
 
 /**
  * Server Action para atualização completa de perfil do colaborador (RBAC, dados pessoais, validade, senha e permissões).
- * Garante a sincronização atômica na tabela usuarios, metadados do Supabase Auth e permissões modulares.
+ * O campo SITE é salvo EXCLUSIVAMENTE no Auth metadata (fonte de verdade única).
+ * A tabela public.usuarios é atualizada sem o campo site (pode não existir no schema).
  */
 export async function updateFullUserAction(
   userId: string,
@@ -302,7 +303,7 @@ export async function updateFullUserAction(
 
     const resolvedSite = site || 'TODOS OS SITES (Acesso Global)';
 
-    // 1. Atualizar no Supabase Auth Admin (FONTE DE VERDADE para o campo site)
+    // 1. Atualizar no Supabase Auth Admin — FONTE DE VERDADE ÚNICA para o campo site
     const authUpdatePayload: any = {
       email,
       user_metadata: {
@@ -326,11 +327,10 @@ export async function updateFullUserAction(
 
     const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(userId, authUpdatePayload);
     if (authErr) {
-      console.warn('[updateFullUserAction] Auth update warning:', authErr.message);
-      // Não interrompe: o Auth metadata pode falhar em campos ban, mas o site é o mais importante
+      return { success: false, error: `Erro ao atualizar Auth metadata: ${authErr.message}` };
     }
 
-    // 2. Atualizar ou Upsert na tabela publica usuarios (com fallback para coluna site)
+    // 2. Atualizar tabela public.usuarios (SEM o campo site — ele não existe na tabela)
     const userPayload: any = {
       id: userId,
       nome_completo: name,
@@ -340,46 +340,22 @@ export async function updateFullUserAction(
       perfil_acesso: role,
       status_conta: status,
       data_expiracao: expiresAt || null,
-      site: resolvedSite,
       updated_at: new Date().toISOString()
     };
 
-    // Tenta UPDATE direto no ID primeiro
     let { error: updateErr } = await supabaseAdmin
       .from('usuarios')
       .update(userPayload)
       .eq('id', userId);
 
-    // Fallback: se a coluna site não existir no schema, remove e tenta novamente
-    if (updateErr && (updateErr.message.includes('site') || updateErr.message.includes('column'))) {
-      console.warn('[updateFullUserAction] Coluna site não encontrada. Salvando site exclusivamente no Auth metadata.');
-      delete userPayload.site;
-      const { error: retryErr } = await supabaseAdmin
-        .from('usuarios')
-        .update(userPayload)
-        .eq('id', userId);
-      updateErr = retryErr;
-    }
-
     if (updateErr) {
-      console.warn('[updateFullUserAction] Update direto falhou, tentando upsert:', updateErr.message);
-      // Re-adiciona site para o upsert (pode funcionar se a tabela aceitar)
-      userPayload.site = resolvedSite;
-      let { error: upsertErr } = await supabaseAdmin
+      // Fallback para upsert caso o registro ainda não exista na tabela
+      const { error: upsertErr } = await supabaseAdmin
         .from('usuarios')
         .upsert([userPayload], { onConflict: 'id' });
 
-      // Fallback upsert sem site
-      if (upsertErr && (upsertErr.message.includes('site') || upsertErr.message.includes('column'))) {
-        delete userPayload.site;
-        const { error: upsertRetry } = await supabaseAdmin
-          .from('usuarios')
-          .upsert([userPayload], { onConflict: 'id' });
-        upsertErr = upsertRetry;
-      }
-
       if (upsertErr) {
-        return { success: false, error: `Erro ao atualizar perfil no banco: ${upsertErr.message}` };
+        console.warn('[updateFullUserAction] Erro no upsert da tabela usuarios:', upsertErr.message);
       }
     }
 
@@ -444,31 +420,13 @@ export async function getUsersListAction() {
       });
     });
 
-    // Sobrescreve com dados atualizados da tabela publica "usuarios" (prioridade ao banco)
+    // Mescla dados da tabela publica com Auth — Auth metadata TEM PRIORIDADE para o campo site
     (dbUsers || []).forEach((u: any) => {
       const existing = userMap.get(u.id);
 
-      // Função auxiliar: determina se um site é genérico (default) ou específico
-      const isGenericSite = (s: string | null | undefined): boolean => {
-        if (!s) return true;
-        const normalized = s.trim().toUpperCase();
-        return normalized === '' || normalized === 'TODOS' || normalized === 'TODOS OS SITES (ACESSO GLOBAL)';
-      };
-
-      // Resolve o site: prioriza o valor mais específico entre banco e Auth metadata
-      const dbSite = u.site;
-      const authSite = existing?.site;
-      let resolvedSite: string;
-
-      if (!isGenericSite(dbSite)) {
-        // Banco tem site específico → usa o do banco
-        resolvedSite = dbSite;
-      } else if (!isGenericSite(authSite)) {
-        // Auth tem site específico mas banco não → usa o do Auth
-        resolvedSite = authSite;
-      } else {
-        resolvedSite = 'TODOS OS SITES (Acesso Global)';
-      }
+      // SITE: Auth metadata é a FONTE DE VERDADE ÚNICA
+      // O campo site pode não existir na tabela usuarios, por isso Auth sempre prevalece
+      const authSite = existing?.site || 'TODOS OS SITES (Acesso Global)';
 
       userMap.set(u.id, {
         uid: u.id,
@@ -478,7 +436,7 @@ export async function getUsersListAction() {
         phone: u.telefone_whatsapp || existing?.phone || '',
         role: u.perfil_acesso || existing?.role || 'Usuário',
         status: u.status_conta || existing?.status || 'Ativo',
-        site: resolvedSite,
+        site: authSite,
         dataExpiracao: u.data_expiracao || existing?.dataExpiracao || null,
         createdAt: u.created_at || existing?.createdAt || new Date().toISOString()
       });
@@ -600,5 +558,30 @@ export async function fetchSitesAction() {
   } catch (err: any) {
     console.error('[fetchSitesAction Catch]', err);
     return { success: false, sites: [] };
+  }
+}
+
+/**
+ * Server Action para excluir um Site da tabela "locais" do Supabase.
+ */
+export async function deleteSiteAction(siteName: string) {
+  try {
+    const supabaseAdmin = getSupabaseAdminClient();
+    const trimmed = siteName.trim().toUpperCase();
+    if (!trimmed) return { success: false, error: 'Nome do site não pode ser vazio.' };
+
+    const { error } = await supabaseAdmin
+      .from('locais')
+      .delete()
+      .ilike('nome', trimmed);
+
+    if (error) {
+      console.warn('[deleteSiteAction] Aviso ao excluir site:', error.message);
+      return { success: false, error: error.message };
+    }
+    return { success: true };
+  } catch (err: any) {
+    console.error('[deleteSiteAction Catch]', err);
+    return { success: false, error: err.message || 'Erro ao excluir site.' };
   }
 }

@@ -12,7 +12,7 @@ import {
   Pencil
 } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
-import { createSiteAction, fetchSitesAction } from '@/app/actions/userActions';
+import { createSiteAction, fetchSitesAction, deleteSiteAction } from '@/app/actions/userActions';
 
 
 const DEFAULT_SITES = [
@@ -134,6 +134,39 @@ export default function ConfiguracoesPage() {
     }
 
     triggerSuccessNotification('Novo Site Cadastrado! 🏢', `O site "${trimmed}" foi registrado e salvo no Supabase (tabela locais).`);
+  };
+
+  const handleDeleteSite = async (siteName: string) => {
+    // Protege o site default — não pode ser excluído
+    if (DEFAULT_SITES.includes(siteName)) {
+      showAlertModal('Ação Bloqueada 🔒', 'O site "TODOS OS SITES (Acesso Global)" é padrão do sistema e não pode ser removido.', 'warning');
+      return;
+    }
+
+    try {
+      // Remove do Supabase (tabela locais)
+      const res = await deleteSiteAction(siteName);
+      if (!res.success) {
+        showAlertModal('Erro ao Excluir Site ❌', res.error || 'Falha ao remover o site do banco de dados.', 'error');
+        return;
+      }
+
+      // Remove do estado local
+      const updatedSites = sitesList.filter(s => s.toUpperCase() !== siteName.toUpperCase());
+      setSitesList(updatedSites);
+
+      // Limpa do localStorage
+      try {
+        const customOnly = updatedSites.filter(s => !DEFAULT_SITES.includes(s));
+        localStorage.setItem('spci_custom_sites', JSON.stringify(customOnly));
+      } catch (e) {
+        console.warn('Erro limpando localStorage:', e);
+      }
+
+      triggerSuccessNotification('Site Removido! 🗑️', `O site "${siteName}" foi excluído do sistema e do Supabase.`);
+    } catch (err: any) {
+      showAlertModal('Erro ao Excluir Site ❌', err?.message || 'Falha inesperada.', 'error');
+    }
   };
 
   // Sync profile details locally on profile load
@@ -1302,25 +1335,44 @@ export default function ConfiguracoesPage() {
 
               <div className="space-y-1">
                 <label className="block text-[9px] font-bold uppercase text-slate-500">Site / Planta (Localidade dos Ativos)</label>
-                <select
-                  value={showNewEditSiteInput ? '+ ADD_NEW_SITE' : editSite}
-                  onChange={(e) => {
-                    if (e.target.value === '+ ADD_NEW_SITE') {
-                      setShowNewEditSiteInput(true);
-                    } else {
-                      setShowNewEditSiteInput(false);
-                      setEditSite(e.target.value);
-                    }
-                  }}
-                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
-                >
-                  {sitesList.map((site) => (
-                    <option key={site} value={site}>
-                      {site.startsWith('TODOS') ? '🌐 TODOS OS SITES (Acesso Global)' : `📍 ${site}`}
-                    </option>
-                  ))}
-                  <option value="+ ADD_NEW_SITE">➕ + Adicionar Novo Site</option>
-                </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={showNewEditSiteInput ? '+ ADD_NEW_SITE' : editSite}
+                    onChange={(e) => {
+                      if (e.target.value === '+ ADD_NEW_SITE') {
+                        setShowNewEditSiteInput(true);
+                      } else {
+                        setShowNewEditSiteInput(false);
+                        setEditSite(e.target.value);
+                      }
+                    }}
+                    className="flex-1 bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
+                  >
+                    {sitesList.map((site) => (
+                      <option key={site} value={site}>
+                        {site.startsWith('TODOS') ? '🌐 TODOS OS SITES (Acesso Global)' : `📍 ${site}`}
+                      </option>
+                    ))}
+                    <option value="+ ADD_NEW_SITE">➕ + Adicionar Novo Site</option>
+                  </select>
+
+                  {/* Botão de exclusão do site selecionado (oculto para site default) */}
+                  {editSite && !DEFAULT_SITES.includes(editSite) && !showNewEditSiteInput && (
+                    <button
+                      type="button"
+                      title={`Excluir site "${editSite}" do sistema`}
+                      onClick={() => {
+                        if (confirm(`Deseja realmente excluir o site "${editSite}" do sistema?`)) {
+                          handleDeleteSite(editSite);
+                          setEditSite('TODOS OS SITES (Acesso Global)');
+                        }
+                      }}
+                      className="shrink-0 p-2.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-xl border border-red-200 transition-all cursor-pointer active:scale-95"
+                    >
+                      <Trash2 size={14} strokeWidth={2.5} />
+                    </button>
+                  )}
+                </div>
 
                 {showNewEditSiteInput && (
                   <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 pt-2">
