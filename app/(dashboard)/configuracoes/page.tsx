@@ -37,7 +37,8 @@ export default function ConfiguracoesPage() {
     handleUpdateLogoAndProfile,
     triggerSuccessNotification,
     addConsoleLog,
-    showAlertModal
+    showAlertModal,
+    showConfirmModal
   } = useSpci();
 
   // Navigation tab state
@@ -1362,10 +1363,17 @@ export default function ConfiguracoesPage() {
                       type="button"
                       title={`Excluir site "${editSite}" do sistema`}
                       onClick={() => {
-                        if (confirm(`Deseja realmente excluir o site "${editSite}" do sistema?`)) {
-                          handleDeleteSite(editSite);
-                          setEditSite('TODOS OS SITES (Acesso Global)');
-                        }
+                        showConfirmModal({
+                          title: 'Excluir Site 🗑️',
+                          message: `Deseja realmente excluir o site "${editSite}" do sistema? Esta ação removerá a localidade da tabela public.locais no Supabase.`,
+                          type: 'error',
+                          confirmText: 'EXCLUIR SITE',
+                          cancelText: 'CANCELAR',
+                          onConfirm: () => {
+                            handleDeleteSite(editSite);
+                            setEditSite('TODOS OS SITES (Acesso Global)');
+                          }
+                        });
                       }}
                       className="shrink-0 p-2.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-xl border border-red-200 transition-all cursor-pointer active:scale-95"
                     >

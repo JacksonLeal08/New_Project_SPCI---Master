@@ -179,8 +179,16 @@ interface SpciContextType {
   deleteNotification: (id: string) => Promise<void>;
   clearAllNotifications: () => Promise<void>;
 
-  // Custom Alert Modal System
+  // Custom Alert & Confirm Modal System
   showAlertModal: (title: string, message: string, type?: AlertType) => void;
+  showConfirmModal: (options: {
+    title: string;
+    message: string;
+    type?: AlertType;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  }) => void;
 }
 
 const generateUUID = () => {
@@ -204,12 +212,16 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userList, setUserList] = useState<any[]>([]);
   const [loadingUsersList, setLoadingUsersList] = useState(false);
 
-  // Custom Alert Modal State
+  // Custom Alert & Confirm Modal State
   const [alertModalState, setAlertModalState] = useState<{
     isOpen: boolean;
     title: string;
     message: string;
     type: AlertType;
+    showCancelButton?: boolean;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm?: () => void;
   }>({
     isOpen: false,
     title: '',
@@ -222,7 +234,29 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       isOpen: true,
       title,
       message,
-      type
+      type,
+      showCancelButton: false,
+      onConfirm: undefined
+    });
+  }, []);
+
+  const showConfirmModal = useCallback((options: {
+    title: string;
+    message: string;
+    type?: AlertType;
+    confirmText?: string;
+    cancelText?: string;
+    onConfirm: () => void;
+  }) => {
+    setAlertModalState({
+      isOpen: true,
+      title: options.title,
+      message: options.message,
+      type: options.type || 'warning',
+      showCancelButton: true,
+      confirmText: options.confirmText || 'EXCLUIR',
+      cancelText: options.cancelText || 'CANCELAR',
+      onConfirm: options.onConfirm
     });
   }, []);
 
@@ -1511,7 +1545,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       lastSyncTime,
       auditLogs,
       logSystemAction,
-      showAlertModal
+      showAlertModal,
+      showConfirmModal
     }}>
       {children}
       <CustomAlertDialog
@@ -1519,6 +1554,10 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         title={alertModalState.title}
         message={alertModalState.message}
         type={alertModalState.type}
+        showCancelButton={alertModalState.showCancelButton}
+        confirmText={alertModalState.confirmText}
+        cancelText={alertModalState.cancelText}
+        onConfirm={alertModalState.onConfirm}
         onClose={closeAlertModal}
       />
     </SpciContext.Provider>

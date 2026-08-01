@@ -20,6 +20,7 @@ import {
   Edit3
 } from 'lucide-react';
 import { saveChecklistItemsAction, deleteChecklistItemAction } from '@/app/actions/checklistActions';
+import { useSpci } from '@/app/context/SpciContext';
 
 export interface ChecklistItemData {
   id: string;
@@ -234,29 +235,45 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
     setList(updated);
   };
 
+  const { showConfirmModal } = useSpci();
+
   // Deletar quesito
   const handleDelete = async (id: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este quesito do checklist?')) {
-      const updated = list.filter((item) => item.id !== id);
-      const reordered = updated.map((item, idx) => ({ ...item, ordem: idx + 1 }));
-      setList(reordered);
+    showConfirmModal({
+      title: 'Excluir Quesito 🗑️',
+      message: 'Tem certeza que deseja excluir este quesito do checklist?',
+      type: 'error',
+      confirmText: 'EXCLUIR QUESITO',
+      cancelText: 'CANCELAR',
+      onConfirm: async () => {
+        const updated = list.filter((item) => item.id !== id);
+        const reordered = updated.map((item, idx) => ({ ...item, ordem: idx + 1 }));
+        setList(reordered);
 
-      // Tentar deletar no servidor se não for ID temporário
-      if (!id.startsWith('new-')) {
-        try {
-          await deleteChecklistItemAction(id);
-        } catch (e) {
-          console.error('Erro ao deletar item no banco:', e);
+        // Tentar deletar no servidor se não for ID temporário
+        if (!id.startsWith('new-')) {
+          try {
+            await deleteChecklistItemAction(id);
+          } catch (e) {
+            console.error('Erro ao deletar item no banco:', e);
+          }
         }
       }
-    }
+    });
   };
 
   // Restaurar NBR Padrão
   const handleResetDefault = () => {
-    if (window.confirm('Restaurar o checklist com os 14 itens originais da norma NBR 12962?')) {
-      setList(DEFAULT_EXTINTOR_CHECKLIST);
-    }
+    showConfirmModal({
+      title: 'Restaurar Checklist NBR 12962 🔄',
+      message: 'Deseja restaurar o checklist com os 14 itens originais padrão da norma NBR 12962?',
+      type: 'warning',
+      confirmText: 'RESTAURAR PADRÃO',
+      cancelText: 'CANCELAR',
+      onConfirm: () => {
+        setList(DEFAULT_EXTINTOR_CHECKLIST);
+      }
+    });
   };
 
   // Iniciar formulário de Adição

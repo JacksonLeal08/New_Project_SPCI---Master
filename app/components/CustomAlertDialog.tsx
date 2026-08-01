@@ -12,6 +12,10 @@ export interface CustomAlertDialogProps {
   message: string;
   type?: AlertType;
   buttonText?: string;
+  showCancelButton?: boolean;
+  confirmText?: string;
+  cancelText?: string;
+  onConfirm?: () => void;
   onClose: () => void;
 }
 
@@ -21,6 +25,10 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
   message,
   type = 'warning',
   buttonText = 'ENTENDIDO',
+  showCancelButton = false,
+  confirmText = 'CONFIRMAR',
+  cancelText = 'CANCELAR',
+  onConfirm,
   onClose
 }) => {
   if (!isOpen) return null;
@@ -124,13 +132,36 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
           </p>
 
           {/* Ações */}
-          <div className="flex justify-end pt-1">
-            <button
-              onClick={onClose}
-              className={`w-full sm:w-auto px-6 py-2.5 font-mono font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-md active:scale-95 flex items-center justify-center gap-2 ${getButtonStyle()}`}
-            >
-              {buttonText}
-            </button>
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+            {showCancelButton || onConfirm ? (
+              <>
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-xs active:scale-95 flex items-center justify-center"
+                >
+                  {cancelText}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onConfirm) onConfirm();
+                    onClose();
+                  }}
+                  className={`w-full sm:w-auto px-6 py-2.5 font-mono font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-md active:scale-95 flex items-center justify-center gap-2 ${getButtonStyle()}`}
+                >
+                  {confirmText}
+                </button>
+              </>
+            ) : (
+              <button
+                type="button"
+                onClick={onClose}
+                className={`w-full sm:w-auto px-6 py-2.5 font-mono font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-md active:scale-95 flex items-center justify-center gap-2 ${getButtonStyle()}`}
+              >
+                {buttonText}
+              </button>
+            )}
           </div>
         </motion.div>
       </div>

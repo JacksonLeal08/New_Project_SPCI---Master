@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { SyncQueue, PendingSyncTask, PendingInspectionTask } from '@/lib/syncQueue';
 import { MediaQueue, PendingMediaTask } from '@/lib/mediaQueue';
 import { RefreshCw, Trash2, X, AlertOctagon, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { useSpci } from '@/app/context/SpciContext';
 
 export default function SyncStatusPanel() {
   const [isOpen, setIsOpen] = useState(false);
@@ -56,16 +57,25 @@ export default function SyncStatusPanel() {
     await loadQueues();
   };
 
+  const { showConfirmModal } = useSpci();
+
   const handleClearQueues = async () => {
-    if (confirm('Tem certeza de que deseja limpar e apagar todas as tarefas pendentes de sincronização? Isso apagará vistorias não salvas.')) {
-      await SyncQueue.clearQueue();
-      await SyncQueue.clearInspectionQueue();
-      // Limpa fila de mídias também
-      const db = await import('@/lib/indexedDb').then(m => m.getIndexedDB());
-      const transaction = db.transaction('config', 'readwrite');
-      transaction.objectStore('config').delete('spci_media_queue');
-      await loadQueues();
-    }
+    showConfirmModal({
+      title: 'Limpar Fila de Sincronização 🗑️',
+      message: 'Tem certeza de que deseja limpar e apagar todas as tarefas pendentes de sincronização? Isso apagará vistorias e alterações pendentes.',
+      type: 'error',
+      confirmText: 'LIMPAR TUDO',
+      cancelText: 'CANCELAR',
+      onConfirm: async () => {
+        await SyncQueue.clearQueue();
+        await SyncQueue.clearInspectionQueue();
+        // Limpa fila de mídias também
+        const db = await import('@/lib/indexedDb').then(m => m.getIndexedDB());
+        const transaction = db.transaction('config', 'readwrite');
+        transaction.objectStore('config').delete('spci_media_queue');
+        await loadQueues();
+      }
+    });
   };
 
   if (totalTasks === 0 && !isOpen) return null;
