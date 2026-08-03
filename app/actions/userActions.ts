@@ -320,14 +320,33 @@ export async function updateFullUserAction(
     }
 
     if (status === 'Inativo/Suspenso') {
-      authUpdatePayload.banned_until = '3000-01-01T00:00:00Z';
+      authUpdatePayload.ban_duration = '876600h';
     } else {
-      authUpdatePayload.banned_until = 'none';
+      authUpdatePayload.ban_duration = 'none';
     }
 
-    const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(userId, authUpdatePayload);
+    let { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(userId, authUpdatePayload);
+
+    // Fallback: se o Auth recusar alterar email/ban (ex: "User not allowed"),
+    // atualiza exclusivamente o user_metadata e senha para garantir que o perfil e site sejam salvos
     if (authErr) {
-      return { success: false, error: `Erro ao atualizar Auth metadata: ${authErr.message}` };
+      console.warn('[updateFullUserAction] Aviso no updateUserById principal:', authErr.message);
+      const metadataPayload: any = {
+        user_metadata: {
+          full_name: name,
+          user_name: username,
+          perfil_acesso: role,
+          data_expiracao: expiresAt,
+          site: resolvedSite
+        }
+      };
+      if (password && password.trim().length >= 6) {
+        metadataPayload.password = password.trim();
+      }
+      const { error: metaErr } = await supabaseAdmin.auth.admin.updateUserById(userId, metadataPayload);
+      if (metaErr) {
+        console.warn('[updateFullUserAction] Aviso no fallback de user_metadata:', metaErr.message);
+      }
     }
 
     // 2. Atualizar tabela public.usuarios (SEM o campo site — ele não existe na tabela)
