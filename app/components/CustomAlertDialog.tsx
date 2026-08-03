@@ -78,14 +78,14 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
   const getButtonStyle = () => {
     switch (type) {
       case 'warning':
-        return 'bg-amber-600 hover:bg-amber-500 text-white shadow-amber-600/30';
+        return 'bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/25 border-none';
       case 'error':
-        return 'bg-red-650 hover:bg-red-600 text-white shadow-red-650/30';
+        return 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:via-rose-500 hover:to-red-600 text-white font-black shadow-lg shadow-red-600/30 border-none';
       case 'success':
-        return 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-600/30';
+        return 'bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-black shadow-lg shadow-emerald-600/30 border-none';
       case 'info':
       default:
-        return 'bg-slate-900 hover:bg-slate-800 text-white shadow-slate-900/30';
+        return 'bg-gradient-to-r from-slate-900 to-slate-800 hover:from-slate-800 hover:to-slate-700 text-white font-black shadow-lg shadow-slate-900/30 border-none';
     }
   };
 

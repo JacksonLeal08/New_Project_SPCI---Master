@@ -573,7 +573,7 @@ export default function ConfiguracoesPage() {
                       }
                       setShowInviteModal(true);
                     }}
-                    className="px-3.5 py-2 bg-red-650 hover:bg-red-700 text-white font-black text-[10px] uppercase cursor-pointer rounded-xl transition-all active:scale-95 flex items-center gap-1.5 border-none shadow-sm"
+                    className="px-4 py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black text-[10px] uppercase cursor-pointer rounded-xl transition-all active:scale-95 flex items-center gap-1.5 border-none shadow-md shadow-red-600/30 tracking-wider"
                   >
                     <UserPlus className="w-3.5 h-3.5" /> NOVO USUÁRIO
                   </button>
@@ -1022,7 +1022,7 @@ export default function ConfiguracoesPage() {
                 <button 
                   type="submit" 
                   disabled={inviting}
-                  className="px-5 py-2.5 bg-red-650 hover:bg-red-700 text-white font-black rounded-xl hover:opacity-95 disabled:opacity-40 transition-all flex items-center gap-2 cursor-pointer border-none text-[10px] uppercase shadow-md active:scale-95"
+                  className="px-5 py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black rounded-xl hover:opacity-95 disabled:opacity-40 transition-all flex items-center gap-2 cursor-pointer border-none text-[10px] uppercase shadow-md shadow-red-600/30 active:scale-95 tracking-wider"
                 >
                   {inviting ? (
                     <>
@@ -1513,7 +1513,7 @@ export default function ConfiguracoesPage() {
                 <button
                   type="submit"
                   disabled={savingEdit}
-                  className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl hover:opacity-90 disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer border-none text-xs uppercase shadow-md active:scale-95"
+                  className="px-6 py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black rounded-xl hover:opacity-95 disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer border-none text-xs uppercase shadow-md shadow-red-600/30 active:scale-95 tracking-wider"
                 >
                   {savingEdit ? (
                     <>
