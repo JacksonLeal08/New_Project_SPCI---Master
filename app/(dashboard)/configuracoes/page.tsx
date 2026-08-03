@@ -114,14 +114,11 @@ export default function ConfiguracoesPage() {
       console.warn('Erro salvando novos sites:', e);
     }
 
-    // Persiste no banco Supabase (tabela public.locais) e aguarda resultado
+    // Persiste no banco Supabase (tabela public.locais)
     try {
-      const siteRes = await createSiteAction(trimmed);
-      if (!siteRes.success) {
-        showAlertModal('Erro ao Salvar Site ❌', `O site "${trimmed}" foi adicionado localmente, mas falhou ao gravar no Supabase: ${siteRes.error}`, 'error');
-      }
+      await createSiteAction(trimmed);
     } catch (dbErr: any) {
-      showAlertModal('Erro ao Salvar Site ❌', `Falha ao gravar "${trimmed}" no banco de dados: ${dbErr?.message || dbErr}`, 'error');
+      console.warn('Aviso ao persistir site no banco:', dbErr);
     }
 
     if (targetModal === 'invite') {
