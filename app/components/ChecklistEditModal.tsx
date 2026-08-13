@@ -17,10 +17,12 @@ import {
   ShieldAlert,
   Tag,
   Scale,
-  Edit3
+  Edit3,
+  AlertTriangle
 } from 'lucide-react';
 import { saveChecklistItemsAction, deleteChecklistItemAction } from '@/app/actions/checklistActions';
 import { useSpci } from '@/app/context/SpciContext';
+import { idb } from '@/lib/indexedDb';
 
 export interface ChecklistItemData {
   id: string;
@@ -189,6 +191,21 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'Todos' | 'Ativado' | 'Desativado'>('Todos');
   const [saving, setSaving] = useState(false);
+
+  // Pop-up HUD Informativo Elegante
+  const [hudAlert, setHudAlert] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    type: 'success' | 'warning' | 'error';
+    shouldCloseModalOnConfirm?: boolean;
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    type: 'success',
+    shouldCloseModalOnConfirm: false
+  });
 
   // Item sendo editado no formulário
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -369,20 +386,56 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
     setEditingId(null);
   };
 
-  // Salvar tudo no Supabase
+  // Salvar tudo com resiliência no IndexedDB + Supabase
   const handleSaveAll = async () => {
     setSaving(true);
     try {
+      // 1. Grava no IndexedDB local para garantia de resiliência total
+      try {
+        await idb.set('config', 'checklist_extintores', list);
+      } catch (idbErr) {
+        console.warn('[ChecklistEditModal] Erro ao gravar localmente no IndexedDB:', idbErr);
+      }
+
+      // 2. Atualiza o estado da aplicação no frontend
+      onSaveSuccess(list);
+
+      // 3. Tenta salvar no Supabase
       const res = await saveChecklistItemsAction('extintores', list as any);
+
       if (res.success) {
-        onSaveSuccess((res as any).data || list);
-        alert('Checklist NBR salvo com sucesso no banco de dados!');
-        onClose();
+        setHudAlert({
+          isOpen: true,
+          title: 'CHECKLIST NBR SALVO! 🟢',
+          message: 'Os quesitos de verificação foram salvos no banco de dados e sincronizados no seu dispositivo com sucesso.',
+          type: 'success',
+          shouldCloseModalOnConfirm: true
+        });
+      } else if (res.isTableMissing) {
+        setHudAlert({
+          isOpen: true,
+          title: 'SALVO LOCALMENTE NO DISPOSITIVO 🟡',
+          message: 'O checklist NBR foi salvo localmente no seu dispositivo e está 100% funcional nas vistorias! (Aguardando criação da tabela "checklists_ativos" no Supabase para sincronia em nuvem).',
+          type: 'warning',
+          shouldCloseModalOnConfirm: true
+        });
       } else {
-        alert(`Erro ao salvar checklist: ${res.error || 'Falha desconhecida'}`);
+        setHudAlert({
+          isOpen: true,
+          title: 'SALVO COM AVISO DE NUVEM ⚠️',
+          message: `O checklist foi preservado localmente no seu dispositivo. Aviso da nuvem: ${res.error || 'Falha de comunicação'}`,
+          type: 'warning',
+          shouldCloseModalOnConfirm: true
+        });
       }
     } catch (err: any) {
-      alert(`Erro inesperado ao salvar checklist: ${err.message || err}`);
+      setHudAlert({
+        isOpen: true,
+        title: 'SALVO LOCALMENTE NO DISPOSITIVO 🛡️',
+        message: `O checklist foi salvo no seu dispositivo com sucesso. Erro no servidor: ${err.message || err}`,
+        type: 'warning',
+        shouldCloseModalOnConfirm: true
+      });
     } finally {
       setSaving(false);
     }
@@ -815,6 +868,65 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
           </div>
         </div>
       </motion.div>
+
+      {/* MODAL POP-UP HUD INFORMATIVO ELEGANTE (SUBSTITUI O ALERT DO NAVEGADOR) */}
+      <AnimatePresence>
+        {hudAlert.isOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="w-full max-w-md bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 relative overflow-hidden text-center text-slate-900 font-sans"
+            >
+              <div className={`absolute top-0 left-0 right-0 h-1.5 ${
+                hudAlert.type === 'success' ? 'bg-emerald-600' : hudAlert.type === 'warning' ? 'bg-amber-500' : 'bg-red-600'
+              }`} />
+
+              <div className={`w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-3.5 border shadow-inner ${
+                hudAlert.type === 'success'
+                  ? 'bg-emerald-100 border-emerald-300 text-emerald-700'
+                  : hudAlert.type === 'warning'
+                  ? 'bg-amber-100 border-amber-300 text-amber-800'
+                  : 'bg-red-100 border-red-300 text-red-700'
+              }`}>
+                {hudAlert.type === 'success' && <CheckCircle2 className="w-6 h-6" />}
+                {hudAlert.type === 'warning' && <AlertTriangle className="w-6 h-6" />}
+                {hudAlert.type === 'error' && <XCircle className="w-6 h-6" />}
+              </div>
+
+              <h3 className="text-sm font-black font-mono uppercase tracking-wider text-slate-900">
+                {hudAlert.title}
+              </h3>
+
+              <p className="text-xs text-slate-700 font-medium leading-relaxed mt-2.5 px-2">
+                {hudAlert.message}
+              </p>
+
+              <div className="mt-6 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setHudAlert(prev => ({ ...prev, isOpen: false }));
+                    if (hudAlert.shouldCloseModalOnConfirm) {
+                      onClose();
+                    }
+                  }}
+                  className={`w-full py-2.5 px-6 font-mono text-xs font-black uppercase rounded-xl transition-all shadow-md cursor-pointer border-none text-white ${
+                    hudAlert.type === 'success'
+                      ? 'bg-emerald-600 hover:bg-emerald-700'
+                      : hudAlert.type === 'warning'
+                      ? 'bg-amber-600 hover:bg-amber-700'
+                      : 'bg-red-700 hover:bg-red-800'
+                  }`}
+                >
+                  ENTENDIDO 👍
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

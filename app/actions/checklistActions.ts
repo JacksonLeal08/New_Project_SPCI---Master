@@ -32,6 +32,8 @@ export interface ChecklistItemRecord {
   tipos_aplicaveis: string[];
   pesos_aplicaveis: string[];
   status: 'Ativado' | 'Desativado';
+  is_impeditivo?: boolean;
+  isImpeditivo?: boolean;
   created_at?: string;
   updated_at?: string;
 }
@@ -49,8 +51,8 @@ export async function getChecklistItemsAction(categoria: string = 'extintores') 
       .order('ordem', { ascending: true });
 
     if (error) {
-      // Se a tabela ainda não existir no Supabase, retorna erro para fallback
-      return { success: false, error: error.message, items: [] };
+      const isMissing = error.message.toLowerCase().includes('schema cache') || error.message.toLowerCase().includes('could not find the table');
+      return { success: false, error: error.message, isTableMissing: isMissing, items: [] };
     }
 
     const items: ChecklistItemRecord[] = (data || []).map((row: any) => ({
@@ -61,6 +63,8 @@ export async function getChecklistItemsAction(categoria: string = 'extintores') 
       tipos_aplicaveis: Array.isArray(row.tipos_aplicaveis) ? row.tipos_aplicaveis : ['Todos'],
       pesos_aplicaveis: Array.isArray(row.pesos_aplicaveis) ? row.pesos_aplicaveis : ['Todos'],
       status: row.status === 'Desativado' ? 'Desativado' : 'Ativado',
+      is_impeditivo: !!row.is_impeditivo,
+      isImpeditivo: !!row.is_impeditivo,
       created_at: row.created_at,
       updated_at: row.updated_at
     }));
@@ -84,9 +88,10 @@ export async function saveChecklistItemsAction(categoria: string, items: Checkli
       ordem: idx + 1,
       categoria: categoria,
       item: it.item,
-      tipos_aplicaveis: it.tipos_aplicaveis || ['Todos'],
-      pesos_aplicaveis: it.pesos_aplicaveis || ['Todos'],
+      tipos_aplicaveis: it.tipos_aplicaveis || (it as any).tiposAplicaveis || ['Todos'],
+      pesos_aplicaveis: it.pesos_aplicaveis || (it as any).pesosAplicaveis || ['Todos'],
       status: it.status || 'Ativado',
+      is_impeditivo: it.is_impeditivo ?? it.isImpeditivo ?? false,
       updated_at: new Date().toISOString()
     }));
 
@@ -97,13 +102,15 @@ export async function saveChecklistItemsAction(categoria: string, items: Checkli
 
     if (error) {
       console.warn('[saveChecklistItemsAction] Aviso ao salvar no banco:', error.message);
-      return { success: false, error: error.message };
+      const isMissing = error.message.toLowerCase().includes('schema cache') || error.message.toLowerCase().includes('could not find the table');
+      return { success: false, error: error.message, isTableMissing: isMissing };
     }
 
     return { success: true };
   } catch (err: any) {
     console.error('[saveChecklistItemsAction Catch]:', err);
-    return { success: false, error: err.message || 'Erro ao salvar checklist no Supabase.' };
+    const isMissing = err.message ? (err.message.toLowerCase().includes('schema cache') || err.message.toLowerCase().includes('could not find the table')) : false;
+    return { success: false, error: err.message || 'Erro ao salvar checklist no Supabase.', isTableMissing: isMissing };
   }
 }
 
