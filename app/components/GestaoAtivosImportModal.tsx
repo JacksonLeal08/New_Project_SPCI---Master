@@ -102,23 +102,23 @@ export const GestaoAtivosImportModal: React.FC<GestaoAtivosImportModalProps> = (
         className="w-full max-w-3xl bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col max-h-[90vh] overflow-hidden text-slate-900"
       >
         {/* CABEÇALHO */}
-        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800 shadow-md">
+        <div className="bg-red-700 text-white p-4 sm:p-5 flex items-center justify-between border-b border-red-800 shadow-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600/20 rounded-xl flex items-center justify-center border border-indigo-400/30">
-              <FileSpreadsheet className="w-5 h-5 text-indigo-400" />
+            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/20 shadow-inner">
+              <FileSpreadsheet className="w-5 h-5 text-white" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white font-['Hanken_Grotesk']">
                 IMPORTAÇÃO EM MASSA DE ATIVOS (.XLSX / .CSV)
               </h2>
-              <p className="text-[11px] text-slate-400 font-sans mt-0.5 font-medium">
+              <p className="text-[11px] text-red-100 font-sans mt-0.5 font-bold">
                 Sincronização de lote com validação por linha e mapeamento obrigatório de destino
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer font-bold border border-white/10"
+            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer font-bold border border-white/20"
           >
             <X className="w-5 h-5" />
           </button>

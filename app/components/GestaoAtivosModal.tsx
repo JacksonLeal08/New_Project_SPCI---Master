@@ -254,28 +254,28 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         exit={{ opacity: 0, scale: 0.96, y: 15 }}
         className="w-full max-w-6xl bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-900"
       >
-        {/* CABEÇALHO DO MODAL */}
-        <div className="bg-slate-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-slate-800 shadow-md">
+        {/* CABEÇALHO DO MODAL - TEMA CLARO SPCI RED */}
+        <div className="bg-red-700 text-white p-4 sm:p-5 flex items-center justify-between border-b border-red-800 shadow-md">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-indigo-600/20 rounded-xl flex items-center justify-center border border-indigo-400/30">
-              <Boxes className="w-5 h-5 text-indigo-400" />
+            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/20 shadow-inner">
+              <Boxes className="w-5 h-5 text-white" />
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white font-['Hanken_Grotesk']">
                 GESTÃO DE ATIVOS & ESTOQUE OPERACIONAL - SPCI MASTER
               </h2>
-              <p className="text-[11px] text-slate-400 font-sans mt-0.5 font-bold">
+              <p className="text-[11px] text-red-100 font-sans mt-0.5 font-bold">
                 Controle de movimentações, auditoria e rastreabilidade por status de equipamento
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:inline-block px-3 py-1 bg-white/10 rounded-lg text-xs font-bold border border-white/10">
+            <span className="hidden sm:inline-block px-3 py-1 bg-white/10 rounded-lg text-xs font-bold border border-white/20">
               Total: {items.length} Ativos
             </span>
             <button
               onClick={onClose}
-              className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer font-bold border border-white/10"
+              className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer font-bold border border-white/20"
               title="Fechar Modal"
             >
               <X className="w-5 h-5" />
@@ -352,7 +352,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
 
         {/* BARRA DE AÇÕES SUPERIORES */}
         <div className="bg-white border-b border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+          <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap sm:flex-nowrap">
             <button
               onClick={() =>
                 setEditingItem({
@@ -361,7 +361,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                   status: 'Conforme'
                 })
               }
-              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border-none"
+              className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border-none active:scale-95"
             >
               <Plus className="w-4 h-4" />
               <span>+ Novo Ativo</span>
@@ -369,7 +369,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
 
             <button
               onClick={() => setIsImportModalOpen(true)}
-              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border-none"
+              className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border-none active:scale-95"
             >
               <FileSpreadsheet className="w-4 h-4 text-indigo-400" />
               <span>📥 Importar XLSX</span>
@@ -377,7 +377,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
 
             <button
               onClick={() => exportStockItemsToCSV(filteredItems)}
-              className="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer"
+              className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
             >
               <Download className="w-4 h-4 text-slate-600" />
               <span>📊 Exportar XLSX</span>
@@ -385,19 +385,19 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           </div>
 
           <div className="relative w-full sm:w-72">
-            <Search className="w-3.5 h-3.5 absolute left-3 top-2.5 text-slate-400" />
+            <Search className="w-3.5 h-3.5 absolute left-3 top-3 text-slate-400" />
             <input
               type="text"
               placeholder="Buscar por Série, Patrimônio, Modelo..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 pl-8 pr-3 py-1.5 rounded-xl text-xs font-sans text-slate-900 font-bold focus:outline-none focus:border-indigo-600 shadow-xs"
+              className="w-full bg-slate-50 border border-slate-300 pl-8 pr-3 py-2 rounded-xl text-xs font-sans text-slate-900 font-bold focus:outline-none focus:border-red-600 shadow-xs"
             />
           </div>
         </div>
 
-        {/* NAVEGAÇÃO POR ABAS (TABS POR STATUS) */}
-        <div className="bg-slate-100 border-b border-slate-200 px-4 pt-2 flex items-center gap-1 overflow-x-auto font-mono text-xs">
+        {/* NAVEGAÇÃO POR ABAS (TABS POR STATUS - SEM CORTES VERTICAIS) */}
+        <div className="bg-slate-100/90 border-b border-slate-200 px-4 pt-3 pb-2 flex items-center gap-2 overflow-x-auto shrink-0 font-mono text-xs">
           {[
             { id: 'Todos', label: `Todos (${items.length})` },
             { id: 'ESTOQUE APLICAÇÃO', label: `🟢 Aplicação (${countAplicacao})` },
@@ -408,10 +408,10 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`px-3.5 py-2 rounded-t-xl font-bold transition-all border-t border-x cursor-pointer whitespace-nowrap ${
+              className={`px-4 py-2 rounded-xl font-bold transition-all border cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
                 activeTab === tab.id
-                  ? 'bg-white text-slate-900 border-slate-300 shadow-xs font-black'
-                  : 'bg-transparent text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-200/50'
+                  ? 'bg-white text-slate-900 border-slate-300 shadow-sm font-black ring-1 ring-slate-300/50'
+                  : 'bg-transparent text-slate-600 border-transparent hover:text-slate-900 hover:bg-slate-200/60'
               }`}
             >
               {tab.label}
@@ -419,11 +419,11 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           ))}
         </div>
 
-        {/* TABELA PRINCIPAL (GRID DE ATIVOS) */}
+        {/* TABELA PRINCIPAL (GRID DE ATIVOS - TEMA CLARO) */}
         <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
             <table className="w-full text-left font-mono text-xs border-collapse">
-              <thead className="bg-slate-900 text-white uppercase text-[10px] tracking-wider font-bold">
+              <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] tracking-wider font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Patrimônio / Cód</th>
                   <th className="py-3 px-4">Tipo do Ativo</th>
@@ -437,7 +437,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                 {loading ? (
                   <tr>
                     <td colSpan={6} className="py-12 text-center text-slate-500 font-mono">
-                      <RefreshCw className="w-6 h-6 animate-spin mx-auto text-indigo-600 mb-2" />
+                      <RefreshCw className="w-6 h-6 animate-spin mx-auto text-red-600 mb-2" />
                       Carregando estoque de ativos...
                     </td>
                   </tr>
@@ -449,7 +449,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                   </tr>
                 ) : (
                   filteredItems.map((it) => (
-                    <tr key={it.id} className="hover:bg-slate-50 transition-colors">
+                    <tr key={it.id} className="hover:bg-slate-50/80 transition-colors">
                       <td className="py-3 px-4 font-mono font-bold text-slate-900">
                         {it.patrimonio || it.id_ativo || it.id}
                       </td>
@@ -484,10 +484,10 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                               setMovingItem(it);
                               setNewStatus(it.status_estoque);
                             }}
-                            className="px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white rounded-lg font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer border-none"
+                            className="px-2.5 py-1 bg-slate-800 hover:bg-slate-900 text-white rounded-lg font-mono text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer border-none shadow-xs"
                             title="Mover Status do Ativo"
                           >
-                            <ArrowRightLeft className="w-3 h-3 text-indigo-400" />
+                            <ArrowRightLeft className="w-3 h-3 text-indigo-300" />
                             <span>Mover</span>
                           </button>
 
@@ -501,7 +501,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
 
                           <button
                             onClick={() => setEditingItem(it)}
-                            className="p-1.5 text-slate-600 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all border border-slate-200 hover:border-indigo-200 cursor-pointer"
+                            className="p-1.5 text-slate-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all border border-slate-200 hover:border-red-200 cursor-pointer"
                             title="Editar Ativo"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -516,14 +516,14 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           </div>
         </div>
 
-        {/* RODAPÉ DE RESUMO */}
-        <div className="bg-slate-900 text-white p-4 flex items-center justify-between font-mono text-xs border-t border-slate-800">
-          <span className="text-slate-400 text-[11px]">
+        {/* RODAPÉ DE RESUMO - TEMA CLARO */}
+        <div className="bg-slate-100 border-t border-slate-200 p-4 flex items-center justify-between font-mono text-xs text-slate-700 font-bold">
+          <span className="text-slate-600 text-[11px]">
             Exibindo {filteredItems.length} de {items.length} ativos cadastrados
           </span>
           <button
             onClick={onClose}
-            className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all cursor-pointer border border-white/10"
+            className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white font-bold rounded-xl transition-all cursor-pointer border-none shadow-xs"
           >
             Fechar Painel
           </button>
