@@ -87,14 +87,15 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
     { id: 'bombas', label: 'Casa de Bombas', icon: <Sliders className="w-5 h-5" />, path: '/bombas' },
     { id: 'ronda', label: 'Despacho & Ronda Campo', icon: <Smartphone className="w-5 h-5" />, path: '/ronda' },
     { id: 'alerts', label: 'Disparo de Alertas', icon: <Bell className="w-5 h-5" />, path: '/alerts' },
+    { id: 'gestao-ativo', label: 'Gestão de Ativo', icon: <Boxes className="w-5 h-5" />, path: '/dashboard' },
     ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'logs', label: 'Logs do Sistema', icon: <History className="w-5 h-5" />, path: '/logs' }] : []),
-    ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'gestao-ativo', label: 'Gestão de Ativo', icon: <Boxes className="w-5 h-5" />, path: '/gestao-ativo' }] : []),
     ...(isAdmin ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-5 h-5" />, path: '/configuracoes' }] : [])
   ];
 
   const filteredNavItems = navItems.filter(item => {
     if (userProfile?.role === 'Desenvolvedor') return true;
-    if (item.id === 'logs' || item.id === 'gestao-ativo') return false;
+    if (item.id === 'logs') return false;
+    if (item.id === 'gestao-ativo') return true;
     if (item.id === 'configuracoes') return isAdmin;
     if (item.id === 'dashboard') return true;
     if (userProfile?.permissions && userProfile.permissions.length > 0) {

@@ -24,6 +24,7 @@ import SyncStatusPanel from '../components/SyncStatusPanel';
 import AppFooter from '../components/AppFooter';
 import QuickAssetFab from '../components/QuickAssetFab';
 import ChangelogModal from '../components/ChangelogModal';
+import { GestaoAtivosModal } from '../components/GestaoAtivosModal';
 import { SYSTEM_VERSION } from '@/config/version';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -75,6 +76,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showLogoutConfirmation, setShowLogoutConfirmation] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
   const [showChangelog, setShowChangelog] = useState(false);
+  const [isGestaoAtivosOpen, setIsGestaoAtivosOpen] = useState(false);
 
   // Verificação de versão do sistema no primeiro carregamento
   useEffect(() => {
@@ -434,6 +436,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           onScanClick={() => setScanModal(true)}
           onProfileClick={() => setShowProfileModal(true)}
           onMenuClick={() => setIsMobileSidebarOpen(true)}
+          onGestaoAtivosClick={() => setIsGestaoAtivosOpen(true)}
         />
 
         {/* Área onde as subpáginas renderizam */}
@@ -449,6 +452,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
 
       {/* --- MODAIS DA APLICAÇÃO --- */}
+
+      {/* Modal de Gestão de Ativos & Estoque */}
+      <GestaoAtivosModal
+        isOpen={isGestaoAtivosOpen}
+        onClose={() => setIsGestaoAtivosOpen(false)}
+      />
 
       {/* 1. Modal de Vistoria/Inspeção NBR */}
       <AssetInspectionModal

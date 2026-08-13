@@ -56,6 +56,11 @@ CREATE TABLE IF NOT EXISTS public.assets (
     location TEXT,
     sub_location TEXT,
     status TEXT DEFAULT 'Conforme',
+    status_estoque TEXT DEFAULT 'ESTOQUE APLICAÇÃO',
+    numero_serie TEXT,
+    patrimonio TEXT,
+    data_fabricacao DATE,
+    data_vencimento_teste DATE,
     latitude DOUBLE PRECISION,
     longitude DOUBLE PRECISION,
     details JSONB DEFAULT '{}'::jsonb,
@@ -67,6 +72,9 @@ CREATE TABLE IF NOT EXISTS public.assets (
 CREATE INDEX IF NOT EXISTS idx_assets_category ON public.assets(category);
 CREATE INDEX IF NOT EXISTS idx_assets_id_ativo ON public.assets(id_ativo);
 CREATE INDEX IF NOT EXISTS idx_assets_status ON public.assets(status);
+CREATE INDEX IF NOT EXISTS idx_assets_status_estoque ON public.assets(status_estoque);
+CREATE INDEX IF NOT EXISTS idx_assets_numero_serie ON public.assets(numero_serie);
+CREATE INDEX IF NOT EXISTS idx_assets_patrimonio ON public.assets(patrimonio);
 CREATE INDEX IF NOT EXISTS idx_assets_location ON public.assets(location);
 
 -- Trigger para updated_at em assets

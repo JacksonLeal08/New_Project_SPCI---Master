@@ -10,7 +10,8 @@ import {
   CheckCheck, 
   Plus, 
   ClipboardCheck,
-  X 
+  X,
+  Boxes
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationItem } from '@/lib/types';
@@ -20,9 +21,10 @@ interface HeaderProps {
   onScanClick: () => void;
   onProfileClick: () => void;
   onMenuClick?: () => void;
+  onGestaoAtivosClick?: () => void;
 }
 
-export const Header = ({ onScanClick, onProfileClick, onMenuClick }: HeaderProps) => {
+export const Header = ({ onScanClick, onProfileClick, onMenuClick, onGestaoAtivosClick }: HeaderProps) => {
   const { 
     currentUser, 
     userProfile, 
@@ -58,9 +60,21 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick }: HeaderProps
         </div>
       </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         {/* Alternador de Tema Claro/Escuro (Estilo Telegram) */}
         <ThemeToggle />
+
+        {/* Botão de Gestão de Ativos */}
+        {onGestaoAtivosClick && (
+          <button 
+            onClick={onGestaoAtivosClick}
+            className="px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 active:scale-95 transition-all text-xs font-['Hanken_Grotesk'] font-bold uppercase rounded-xl tracking-wider border border-indigo-200 flex items-center gap-1.5 cursor-pointer shadow-xs hover:scale-[1.02]"
+            aria-label="Abrir Gestão de Ativos"
+          >
+            <Boxes className="w-3.5 h-3.5 text-indigo-600" />
+            <span className="hidden sm:inline">Gestão Ativo</span>
+          </button>
+        )}
 
         {/* Botão de Busca Rápida / QR Scan */}
         <button 
