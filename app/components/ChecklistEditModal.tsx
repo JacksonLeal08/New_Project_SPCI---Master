@@ -30,6 +30,7 @@ export interface ChecklistItemData {
   tiposAplicaveis: string[]; // ['Todos', 'CO2', 'PQS', 'AP', 'Espuma', 'K']
   pesosAplicaveis: string[]; // ['Todos', 'Portátil', 'Carreta / Sobre Rodas']
   status: 'Ativado' | 'Desativado';
+  isImpeditivo?: boolean;
 }
 
 export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
@@ -40,7 +41,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Localização, classe e modelo de extintores conforme projeto de incêndio e pânico',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: false
   },
   {
     id: 'chk-2',
@@ -49,7 +51,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Suporte e Altura de instalação adequada (Máximo 1,60 m do piso acabado)',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Portátil'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: false
   },
   {
     id: 'chk-3',
@@ -58,7 +61,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Equipamento desobstruído e de fácil acesso visual e físico',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: false
   },
   {
     id: 'chk-4',
@@ -67,7 +71,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Sinalização de parede visível e dentro da norma vigente NBR 13434',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: false
   },
   {
     id: 'chk-5',
@@ -76,7 +81,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Sinalização de piso visível e dentro da norma vigente NBR 13434',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: false
   },
   {
     id: 'chk-6',
@@ -85,7 +91,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Aspecto externo sem dano, amassado, vazamento ou corrosão no recipiente',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: true
   },
   {
     id: 'chk-7',
@@ -94,7 +101,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Lacre de segurança íntegro e sem violação',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: true
   },
   {
     id: 'chk-8',
@@ -188,6 +196,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
   const [selectedTipos, setSelectedTipos] = useState<string[]>(['Todos']);
   const [selectedPesos, setSelectedPesos] = useState<string[]>(['Todos']);
   const [itemStatus, setItemStatus] = useState<'Ativado' | 'Desativado'>('Ativado');
+  const [itemImpeditivo, setItemImpeditivo] = useState<boolean>(false);
 
   useEffect(() => {
     if (initialItems && initialItems.length > 0) {
@@ -283,6 +292,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
     setSelectedTipos(['Todos']);
     setSelectedPesos(['Todos']);
     setItemStatus('Ativado');
+    setItemImpeditivo(false);
   };
 
   // Iniciar formulário de Edição
@@ -292,6 +302,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
     setSelectedTipos(item.tiposAplicaveis || ['Todos']);
     setSelectedPesos(item.pesosAplicaveis || ['Todos']);
     setItemStatus(item.status);
+    setItemImpeditivo(!!item.isImpeditivo);
   };
 
   // Selecionar/Deselecionar opções de array
@@ -334,7 +345,8 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
         item: itemText.trim(),
         tiposAplicaveis: selectedTipos,
         pesosAplicaveis: selectedPesos,
-        status: itemStatus
+        status: itemStatus,
+        isImpeditivo: itemImpeditivo
       };
       setList([...list, newItem]);
     } else if (editingId) {
@@ -345,7 +357,8 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
             item: itemText.trim(),
             tiposAplicaveis: selectedTipos,
             pesosAplicaveis: selectedPesos,
-            status: itemStatus
+            status: itemStatus,
+            isImpeditivo: itemImpeditivo
           };
         }
         return item;
@@ -485,7 +498,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
                 {/* FILTRO TIPO DE AGENTE EXTINTOR */}
                 <div className="space-y-1 bg-white p-2.5 border border-slate-200 rounded-xl shadow-xs">
                   <label className="block text-[9px] font-mono font-black uppercase text-slate-700 flex items-center gap-1">
@@ -537,6 +550,38 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                         </button>
                       );
                     })}
+                  </div>
+                </div>
+
+                {/* CARÁTER IMPEDITIVO */}
+                <div className="space-y-1 bg-white p-2.5 border border-slate-200 rounded-xl shadow-xs flex flex-col justify-between">
+                  <label className="block text-[9px] font-mono font-black uppercase text-red-700 flex items-center gap-1">
+                    <ShieldAlert className="w-3 h-3 text-red-600" />
+                    Impeditivo na Área
+                  </label>
+                  <div className="flex items-center gap-1 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setItemImpeditivo(true)}
+                      className={`flex-1 py-1 text-[9px] font-mono font-bold rounded-lg border text-center transition-all cursor-pointer ${
+                        itemImpeditivo
+                          ? 'bg-red-600 text-white border-red-700 shadow-xs font-black'
+                          : 'bg-slate-50 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      🚨 Sim
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setItemImpeditivo(false)}
+                      className={`flex-1 py-1 text-[9px] font-mono font-bold rounded-lg border text-center transition-all cursor-pointer ${
+                        !itemImpeditivo
+                          ? 'bg-slate-200 text-slate-800 border-slate-300 font-bold'
+                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                      }`}
+                    >
+                      Não
+                    </button>
                   </div>
                 </div>
 
@@ -651,7 +696,15 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
 
                       {/* TEXTO DO QUESITO */}
                       <td className={`p-3 font-bold text-xs leading-relaxed ${isDeactivated ? 'text-slate-400 line-through' : 'text-slate-900'}`}>
-                        {it.item}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span>{it.item}</span>
+                          {it.isImpeditivo && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 font-mono text-[9.5px] font-black" title="Inconformidade neste quesito impede a permanência do ativo na área">
+                              <ShieldAlert className="w-3 h-3 text-red-600" />
+                              Impeditivo
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* TIPOS APLICÁVEIS */}

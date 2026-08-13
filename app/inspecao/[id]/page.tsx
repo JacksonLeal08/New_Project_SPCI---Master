@@ -50,15 +50,16 @@ interface ChecklistItem {
   key: string;
   label: string;
   conforme: boolean | null;
+  isImpeditivo?: boolean;
 }
 
 const DEFAULT_CHECKLIST: ChecklistItem[] = [
-  { key: 'lacre_presente', label: 'Lacre de Segurança Preservado e Íntegro', conforme: null },
-  { key: 'pressao_adequada', label: 'Manômetro com Pressão na Faixa Verde (OK)', conforme: null },
-  { key: 'valido_inmetro', label: 'Selo do Inmetro Válido e Legível', conforme: null },
-  { key: 'obstruido', label: 'Acesso Livre e Desobstruído', conforme: null },
-  { key: 'sinalizado', label: 'Sinalização Visual Adequada (Parede e Piso)', conforme: null },
-  { key: 'casco_pintura', label: 'Estado do Casco e Pintura sem Corrosão', conforme: null },
+  { key: 'lacre_presente', label: 'Lacre de Segurança Preservado e Íntegro', conforme: null, isImpeditivo: true },
+  { key: 'pressao_adequada', label: 'Manômetro com Pressão na Faixa Verde (OK)', conforme: null, isImpeditivo: false },
+  { key: 'valido_inmetro', label: 'Selo do Inmetro Válido e Legível', conforme: null, isImpeditivo: false },
+  { key: 'obstruido', label: 'Acesso Livre e Desobstruído', conforme: null, isImpeditivo: false },
+  { key: 'sinalizado', label: 'Sinalização Visual Adequada (Parede e Piso)', conforme: null, isImpeditivo: false },
+  { key: 'casco_pintura', label: 'Estado do Casco e Pintura sem Corrosão', conforme: null, isImpeditivo: true },
 ];
 
 function InspecaoOuCadastroContent() {

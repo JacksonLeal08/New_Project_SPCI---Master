@@ -5,6 +5,7 @@ import AppFooter from '@/app/components/AppFooter';
 import { useSpci } from '@/app/context/SpciContext';
 import { MediaCaptureModal } from '@/app/components/MediaCaptureModal';
 import { NormasExtintorModal } from '@/app/components/NormasExtintorModal';
+import { DEFAULT_EXTINTOR_CHECKLIST } from './ChecklistEditModal';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -19,7 +20,9 @@ import {
   X,
   BookOpen,
   RotateCcw,
-  Save
+  Save,
+  ShieldAlert,
+  Search
 } from 'lucide-react';
 
 interface AssetInspectionModalProps {
@@ -64,7 +67,7 @@ export default function AssetInspectionModal({
   photoFrontal,
   onDemoDrop
 }: AssetInspectionModalProps) {
-  const { extintorChecklist } = useSpci();
+  const { extintorChecklist, extintores, setExtintores, updateAsset } = useSpci();
 
   // Estado para armazenar a resposta e fotos de cada quesito do checklist NBR
   const [itemStates, setItemStates] = useState<{ [key: number]: ItemInspectionState }>({});
@@ -74,6 +77,18 @@ export default function AssetInspectionModal({
 
   // Mensagem de feedback ao gravar dados
   const [saveSuccessMsg, setSaveSuccessMsg] = useState(false);
+
+  // ESTADOS DO FLUXO DE SUBSTITUIÇÃO IMPEDITIVA EM CAMPO
+  const [substituicaoOpcao, setSubstituicaoOpcao] = useState<'SIM' | 'NAO' | null>(null);
+  const [substitutoSearchTerm, setSubstitutoSearchTerm] = useState('');
+  const [selectedSubstituto, setSelectedSubstituto] = useState<any | null>(null);
+
+  // Campos de novo cadastro quando o ativo não é encontrado no Estoque
+  const [novoPatrimonio, setNovoPatrimonio] = useState('');
+  const [novoChassi, setNovoChassi] = useState('');
+  const [novoSeloInmetro, setNovoSeloInmetro] = useState('');
+  const [novoModelo, setNovoModelo] = useState('PQS 6kg (Portátil)');
+  const [novaValidadeRecarga, setNovaValidadeRecarga] = useState('');
 
   // Estado do Modal Seletor de Câmera vs Galeria
   const [pickerState, setPickerState] = useState<{
@@ -87,8 +102,16 @@ export default function AssetInspectionModal({
   });
 
   useEffect(() => {
-    // Reseta os estados de inspeção quando o ativo muda
+    // Reseta os estados de inspeção e substituição quando o ativo muda
     setItemStates({});
+    setSubstituicaoOpcao(null);
+    setSubstitutoSearchTerm('');
+    setSelectedSubstituto(null);
+    setNovoPatrimonio('');
+    setNovoChassi('');
+    setNovoSeloInmetro('');
+    setNovoModelo('PQS 6kg (Portátil)');
+    setNovaValidadeRecarga('');
   }, [asset?.id, isOpen]);
 
   if (!isOpen || !asset) return null;
@@ -218,10 +241,24 @@ export default function AssetInspectionModal({
   // Avalia se há alguma inconformidade na lista
   const hasInconformity = requirements.some((_, idx) => getItemState(idx).status === 'Não Conforme');
 
+  // Avalia inconformidades impeditivas (caráter de substituição imediata)
+  const impeditivoInconformities = requirements
+    .map((reqText, idx) => {
+      const chkObj = extintorChecklist?.find((c: any) => c.item === reqText) || DEFAULT_EXTINTOR_CHECKLIST.find(c => c.item === reqText);
+      const isImp = chkObj ? !!chkObj.isImpeditivo : (idx === 6); // Item 7 (index 6) lacre
+      return { reqText, isImp, state: getItemState(idx) };
+    })
+    .filter(x => x.isImp && x.state.status === 'Não Conforme');
+
+  const hasImpeditivoNonConformity = asset.category === 'extintores' && impeditivoInconformities.length > 0;
+
   // Limpa todas as opções selecionadas, notas e pareceres
   const handleClearAll = () => {
     setItemStates({});
     setInspectionNotes('');
+    setSubstituicaoOpcao(null);
+    setSubstitutoSearchTerm('');
+    setSelectedSubstituto(null);
   };
 
   // Grava os dados atualmente inseridos
@@ -243,8 +280,19 @@ export default function AssetInspectionModal({
     setTimeout(() => setSaveSuccessMsg(false), 3500);
   };
 
-  const handleConfirmFinalize = (userChoiceStatus?: 'Conforme' | 'Não Conforme') => {
+  const handleConfirmFinalize = async (userChoiceStatus?: 'Conforme' | 'Não Conforme') => {
     const finalStatus = userChoiceStatus || (hasInconformity ? 'Não Conforme' : 'Conforme');
+
+    // Validação de substituição impeditiva obrigatória
+    if (hasImpeditivoNonConformity && substituicaoOpcao === null) {
+      alert('Atenção: Existem não conformidades de caráter IMPEDITIVO neste extintor! Por favor, informe no final do formulário se o equipamento foi substituído no local antes de homologar.');
+      return;
+    }
+
+    if (hasImpeditivoNonConformity && substituicaoOpcao === 'SIM' && !selectedSubstituto && !novoPatrimonio.trim()) {
+      alert('Por favor, selecione um extintor do estoque ou informe o número do novo patrimônio para registrar a substituição.');
+      return;
+    }
 
     // Monta laudo consolidado de parecer
     let compiledNotes = inspectionNotes ? `${inspectionNotes}\n\n` : '';
@@ -261,8 +309,55 @@ export default function AssetInspectionModal({
       });
     }
 
+    // Processamento da Substituição de Ativo Impeditivo
+    if (hasImpeditivoNonConformity && substituicaoOpcao === 'SIM') {
+      const assetAny = asset as any;
+      if (selectedSubstituto) {
+        compiledNotes += `\n\n🔄 SUBSTITUIÇÃO DE ATIVO EM CAMPO (ESTOQUE):\n- Extintor Retirado (Não Conforme): ${assetAny.numero_patrimonio || assetAny.idAtivo || asset.id}\n- Extintor Substituto Instalado: ${selectedSubstituto.numero_patrimonio || selectedSubstituto.idAtivo || selectedSubstituto.id} (${selectedSubstituto.model || 'SPCI'}, Selo Inmetro: ${selectedSubstituto.seloInmetro || selectedSubstituto.selo_inmetro || 'Isento'})`;
+
+        // Aloca o extintor do estoque na localização do atual
+        if (updateAsset) {
+          updateAsset(selectedSubstituto.id || selectedSubstituto.idAtivo, {
+            location: asset.location,
+            subLocation: asset.subLocation,
+            area: assetAny.area,
+            projeto: assetAny.projeto,
+            status: 'Conforme'
+          });
+        }
+      } else if (novoPatrimonio.trim()) {
+        compiledNotes += `\n\n🔄 SUBSTITUIÇÃO DE ATIVO EM CAMPO (NOVO CADASTRO):\n- Extintor Retirado (Não Conforme): ${assetAny.numero_patrimonio || assetAny.idAtivo || asset.id}\n- Novo Extintor Instalado na Área: ${novoPatrimonio} (Modelo: ${novoModelo}, Selo Inmetro: ${novoSeloInmetro || 'Isento'})`;
+
+        // Cria o novo ativo e insere no estado de extintores
+        const newAssetObj: any = {
+          id: `ext-novo-${Date.now()}`,
+          idAtivo: novoPatrimonio.trim(),
+          numero_patrimonio: novoPatrimonio.trim(),
+          chassi: novoChassi.trim() || `CH-${Date.now().toString().slice(-5)}`,
+          selo_inmetro: novoSeloInmetro.trim() || 'NBR-ISENTO',
+          seloInmetro: novoSeloInmetro.trim() || 'NBR-ISENTO',
+          modelo: novoModelo,
+          model: novoModelo,
+          peso_capacidade: novoModelo.includes('6kg') ? '6kg' : novoModelo.includes('4kg') ? '4kg' : '10L',
+          data_ultima_recarga: novaValidadeRecarga || new Date().toISOString().split('T')[0],
+          area: assetAny.area || 'Planta Principal',
+          projeto: assetAny.projeto || 'SPCI',
+          location: asset.location || 'Área Industrial',
+          subLocation: asset.subLocation || '',
+          status: 'Conforme',
+          category: 'extintores'
+        };
+
+        if (setExtintores) {
+          setExtintores(prev => [newAssetObj, ...prev]);
+        }
+      }
+    } else if (hasImpeditivoNonConformity && substituicaoOpcao === 'NAO') {
+      compiledNotes += `\n\n⚠️ ALERTA: O extintor impeditivo foi retirado da área e NÃO foi substituído no momento da inspeção. Área encontra-se desprovida de extintor!`;
+    }
+
     setInspectionNotes(compiledNotes.trim());
-    onFinalize(finalStatus);
+    await onFinalize(finalStatus);
   };
 
   return (
@@ -398,6 +493,8 @@ export default function AssetInspectionModal({
               {requirements.map((reqText, i) => {
                 const state = getItemState(i);
                 const isNonConform = state.status === 'Não Conforme';
+                const chkObj = extintorChecklist?.find((c: any) => c.item === reqText) || DEFAULT_EXTINTOR_CHECKLIST.find(c => c.item === reqText);
+                const isImpeditivo = asset.category === 'extintores' && (chkObj ? !!chkObj.isImpeditivo : (i === 6));
 
                 return (
                   <div
@@ -412,10 +509,20 @@ export default function AssetInspectionModal({
                   >
                     {/* TÍTULO E BOTÕES DE OPÇÃO */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <p className="text-xs font-sans font-black leading-relaxed text-slate-900 flex-1">
-                        <span className="font-mono font-black text-red-700 mr-1.5">{i + 1}-</span>
-                        {reqText}
-                      </p>
+                      <div className="flex-1 space-y-1">
+                        <p className="text-xs font-sans font-black leading-relaxed text-slate-900">
+                          <span className="font-mono font-black text-red-700 mr-1.5">{i + 1}-</span>
+                          {reqText}
+                        </p>
+                        {isImpeditivo && (
+                          <div className="pt-0.5">
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 text-red-800 border border-red-300 font-mono text-[9px] font-black shadow-xs">
+                              <ShieldAlert className="w-3 h-3 text-red-600" />
+                              Impeditivo Permanecer na Área
+                            </span>
+                          </div>
+                        )}
+                      </div>
 
                       {/* OPÇÕES: CONFORME | NÃO CONFORME | N/A */}
                       <div className="flex items-center gap-1.5 shrink-0">
@@ -469,6 +576,14 @@ export default function AssetInspectionModal({
                           exit={{ opacity: 0, height: 0 }}
                           className="pt-3 border-t border-red-200 space-y-3 font-sans"
                         >
+                          {/* BANNER DE AVISO IMPEDITIVO SE FOR ITEM IMPEDITIVO REPROVADO */}
+                          {isImpeditivo && (
+                            <div className="bg-red-700 text-white p-3 rounded-xl flex items-center gap-2.5 font-mono text-[11px] font-black shadow-sm border border-red-800">
+                              <ShieldAlert className="w-5 h-5 text-yellow-300 shrink-0" />
+                              <span>INCONFORMIDADE CRÍTICA IMPEDITIVA: Esta falha impede a permanência do extintor na área. O equipamento deve ser substituído imediatamente!</span>
+                            </div>
+                          )}
+
                           {/* SELETOR DE OCORRÊNCIA ENCONTRADA */}
                           <div className="space-y-1">
                             <label className="block text-[10px] font-mono font-black uppercase text-red-800 flex items-center gap-1">
@@ -599,6 +714,265 @@ export default function AssetInspectionModal({
               })}
             </div>
           </div>
+
+          {/* CARD DE SUBSTITUIÇÃO DE ATIVO IMPEDITIVO EM CAMPO */}
+          {hasImpeditivoNonConformity && (
+            <div className="border-2 border-red-500 bg-red-50/90 p-4.5 rounded-2xl space-y-4 shadow-md font-sans transition-all">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-600 rounded-xl flex items-center justify-center text-white text-lg font-black shadow-xs">
+                  🚨
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase text-red-950 font-mono tracking-wider flex items-center gap-2">
+                    SUBSTITUIÇÃO DE ATIVO IMPEDITIVO EM CAMPO
+                  </h4>
+                  <p className="text-[11px] text-red-800 font-bold mt-0.5">
+                    Foram encontradas não conformidades que **impedem a permanência deste extintor na área**.
+                  </p>
+                </div>
+              </div>
+
+              {/* PERGUNTA DE SUBSTITUIÇÃO */}
+              <div className="bg-white p-4 border border-red-200 rounded-xl space-y-2.5 shadow-xs">
+                <label className="block text-xs font-mono font-black uppercase text-slate-900">
+                  O extintor foi substituído no local? *
+                </label>
+                <div className="flex gap-2.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubstituicaoOpcao('SIM');
+                      setSelectedSubstituto(null);
+                      setSubstitutoSearchTerm('');
+                    }}
+                    className={`flex-1 py-2.5 text-xs font-mono font-black rounded-xl border transition-all cursor-pointer shadow-xs ${
+                      substituicaoOpcao === 'SIM'
+                        ? 'bg-emerald-600 text-white border-emerald-700 font-black scale-[1.01]'
+                        : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100 font-bold'
+                    }`}
+                  >
+                    ✅ SIM, SUBSTITUÍDO NO LOCAL
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubstituicaoOpcao('NAO');
+                      setSelectedSubstituto(null);
+                    }}
+                    className={`flex-1 py-2.5 text-xs font-mono font-black rounded-xl border transition-all cursor-pointer shadow-xs ${
+                      substituicaoOpcao === 'NAO'
+                        ? 'bg-red-600 text-white border-red-700 font-black scale-[1.01]'
+                        : 'bg-slate-50 text-slate-700 border-slate-300 hover:bg-slate-100 font-bold'
+                    }`}
+                  >
+                    ❌ NÃO SUBSTITUÍDO (RETIRADO DA ÁREA)
+                  </button>
+                </div>
+              </div>
+
+              {/* BUSCA NO ESTOQUE OU NOVO CADASTRO */}
+              {substituicaoOpcao === 'SIM' && (
+                <div className="bg-white p-4 border border-red-200 rounded-xl space-y-4 shadow-xs">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-mono font-black uppercase text-slate-900 flex items-center gap-1.5">
+                      <Search className="w-4 h-4 text-red-600" />
+                      Informe o Nº do Extintor Substituto (Campo Selecionável / Digitável) *
+                    </label>
+                    <p className="text-[10.5px] text-slate-600 font-bold">
+                      Ao digitar o número do ativo, o sistema filtrará os extintores compatíveis do **Estoque**. Se não for encontrado, serão exibidos os campos para **cadastrar o novo extintor**.
+                    </p>
+                    <input
+                      type="text"
+                      value={substitutoSearchTerm}
+                      onChange={(e) => {
+                        setSubstitutoSearchTerm(e.target.value);
+                        setSelectedSubstituto(null);
+                        setNovoPatrimonio(e.target.value);
+                      }}
+                      placeholder="Digite o Nº Patrimônio, Chassi ou ID (Ex: EXT-2026, 88741, PQS-002)..."
+                      className="w-full bg-slate-50 border border-slate-300 focus:border-red-600 rounded-xl p-3 text-xs text-slate-900 font-bold shadow-xs focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  {/* RESULTADOS DA BUSCA OU FORMULÁRIO DE NOVO CADASTRO */}
+                  {substitutoSearchTerm.trim().length >= 1 && (
+                    <div>
+                      {(() => {
+                        const matchingStock = (extintores || []).filter((ext: any) => {
+                          const searchLower = substitutoSearchTerm.toLowerCase().trim();
+                          const pat = (ext.numero_patrimonio || ext.idAtivo || ext.id || '').toLowerCase();
+                          const chassi = (ext.chassi || '').toLowerCase();
+                          const selo = (ext.seloInmetro || ext.selo_inmetro || '').toLowerCase();
+                          return pat.includes(searchLower) || chassi.includes(searchLower) || selo.includes(searchLower);
+                        });
+
+                        if (matchingStock.length > 0 && !selectedSubstituto) {
+                          return (
+                            <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
+                              <span className="text-[10px] font-mono font-black uppercase text-emerald-800 flex items-center gap-1">
+                                🟢 Ativos Compatíveis Encontrados no Estoque ({matchingStock.length}):
+                              </span>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                                {matchingStock.map((stockAsset: any) => (
+                                  <button
+                                    key={stockAsset.id || stockAsset.idAtivo}
+                                    type="button"
+                                    onClick={() => setSelectedSubstituto(stockAsset)}
+                                    className="text-left bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-400 p-2.5 rounded-xl transition-all cursor-pointer shadow-xs space-y-1"
+                                  >
+                                    <div className="flex justify-between items-center">
+                                      <span className="font-mono font-black text-xs text-slate-900">
+                                        {stockAsset.numero_patrimonio || stockAsset.idAtivo}
+                                      </span>
+                                      <span className="text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
+                                        {stockAsset.area || stockAsset.status || 'Estoque'}
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] font-bold text-slate-600 truncate">{stockAsset.model || stockAsset.modelo || 'Extintor SPCI'}</p>
+                                    <p className="text-[9px] text-slate-500 font-mono">Selo: {stockAsset.seloInmetro || stockAsset.selo_inmetro || 'Isento'}</p>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        if (matchingStock.length === 0 && !selectedSubstituto) {
+                          return (
+                            <div className="bg-amber-50/90 border-2 border-amber-300 p-4 rounded-xl space-y-3 font-sans shadow-xs">
+                              <div className="flex items-center gap-2">
+                                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                                <span className="text-xs font-mono font-black uppercase text-amber-950">
+                                  Nenhum extintor encontrado no Estoque com o número "{substitutoSearchTerm}"
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-amber-900 font-bold">
+                                Informe os dados padrões abaixo para **cadastrar o novo extintor** imediatamente no sistema:
+                              </p>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 font-mono">
+                                <div>
+                                  <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
+                                    Nº Patrimônio / ID *
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={novoPatrimonio}
+                                    onChange={(e) => setNovoPatrimonio(e.target.value)}
+                                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
+                                    placeholder="Ex: EXT-1099"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
+                                    Nº Chassi / Recipiente
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={novoChassi}
+                                    onChange={(e) => setNovoChassi(e.target.value)}
+                                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
+                                    placeholder="Ex: CH-88741"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
+                                    Selo Inmetro *
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={novoSeloInmetro}
+                                    onChange={(e) => setNovoSeloInmetro(e.target.value)}
+                                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
+                                    placeholder="Ex: 14253678"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
+                                    Modelo / Agente
+                                  </label>
+                                  <select
+                                    value={novoModelo}
+                                    onChange={(e) => setNovoModelo(e.target.value)}
+                                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
+                                  >
+                                    <option value="PQS 4kg (Portátil)">PQS 4kg (Portátil)</option>
+                                    <option value="PQS 6kg (Portátil)">PQS 6kg (Portátil)</option>
+                                    <option value="CO2 6kg (Portátil)">CO2 6kg (Portátil)</option>
+                                    <option value="AP 10L (Portátil)">AP 10L (Portátil)</option>
+                                    <option value="Espuma Mecânica 9L">Espuma Mecânica 9L</option>
+                                    <option value="PQS 20kg (Carreta / Sobre Rodas)">PQS 20kg (Carreta)</option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
+                                    Validade da Recarga
+                                  </label>
+                                  <input
+                                    type="date"
+                                    value={novaValidadeRecarga}
+                                    onChange={(e) => setNovaValidadeRecarga(e.target.value)}
+                                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return null;
+                      })()}
+                    </div>
+                  )}
+
+                  {/* EXIBIÇÃO DO ATIVO DO ESTOQUE SELECIONADO NO ESTILO PADRÃO SPCI */}
+                  {selectedSubstituto && (
+                    <div className="bg-emerald-50 border-2 border-emerald-500 p-4 rounded-xl space-y-2 shadow-xs">
+                      <div className="flex justify-between items-start">
+                        <div className="flex items-center gap-2.5">
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                          <div>
+                            <span className="text-[10px] font-mono font-black uppercase text-emerald-900 block">
+                              EXTINTOR DO ESTOQUE SELECIONADO PARA SUBSTITUIÇÃO:
+                            </span>
+                            <h4 className="text-sm font-black text-slate-900 font-mono">
+                              {selectedSubstituto.numero_patrimonio || selectedSubstituto.idAtivo || selectedSubstituto.id}
+                            </h4>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedSubstituto(null)}
+                          className="text-xs font-mono font-black text-red-600 hover:text-red-800 cursor-pointer underline"
+                        >
+                          Alterar Seleção
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 font-mono text-[11px] text-slate-800 bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs">
+                        <div>
+                          <span className="text-[9px] text-slate-500 font-bold block uppercase">Modelo</span>
+                          <span className="font-black">{selectedSubstituto.model || selectedSubstituto.modelo || 'PQS'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-slate-500 font-bold block uppercase">Selo Inmetro</span>
+                          <span className="font-black">{selectedSubstituto.seloInmetro || selectedSubstituto.selo_inmetro || 'Isento'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-slate-500 font-bold block uppercase">Origem</span>
+                          <span className="font-black text-emerald-700">{selectedSubstituto.area || selectedSubstituto.location || 'Estoque'}</span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-slate-500 font-bold block uppercase">Validade Recarga</span>
+                          <span className="font-black">{selectedSubstituto.data_ultima_recarga || 'Válido'}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Notas do Técnico */}
           <div className="space-y-2 pt-2">
