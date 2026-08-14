@@ -4,9 +4,10 @@ import { useSpci } from '@/app/context/SpciContext';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompressor';
 import { MediaQueue } from '@/lib/mediaQueue';
-import { Flame, Check, X, Upload, Shield, Calendar, MapPin, ClipboardList, Info, Plus, QrCode } from 'lucide-react';
+import { Flame, Check, X, Upload, Shield, Calendar, MapPin, ClipboardList, Info, Plus, QrCode, ArrowRightLeft } from 'lucide-react';
 import QrCameraScanner from './QrCameraScanner';
 import { parseInmetroCode } from '@/lib/utils';
+import { TipoMovimentacaoType, TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
 
 interface ExtintorAddModalProps {
   isOpen: boolean;
@@ -106,6 +107,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
   const [formDataPesagemCo2, setFormDataPesagemCo2] = useState('');
 
   // Section 3: Localização
+  const [tipoMovimentacao, setTipoMovimentacao] = useState<TipoMovimentacaoType>('na_area_aplicado');
   const [selectedLocalId, setSelectedLocalId] = useState(''); // local ID or "NEW"
   const [newLocalName, setNewLocalName] = useState('');
   const [formSubLocal, setFormSubLocal] = useState('');
@@ -619,6 +621,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         area: finalAreaName,
         projeto: finalProjetoName,
         status: 'Conforme',
+        tipo_movimentacao: tipoMovimentacao,
         
         local_id: finalLocalId || null,
         sub_local_id: finalSubLocalId || null, 
@@ -1183,6 +1186,32 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                     />
                   </div>
                 )}
+
+                {/* Campo TIPO DE MOVIMENTAÇÃO */}
+                <div className="md:col-span-2 bg-slate-50/70 p-3 rounded-xl border border-slate-200">
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-[9px] font-extrabold uppercase text-slate-700 flex items-center gap-1.5">
+                      <ArrowRightLeft className="w-3 h-3 text-red-600" />
+                      Tipo de Movimentação *
+                    </label>
+                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${TIPO_MOVIMENTACAO_MAP[tipoMovimentacao]?.badgeClass || ''}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${TIPO_MOVIMENTACAO_MAP[tipoMovimentacao]?.dotColor || 'bg-slate-400'}`}></span>
+                      {TIPO_MOVIMENTACAO_MAP[tipoMovimentacao]?.label || tipoMovimentacao}
+                    </span>
+                  </div>
+                  <select 
+                    value={tipoMovimentacao}
+                    onChange={(e) => setTipoMovimentacao(e.target.value as TipoMovimentacaoType)}
+                    className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2.5 text-xs outline-none font-bold cursor-pointer font-sans"
+                    required
+                  >
+                    {TIPO_MOVIMENTACAO_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label} — {opt.description}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 

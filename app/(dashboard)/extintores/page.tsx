@@ -31,8 +31,10 @@ import {
   Activity,
   Pencil,
   Clock,
-  ClipboardList
+  ClipboardList,
+  ArrowRightLeft
 } from 'lucide-react';
+import { TipoMovimentacaoType, TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP, normalizeTipoMovimentacao } from '@/lib/types';
 
 interface ValidatedRow {
   id: string;
@@ -52,6 +54,7 @@ interface ValidatedRow {
   projeto: string;
   local: string;
   sub_local: string;
+  tipo_movimentacao: string;
   errors: string[];
   isValid: boolean;
 }
@@ -100,6 +103,7 @@ export default function ExtintoresPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'CONFORME' | 'VENCIDO' | 'MANUTENCAO'>('ALL');
   const [inspecoesFilter, setInspecoesFilter] = useState<'ALL' | 'FEITAS' | 'PENDENTES' | 'OCORRENCIAS'>('ALL');
+  const [movimentacaoFilter, setMovimentacaoFilter] = useState<'ALL' | TipoMovimentacaoType>('ALL');
 
   // --- ESTADOS DO COCKPIT DE EDIÇÃO EM MASSA ---
   const [showBulkEdit, setShowBulkEdit] = useState<boolean>(false);
@@ -190,6 +194,12 @@ export default function ExtintoresPage() {
       if (inspecoesFilter === 'FEITAS') return uniqueInspectedExtintores.has(a.idAtivo);
       if (inspecoesFilter === 'PENDENTES') return !uniqueInspectedExtintores.has(a.idAtivo);
       if (inspecoesFilter === 'OCORRENCIAS') return extintoresComOcorrencia.has(a.idAtivo);
+    }
+
+    // 4. Tipo de Movimentação filter
+    if (movimentacaoFilter !== 'ALL') {
+      const currentMov = normalizeTipoMovimentacao(a.tipo_movimentacao);
+      if (currentMov !== movimentacaoFilter) return false;
     }
 
     return true;
@@ -298,12 +308,13 @@ export default function ExtintoresPage() {
         'area',
         'projeto',
         'local',
-        'sub_local'
+        'sub_local',
+        'tipo_movimentacao'
       ]
     ];
     const sampleData = [
-      ['EXT-1090', 'CH-9921', 'S-992389', 'PQS ABC', '8KG', 'GAR-8921', '2025-06-01', '12', '2024', '2022', '', 'ÁREA 01', 'SALOBO I E II', 'ALMOXARIFADO', 'DOCA DE CARGA 2'],
-      ['EXT-1091', 'CH-9922', 'S-992390', 'CO2', '6KG', 'GAR-8922', '2025-05-15', '12', '2023', '2021', '2025-05-15', 'ÁREA 02', 'SALOBO III', 'MANGANÊS', 'SALA DE GERADORES']
+      ['EXT-1090', 'CH-9921', 'S-992389', 'PQS ABC', '8KG', 'GAR-8921', '2025-06-01', '12', '2024', '2022', '', 'ÁREA 01', 'SALOBO I E II', 'ALMOXARIFADO', 'DOCA DE CARGA 2', 'NA ÁREA (APLICADO)'],
+      ['EXT-1091', 'CH-9922', 'S-992390', 'CO2', '6KG', 'GAR-8922', '2025-05-15', '12', '2023', '2021', '2025-05-15', 'ÁREA 02', 'SALOBO III', 'MANGANÊS', 'SALA DE GERADORES', 'ESTOQUE (APLICAÇÃO)']
     ];
     const sheetData = [...headers, ...sampleData];
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
@@ -323,7 +334,7 @@ export default function ExtintoresPage() {
       link.click();
       document.body.removeChild(link);
     }
-    triggerSuccessNotification('Modelo Baixado!', `Planilha de modelo em formato ${format.toUpperCase()} foi baixada com 15 colunas padronizadas.`);
+    triggerSuccessNotification('Modelo Baixado!', `Planilha de modelo em formato ${format.toUpperCase()} foi baixada com 16 colunas padronizadas.`);
   };
 
   // --- GERAÇÃO E DOWNLOAD DE DADOS ATUAIS PARA EDIÇÃO ---
@@ -344,11 +355,13 @@ export default function ExtintoresPage() {
         'area',
         'projeto',
         'local',
-        'sub_local'
+        'sub_local',
+        'tipo_movimentacao'
       ]
     ];
     
     const dataRows = extintores.map((ext: any) => {
+      const movConfig = TIPO_MOVIMENTACAO_MAP[ext.tipo_movimentacao] || TIPO_MOVIMENTACAO_OPTIONS[0];
       return [
         ext.idAtivo || '',
         ext.chassi || '',
@@ -364,7 +377,8 @@ export default function ExtintoresPage() {
         ext.area || 'ÁREA 01',
         ext.projeto || 'SALOBO I E II',
         ext.location || '',
-        ext.subLocation || ''
+        ext.subLocation || '',
+        movConfig.label
       ];
     });
 
@@ -456,6 +470,7 @@ export default function ExtintoresPage() {
       const testeHidro = parseInt(row.ano_ultimo_teste_hidro || new Date().getFullYear().toString(), 10);
       const anoFabricacao = String(row.ano_fabricacao || '').trim();
       const pesagemCo2 = row.data_pesagem_co2 ? parseExcelDate(row.data_pesagem_co2) : '';
+      const tipoMov = normalizeTipoMovimentacao(row.tipo_movimentacao);
 
       // Find original asset
       const original = extintores.find(x => (x.idAtivo || '').toUpperCase() === pat);
@@ -480,10 +495,11 @@ export default function ExtintoresPage() {
           ano_ultimo_teste_hidro: testeHidro,
           ano_fabricacao: anoFabricacao,
           data_pesagem_co2: pesagemCo2,
+          tipo_movimentacao: tipoMov,
           changes: {
             local: false, sub_local: false, area: false, projeto: false, modelo: false, selo_inmetro: false, chassi: false,
             peso_capacidade: false, etiqueta_garantia: false, data_ultima_recarga: false, meses_validade_recarga: false,
-            ano_ultimo_teste_hidro: false, ano_fabricacao: false, data_pesagem_co2: false
+            ano_ultimo_teste_hidro: false, ano_fabricacao: false, data_pesagem_co2: false, tipo_movimentacao: false
           },
           errors,
           isValid: false,
@@ -512,10 +528,11 @@ export default function ExtintoresPage() {
           ano_ultimo_teste_hidro: testeHidro,
           ano_fabricacao: anoFabricacao,
           data_pesagem_co2: pesagemCo2,
+          tipo_movimentacao: tipoMov,
           changes: {
             local: false, sub_local: false, area: false, projeto: false, modelo: false, selo_inmetro: false, chassi: false,
             peso_capacidade: false, etiqueta_garantia: false, data_ultima_recarga: false, meses_validade_recarga: false,
-            ano_ultimo_teste_hidro: false, ano_fabricacao: false, data_pesagem_co2: false
+            ano_ultimo_teste_hidro: false, ano_fabricacao: false, data_pesagem_co2: false, tipo_movimentacao: false
           },
           errors,
           isValid: false,
@@ -539,7 +556,8 @@ export default function ExtintoresPage() {
         meses_validade_recarga: validadeMeses !== parseInt(original.meses_validade_recarga || original.validadeRecargaMeses || '12', 10),
         ano_ultimo_teste_hidro: testeHidro !== parseInt(original.ano_ultimo_teste_hidro || original.ultimoTesteHidro || original.anoUltimoTesteHidro || '2025', 10),
         ano_fabricacao: anoFabricacao !== String(original.ano_fabricacao || original.anoFabricacao || '').trim(),
-        data_pesagem_co2: pesagemCo2 !== (original.data_pesagem_co2 || '').trim()
+        data_pesagem_co2: pesagemCo2 !== (original.data_pesagem_co2 || '').trim(),
+        tipo_movimentacao: tipoMov !== normalizeTipoMovimentacao(original.tipo_movimentacao)
       };
 
       // Blocked changes check
@@ -593,6 +611,7 @@ export default function ExtintoresPage() {
         ano_ultimo_teste_hidro: testeHidro,
         ano_fabricacao: anoFabricacao,
         data_pesagem_co2: pesagemCo2,
+        tipo_movimentacao: tipoMov,
         changes,
         errors,
         isValid: errors.length === 0,
@@ -602,7 +621,7 @@ export default function ExtintoresPage() {
     });
 
     setValidatedEditRows(validated);
-    triggerSuccessNotification('Planilha de Edição Carregada', `Processadas ${validated.length} linhas para edição com 15 colunas.`);
+    triggerSuccessNotification('Planilha de Edição Carregada', `Processadas ${validated.length} linhas para edição com 16 colunas.`);
   };
 
   const handleConfirmEdit = async () => {
@@ -646,6 +665,7 @@ export default function ExtintoresPage() {
         ano_fabricacao: row.ano_fabricacao,
         anoFabricacao: row.ano_fabricacao,
         data_pesagem_co2: row.data_pesagem_co2 || null,
+        tipo_movimentacao: row.tipo_movimentacao || original.tipo_movimentacao || 'na_area_aplicado',
         validadeRecarga: validadeRecargaStr
       };
 
@@ -755,6 +775,7 @@ export default function ExtintoresPage() {
       const projeto = String(row.projeto || '').trim().toUpperCase() || 'SALOBO I E II';
       const local = String(row.local || '').trim().toUpperCase();
       const subLocal = String(row.sub_local || '').trim().toUpperCase();
+      const tipoMov = normalizeTipoMovimentacao(row.tipo_movimentacao);
 
       // Regras de validação
       if (!pat) {
@@ -811,13 +832,14 @@ export default function ExtintoresPage() {
         projeto,
         local,
         sub_local: subLocal,
+        tipo_movimentacao: tipoMov,
         errors,
         isValid: errors.length === 0
       };
     });
 
     setValidatedRows(validated);
-    triggerSuccessNotification('Planilha Carregada', `Processadas ${validated.length} linhas com 15 colunas no cockpit.`);
+    triggerSuccessNotification('Planilha Carregada', `Processadas ${validated.length} linhas com 16 colunas no cockpit.`);
   };
 
   const handleConfirmImport = async () => {
@@ -857,6 +879,7 @@ export default function ExtintoresPage() {
         ano_fabricacao: row.ano_fabricacao,
         anoFabricacao: row.ano_fabricacao,
         data_pesagem_co2: row.data_pesagem_co2 || null,
+        tipo_movimentacao: row.tipo_movimentacao || 'na_area_aplicado',
         validadeRecarga: validadeRecargaStr
       };
     });
@@ -1070,6 +1093,7 @@ export default function ExtintoresPage() {
                         <tr>
                           <th className="p-3 text-center w-12">Row</th>
                           <th className="p-3">Patrimônio</th>
+                          <th className="p-3">Movimentação</th>
                           <th className="p-3">Área / Projeto</th>
                           <th className="p-3">Setor / Sub-Local</th>
                           <th className="p-3">Modelo / Selo</th>
@@ -1092,6 +1116,12 @@ export default function ExtintoresPage() {
                             <td className="p-3 font-bold">
                               {row.numero_patrimonio || '---'}
                               {row.chassi && <span className="text-[8px] text-slate-400 block font-mono">CH: {row.chassi}</span>}
+                            </td>
+                            <td className="p-3 font-bold">
+                              <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8.5px] font-bold border ${TIPO_MOVIMENTACAO_MAP[row.tipo_movimentacao]?.badgeClass || 'bg-slate-100 text-slate-700'}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${TIPO_MOVIMENTACAO_MAP[row.tipo_movimentacao]?.dotColor || 'bg-slate-400'}`}></span>
+                                {TIPO_MOVIMENTACAO_MAP[row.tipo_movimentacao]?.label || row.tipo_movimentacao}
+                              </span>
                             </td>
                             <td className="p-3 font-medium">
                               <span className="font-bold text-slate-800">{row.area || 'ÁREA 01'}</span>
@@ -1311,6 +1341,7 @@ export default function ExtintoresPage() {
                         <tr>
                           <th className="p-3 text-center w-12">Row</th>
                           <th className="p-3">Patrimônio</th>
+                          <th className="p-3">Movimentação</th>
                           <th className="p-3">Área / Projeto</th>
                           <th className="p-3">Setor / Sub-Local</th>
                           <th className="p-3">Modelo / Selo</th>
@@ -1343,6 +1374,18 @@ export default function ExtintoresPage() {
                               <td className="p-3 font-bold">
                                 {row.numero_patrimonio || '---'}
                                 {row.chassi && <span className="text-[8px] text-slate-400 block font-mono">CH: {row.chassi}</span>}
+                              </td>
+
+                              <td className={`p-3 font-bold ${row.changes.tipo_movimentacao ? 'bg-amber-50/60' : ''}`}>
+                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8.5px] font-bold border ${TIPO_MOVIMENTACAO_MAP[row.tipo_movimentacao]?.badgeClass || 'bg-slate-100 text-slate-700'}`}>
+                                  <span className={`w-1.5 h-1.5 rounded-full ${TIPO_MOVIMENTACAO_MAP[row.tipo_movimentacao]?.dotColor || 'bg-slate-400'}`}></span>
+                                  {TIPO_MOVIMENTACAO_MAP[row.tipo_movimentacao]?.label || row.tipo_movimentacao}
+                                </span>
+                                {row.changes.tipo_movimentacao && (
+                                  <span className="text-[8px] text-amber-700 block font-sans leading-none mt-1">
+                                    Antes: {TIPO_MOVIMENTACAO_MAP[row.originalAsset?.tipo_movimentacao]?.label || row.originalAsset?.tipo_movimentacao || 'NA ÁREA (APLICADO)'}
+                                  </span>
+                                )}
                               </td>
 
                               <td className={`p-3 font-medium ${row.changes.area || row.changes.projeto ? 'bg-amber-50/60' : ''}`}>
@@ -1681,7 +1724,26 @@ export default function ExtintoresPage() {
                   </button>
                 </div>
               </div>
-              <div className="flex items-center gap-3 shrink-0">
+              <div className="flex items-center gap-3 shrink-0 flex-wrap">
+                {/* Filter by Tipo de Movimentação */}
+                <div className="flex items-center gap-1.5 bg-slate-100 border border-slate-200 p-1 rounded-xl">
+                  <span className="text-[10px] font-bold text-slate-600 px-1.5 flex items-center gap-1 font-mono">
+                    <ArrowRightLeft className="w-3 h-3 text-slate-500" /> Mov:
+                  </span>
+                  <select
+                    value={movimentacaoFilter}
+                    onChange={(e) => setMovimentacaoFilter(e.target.value as any)}
+                    className="bg-white border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-slate-800 outline-none cursor-pointer"
+                  >
+                    <option value="ALL">Todas Movimentações</option>
+                    {TIPO_MOVIMENTACAO_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* Search */}
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
@@ -1738,15 +1800,21 @@ export default function ExtintoresPage() {
                             );
                           })()}
                         </div>
-                        <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border shrink-0 ${
-                          asset.status === 'Conforme' || asset.status === 'NO PRAZO'
-                            ? 'text-emerald-700 bg-emerald-50 border-emerald-100' 
-                            : asset.status === 'Vencido' || asset.status === 'VENCIDO'
-                              ? 'text-rose-700 bg-rose-50 border-rose-100' 
-                              : 'text-amber-700 bg-amber-50 border-amber-100'
-                        }`}>
-                          {asset.status}
-                        </span>
+                        <div className="flex flex-col items-end gap-1.5">
+                          <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wide border shrink-0 ${
+                            asset.status === 'Conforme' || asset.status === 'NO PRAZO'
+                              ? 'text-emerald-700 bg-emerald-50 border-emerald-100' 
+                              : asset.status === 'Vencido' || asset.status === 'VENCIDO'
+                                ? 'text-rose-700 bg-rose-50 border-rose-100' 
+                                : 'text-amber-700 bg-amber-50 border-amber-100'
+                          }`}>
+                            {asset.status}
+                          </span>
+                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8.5px] font-bold border ${TIPO_MOVIMENTACAO_MAP[asset.tipo_movimentacao || 'na_area_aplicado']?.badgeClass || 'bg-emerald-100 text-emerald-800 border-emerald-300'}`}>
+                            <span className={`w-1.5 h-1.5 rounded-full ${TIPO_MOVIMENTACAO_MAP[asset.tipo_movimentacao || 'na_area_aplicado']?.dotColor || 'bg-emerald-500'}`}></span>
+                            {TIPO_MOVIMENTACAO_MAP[asset.tipo_movimentacao || 'na_area_aplicado']?.label || 'NA ÁREA (APLICADO)'}
+                          </span>
+                        </div>
                       </div>
 
                       <div className="space-y-1.5 bg-slate-50 p-3.5 rounded-xl border border-slate-100 text-xs text-slate-700 font-medium">

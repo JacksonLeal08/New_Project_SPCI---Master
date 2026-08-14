@@ -17,8 +17,10 @@ import {
   Clock,
   MapPin,
   Shield,
-  Loader2
+  Loader2,
+  ArrowRightLeft
 } from 'lucide-react';
+import { TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
 
 type TabKey = 'dados' | 'inspecoes' | 'historico' | 'fotos';
 
@@ -234,6 +236,30 @@ export default function AssetDetailDrawer() {
                     exit={{ opacity: 0, y: -8 }}
                     className="space-y-4"
                   >
+                    {/* Campo Tipo de Movimentação */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1">
+                          <ArrowRightLeft className="w-3 h-3 text-red-600" /> Tipo de Movimentação *
+                        </label>
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${TIPO_MOVIMENTACAO_MAP[formData.tipo_movimentacao || 'na_area_aplicado']?.badgeClass || 'bg-slate-100 text-slate-700'}`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${TIPO_MOVIMENTACAO_MAP[formData.tipo_movimentacao || 'na_area_aplicado']?.dotColor || 'bg-slate-400'}`}></span>
+                          {TIPO_MOVIMENTACAO_MAP[formData.tipo_movimentacao || 'na_area_aplicado']?.label || 'NA ÁREA (APLICADO)'}
+                        </span>
+                      </div>
+                      <select
+                        value={formData.tipo_movimentacao || 'na_area_aplicado'}
+                        onChange={(e) => handleFieldChange('tipo_movimentacao', e.target.value)}
+                        className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs font-bold outline-none cursor-pointer"
+                      >
+                        {TIPO_MOVIMENTACAO_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label} — {opt.description}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-3">
                       <FieldInput label="Patrimônio" value={formData.idAtivo || ''} onChange={(v) => handleFieldChange('idAtivo', v)} mono />
                       <FieldInput label="Modelo" value={formData.model || ''} onChange={(v) => handleFieldChange('model', v)} />

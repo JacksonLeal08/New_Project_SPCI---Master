@@ -28,6 +28,7 @@ import {
 import { useSpci } from '@/app/context/SpciContext';
 import { calculateDaysRemaining } from './GestaoAtivosModal';
 import ExtintorAddModal from './ExtintorAddModal';
+import { TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
 
 export default function ExtintoresManagementDashboard() {
   const { extintores, setExtintores, setSelectedAssetForHistory, triggerSuccessNotification } = useSpci();
@@ -599,6 +600,10 @@ export default function ExtintoresManagementDashboard() {
                         <div className="font-black text-slate-900">{ext.idAtivo || ext.patrimonio || 'EXT-SEM-ID'}</div>
                         <span className="text-[10px] text-slate-500 font-normal block">
                           Chassi: {ext.chassi || ext.numero_serie || 'N/A'}
+                        </span>
+                        <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold border mt-1 ${TIPO_MOVIMENTACAO_MAP[ext.tipo_movimentacao || 'na_area_aplicado']?.badgeClass || 'bg-emerald-100 text-emerald-800 border-emerald-300'}`}>
+                          <span className={`w-1 h-1 rounded-full ${TIPO_MOVIMENTACAO_MAP[ext.tipo_movimentacao || 'na_area_aplicado']?.dotColor || 'bg-emerald-500'}`}></span>
+                          {TIPO_MOVIMENTACAO_MAP[ext.tipo_movimentacao || 'na_area_aplicado']?.label || 'NA ÁREA (APLICADO)'}
                         </span>
                       </td>
 
