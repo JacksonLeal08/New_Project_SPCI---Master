@@ -43,9 +43,18 @@ interface GestaoAtivosModalProps {
   onClose: () => void;
 }
 
-// Opções mestre compartilhadas com o Registro de Novo Extintor
-const MODEL_OPTIONS = ['AB', 'ABC', 'ABC-PREMIUM', 'CO²', 'CUSTOM'];
-const WEIGHT_OPTIONS = ['2KG', '4KG', '4,5KG', '6KG', '8KG', '9KG', '12KG', '20KG', '25KG', '30KG', '50KG', '55KG'];
+// Opções mestre compartilhadas
+const ASSET_CATEGORY_OPTIONS = [
+  { id: 'extintores', label: '🧯 Extintor de Incêndio' },
+  { id: 'mangueiras', label: '🚒 Mangueira / Hidrante' },
+  { id: 'iluminacao', label: '💡 Iluminação de Emergência' },
+  { id: 'sinalizacoes', label: '🪧 Sinalização de Emergência' },
+  { id: 'bombas', label: '⚙️ Bomba de Incêndio' },
+  { id: 'outros', label: '📦 Outros Equipamentos Controlados' }
+];
+
+const MODEL_OPTIONS = ['AB', 'ABC', 'ABC-PREMIUM', 'CO²', 'CUSTOM', 'Padrão'];
+const WEIGHT_OPTIONS = ['2KG', '4KG', '4,5KG', '6KG', '8KG', '9KG', '12KG', '20KG', '25KG', '30KG', '50KG', '55KG', 'N/A'];
 const FABRICANTE_OPTIONS = ['Kidde', 'Resmat', 'Mocelin', 'Bucka', 'Extinwal', 'Yalunt', 'Mondial', 'Outro'];
 const STATUS_EQUIPAMENTO_OPTIONS = ['Operacional', 'Conforme', 'Em Manutenção', 'Inspecionado', 'Aguardando Recarga', 'Não Conforme'];
 
@@ -90,6 +99,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   const [items, setItems] = useState<AssetStockItemRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'Todos' | StatusEstoqueType>('Todos');
+  const [categoryFilterPill, setCategoryFilterPill] = useState<string>('TODOS');
   const [expiryFilterPill, setExpiryFilterPill] = useState<'TODOS' | 'VENCIDOS' | 'A_VENCER' | 'VALIDOS' | 'CRITICOS'>('TODOS');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
@@ -268,6 +278,12 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   const filteredItems = items.filter((item) => {
     const matchesTab = activeTab === 'Todos' || item.status_estoque === activeTab;
     
+    // Filtro por Tipo de Ativo
+    const matchesCategory =
+      categoryFilterPill === 'TODOS' ||
+      item.category === categoryFilterPill ||
+      (categoryFilterPill === 'mangueiras' && (item.category === 'mangueiras' || item.category === 'hidrantes'));
+
     // Filtro pill de vencimento
     const days = calculateDaysRemaining(item.validadeRecarga || item.data_vencimento_teste);
     let matchesExpiry = true;
@@ -291,7 +307,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
       (item.fabricante || '').toLowerCase().includes(term) ||
       (item.category || '').toLowerCase().includes(term);
 
-    return matchesTab && matchesExpiry && matchesSearch;
+    return matchesTab && matchesCategory && matchesExpiry && matchesSearch;
   });
 
   if (!isOpen) return null;
@@ -375,6 +391,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
 
     const payloadToSave = {
       ...editingItem,
+      category: editingItem.category || 'extintores',
       validadeRecarga: finalValidade,
       data_vencimento_teste: finalValidade
     };
@@ -581,7 +598,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           </div>
         </div>
 
-        {/* FILTROS PILL DE VENCIMENTO E TABS DE CATEGORIA ESTOQUE */}
+        {/* FILTROS PILL DE TIPO DE ATIVO & VENCIMENTO E TABS DE CATEGORIA ESTOQUE */}
         <div className="bg-slate-100/90 border-b border-slate-200 px-4 pt-3 pb-2 flex items-center justify-between flex-wrap gap-2 font-mono text-xs">
           <div className="flex items-center gap-2 overflow-x-auto">
             {[
@@ -605,43 +622,70 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
             ))}
           </div>
 
-          {/* PILLS DE FILTRO DE REGRAS DE VENCIMENTO */}
-          <div className="flex items-center gap-1.5 bg-slate-200/70 p-1 rounded-xl">
-            <span className="text-[10px] font-bold text-slate-600 px-2 flex items-center gap-1">
-              <Filter className="w-3 h-3 text-slate-500" /> Vencimento:
-            </span>
-            <button
-              onClick={() => setExpiryFilterPill('TODOS')}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                expiryFilterPill === 'TODOS' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-300'
-              }`}
-            >
-              Todos
-            </button>
-            <button
-              onClick={() => setExpiryFilterPill('VENCIDOS')}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                expiryFilterPill === 'VENCIDOS' ? 'bg-red-600 text-white shadow-xs' : 'text-red-700 hover:bg-red-100'
-              }`}
-            >
-              Vencidos
-            </button>
-            <button
-              onClick={() => setExpiryFilterPill('A_VENCER')}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                expiryFilterPill === 'A_VENCER' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-800 hover:bg-amber-100'
-              }`}
-            >
-              A Vencer
-            </button>
-            <button
-              onClick={() => setExpiryFilterPill('VALIDOS')}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
-                expiryFilterPill === 'VALIDOS' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-800 hover:bg-emerald-100'
-              }`}
-            >
-              Válidos
-            </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* PILLS DE FILTRO DE TIPO DE ATIVO */}
+            <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-xl">
+              <span className="text-[10px] font-bold text-slate-600 px-1.5 flex items-center gap-1">
+                <Boxes className="w-3 h-3 text-slate-500" /> Tipo:
+              </span>
+              {[
+                { id: 'TODOS', label: 'Todos' },
+                { id: 'extintores', label: '🧯 Extintores' },
+                { id: 'mangueiras', label: '🚒 Mangueiras' },
+                { id: 'iluminacao', label: '💡 Iluminação' },
+                { id: 'sinalizacoes', label: '🪧 Sinalização' },
+                { id: 'bombas', label: '⚙️ Bombas' }
+              ].map((cat) => (
+                <button
+                  key={cat.id}
+                  onClick={() => setCategoryFilterPill(cat.id)}
+                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                    categoryFilterPill === cat.id ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-300'
+                  }`}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* PILLS DE FILTRO DE REGRAS DE VENCIMENTO */}
+            <div className="flex items-center gap-1 bg-slate-200/80 p-1 rounded-xl">
+              <span className="text-[10px] font-bold text-slate-600 px-1.5 flex items-center gap-1">
+                <Filter className="w-3 h-3 text-slate-500" /> Vencimento:
+              </span>
+              <button
+                onClick={() => setExpiryFilterPill('TODOS')}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  expiryFilterPill === 'TODOS' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-700 hover:bg-slate-300'
+                }`}
+              >
+                Todos
+              </button>
+              <button
+                onClick={() => setExpiryFilterPill('VENCIDOS')}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  expiryFilterPill === 'VENCIDOS' ? 'bg-red-600 text-white shadow-xs' : 'text-red-700 hover:bg-red-100'
+                }`}
+              >
+                Vencidos
+              </button>
+              <button
+                onClick={() => setExpiryFilterPill('A_VENCER')}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  expiryFilterPill === 'A_VENCER' ? 'bg-amber-600 text-white shadow-xs' : 'text-amber-800 hover:bg-amber-100'
+                }`}
+              >
+                A Vencer
+              </button>
+              <button
+                onClick={() => setExpiryFilterPill('VALIDOS')}
+                className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition-all cursor-pointer ${
+                  expiryFilterPill === 'VALIDOS' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-800 hover:bg-emerald-100'
+                }`}
+              >
+                Válidos
+              </button>
+            </div>
           </div>
         </div>
 
@@ -652,7 +696,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
               <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] tracking-wider font-bold border-b border-slate-200">
                 <tr>
                   <th className="py-3 px-4">Patrimônio / Cód</th>
-                  <th className="py-3 px-4">Modelo / Fabricante</th>
+                  <th className="py-3 px-4">Tipo & Modelo</th>
                   <th className="py-3 px-4">Capacidade / Peso</th>
                   <th className="py-3 px-4">Inventário · Estoque Aplicação</th>
                   <th className="py-3 px-4">Status do Ativo *</th>
@@ -687,11 +731,19 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                           </span>
                         </td>
 
-                        {/* MODELO & FABRICANTE */}
+                        {/* TIPO & MODELO & FABRICANTE */}
                         <td className="py-3 px-4 font-semibold text-slate-800">
-                          <div className="font-bold text-slate-900">{it.model || 'Padrão'}</div>
+                          <div className="font-bold text-slate-900 flex items-center gap-1.5">
+                            {it.category === 'extintores' && '🧯'}
+                            {(it.category === 'mangueiras' || it.category === 'hidrantes') && '🚒'}
+                            {it.category === 'iluminacao' && '💡'}
+                            {it.category === 'sinalizacoes' && '🪧'}
+                            {it.category === 'bombas' && '⚙️'}
+                            {it.category === 'outros' && '📦'}
+                            <span className="capitalize">{it.model || 'Padrão'}</span>
+                          </div>
                           <span className="text-[10px] text-slate-500 font-normal block">
-                            Fab: {it.fabricante || 'Kidde'}
+                            Fab: {it.fabricante || 'Kidde'} | Tipo: {it.category}
                           </span>
                         </td>
 
@@ -1090,7 +1142,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         )}
       </AnimatePresence>
 
-      {/* MODAL SECUNDÁRIO: NOVO / EDITAR ATIVO (PADRONIZADO COM REGISTRO DE NOVO EXTINTOR) */}
+      {/* MODAL SECUNDÁRIO: NOVO / EDITAR ATIVO */}
       <AnimatePresence>
         {editingItem && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
@@ -1114,6 +1166,24 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
               </div>
 
               <div className="space-y-4 font-sans text-xs">
+                {/* SELEÇÃO DO TIPO DE ATIVO CONTROLADO */}
+                <div>
+                  <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                    Tipo de Ativo Controlado em Estoque *:
+                  </label>
+                  <select
+                    value={editingItem.category || 'extintores'}
+                    onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
+                    className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-red-600 cursor-pointer"
+                  >
+                    {ASSET_CATEGORY_OPTIONS.map((cat) => (
+                      <option key={cat.id} value={cat.id}>
+                        {cat.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
                 {/* SEÇÃO IDENTIFICAÇÃO */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>

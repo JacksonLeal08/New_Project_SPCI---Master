@@ -127,9 +127,6 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       numero_serie: asset.numero_serie || '',
       category: asset.category || 'extintores',
       model: asset.model || 'Padrão',
-      fabricante: asset.fabricante || 'Kidde',
-      peso_capacidade: asset.peso_capacidade || '4KG',
-      validadeRecarga: asset.validadeRecarga || null,
       location: asset.location || 'Almoxarifado',
       sub_location: asset.sub_location || 'Geral',
       status: asset.status || 'Conforme',
@@ -138,9 +135,9 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       data_vencimento_teste: asset.validadeRecarga || asset.data_vencimento_teste || null,
       details: {
         ...(asset.details || {}),
-        fabricante: asset.fabricante,
-        peso_capacidade: asset.peso_capacidade,
-        validadeRecarga: asset.validadeRecarga
+        fabricante: asset.fabricante || 'Kidde',
+        peso_capacidade: asset.peso_capacidade || '4KG',
+        validadeRecarga: asset.validadeRecarga || null
       },
       updated_at: new Date().toISOString()
     };
