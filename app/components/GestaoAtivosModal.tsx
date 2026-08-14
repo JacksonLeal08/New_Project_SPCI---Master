@@ -58,8 +58,17 @@ const ASSET_CATEGORY_OPTIONS = [
   { id: 'outros', label: '📦 Outros Equipamentos Controlados' }
 ];
 
-const MODEL_OPTIONS = ['AB', 'ABC', 'ABC-PREMIUM', 'CO²', 'CUSTOM', 'Padrão'];
-const WEIGHT_OPTIONS = ['2KG', '4KG', '4,5KG', '6KG', '8KG', '9KG', '12KG', '20KG', '25KG', '30KG', '50KG', '55KG', 'N/A'];
+const AGENTE_EXTINTOR_OPTIONS = [
+  'PÓ QUÍMICO ABC',
+  'PÓ QUÍMICO BC',
+  'CO2 (GÁS CARBÔNICO)',
+  'ÁGUA PRESSURIZADA',
+  'ESPUMA MECÂNICA',
+  'PÓ ESPECIAL CLASSE D'
+];
+
+const MODEL_OPTIONS = ['ABC', 'ABC-PREMIUM', 'CO²', 'Padrão', 'AB', 'CUSTOM'];
+const WEIGHT_OPTIONS = ['2KG', '4KG', '4,5KG', '6KG', '8KG', '9KG', '10L', '12KG', '20KG', '25KG', '30KG', '50KG', '55KG', 'N/A'];
 const FABRICANTE_OPTIONS = ['Kidde', 'Resmat', 'Mocelin', 'Bucka', 'Extinwal', 'Yalunt', 'Mondial', 'Outro'];
 const STATUS_EQUIPAMENTO_OPTIONS = ['Operacional', 'Conforme', 'Em Manutenção', 'Inspecionado', 'Aguardando Recarga', 'Não Conforme'];
 
@@ -103,7 +112,7 @@ export const calculateDaysRemaining = (expiryDateStr?: string | null): number | 
 export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, onClose }) => {
   const [items, setItems] = useState<AssetStockItemRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [activeTab, setActiveTab] = useState<'Todos' | StatusEstoqueType>('Todos');
+  const [activeTab, setActiveTab] = useState<'Todos' | StatusEstoqueType | 'NA ÁREA (APLICADO)'>('Todos');
   const [categoryFilterPill, setCategoryFilterPill] = useState<string>('TODOS');
   const [expiryFilterPill, setExpiryFilterPill] = useState<'TODOS' | 'VENCIDOS' | 'A_VENCER' | 'VALIDOS' | 'CRITICOS'>('TODOS');
   const [searchTerm, setSearchTerm] = useState<string>('');
@@ -151,6 +160,122 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   const [editExpiryMonth, setEditExpiryMonth] = useState<number | ''>('');
   const [editExpiryYear, setEditExpiryYear] = useState<number | ''>('');
 
+  // Estado do Accordion de Cadastro em Estoque (Substitui o modal intrusivo)
+  const [showForm, setShowForm] = useState<boolean>(false);
+  const [inlineChassi, setInlineChassi] = useState<string>('');
+  const [inlineCategory, setInlineCategory] = useState<string>('extintores');
+  const [inlineAgente, setInlineAgente] = useState<string>('PÓ QUÍMICO ABC');
+  const [inlineCapacidade, setInlineCapacidade] = useState<string>('6KG');
+  const [inlineFabricante, setInlineFabricante] = useState<string>('Kidde');
+  const [inlineModelo, setInlineModelo] = useState<string>('ABC');
+  const [inlineLocal, setInlineLocal] = useState<string>('ALMOXARIFADO');
+  const [inlineSubLocal, setInlineSubLocal] = useState<string>('');
+  const currentYear = new Date().getFullYear();
+  const currentMonth = new Date().getMonth() + 1;
+  const [inlineRecargaMes, setInlineRecargaMes] = useState<number | ''>('');
+  const [inlineRecargaAno, setInlineRecargaAno] = useState<number | ''>(currentYear);
+  const [inlineVencimentoMes, setInlineVencimentoMes] = useState<number | ''>(currentMonth);
+  const [inlineVencimentoAno, setInlineVencimentoAno] = useState<number | ''>(currentYear + 1);
+  const [isSubmittingInline, setIsSubmittingInline] = useState<boolean>(false);
+
+  // Cálculo do Patrimônio Sugerido Automático (ex: EXT-000053)
+  const suggestedPatrimonio = useMemo(() => {
+    let maxNum = 0;
+    items.forEach((it) => {
+      const code = it.patrimonio || it.id_ativo || '';
+      const match = code.match(/\d+/);
+      if (match) {
+        const num = parseInt(match[0], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    const nextNum = maxNum > 0 ? maxNum + 1 : 53;
+    return `EXT-${String(nextNum).padStart(6, '0')}`;
+  }, [items]);
+
+  const handleResetInlineForm = () => {
+    setInlineChassi('');
+    setInlineCategory('extintores');
+    setInlineAgente('PÓ QUÍMICO ABC');
+    setInlineCapacidade('6KG');
+    setInlineFabricante('Kidde');
+    setInlineModelo('ABC');
+    setInlineLocal('ALMOXARIFADO');
+    setInlineSubLocal('');
+    setInlineRecargaMes('');
+    setInlineRecargaAno(currentYear);
+    setInlineVencimentoMes(currentMonth);
+    setInlineVencimentoAno(currentYear + 1);
+  };
+
+  const handleSaveInlineStockAsset = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setIsSubmittingInline(true);
+
+    try {
+      let finalValidade: string | null = null;
+      if (inlineVencimentoAno && inlineVencimentoMes) {
+        finalValidade = `${inlineVencimentoAno}-${String(inlineVencimentoMes).padStart(2, '0')}-01`;
+      }
+
+      let finalRecarga: string | null = null;
+      if (inlineRecargaAno && inlineRecargaMes) {
+        finalRecarga = `${inlineRecargaAno}-${String(inlineRecargaMes).padStart(2, '0')}-01`;
+      }
+
+      const targetStatusEstoque: StatusEstoqueType =
+        activeTab !== 'Todos' && (activeTab as string) !== 'NA ÁREA (APLICADO)'
+          ? (activeTab as StatusEstoqueType)
+          : 'ESTOQUE APLICAÇÃO';
+
+      const payload: any = {
+        id_ativo: suggestedPatrimonio,
+        patrimonio: suggestedPatrimonio,
+        numero_serie: inlineChassi || '',
+        category: inlineCategory,
+        model: inlineModelo || inlineAgente || 'ABC',
+        fabricante: inlineFabricante || 'Kidde',
+        peso_capacidade: inlineCapacidade || '6KG',
+        location: inlineLocal || 'ALMOXARIFADO',
+        sub_location: inlineSubLocal || 'Estoque',
+        status: 'Operacional',
+        status_estoque: targetStatusEstoque,
+        validadeRecarga: finalValidade,
+        ultima_recarga: finalRecarga,
+        data_vencimento_teste: finalValidade
+      };
+
+      const res = await saveSingleAssetStockAction(payload);
+      if (res.success) {
+        await loadAssets();
+        setShowForm(false);
+        handleResetInlineForm();
+        setHudAlert({
+          isOpen: true,
+          title: 'ATIVO CADASTRADO EM ESTOQUE! 🟢',
+          message: `Ativo "${payload.patrimonio}" gravado com sucesso no inventário em ${payload.status_estoque}.`,
+          type: 'success'
+        });
+      } else {
+        setHudAlert({
+          isOpen: true,
+          title: 'FALHA AO CADASTRAR ⚠️',
+          message: res.error || 'Não foi possível cadastrar o ativo em estoque.',
+          type: 'error'
+        });
+      }
+    } catch (err: any) {
+      setHudAlert({
+        isOpen: true,
+        title: 'ERRO AO CADASTRAR ⚠️',
+        message: err.message || err,
+        type: 'error'
+      });
+    } finally {
+      setIsSubmittingInline(false);
+    }
+  };
+
   // Pop-up HUD Informativo
   const [hudAlert, setHudAlert] = useState<{
     isOpen: boolean;
@@ -164,7 +289,6 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     type: 'success'
   });
 
-  const currentYear = new Date().getFullYear();
   const YEARS = Array.from({ length: 21 }, (_, i) => currentYear - 5 + i);
 
   // Carrega ativos do Supabase e IndexedDB ao abrir
@@ -292,6 +416,16 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   }, [stockAssets]);
 
   // KPIs de contagem por categoria de estoque operacional
+  const countNaArea = items.filter(
+    (x) =>
+      (x.status_estoque as string) === 'NA ÁREA (APLICADO)' ||
+      (x.location &&
+        x.location.toUpperCase() !== 'ALMOXARIFADO' &&
+        x.status_estoque !== 'ESTOQUE APLICAÇÃO' &&
+        x.status_estoque !== 'ESTOQUE MANUTENÇÃO' &&
+        x.status_estoque !== 'EM MANUTENÇÃO' &&
+        x.status_estoque !== 'CONDENADOS')
+  ).length;
   const countAplicacao = items.filter((x) => x.status_estoque === 'ESTOQUE APLICAÇÃO').length;
   const countEstManutencao = items.filter((x) => x.status_estoque === 'ESTOQUE MANUTENÇÃO').length;
   const countEmManutencao = items.filter((x) => x.status_estoque === 'EM MANUTENÇÃO').length;
@@ -300,7 +434,17 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   // Filtragem composta da tabela
   const filteredItems = useMemo(() => {
     return items.filter((item) => {
-      const matchesTab = activeTab === 'Todos' || item.status_estoque === activeTab;
+      const matchesTab =
+        activeTab === 'Todos' ||
+        item.status_estoque === activeTab ||
+        (activeTab === 'NA ÁREA (APLICADO)' &&
+          ((item.status_estoque as string) === 'NA ÁREA (APLICADO)' ||
+            (item.location &&
+              item.location.toUpperCase() !== 'ALMOXARIFADO' &&
+              item.status_estoque !== 'ESTOQUE APLICAÇÃO' &&
+              item.status_estoque !== 'ESTOQUE MANUTENÇÃO' &&
+              item.status_estoque !== 'EM MANUTENÇÃO' &&
+              item.status_estoque !== 'CONDENADOS')));
       
       // Filtro por Tipo de Ativo
       const matchesCategory =
@@ -639,20 +783,16 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         <div className="bg-white border-b border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
             <button
-              onClick={() =>
-                setEditingItem({
-                  status_estoque: 'ESTOQUE APLICAÇÃO',
-                  category: 'extintores',
-                  status: 'Operacional',
-                  model: 'ABC',
-                  fabricante: 'Kidde',
-                  peso_capacidade: '4KG'
-                })
-              }
+              onClick={() => {
+                if (activeTab === 'NA ÁREA (APLICADO)') {
+                  setActiveTab('ESTOQUE APLICAÇÃO');
+                }
+                setShowForm((prev) => !prev);
+              }}
               className="px-4 py-2 bg-red-700 hover:bg-red-800 text-white font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border-none active:scale-95"
             >
-              <Plus className="w-4 h-4" />
-              <span>+ Novo Ativo</span>
+              <Plus className={`w-4 h-4 transition-transform ${showForm ? 'rotate-45' : ''}`} />
+              <span>{showForm ? 'Recolher Formulário' : '+ Novo Ativo'}</span>
             </button>
 
             {/* BOTÃO IMPORTAR PLANILHA EDITADA OU NOVOS */}
@@ -746,6 +886,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           <div className="flex items-center gap-2 overflow-x-auto">
             {[
               { id: 'Todos', label: `Todos (${items.length})` },
+              { id: 'NA ÁREA (APLICADO)', label: `🏢 Na Área (${countNaArea})` },
               { id: 'ESTOQUE APLICAÇÃO', label: `🟢 Aplicação (${countAplicacao})` },
               { id: 'ESTOQUE MANUTENÇÃO', label: `🟡 Est. Manutenção (${countEstManutencao})` },
               { id: 'EM MANUTENÇÃO', label: `🔵 Em Manutenção (${countEmManutencao})` },
@@ -832,8 +973,291 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           </div>
         </div>
 
-        {/* TABELA PRINCIPAL (GRID DE ATIVOS - COM CHECKBOX DE SELEÇÃO EM MASSA) */}
-        <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
+        {/* TABELA PRINCIPAL & ACCORDION DE CADASTRO */}
+        <div className="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-4">
+          {/* COMPONENTE EXPANSÍVEL (ACCORDION) DE CADASTRO DE ATIVO EM ESTOQUE */}
+          {activeTab !== 'NA ÁREA (APLICADO)' && (
+            <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden transition-all">
+              <button
+                type="button"
+                onClick={() => setShowForm((s) => !s)}
+                aria-expanded={showForm}
+                className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3.5 bg-slate-50/80 hover:bg-slate-100/80 transition-colors border-b border-transparent gap-2 cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
+                    <Package className="w-4 h-4" />
+                  </div>
+                  <span className="text-sm font-black font-['Hanken_Grotesk'] text-slate-900 tracking-tight">
+                    Cadastrar Ativo em Estoque
+                  </span>
+                  <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wide bg-slate-200/80 px-2 py-0.5 rounded-md">
+                    → {activeTab}
+                  </span>
+                </div>
+                <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
+                  <span className="text-[11px] font-sans text-slate-600">
+                    Patrimônio sugerido:{' '}
+                    <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
+                      {suggestedPatrimonio}
+                    </span>
+                  </span>
+                  <Layers
+                    className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${
+                      showForm ? 'rotate-180 text-indigo-600' : ''
+                    }`}
+                  />
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {showForm && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: 'auto', opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.3, ease: 'easeInOut' }}
+                    className="overflow-hidden border-t border-slate-200 bg-white"
+                  >
+                    <form onSubmit={handleSaveInlineStockAsset} className="p-4 sm:p-5 space-y-4 font-sans text-xs">
+                      {/* LINHA 1: PATRIMÔNIO / ID, CHASSI / SELO INMETRO, AGENTE EXTINTOR */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            Patrimônio / ID *
+                          </label>
+                          <input
+                            type="text"
+                            value={suggestedPatrimonio}
+                            readOnly
+                            className="w-full bg-slate-100 border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-black text-indigo-700 cursor-not-allowed select-none shadow-inner"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            Chassi / Selo INMETRO
+                          </label>
+                          <input
+                            type="text"
+                            value={inlineChassi}
+                            onChange={(e) => setInlineChassi(e.target.value)}
+                            placeholder="Ex: CH-9088 / S-809221"
+                            className="w-full bg-white border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 uppercase"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            Agente Extintor *
+                          </label>
+                          <select
+                            value={inlineAgente}
+                            onChange={(e) => setInlineAgente(e.target.value)}
+                            className="w-full bg-white border border-slate-300 p-2.5 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                          >
+                            {AGENTE_EXTINTOR_OPTIONS.map((ag) => (
+                              <option key={ag} value={ag}>
+                                {ag}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* LINHA 2: CAPACIDADE / PESO, FABRICANTE, MODELO */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            Capacidade / Peso *
+                          </label>
+                          <select
+                            value={inlineCapacidade}
+                            onChange={(e) => setInlineCapacidade(e.target.value)}
+                            className="w-full bg-white border border-slate-300 p-2.5 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                          >
+                            {WEIGHT_OPTIONS.map((w) => (
+                              <option key={w} value={w}>
+                                {w}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            Fabricante *
+                          </label>
+                          <select
+                            value={inlineFabricante}
+                            onChange={(e) => setInlineFabricante(e.target.value)}
+                            className="w-full bg-white border border-slate-300 p-2.5 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                          >
+                            {FABRICANTE_OPTIONS.map((f) => (
+                              <option key={f} value={f}>
+                                {f}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            Modelo *
+                          </label>
+                          <select
+                            value={inlineModelo}
+                            onChange={(e) => setInlineModelo(e.target.value)}
+                            className="w-full bg-white border border-slate-300 p-2.5 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                          >
+                            {MODEL_OPTIONS.map((m) => (
+                              <option key={m} value={m}>
+                                {m}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* LINHA 3: LOCALIZAÇÃO, SUB-LOCAL, MÊS/ANO ÚLTIMA RECARGA */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            Localização (Almoxarifado)
+                          </label>
+                          <input
+                            type="text"
+                            value={inlineLocal}
+                            onChange={(e) => setInlineLocal(e.target.value)}
+                            className="w-full bg-white border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 uppercase"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            Sub-Local / Prateleira
+                          </label>
+                          <input
+                            type="text"
+                            value={inlineSubLocal}
+                            onChange={(e) => setInlineSubLocal(e.target.value)}
+                            placeholder="EX: PRATELEIRA A-3"
+                            className="w-full bg-white border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600 uppercase"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            Mês/Ano Última Recarga
+                          </label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <select
+                              value={inlineRecargaMes}
+                              onChange={(e) => setInlineRecargaMes(e.target.value ? Number(e.target.value) : '')}
+                              className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                            >
+                              <option value="">Mês...</option>
+                              {MONTHS.map((m) => (
+                                <option key={m.value} value={m.value}>
+                                  {m.label}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={inlineRecargaAno}
+                              onChange={(e) => setInlineRecargaAno(e.target.value ? Number(e.target.value) : '')}
+                              className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                            >
+                              <option value="">Ano...</option>
+                              {YEARS.map((y) => (
+                                <option key={y} value={y}>
+                                  {y}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* LINHA 4: MÊS/ANO DO VENCIMENTO */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            Mês/Ano do Vencimento *
+                          </label>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <select
+                              value={inlineVencimentoMes}
+                              onChange={(e) => setInlineVencimentoMes(e.target.value ? Number(e.target.value) : '')}
+                              className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                              required
+                            >
+                              <option value="">Mês...</option>
+                              {MONTHS.map((m) => (
+                                <option key={m.value} value={m.value}>
+                                  {m.label}
+                                </option>
+                              ))}
+                            </select>
+                            <select
+                              value={inlineVencimentoAno}
+                              onChange={(e) => setInlineVencimentoAno(e.target.value ? Number(e.target.value) : '')}
+                              className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600 cursor-pointer"
+                              required
+                            >
+                              <option value="">Ano...</option>
+                              {YEARS.map((y) => (
+                                <option key={y} value={y}>
+                                  {y}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* RODAPÉ DO FORMULÁRIO COM AVISO E BOTÕES */}
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-3 border-t border-slate-200 gap-3">
+                        <span className="text-[11px] text-amber-800 font-sans flex items-center gap-1.5">
+                          ⚠️ O ativo será cadastrado diretamente em{' '}
+                          <strong className="font-mono font-bold text-slate-900">{activeTab}</strong> com status{' '}
+                          <strong className="text-emerald-700 font-bold">No Prazo</strong>.
+                        </span>
+
+                        <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                          <button
+                            type="button"
+                            onClick={handleResetInlineForm}
+                            className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-mono font-bold hover:bg-slate-100 transition-all cursor-pointer"
+                          >
+                            Limpar
+                          </button>
+                          <button
+                            type="submit"
+                            disabled={isSubmittingInline}
+                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-mono font-black uppercase tracking-wider transition-all shadow-md cursor-pointer border-none flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                          >
+                            {isSubmittingInline ? (
+                              <>
+                                <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
+                                <span>Gravando...</span>
+                              </>
+                            ) : (
+                              <>
+                                <Check className="w-4 h-4 text-emerald-300" />
+                                <span>Registrar em Estoque</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    </form>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
           <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden overflow-x-auto scrollbar-thin">
             <table className="w-full text-left font-mono text-xs border-collapse min-w-[850px]">
               <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] tracking-wider font-bold border-b border-slate-200">
