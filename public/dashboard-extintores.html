@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPCI Master · Gestão e Dashboard de Extintores de Incêndio</title>
+  
+  <!-- Fontes Google (Hanken Grotesk & JetBrains Mono) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;600;700;800;900&family=JetBrains+Mono:wght@400;600;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  
+  <!-- Chart.js CDN para Análise Temporal -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root {
+      --primary-dark: #0f172a;
+      --secondary-dark: #1e293b;
+      --surface-card: #ffffff;
+      --surface-muted: #f8fafc;
+      --border-color: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      
+      /* Cores Semânticas SPCI */
+      --spci-green: #2E7D32;
+      --spci-green-bg: #e8f5e9;
+      --spci-amber: #F57F17;
+      --spci-amber-bg: #fff8e1;
+      --spci-red: #C62828;
+      --spci-red-bg: #ffebee;
+      --spci-blue: #1565C0;
+      --spci-blue-bg: #e3f2fd;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    body {
+      background-color: #f1f5f9;
+      color: var(--text-main);
+      padding: 24px;
+      line-height: 1.5;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    /* Top Banner Header */
+    .header-banner {
+      background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #1e1b4b 100%);
+      color: #ffffff;
+      padding: 28px;
+      border-radius: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+      box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .header-info h1 {
+      font-family: 'Hanken Grotesk', sans-serif;
+      font-size: 26px;
+      font-weight: 900;
+      letter-spacing: -0.5px;
+      text-transform: uppercase;
+    }
+
+    .header-info p {
+      color: #94a3b8;
+      font-size: 13px;
+      margin-top: 4px;
+    }
+
+    .badge-norma {
+      display: inline-block;
+      background: rgba(198, 40, 40, 0.2);
+      color: #fca5a5;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      text-transform: uppercase;
+    }
+
+    .btn-primary {
+      background: #dc2626;
+      color: #ffffff;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 12px;
+      font-family: 'Hanken Grotesk', sans-serif;
+      font-size: 12px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+      transition: all 0.2s ease;
+    }
+
+    .btn-primary:hover {
+      background: #b91c1c;
+      transform: translateY(-1px);
+    }
+
+    /* 1. KPI Cards Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .kpi-card {
+      background: #ffffff;
+      border-radius: 16px;
+      padding: 20px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .kpi-card.ipo-green { background: #f0fdf4; border-color: #bbf7d0; }
+    .kpi-card.ipo-yellow { background: #fffbeb; border-color: #fde68a; }
+    .kpi-card.ipo-red { background: #fef2f2; border-color: #fecaca; }
+
+    .kpi-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .kpi-title {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+    }
+
+    .kpi-value {
+      font-family: 'Hanken Grotesk', sans-serif;
+      font-size: 34px;
+      font-weight: 900;
+      margin: 10px 0 4px 0;
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .kpi-subtext {
+      font-size: 11.5px;
+      font-weight: 600;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: rgba(0,0,0,0.06);
+      border-radius: 99px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      transition: width 0.6s ease;
+    }
+
+    /* 2. Temporal Analysis Section */
+    .temporal-section {
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 24px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      border-bottom: 1px solid var(--border-color);
+      padding-bottom: 16px;
+    }
+
+    .section-title {
+      font-family: 'Hanken Grotesk', sans-serif;
+      font-size: 16px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section-subtitle {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .chart-container {
+      position: relative;
+      width: 100%;
+      height: 280px;
+    }
+
+    /* 3. Operational Table Section */
+    .table-section {
+      background: #ffffff;
+      border-radius: 20px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+      overflow: hidden;
+    }
+
+    .table-controls {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 14px;
+      background: #f8fafc;
+    }
+
+    .search-input {
+      padding: 10px 14px;
+      border-radius: 10px;
+      border: 1px solid var(--border-color);
+      font-size: 13px;
+      width: 320px;
+      outline: none;
+      background: #ffffff;
+    }
+
+    .search-input:focus {
+      border-color: #dc2626;
+    }
+
+    .filter-pills {
+      padding: 12px 24px;
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      background: #ffffff;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .pill-btn {
+      padding: 6px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      background: #f1f5f9;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+    }
+
+    .pill-btn.active {
+      background: #0f172a;
+      color: #ffffff;
+      border-color: #0f172a;
+    }
+
+    .table-responsive {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      background: #f8fafc;
+      padding: 14px 18px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 800;
+      color: #475569;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    td {
+      padding: 14px 18px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: middle;
+    }
+
+    tr:hover td {
+      background: #f8fafc;
+    }
+
+    .badge-status {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10.5px;
+      font-weight: 700;
+    }
+
+    .badge-green { background: var(--spci-green-bg); color: var(--spci-green); }
+    .badge-amber { background: var(--spci-amber-bg); color: var(--spci-amber); }
+    .badge-red { background: var(--spci-red-bg); color: var(--spci-red); }
+    .badge-blue { background: var(--spci-blue-bg); color: var(--spci-blue); }
+
+    /* Modal Styling */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.7);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+    }
+
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal-card {
+      background: #ffffff;
+      width: 100%;
+      max-width: 600px;
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .form-group label {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 800;
+      text-transform: uppercase;
+      color: #475569;
+    }
+
+    .form-group input, .form-group select {
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      font-size: 13px;
+      outline: none;
+    }
+
+    .modal-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 24px;
+      border-top: 1px solid var(--border-color);
+      padding-top: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    
+    <!-- TOP BANNER HEADER -->
+    <header class="header-banner">
+      <div class="header-info">
+        <span class="badge-norma">SPCI MASTER · ABNT NBR 12962</span>
+        <h1>Gestão & Dashboard de Extintores de Incêndio</h1>
+        <p>Monitoramento contínuo de integridade, inspeções periódicas e projeção orçamentária de recargas.</p>
+      </div>
+      <button class="btn-primary" onclick="openAddModal()">
+        <span>+ Novo Extintor</span>
+      </button>
+    </header>
+
+    <!-- 1. RESUMO EXECUTIVO DE KPIS -->
+    <section class="kpi-grid">
+      <!-- KPI 1: IPO % -->
+      <div id="kpi-card-ipo" class="kpi-card ipo-green">
+        <div class="kpi-card-header">
+          <span class="kpi-title">Índice de Prontidão (IPO)</span>
+          <span>🛡️</span>
+        </div>
+        <div>
+          <div class="kpi-value" id="kpi-ipo-val">98%</div>
+          <p class="kpi-subtext" id="kpi-ipo-sub">● Excelente conformidade operacional</p>
+        </div>
+        <div class="progress-bar-bg">
+          <div id="kpi-ipo-progress" class="progress-bar-fill" style="width: 98%; background: var(--spci-green);"></div>
+        </div>
+      </div>
+
+      <!-- KPI 2: Cargas ou Testes Vencidos -->
+      <div class="kpi-card" style="border-left: 4px solid var(--spci-red);">
+        <div class="kpi-card-header">
+          <span class="kpi-title" style="color: var(--spci-red);">Vencidos (Carga / Teste)</span>
+          <span>🚨</span>
+        </div>
+        <div>
+          <div class="kpi-value" id="kpi-vencidos-val" style="color: var(--spci-red);">0</div>
+          <p class="kpi-subtext" style="color: #7f1d1d;">Requer recarga ou teste hidrostático imediato</p>
+        </div>
+        <span class="badge-status badge-red" style="margin-top: 10px; width: fit-content;">Alerta Crítico ABNT</span>
+      </div>
+
+      <!-- KPI 3: Vencimentos Próximos 30 dias -->
+      <div class="kpi-card" style="border-left: 4px solid var(--spci-amber);">
+        <div class="kpi-card-header">
+          <span class="kpi-title" style="color: var(--spci-amber);">A Vencer (30 Dias)</span>
+          <span>⏳</span>
+        </div>
+        <div>
+          <div class="kpi-value" id="kpi-30d-val" style="color: var(--spci-amber);">0</div>
+          <p class="kpi-subtext" style="color: #78350f;">Janela preventiva de compras e recarga</p>
+        </div>
+        <span class="badge-status badge-amber" style="margin-top: 10px; width: fit-content;">Planejamento</span>
+      </div>
+
+      <!-- KPI 4: Manutenção Externa / Reserva -->
+      <div class="kpi-card" style="border-left: 4px solid var(--spci-blue);">
+        <div class="kpi-card-header">
+          <span class="kpi-title" style="color: var(--spci-blue);">Manutenção Externa</span>
+          <span>🔧</span>
+        </div>
+        <div>
+          <div class="kpi-value" id="kpi-manut-val" style="color: var(--spci-blue);">0</div>
+          <p class="kpi-subtext" style="color: #1e3a8a;">Extintores fora de base (reserva alocada)</p>
+        </div>
+        <span class="badge-status badge-blue" style="margin-top: 10px; width: fit-content;">Rastreabilidade</span>
+      </div>
+    </section>
+
+    <!-- 2. ANÁLISE TEMPORAL (GRÁFICO 6 MESES COM PROJEÇÃO ORÇAMENTÁRIA) -->
+    <section class="temporal-section">
+      <div class="section-header">
+        <div>
+          <h2 class="section-title">📈 Análise Temporal · Curva de Vencimentos & Orçamento (6 Meses)</h2>
+          <p class="section-subtitle">Projeção mensal de recargas e testes hidrostáticos de 5 anos para planejamento orçamentário antecipado.</p>
+        </div>
+        <div id="total-orcamento-badge" class="badge-status badge-blue" style="font-size: 12px; padding: 6px 12px;">
+          Orçamento Previsto (6M): R$ 0,00
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="temporalChart"></canvas>
+      </div>
+    </section>
+
+    <!-- 3. TABELA OPERACIONAL & CRUD DE EXTINTORES -->
+    <section class="table-section">
+      <div class="table-controls">
+        <input 
+          type="text" 
+          id="table-search" 
+          class="search-input" 
+          placeholder="🔍 Buscar por patrimônio, setor, modelo..." 
+          oninput="renderTable()"
+        />
+        <div style="font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; color: var(--text-muted);">
+          Total Cadastrado: <span id="table-total-count">0</span> extintores
+        </div>
+      </div>
+
+      <!-- Filtros Rápidos -->
+      <div class="filter-pills">
+        <button class="pill-btn active" onclick="setFilter('TODOS', this)">Todos</button>
+        <button class="pill-btn" onclick="setFilter('OPERACIONAIS', this)">🟢 100% Operacionais</button>
+        <button class="pill-btn" onclick="setFilter('VENCIDOS', this)">🔴 Vencidos</button>
+        <button class="pill-btn" onclick="setFilter('A_VENCER', this)">🟡 A Vencer 30d</button>
+        <button class="pill-btn" onclick="setFilter('MANUTENCAO', this)">🔵 Em Manutenção</button>
+        <button class="pill-btn" onclick="setFilter('OBSTRUIDOS', this)">⚠️ Obstruídos</button>
+      </div>
+
+      <!-- Tabela de Dados -->
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>Identificação / Patrimônio</th>
+              <th>Localização Setorial</th>
+              <th>Tipo & Carga</th>
+              <th>Manômetro (Pressão)</th>
+              <th>Validade Carga</th>
+              <th>Teste Hidrostático</th>
+              <th>Acessibilidade</th>
+              <th style="text-align: right;">Ações</th>
+            </tr>
+          </thead>
+          <tbody id="extintores-tbody">
+            <!-- Renderizado via JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- MODAL CADASTRO / EDIÇÃO DE EXTINTOR -->
+  <div id="modal-extintor" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modal-title" style="font-family: 'Hanken Grotesk', sans-serif; font-size: 18px; font-weight: 900;">Novo Extintor (ABNT NBR 12962)</h3>
+        <button onclick="closeModal()" style="background: none; border: none; font-size: 18px; cursor: pointer;">✕</button>
+      </div>
+      <form id="form-extintor" onsubmit="handleSaveExtintor(event)">
+        <input type="hidden" id="form-id" />
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Patrimônio *</label>
+            <input type="text" id="form-patrimonio" required placeholder="EXT-1092" />
+          </div>
+          <div class="form-group">
+            <label>Número de Série / Chassi</label>
+            <input type="text" id="form-serie" placeholder="CH-9088" />
+          </div>
+          <div class="form-group">
+            <label>Setor / Localização *</label>
+            <input type="text" id="form-local" required placeholder="Galpão A - Almoxarifado" />
+          </div>
+          <div class="form-group">
+            <label>Modelo / Agente Extintor *</label>
+            <select id="form-modelo" required>
+              <option value="PÓ QUÍMICO ABC">PÓ QUÍMICO ABC</option>
+              <option value="PÓ QUÍMICO BC">PÓ QUÍMICO BC</option>
+              <option value="CO2 (GÁS CARBÔNICO)">CO2 (GÁS CARBÔNICO)</option>
+              <option value="ÁGUA PRESSURIZADA">ÁGUA PRESSURIZADA</option>
+              <option value="ESPUMA MECÂNICA">ESPUMA MECÂNICA</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Capacidade / Peso *</label>
+            <input type="text" id="form-capacidade" required placeholder="6KG / 10L" />
+          </div>
+          <div class="form-group">
+            <label>Pressão do Manômetro</label>
+            <select id="form-manometro">
+              <option value="Faixa Verde">🟢 Faixa Verde (Normal)</option>
+              <option value="Fora da Faixa">🔴 Fora da Faixa (Despressurizado)</option>
+              <option value="N/A">N/A (CO2 sem manômetro)</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Validade da Carga (Mês/Ano) *</label>
+            <input type="month" id="form-validade" required />
+          </div>
+          <div class="form-group">
+            <label>Ano Último Teste Hidrostático *</label>
+            <input type="number" id="form-hidro" min="2000" max="2035" required value="2024" />
+          </div>
+          <div class="form-group">
+            <label>Acessibilidade</label>
+            <select id="form-acessibilidade">
+              <option value="Desobstruído">🟢 Desobstruído</option>
+              <option value="Obstruído">⚠️ Obstruído</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Status Operacional</label>
+            <select id="form-status">
+              <option value="Operacional">Operacional</option>
+              <option value="Em Manutenção">Em Manutenção</option>
+              <option value="Vencido">Vencido</option>
+            </select>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="pill-btn" onclick="closeModal()">Cancelar</button>
+          <button type="submit" class="btn-primary">Salvar Extintor</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- SCRIPT DE LÓGICA E CHARTS -->
+  <script>
+    // Configuração de API (com fallback de LocalStorage para execução autônoma)
+    const API_ENDPOINT = '/api/extintores.php';
+    let extintoresData = [];
+    let currentFilter = 'TODOS';
+    let chartInstance = null;
+
+    // Dados Iniciais Padrão (Mock ABNT SPCI Master)
+    const initialExtintores = [
+      { id: '1', patrimonio: 'EXT-650', serie: 'CH-8801', local: 'Galpão A · Almoxarifado', modelo: 'PÓ QUÍMICO ABC', capacidade: '6KG', manometro: 'Faixa Verde', validade: '2026-11', anoHidro: 2024, acessibilidade: 'Desobstruído', status: 'Operacional' },
+      { id: '2', patrimonio: 'EXT-651', serie: 'CH-9088', local: 'Produção · Linha 02', modelo: 'CO2 (GÁS CARBÔNICO)', capacidade: '4KG', manometro: 'N/A', validade: '2026-09', anoHidro: 2023, acessibilidade: 'Desobstruído', status: 'Operacional' },
+      { id: '3', patrimonio: 'EXT-652', serie: 'CH-4102', local: 'Subestação Elétrica', modelo: 'CO2 (GÁS CARBÔNICO)', capacidade: '6KG', manometro: 'N/A', validade: '2026-08', anoHidro: 2021, acessibilidade: 'Obstruído', status: 'Operacional' },
+      { id: '4', patrimonio: 'EXT-653', serie: 'CH-1192', local: 'Corredor Administrativo', modelo: 'ÁGUA PRESSURIZADA', capacidade: '10L', manometro: 'Fora da Faixa', validade: '2026-06', anoHidro: 2020, acessibilidade: 'Desobstruído', status: 'Vencido' },
+      { id: '5', patrimonio: 'EXT-654', serie: 'CH-3321', local: 'Pátio de Carga · Galpão C', modelo: 'PÓ QUÍMICO ABC', capacidade: '12KG', manometro: 'Faixa Verde', validade: '2027-02', anoHidro: 2025, acessibilidade: 'Desobstruído', status: 'Operacional' },
+      { id: '6', patrimonio: 'EXT-655', serie: 'CH-9923', local: 'Casa de Máquinas', modelo: 'PÓ QUÍMICO BC', capacidade: '6KG', manometro: 'Faixa Verde', validade: '2026-10', anoHidro: 2022, acessibilidade: 'Desobstruído', status: 'Em Manutenção' }
+    ];
+
+    // Carregamento de Dados (Fetch API com Fallback LocalStorage)
+    async function loadExtintores() {
+      try {
+        const response = await fetch(API_ENDPOINT);
+        if (response.ok) {
+          extintoresData = await response.json();
+        } else {
+          throw new Error('Servidor PHP não detectado, usando armazenamento local.');
+        }
+      } catch (err) {
+        console.info('Executando em modo Standalone (LocalStorage):', err.message);
+        const stored = localStorage.getItem('spci_extintores_db');
+        extintoresData = stored ? JSON.parse(stored) : initialExtintores;
+      }
+      updateDashboard();
+    }
+
+    // Salvar Dados
+    async function saveExtintores() {
+      localStorage.setItem('spci_extintores_db', JSON.stringify(extintoresData));
+      try {
+        await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(extintoresData)
+        });
+      } catch(e) {}
+      updateDashboard();
+    }
+
+    // Atualização Geral do Dashboard
+    function updateDashboard() {
+      calculateKPIs();
+      renderChart();
+      renderTable();
+    }
+
+    // 1. Cálculo dos KPIs Executivos
+    function calculateKPIs() {
+      const total = extintoresData.length;
+      let operacionais = 0;
+      let vencidos = 0;
+      let aVencer30d = 0;
+      let emManutencao = 0;
+
+      const now = new Date();
+      const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const nextYearMonth = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+      extintoresData.forEach(item => {
+        const isManut = item.status === 'Em Manutenção';
+        const isExpired = item.status === 'Vencido' || item.validade < currentYearMonth || (now.getFullYear() - item.anoHidro >= 5);
+        const is30d = item.validade === currentYearMonth || item.validade === nextYearMonth;
+        const isObstructed = item.acessibilidade === 'Obstruído';
+        const isPressureBad = item.manometro === 'Fora da Faixa';
+
+        if (isManut) emManutencao++;
+        if (isExpired) vencidos++;
+        else if (is30d) aVencer30d++;
+
+        if (!isExpired && !isManut && !isObstructed && !isPressureBad) {
+          operacionais++;
+        }
+      });
+
+      const ipo = total > 0 ? Math.round((operacionais / total) * 100) : 100;
+
+      // Atualiza DOM dos KPIs
+      const ipoCard = document.getElementById('kpi-card-ipo');
+      const ipoVal = document.getElementById('kpi-ipo-val');
+      const ipoSub = document.getElementById('kpi-ipo-sub');
+      const ipoBar = document.getElementById('kpi-ipo-progress');
+
+      ipoVal.innerText = `${ipo}%`;
+      ipoBar.style.width = `${ipo}%`;
+
+      if (ipo >= 95) {
+        ipoCard.className = 'kpi-card ipo-green';
+        ipoSub.innerText = `● Excelente (${operacionais}/${total} operacionais)`;
+        ipoBar.style.background = 'var(--spci-green)';
+      } else if (ipo >= 85) {
+        ipoCard.className = 'kpi-card ipo-yellow';
+        ipoSub.innerText = `● Atenção Operacional (${operacionais}/${total} ativos)`;
+        ipoBar.style.background = 'var(--spci-amber)';
+      } else {
+        ipoCard.className = 'kpi-card ipo-red';
+        ipoSub.innerText = `● Crítico / Risco de Interdição (${operacionais}/${total} ativos)`;
+        ipoBar.style.background = 'var(--spci-red)';
+      }
+
+      document.getElementById('kpi-vencidos-val').innerText = vencidos;
+      document.getElementById('kpi-30d-val').innerText = aVencer30d;
+      document.getElementById('kpi-manut-val').innerText = emManutencao;
+      document.getElementById('table-total-count').innerText = total;
+    }
+
+    // 2. Gráfico da Curva de Vencimentos e Orçamento (Chart.js)
+    function renderChart() {
+      const labels = [];
+      const recargasData = [];
+      const hidroData = [];
+      let totalOrcamento = 0;
+
+      const now = new Date();
+      for (let i = 0; i < 6; i++) {
+        const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const key = `${y}-${m}`;
+        labels.push(d.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).toUpperCase());
+
+        let recargas = 0;
+        let hidros = 0;
+
+        extintoresData.forEach(item => {
+          if (item.validade === key) {
+            recargas++;
+            totalOrcamento += item.modelo.includes('CO2') ? 85 : 45;
+          }
+          if (y - item.anoHidro === 5 && d.getMonth() === 0) {
+            hidros++;
+            totalOrcamento += 60;
+          }
+        });
+
+        recargasData.push(recargas);
+        hidroData.push(hidros);
+      }
+
+      document.getElementById('total-orcamento-badge').innerText = `Orçamento Estimado (6M): R$ ${totalOrcamento.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+
+      const ctx = document.getElementById('temporalChart').getContext('2d');
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [
+            {
+              label: 'Recargas de Carga (1 ano)',
+              data: recargasData,
+              backgroundColor: '#4f46e5',
+              borderRadius: 6
+            },
+            {
+              label: 'Teste Hidrostático (5 anos)',
+              data: hidroData,
+              backgroundColor: '#f59e0b',
+              borderRadius: 6
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'top', labels: { font: { family: 'Plus Jakarta Sans', size: 12, weight: 600 } } }
+          },
+          scales: {
+            y: { beginAtZero: true, ticks: { stepSize: 1 } },
+            x: { grid: { display: false } }
+          }
+        }
+      });
+    }
+
+    // 3. Renderização da Tabela de Extintores
+    function renderTable() {
+      const tbody = document.getElementById('extintores-tbody');
+      const search = document.getElementById('table-search').value.toLowerCase().trim();
+      const now = new Date();
+      const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+      const nextMonthDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+      const nextYearMonth = `${nextMonthDate.getFullYear()}-${String(nextMonthDate.getMonth() + 1).padStart(2, '0')}`;
+
+      tbody.innerHTML = '';
+
+      const filtered = extintoresData.filter(item => {
+        const isManut = item.status === 'Em Manutenção';
+        const isExpired = item.status === 'Vencido' || item.validade < currentYearMonth || (now.getFullYear() - item.anoHidro >= 5);
+        const is30d = item.validade === currentYearMonth || item.validade === nextYearMonth;
+        const isObstructed = item.acessibilidade === 'Obstruído';
+        const isOperational = !isExpired && !isManut && !isObstructed && item.manometro !== 'Fora da Faixa';
+
+        let matchFilter = true;
+        if (currentFilter === 'OPERACIONAIS') matchFilter = isOperational;
+        else if (currentFilter === 'VENCIDOS') matchFilter = isExpired;
+        else if (currentFilter === 'A_VENCER') matchFilter = is30d;
+        else if (currentFilter === 'MANUTENCAO') matchFilter = isManut;
+        else if (currentFilter === 'OBSTRUIDOS') matchFilter = isObstructed;
+
+        let matchSearch = true;
+        if (search) {
+          matchSearch = 
+            item.patrimonio.toLowerCase().includes(search) ||
+            item.serie.toLowerCase().includes(search) ||
+            item.local.toLowerCase().includes(search) ||
+            item.modelo.toLowerCase().includes(search);
+        }
+
+        return matchFilter && matchSearch;
+      });
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding: 32px; color: #94a3b8; font-family:'JetBrains Mono',monospace;">Nenhum extintor encontrado com os filtros atuais.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(item => {
+        const isExpired = item.status === 'Vencido' || item.validade < currentYearMonth;
+        const isHidroExpired = (now.getFullYear() - item.anoHidro) >= 5;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>
+            <strong style="font-family: 'JetBrains Mono', monospace; font-size: 13px;">${item.patrimonio}</strong><br>
+            <span style="font-size: 11px; color: #64748b;">Chassi: ${item.serie || 'N/A'}</span>
+          </td>
+          <td><strong>${item.local}</strong></td>
+          <td>🧯 ${item.modelo}<br><span style="font-size: 11px; color: #64748b;">${item.capacidade}</span></td>
+          <td>
+            ${item.manometro === 'Faixa Verde' 
+              ? '<span class="badge-status badge-green">🟢 Faixa Verde</span>' 
+              : item.manometro === 'Fora da Faixa' 
+                ? '<span class="badge-status badge-red">🔴 Fora da Faixa</span>' 
+                : '<span class="badge-status" style="background:#f1f5f9; color:#64748b;">N/A (Alta Pressão)</span>'}
+          </td>
+          <td>
+            <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">${item.validade}</span><br>
+            ${isExpired ? '<span class="badge-status badge-red">🚨 Vencido</span>' : '<span class="badge-status badge-green">Válido</span>'}
+          </td>
+          <td>
+            <span style="font-family: 'JetBrains Mono', monospace; font-weight: 700;">Ano ${item.anoHidro}</span><br>
+            ${isHidroExpired ? '<span class="badge-status badge-red">🚨 Requer Reteste</span>' : `<span style="font-size: 11px; color: #64748b;">Até ${item.anoHidro + 5}</span>`}
+          </td>
+          <td>
+            ${item.acessibilidade === 'Desobstruído' 
+              ? '<span class="badge-status badge-green">🟢 Desobstruído</span>' 
+              : '<span class="badge-status badge-amber">⚠️ Obstruído</span>'}
+          </td>
+          <td style="text-align: right;">
+            <button onclick="editExtintor('${item.id}')" style="background:#f1f5f9; border:1px solid #e2e8f0; padding:6px 10px; border-radius:6px; font-size:11px; font-weight:700; cursor:pointer;">✏️ Editar</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Filtros
+    function setFilter(filter, el) {
+      currentFilter = filter;
+      document.querySelectorAll('.pill-btn').forEach(btn => btn.classList.remove('active'));
+      el.classList.add('active');
+      renderTable();
+    }
+
+    // Modais e CRUD
+    function openAddModal() {
+      document.getElementById('modal-title').innerText = 'Novo Extintor (ABNT NBR 12962)';
+      document.getElementById('form-id').value = '';
+      document.getElementById('form-patrimonio').value = `EXT-${Math.floor(1000 + Math.random() * 9000)}`;
+      document.getElementById('form-serie').value = '';
+      document.getElementById('form-local').value = '';
+      document.getElementById('form-capacidade').value = '6KG';
+      document.getElementById('form-validade').value = '2027-08';
+      document.getElementById('form-hidro').value = new Date().getFullYear();
+      document.getElementById('modal-extintor').classList.add('open');
+    }
+
+    function editExtintor(id) {
+      const ext = extintoresData.find(x => x.id === id);
+      if (!ext) return;
+      document.getElementById('modal-title').innerText = `Editar Extintor · ${ext.patrimonio}`;
+      document.getElementById('form-id').value = ext.id;
+      document.getElementById('form-patrimonio').value = ext.patrimonio;
+      document.getElementById('form-serie').value = ext.serie;
+      document.getElementById('form-local').value = ext.local;
+      document.getElementById('form-modelo').value = ext.modelo;
+      document.getElementById('form-capacidade').value = ext.capacidade;
+      document.getElementById('form-manometro').value = ext.manometro;
+      document.getElementById('form-validade').value = ext.validade;
+      document.getElementById('form-hidro').value = ext.anoHidro;
+      document.getElementById('form-acessibilidade').value = ext.acessibilidade;
+      document.getElementById('form-status').value = ext.status;
+      document.getElementById('modal-extintor').classList.add('open');
+    }
+
+    function closeModal() {
+      document.getElementById('modal-extintor').classList.remove('open');
+    }
+
+    function handleSaveExtintor(e) {
+      e.preventDefault();
+      const id = document.getElementById('form-id').value;
+      const data = {
+        id: id || String(Date.now()),
+        patrimonio: document.getElementById('form-patrimonio').value,
+        serie: document.getElementById('form-serie').value,
+        local: document.getElementById('form-local').value,
+        modelo: document.getElementById('form-modelo').value,
+        capacidade: document.getElementById('form-capacidade').value,
+        manometro: document.getElementById('form-manometro').value,
+        validade: document.getElementById('form-validade').value,
+        anoHidro: parseInt(document.getElementById('form-hidro').value, 10),
+        acessibilidade: document.getElementById('form-acessibilidade').value,
+        status: document.getElementById('form-status').value
+      };
+
+      if (id) {
+        const idx = extintoresData.findIndex(x => x.id === id);
+        if (idx >= 0) extintoresData[idx] = data;
+      } else {
+        extintoresData.unshift(data);
+      }
+
+      closeModal();
+      saveExtintores();
+    }
+
+    // Inicialização ao carregar a página
+    window.addEventListener('DOMContentLoaded', loadExtintores);
+  </script>
+</body>
+</html>

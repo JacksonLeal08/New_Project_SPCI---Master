@@ -6,6 +6,7 @@ import { motion } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import { D3SectorHeatmap } from '@/app/components/D3Heatmap';
 import { copyToClipboard } from '@/lib/utils';
+import ExtintoresManagementDashboard from '@/app/components/ExtintoresManagementDashboard';
 
 export default function DashboardPage() {
   const router = useRouter();
@@ -358,6 +359,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* ═══ MÓDULO EXECUTIVO & OPERACIONAL DE EXTINTORES SPCI ═══ */}
+      <ExtintoresManagementDashboard />
 
       {/* Mapa Térmico D3 de Zonas de Risco */}
       <D3SectorHeatmap 
