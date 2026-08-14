@@ -635,7 +635,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           </div>
         </div>
 
-        {/* BARRA DE AÇÕES E COCKPIT DE EDIÇÃO EM MASSA (REQUISITO 3) */}
+        {/* BARRA DE AÇÕES E BOTÕES DE EXPORTAÇÃO E IMPORTAÇÃO */}
         <div className="bg-white border-b border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
             <button
@@ -655,32 +655,23 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
               <span>+ Novo Ativo</span>
             </button>
 
-            {/* BOTÃO COCKPIT EDIÇÃO EM MASSA (REQUISITO 3) */}
-            {selectedIds.length > 0 && (
-              <button
-                onClick={() => setIsBulkEditModalOpen(true)}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer border-none animate-pulse active:scale-95"
-                title="Cockpit de Edição em Massa para itens selecionados"
-              >
-                <SlidersHorizontal className="w-4 h-4 text-amber-300" />
-                <span>⚡ Edição em Massa ({selectedIds.length})</span>
-              </button>
-            )}
-
+            {/* BOTÃO IMPORTAR PLANILHA EDITADA OU NOVOS */}
             <button
               onClick={() => setIsImportModalOpen(true)}
               className="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-white font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer border-none active:scale-95"
             >
               <FileSpreadsheet className="w-4 h-4 text-indigo-400" />
-              <span>📥 Importar XLSX</span>
+              <span>📥 Importar XLSX (Novos / Edições)</span>
             </button>
 
+            {/* BOTÃO EXPORTAR BASE COMPLETA EM XLSX PARA EDIÇÃO EM MASSA (FLUXO SOLICITADO) */}
             <button
-              onClick={() => exportStockItemsToCSV(filteredItems)}
+              onClick={() => exportStockItemsToCSV(items, 'base_ativos_edicao_em_massa.csv')}
               className="px-3.5 py-2 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-95"
+              title="Exportar base de ativos cadastrados para edição no Excel e posterior reimportação"
             >
-              <Download className="w-4 h-4 text-slate-600" />
-              <span>📊 Exportar XLSX</span>
+              <Download className="w-4 h-4 text-emerald-600" />
+              <span>📊 Exportar Base XLSX (para Edição)</span>
             </button>
 
             {/* BOTÃO ATALHO ALERTA FORMAL */}
@@ -707,6 +698,48 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
             />
           </div>
         </div>
+
+        {/* BARRA FLUTUANTE QUANDO MULTIPLOS ATIVOS ESTIVEREM SELECIONADOS NO INVENTÁRIO (REQUISITO 3 + COCKPIT) */}
+        {selectedIds.length > 0 && (
+          <div className="bg-indigo-900 text-white p-3 px-4 flex flex-col sm:flex-row items-center justify-between gap-2.5 font-mono text-xs border-b border-indigo-950 shadow-md animate-fadeIn">
+            <div className="flex items-center gap-2">
+              <CheckSquare className="w-4 h-4 text-amber-300" />
+              <span className="font-bold">
+                {selectedIds.length} ativo(s) selecionado(s) de {filteredItems.length} no inventário
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* BOTÃO PARA COCKPIT DE EDIÇÃO EM MASSA DOS SELECIONADOS */}
+              <button
+                onClick={() => setIsBulkEditModalOpen(true)}
+                className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border-none shadow-sm active:scale-95"
+              >
+                <SlidersHorizontal className="w-4 h-4" />
+                <span>⚡ Editar Selecionados no Cockpit ({selectedIds.length})</span>
+              </button>
+
+              {/* BOTÃO EXPORTAR SOMENTE SELECIONADOS PARA EDIÇÃO NO EXCEL */}
+              <button
+                onClick={() => {
+                  const selectedItems = items.filter((x) => selectedIds.includes(x.id));
+                  exportStockItemsToCSV(selectedItems, 'ativos_selecionados_edicao_em_massa.csv');
+                }}
+                className="px-3 py-1.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl transition-all flex items-center gap-1 cursor-pointer border border-white/20 active:scale-95"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-300" />
+                <span>Exportar Selecionados (XLSX)</span>
+              </button>
+
+              <button
+                onClick={() => setSelectedIds([])}
+                className="px-2.5 py-1.5 text-indigo-200 hover:text-white text-[11px] underline cursor-pointer"
+              >
+                Desmarcar Todos
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* FILTROS PILL DE TIPO DE ATIVO & VENCIMENTO E TABS DE CATEGORIA ESTOQUE */}
         <div className="bg-slate-100/90 border-b border-slate-200 px-4 pt-3 pb-2 flex items-center justify-between flex-wrap gap-2 font-mono text-xs">
@@ -1005,7 +1038,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/85 p-4 font-mono select-none overflow-y-auto">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               className="w-full max-w-2xl bg-white border border-indigo-200 shadow-2xl rounded-2xl overflow-hidden font-sans text-slate-900 my-auto max-h-[90vh] flex flex-col"
             >

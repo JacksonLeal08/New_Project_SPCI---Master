@@ -1,6 +1,6 @@
 /**
  * Utilitário de Importação e Exportação de Ativos (CSV / XLSX)
- * Suporta modelo padrão para download, validação de cabeçalhos e exportação.
+ * Suporta modelo padrão para download, validação de cabeçalhos e exportação para edição em massa.
  */
 
 export interface RawStockImportRow {
@@ -195,7 +195,6 @@ export function parseCSVToStockRows(csvText: string): RawStockImportRow[] {
 
   if (lines.length <= 1) return [];
 
-  // Identifica delimitador (ponto e vírgula ou vírgula)
   const delimiter = lines[0].includes(';') ? ';' : ',';
   const headers = lines[0]
     .split(delimiter)
@@ -253,36 +252,56 @@ export function parseCSVToStockRows(csvText: string): RawStockImportRow[] {
 }
 
 /**
- * Exporta uma lista de ativos formatados em arquivo CSV compatível com Excel
+ * Exporta uma lista de ativos formatados para reedição em massa em formato XLSX/CSV
  */
-export function exportStockItemsToCSV(items: any[], filename: string = 'relatorio_estoque_ativos.csv') {
+export function exportStockItemsToCSV(items: any[], filename: string = 'ativos_estoque_spci_master.csv') {
   const headers = [
-    'Código/Patrimônio',
-    'Tipo de Ativo',
-    'Nº de Série',
-    'Modelo',
-    'Fabricante',
-    'Mês/Ano Vencimento',
-    'Status Estoque',
-    'Localização',
-    'Sub-local',
-    'Status Inspeção',
-    'Data Cadastro'
+    'patrimonio',
+    'numero_serie',
+    'tipo_ativo',
+    'modelo',
+    'capacidade_peso',
+    'fabricante',
+    'mes_ano_ultima_recarga',
+    'mes_ano_vencimento',
+    'location',
+    'sub_location',
+    'observacoes'
   ];
 
-  const rows = items.map((it) => [
-    it.patrimonio || it.id_ativo || it.id,
-    it.category || 'Extintor',
-    it.numero_serie || it.details?.serialNumber || 'N/A',
-    it.model || 'Padrão',
-    it.fabricante || 'Kidde',
-    it.validadeRecarga || it.data_vencimento_teste || 'N/D',
-    it.status_estoque || 'ESTOQUE APLICAÇÃO',
-    it.location || 'Almoxarifado',
-    it.sub_location || 'Geral',
-    it.status || 'Conforme',
-    new Date(it.created_at || Date.now()).toLocaleDateString('pt-BR')
-  ]);
+  const rows = items.map((it) => {
+    let recargaMMAAAA = '';
+    if (it.ultima_recarga || it.details?.ultima_recarga) {
+      const rStr = it.ultima_recarga || it.details?.ultima_recarga;
+      if (rStr.length >= 7) {
+        const [y, m] = rStr.split('-');
+        recargaMMAAAA = `${String(m).padStart(2, '0')}/${y}`;
+      }
+    }
+
+    let vencimentoMMAAAA = '';
+    if (it.validadeRecarga || it.data_vencimento_teste) {
+      const vStr = it.validadeRecarga || it.data_vencimento_teste;
+      if (vStr.length >= 7) {
+        const [y, m] = vStr.split('-');
+        vencimentoMMAAAA = `${String(m).padStart(2, '0')}/${y}`;
+      }
+    }
+
+    return [
+      it.patrimonio || it.id_ativo || it.id,
+      it.numero_serie || it.details?.serialNumber || '',
+      it.category || 'extintores',
+      it.model || 'Padrão',
+      it.peso_capacidade || it.details?.peso_capacidade || '4KG',
+      it.fabricante || it.details?.fabricante || 'Kidde',
+      recargaMMAAAA,
+      vencimentoMMAAAA,
+      it.location || 'Almoxarifado',
+      it.sub_location || 'Estoque',
+      it.status || 'Conforme'
+    ];
+  });
 
   const csvContent =
     'data:text/csv;charset=utf-8,\uFEFF' +

@@ -158,7 +158,7 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
 }
 
 /**
- * Realiza a importação em massa de ativos exigindo a categoria de destino obrigatória
+ * Realiza a importação ou edição em massa de ativos por planilha XLSX/CSV (Upsert inteligente por patrimônio/série)
  */
 export async function bulkImportAssetsAction(
   rows: Array<{
@@ -189,48 +189,75 @@ export async function bulkImportAssetsAction(
       return { success: false, error: 'Nenhum item válido para importação.' };
     }
 
+    // Busca ativos existentes para atualizar por patrimônio ou número de série (Edição em Massa via XLSX)
+    const { data: existingAssets } = await supabaseAdmin
+      .from('assets')
+      .select('id, id_ativo, patrimonio, numero_serie, category, model, location, sub_location, status_estoque, details');
+
+    const existingMapByPatrimonio = new Map<string, any>();
+    const existingMapBySerie = new Map<string, any>();
+
+    (existingAssets || []).forEach((item: any) => {
+      if (item.patrimonio) existingMapByPatrimonio.set(String(item.patrimonio).trim().toLowerCase(), item);
+      if (item.id_ativo) existingMapByPatrimonio.set(String(item.id_ativo).trim().toLowerCase(), item);
+      if (item.numero_serie) existingMapBySerie.set(String(item.numero_serie).trim().toLowerCase(), item);
+      if (item.details?.serialNumber) existingMapBySerie.set(String(item.details.serialNumber).trim().toLowerCase(), item);
+    });
+
     const payloadAssets: any[] = [];
     const payloadMovements: any[] = [];
 
     rows.forEach((r, idx) => {
-      const assetId = `imp-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
-      const pat = r.patrimonio || `PAT-${Date.now()}-${idx}`;
-      const numSerie = r.numero_serie || `SN-${Date.now()}-${idx}`;
+      const pat = (r.patrimonio || '').trim();
+      const numSerie = (r.numero_serie || '').trim();
 
-      const validadeFormatted = r.formattedVencimento || r.mes_ano_vencimento || null;
-      const recargaFormatted = r.formattedRecarga || r.mes_ano_ultima_recarga || null;
+      // Procura ativo existente para atualizar em lote
+      const matchAsset =
+        (pat ? existingMapByPatrimonio.get(pat.toLowerCase()) : null) ||
+        (numSerie ? existingMapBySerie.get(numSerie.toLowerCase()) : null);
+
+      const assetId = matchAsset
+        ? matchAsset.id
+        : `imp-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`;
+
+      const finalPat = pat || (matchAsset?.patrimonio || matchAsset?.id_ativo) || `PAT-${Date.now()}-${idx}`;
+      const finalNumSerie = numSerie || matchAsset?.numero_serie || `SN-${Date.now()}-${idx}`;
+
+      const validadeFormatted = r.formattedVencimento || r.mes_ano_vencimento || matchAsset?.details?.validadeRecarga || null;
+      const recargaFormatted = r.formattedRecarga || r.mes_ano_ultima_recarga || matchAsset?.details?.ultima_recarga || null;
 
       payloadAssets.push({
         id: assetId,
-        id_ativo: pat,
-        patrimonio: pat,
-        numero_serie: numSerie,
-        category: (r.tipo_ativo || 'extintores').toLowerCase().includes('hidrante')
+        id_ativo: finalPat,
+        patrimonio: finalPat,
+        numero_serie: finalNumSerie,
+        category: (r.tipo_ativo || matchAsset?.category || 'extintores').toLowerCase().includes('hidrante')
           ? 'hidrantes'
-          : (r.tipo_ativo || 'extintores').toLowerCase(),
-        model: r.modelo || 'Padrão',
-        location: r.location || 'Almoxarifado',
-        sub_location: r.sub_location || 'Estoque',
+          : (r.tipo_ativo || matchAsset?.category || 'extintores').toLowerCase(),
+        model: r.modelo || matchAsset?.model || 'Padrão',
+        location: r.location || matchAsset?.location || 'Almoxarifado',
+        sub_location: r.sub_location || matchAsset?.sub_location || 'Estoque',
         status: 'Conforme',
-        status_estoque: categoriaDestino,
+        status_estoque: categoriaDestino || matchAsset?.status_estoque || 'ESTOQUE APLICAÇÃO',
         data_vencimento_teste: validadeFormatted,
         details: {
-          fabricante: r.fabricante || 'Kidde',
-          peso_capacidade: r.capacidade_peso || '4KG',
+          ...(matchAsset?.details || {}),
+          fabricante: r.fabricante || matchAsset?.details?.fabricante || 'Kidde',
+          peso_capacidade: r.capacidade_peso || matchAsset?.details?.peso_capacidade || '4KG',
           validadeRecarga: validadeFormatted,
           ultima_recarga: recargaFormatted,
-          serialNumber: numSerie
+          serialNumber: finalNumSerie
         },
-        created_at: new Date().toISOString(),
+        created_at: matchAsset?.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
 
       payloadMovements.push({
         asset_id: assetId,
-        id_ativo: pat,
-        status_anterior: 'N/A (Novo Cadastro)',
+        id_ativo: finalPat,
+        status_anterior: matchAsset?.status_estoque || 'N/A (Novo Cadastro)',
         status_novo: categoriaDestino,
-        motivo_movimentacao: 'Importação em Massa via Planilha XLSX',
+        motivo_movimentacao: matchAsset ? 'Edição/Atualização em Massa via Planilha XLSX' : 'Importação em Massa via Planilha XLSX',
         usuario_nome: usuarioNome,
         created_at: new Date().toISOString()
       });
@@ -239,7 +266,7 @@ export async function bulkImportAssetsAction(
     const { error: errAssets } = await supabaseAdmin.from('assets').upsert(payloadAssets, { onConflict: 'id' });
 
     if (errAssets) {
-      console.warn('[bulkImportAssetsAction] Aviso ao salvar assets:', errAssets.message);
+      console.warn('[bulkImportAssetsAction] Erro no upsert de ativos:', errAssets.message);
       return { success: false, error: errAssets.message };
     }
 
@@ -257,7 +284,7 @@ export async function bulkImportAssetsAction(
 }
 
 /**
- * Realiza a edição/atualização em massa (Cockpit Batch Update) para múltiplos ativos selecionados
+ * Realiza a edição/atualização em massa (Cockpit Batch Update) para múltiplos ativos selecionados via UI
  */
 export async function bulkUpdateAssetsAction(
   assetIds: string[],
