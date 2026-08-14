@@ -737,21 +737,21 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
                     </div>
                     <div>
                       <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Selo Inmetro (Opcional)</label>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                         <input 
                           type="text" 
                           value={formSelo} 
                           onChange={(e) => setFormSelo(e.target.value)} 
-                          className="flex-grow bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-850 outline-none font-mono" 
+                          className="flex-1 min-w-[140px] bg-white border border-slate-200 focus:border-red-600 focus:ring-1 focus:ring-red-600 rounded-xl p-3 text-xs sm:text-sm text-slate-850 outline-none font-mono" 
                           placeholder="S-123456" 
                         />
                         <button
                           type="button"
                           onClick={() => setIsScannerOpen(true)}
-                          className="px-3 bg-red-650 hover:bg-red-700 text-white rounded-xl flex items-center justify-center cursor-pointer transition-colors shadow-sm active:scale-95 border-none"
+                          className="w-[44px] h-[44px] min-w-[44px] min-h-[44px] bg-red-650 hover:bg-red-700 text-white rounded-xl flex items-center justify-center cursor-pointer transition-colors shadow-sm active:scale-95 border-none shrink-0"
                           title="Escanear Selo com a Câmera"
                         >
-                          <QrCode className="w-4 h-4" />
+                          <QrCode className="w-5 h-5" />
                         </button>
                       </div>
                     </div>

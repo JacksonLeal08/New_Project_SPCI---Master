@@ -1339,12 +1339,18 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                   </span>
                   {criticalStockList.map((crit) => {
                     const days = calculateDaysRemaining(crit.validadeRecarga || crit.data_vencimento_teste);
+                    const patCode = crit.patrimonio || crit.id_ativo || `PAT-${crit.id}`;
+                    const serieCode = crit.numero_serie || crit.details?.serialNumber || 'N/A';
                     return (
-                      <div key={crit.id} className="flex items-center justify-between border-b border-slate-100 pb-1 text-slate-800">
-                        <span className="font-bold text-slate-900">
-                          {crit.patrimonio || crit.id_ativo} ({crit.category})
-                        </span>
-                        <span className="text-slate-600">Fab: {crit.fabricante || 'Kidde'}</span>
+                      <div key={crit.id} className="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-100 pb-1.5 gap-1 text-slate-800">
+                        <div>
+                          <span className="font-mono font-bold text-slate-900 text-xs block">
+                            PATRIMÔNIO: {patCode} | Série: {serieCode}
+                          </span>
+                          <span className="text-[10px] text-slate-500 font-sans block">
+                            Fab: {crit.fabricante || 'Kidde'} ({crit.category})
+                          </span>
+                        </div>
                         <span
                           className={`font-bold ${
                             days !== null && days <= 0 ? 'text-red-600' : 'text-amber-700'

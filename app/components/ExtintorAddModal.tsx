@@ -727,24 +727,20 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                   <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
                     Patrimônio *
                   </label>
-                  <div className="flex rounded-lg overflow-hidden border border-slate-200 focus-within:border-red-500">
-                    <span className="bg-slate-100 text-slate-500 text-xs px-3 flex items-center select-none font-bold border-r border-slate-200">
+                  <div className="flex rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
+                    <span className="bg-slate-200 text-slate-600 text-xs px-3 flex items-center select-none font-bold border-r border-slate-300">
                       EXT-
                     </span>
                     <input 
                       type="text" 
                       value={formPatrimonio}
-                      onChange={(e) => setFormPatrimonio(e.target.value.replace(/\D/g, ''))}
-                      className="w-full bg-white text-slate-800 p-2 text-xs outline-none font-bold"
-                      placeholder="Ex: 1092"
-                      required
+                      readOnly
+                      className="w-full bg-slate-100 text-slate-700 p-2 text-xs outline-none font-mono font-bold cursor-not-allowed select-none"
                     />
                   </div>
-                  {maxPatrimonio > 0 && (
-                    <span className="text-[8px] text-slate-400 block mt-1">
-                      Último: EXT-{maxPatrimonio} | Sugerido: EXT-{recommendedPatrimonio}
-                    </span>
-                  )}
+                  <span className="text-[8.5px] text-slate-500 font-sans font-medium block mt-1">
+                    🔒 Patrimônio gerado automaticamente pelo sistema (Sugerido: EXT-{recommendedPatrimonio})
+                  </span>
                 </div>
 
                 {/* Chassi */}
@@ -766,21 +762,21 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                   <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
                     Selo INMETRO
                   </label>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
                     <input 
                       type="text" 
                       value={formSelo}
                       onChange={(e) => setFormSelo(e.target.value)}
-                      className="flex-grow bg-white border border-slate-200 focus:border-red-500 focus:ring-1 focus:ring-red-100 rounded-lg p-2 text-xs outline-none font-mono font-bold"
+                      className="flex-1 min-w-[140px] bg-white border border-slate-200 focus:border-red-500 focus:ring-1 focus:ring-red-100 rounded-lg p-2 text-xs outline-none font-mono font-bold"
                       placeholder="Ex: S-809221"
                     />
                     <button
                       type="button"
                       onClick={() => setIsScannerOpen(true)}
-                      className="px-3 bg-red-650 hover:bg-red-700 text-white rounded-lg flex items-center justify-center cursor-pointer transition-colors shadow-sm active:scale-95 border-none"
+                      className="w-[44px] h-[44px] min-w-[44px] min-h-[44px] bg-red-650 hover:bg-red-700 text-white rounded-lg flex items-center justify-center cursor-pointer transition-colors shadow-sm active:scale-95 border-none shrink-0"
                       title="Escanear Selo com a Câmera"
                     >
-                      <QrCode className="w-4 h-4" />
+                      <QrCode className="w-5 h-5" />
                     </button>
                   </div>
                 </div>
