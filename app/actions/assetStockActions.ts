@@ -35,6 +35,9 @@ export interface AssetStockItemRecord {
   id_ativo: string;
   category: string;
   model: string;
+  fabricante?: string;
+  peso_capacidade?: string;
+  validadeRecarga?: string;
   location: string;
   sub_location: string;
   status: string;
@@ -84,7 +87,10 @@ export async function getAssetStockItemsAction(statusEstoque?: string) {
       id: row.id,
       id_ativo: row.id_ativo || row.id,
       category: row.category || 'extintores',
-      model: row.model || 'Padrão',
+      model: row.model || row.details?.model || 'Padrão',
+      fabricante: row.fabricante || row.details?.fabricante || 'Kidde',
+      peso_capacidade: row.peso_capacidade || row.peso || row.details?.peso_capacidade || '4KG',
+      validadeRecarga: row.validadeRecarga || row.data_vencimento_teste || row.details?.validadeRecarga || null,
       location: row.location || 'Almoxarifado',
       sub_location: row.sub_location || 'Estoque',
       status: row.status || 'Conforme',
@@ -92,7 +98,7 @@ export async function getAssetStockItemsAction(statusEstoque?: string) {
       numero_serie: row.numero_serie || row.details?.serialNumber || '',
       patrimonio: row.patrimonio || row.id_ativo || row.id,
       data_fabricacao: row.data_fabricacao || null,
-      data_vencimento_teste: row.data_vencimento_teste || null,
+      data_vencimento_teste: row.data_vencimento_teste || row.validadeRecarga || null,
       details: row.details || {},
       created_at: row.created_at,
       updated_at: row.updated_at
@@ -121,13 +127,21 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       numero_serie: asset.numero_serie || '',
       category: asset.category || 'extintores',
       model: asset.model || 'Padrão',
+      fabricante: asset.fabricante || 'Kidde',
+      peso_capacidade: asset.peso_capacidade || '4KG',
+      validadeRecarga: asset.validadeRecarga || null,
       location: asset.location || 'Almoxarifado',
       sub_location: asset.sub_location || 'Geral',
       status: asset.status || 'Conforme',
       status_estoque: asset.status_estoque || 'ESTOQUE APLICAÇÃO',
       data_fabricacao: asset.data_fabricacao || null,
-      data_vencimento_teste: asset.data_vencimento_teste || null,
-      details: asset.details || {},
+      data_vencimento_teste: asset.validadeRecarga || asset.data_vencimento_teste || null,
+      details: {
+        ...(asset.details || {}),
+        fabricante: asset.fabricante,
+        peso_capacidade: asset.peso_capacidade,
+        validadeRecarga: asset.validadeRecarga
+      },
       updated_at: new Date().toISOString()
     };
 
