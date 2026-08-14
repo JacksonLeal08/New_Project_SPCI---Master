@@ -23,13 +23,18 @@ import {
   Calendar,
   Clock,
   AlertCircle,
-  Filter
+  Filter,
+  CheckSquare,
+  Square,
+  SlidersHorizontal,
+  Wrench
 } from 'lucide-react';
 import {
   getAssetStockItemsAction,
   saveSingleAssetStockAction,
   moveAssetStatusAction,
   getAssetMovementsHistoryAction,
+  bulkUpdateAssetsAction,
   AssetStockItemRecord,
   AssetMovementRecord,
   StatusEstoqueType
@@ -103,6 +108,23 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   const [expiryFilterPill, setExpiryFilterPill] = useState<'TODOS' | 'VENCIDOS' | 'A_VENCER' | 'VALIDOS' | 'CRITICOS'>('TODOS');
   const [searchTerm, setSearchTerm] = useState<string>('');
 
+  // Seleção Múltipla de Linhas para Edição em Massa (REQUISITO 3)
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState<boolean>(false);
+  const [isSavingBulk, setIsSavingBulk] = useState<boolean>(false);
+
+  // Campos do Cockpit de Edição em Massa
+  const [bulkStatusEstoque, setBulkStatusEstoque] = useState<StatusEstoqueType | ''>('');
+  const [bulkStatusEquipamento, setBulkStatusEquipamento] = useState<string>('');
+  const [bulkFabricante, setBulkFabricante] = useState<string>('');
+  const [bulkModel, setBulkModel] = useState<string>('');
+  const [bulkPesoCapacidade, setBulkPesoCapacidade] = useState<string>('');
+  const [bulkExpiryMonthVencimento, setBulkExpiryMonthVencimento] = useState<number | ''>('');
+  const [bulkExpiryYearVencimento, setBulkExpiryYearVencimento] = useState<number | ''>('');
+  const [bulkExpiryMonthRecarga, setBulkExpiryMonthRecarga] = useState<number | ''>('');
+  const [bulkExpiryYearRecarga, setBulkExpiryYearRecarga] = useState<number | ''>('');
+  const [bulkLocation, setBulkLocation] = useState<string>('');
+
   // Controla disparo do Alerta Formal Corporativo
   const [showFormalAlertModal, setShowFormalAlertModal] = useState<boolean>(false);
   const [alertDismissedSession, setAlertDismissedSession] = useState<boolean>(false);
@@ -161,6 +183,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
             fabricante: row.fabricante || row.details?.fabricante || 'Kidde',
             peso_capacidade: row.peso_capacidade || row.peso || row.details?.peso_capacidade || '4KG',
             validadeRecarga: row.validadeRecarga || row.data_vencimento_teste || row.details?.validadeRecarga || null,
+            ultima_recarga: row.details?.ultima_recarga || null,
             location: row.location || 'Almoxarifado',
             sub_location: row.subLocation || 'Estoque',
             status: row.status || 'Conforme',
@@ -275,44 +298,119 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   const countCondenados = items.filter((x) => x.status_estoque === 'CONDENADOS').length;
 
   // Filtragem composta da tabela
-  const filteredItems = items.filter((item) => {
-    const matchesTab = activeTab === 'Todos' || item.status_estoque === activeTab;
-    
-    // Filtro por Tipo de Ativo
-    const matchesCategory =
-      categoryFilterPill === 'TODOS' ||
-      item.category === categoryFilterPill ||
-      (categoryFilterPill === 'mangueiras' && (item.category === 'mangueiras' || item.category === 'hidrantes'));
+  const filteredItems = useMemo(() => {
+    return items.filter((item) => {
+      const matchesTab = activeTab === 'Todos' || item.status_estoque === activeTab;
+      
+      // Filtro por Tipo de Ativo
+      const matchesCategory =
+        categoryFilterPill === 'TODOS' ||
+        item.category === categoryFilterPill ||
+        (categoryFilterPill === 'mangueiras' && (item.category === 'mangueiras' || item.category === 'hidrantes'));
 
-    // Filtro pill de vencimento
-    const days = calculateDaysRemaining(item.validadeRecarga || item.data_vencimento_teste);
-    let matchesExpiry = true;
-    if (expiryFilterPill === 'VENCIDOS') {
-      matchesExpiry = days !== null && days <= 0;
-    } else if (expiryFilterPill === 'A_VENCER') {
-      matchesExpiry = days !== null && days > 0 && days <= 30;
-    } else if (expiryFilterPill === 'VALIDOS') {
-      matchesExpiry = days === null || days > 30;
-    } else if (expiryFilterPill === 'CRITICOS') {
-      matchesExpiry = days !== null && days <= 30;
+      // Filtro pill de vencimento
+      const days = calculateDaysRemaining(item.validadeRecarga || item.data_vencimento_teste);
+      let matchesExpiry = true;
+      if (expiryFilterPill === 'VENCIDOS') {
+        matchesExpiry = days !== null && days <= 0;
+      } else if (expiryFilterPill === 'A_VENCER') {
+        matchesExpiry = days !== null && days > 0 && days <= 30;
+      } else if (expiryFilterPill === 'VALIDOS') {
+        matchesExpiry = days === null || days > 30;
+      } else if (expiryFilterPill === 'CRITICOS') {
+        matchesExpiry = days !== null && days <= 30;
+      }
+
+      const term = searchTerm.toLowerCase();
+      const matchesSearch =
+        !term ||
+        (item.patrimonio || '').toLowerCase().includes(term) ||
+        (item.id_ativo || '').toLowerCase().includes(term) ||
+        (item.numero_serie || '').toLowerCase().includes(term) ||
+        (item.model || '').toLowerCase().includes(term) ||
+        (item.fabricante || '').toLowerCase().includes(term) ||
+        (item.category || '').toLowerCase().includes(term);
+
+      return matchesTab && matchesCategory && matchesExpiry && matchesSearch;
+    });
+  }, [items, activeTab, categoryFilterPill, expiryFilterPill, searchTerm]);
+
+  // Lógica de Seleção Múltipla para Edição em Massa
+  const isAllSelected = filteredItems.length > 0 && filteredItems.every((it) => selectedIds.includes(it.id));
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedIds([]);
+    } else {
+      setSelectedIds(filteredItems.map((it) => it.id));
     }
+  };
 
-    const term = searchTerm.toLowerCase();
-    const matchesSearch =
-      !term ||
-      (item.patrimonio || '').toLowerCase().includes(term) ||
-      (item.id_ativo || '').toLowerCase().includes(term) ||
-      (item.numero_serie || '').toLowerCase().includes(term) ||
-      (item.model || '').toLowerCase().includes(term) ||
-      (item.fabricante || '').toLowerCase().includes(term) ||
-      (item.category || '').toLowerCase().includes(term);
-
-    return matchesTab && matchesCategory && matchesExpiry && matchesSearch;
-  });
+  const toggleSelectRow = (id: string) => {
+    setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  };
 
   if (!isOpen) return null;
 
-  // Executa a movimentação de status do ativo
+  // Executa a atualização em massa via Cockpit (REQUISITO 3)
+  const handleConfirmBulkEdit = async () => {
+    if (selectedIds.length === 0) return;
+    setIsSavingBulk(true);
+
+    try {
+      let finalValidade: string | undefined = undefined;
+      if (bulkExpiryYearVencimento && bulkExpiryMonthVencimento) {
+        finalValidade = `${bulkExpiryYearVencimento}-${String(bulkExpiryMonthVencimento).padStart(2, '0')}-01`;
+      }
+
+      let finalRecarga: string | undefined = undefined;
+      if (bulkExpiryYearRecarga && bulkExpiryMonthRecarga) {
+        finalRecarga = `${bulkExpiryYearRecarga}-${String(bulkExpiryMonthRecarga).padStart(2, '0')}-01`;
+      }
+
+      const updatesPayload: any = {};
+      if (bulkStatusEstoque) updatesPayload.status_estoque = bulkStatusEstoque;
+      if (bulkStatusEquipamento) updatesPayload.status = bulkStatusEquipamento;
+      if (bulkFabricante) updatesPayload.fabricante = bulkFabricante;
+      if (bulkModel) updatesPayload.model = bulkModel;
+      if (bulkPesoCapacidade) updatesPayload.peso_capacidade = bulkPesoCapacidade;
+      if (bulkLocation) updatesPayload.location = bulkLocation;
+      if (finalValidade) updatesPayload.validadeRecarga = finalValidade;
+      if (finalRecarga) updatesPayload.ultima_recarga = finalRecarga;
+
+      const res = await bulkUpdateAssetsAction(selectedIds, updatesPayload);
+
+      if (res.success) {
+        await loadAssets();
+        setSelectedIds([]);
+        setIsBulkEditModalOpen(false);
+        setHudAlert({
+          isOpen: true,
+          title: 'EDIÇÃO EM MASSA CONCLUÍDA! 🟢',
+          message: `Atualização em lote aplicada a ${res.updatedCount} ativo(s) selecionados com sucesso.`,
+          type: 'success'
+        });
+      } else {
+        setHudAlert({
+          isOpen: true,
+          title: 'FALHA NA EDIÇÃO EM MASSA ⚠️',
+          message: res.error || 'Não foi possível atualizar os ativos selecionados.',
+          type: 'error'
+        });
+      }
+    } catch (err: any) {
+      setHudAlert({
+        isOpen: true,
+        title: 'ERRO AO ATUALIZAR ⚠️',
+        message: err.message || err,
+        type: 'error'
+      });
+    } finally {
+      setIsSavingBulk(false);
+    }
+  };
+
+  // Executa a movimentação de status do ativo individual
   const handleConfirmMoveStatus = async () => {
     if (!movingItem) return;
     setIsMoving(true);
@@ -429,12 +527,12 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 p-3 sm:p-6 font-mono select-none overflow-y-auto">
       <motion.div
         initial={{ opacity: 0, scale: 0.96, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.96, y: 15 }}
-        className="w-full max-w-6xl bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-900"
+        className="w-full max-w-6xl bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-900 my-auto"
       >
         {/* CABEÇALHO DO MODAL - TEMA CLARO SPCI RED */}
         <div className="bg-red-700 text-white p-4 sm:p-5 flex items-center justify-between border-b border-red-800 shadow-md">
@@ -537,7 +635,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           </div>
         </div>
 
-        {/* BARRA DE AÇÕES E BOTÕES DE FILTRO */}
+        {/* BARRA DE AÇÕES E COCKPIT DE EDIÇÃO EM MASSA (REQUISITO 3) */}
         <div className="bg-white border-b border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
             <button
@@ -556,6 +654,18 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
               <Plus className="w-4 h-4" />
               <span>+ Novo Ativo</span>
             </button>
+
+            {/* BOTÃO COCKPIT EDIÇÃO EM MASSA (REQUISITO 3) */}
+            {selectedIds.length > 0 && (
+              <button
+                onClick={() => setIsBulkEditModalOpen(true)}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-mono font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-md cursor-pointer border-none animate-pulse active:scale-95"
+                title="Cockpit de Edição em Massa para itens selecionados"
+              >
+                <SlidersHorizontal className="w-4 h-4 text-amber-300" />
+                <span>⚡ Edição em Massa ({selectedIds.length})</span>
+              </button>
+            )}
 
             <button
               onClick={() => setIsImportModalOpen(true)}
@@ -689,12 +799,21 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           </div>
         </div>
 
-        {/* TABELA PRINCIPAL (GRID DE ATIVOS - NOVAS COLUNAS DIAS A VENCER E STATUS) */}
+        {/* TABELA PRINCIPAL (GRID DE ATIVOS - COM CHECKBOX DE SELEÇÃO EM MASSA) */}
         <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
-          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
-            <table className="w-full text-left font-mono text-xs border-collapse">
+          <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden overflow-x-auto scrollbar-thin">
+            <table className="w-full text-left font-mono text-xs border-collapse min-w-[850px]">
               <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] tracking-wider font-bold border-b border-slate-200">
                 <tr>
+                  <th className="py-3 px-3 w-10 text-center">
+                    <input
+                      type="checkbox"
+                      checked={isAllSelected}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+                      title="Selecionar / Desmarcar Todos"
+                    />
+                  </th>
                   <th className="py-3 px-4">Patrimônio / Cód</th>
                   <th className="py-3 px-4">Tipo & Modelo</th>
                   <th className="py-3 px-4">Capacidade / Peso</th>
@@ -707,22 +826,38 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
               <tbody className="divide-y divide-slate-100 font-sans text-xs text-slate-800 font-medium">
                 {loading ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-500 font-mono">
+                    <td colSpan={8} className="py-12 text-center text-slate-500 font-mono">
                       <RefreshCw className="w-6 h-6 animate-spin mx-auto text-red-600 mb-2" />
                       Carregando estoque de ativos...
                     </td>
                   </tr>
                 ) : filteredItems.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-slate-500 font-mono">
+                    <td colSpan={8} className="py-12 text-center text-slate-500 font-mono">
                       Nenhum ativo encontrado para os filtros selecionados.
                     </td>
                   </tr>
                 ) : (
                   filteredItems.map((it) => {
+                    const isSelected = selectedIds.includes(it.id);
                     const daysRemaining = calculateDaysRemaining(it.validadeRecarga || it.data_vencimento_teste);
                     return (
-                      <tr key={it.id} className="hover:bg-slate-50/80 transition-colors">
+                      <tr
+                        key={it.id}
+                        className={`hover:bg-slate-50/80 transition-colors ${
+                          isSelected ? 'bg-indigo-50/60' : ''
+                        }`}
+                      >
+                        {/* CHECKBOX SELEÇÃO INDIVIDUAL */}
+                        <td className="py-3 px-3 text-center">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectRow(it.id)}
+                            className="w-4 h-4 accent-indigo-600 rounded cursor-pointer"
+                          />
+                        </td>
+
                         {/* PATRIMÔNIO / SÉRIE */}
                         <td className="py-3 px-4 font-mono font-bold text-slate-900">
                           <div>{it.patrimonio || it.id_ativo || it.id}</div>
@@ -853,7 +988,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         {/* RODAPÉ DE RESUMO - TEMA CLARO */}
         <div className="bg-slate-100 border-t border-slate-200 p-4 flex items-center justify-between font-mono text-xs text-slate-700 font-bold">
           <span className="text-slate-600 text-[11px]">
-            Exibindo {filteredItems.length} de {items.length} ativos cadastrados | Vencidos/A Vencer em Estoque: {vencidosStockCount + aVencerStockCount}
+            Exibindo {filteredItems.length} de {items.length} ativos cadastrados | Selecionados: {selectedIds.length}
           </span>
           <button
             onClick={onClose}
@@ -864,13 +999,266 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         </div>
       </motion.div>
 
+      {/* --- MODAL COCKPIT DE EDIÇÃO EM MASSA (REQUISITO 3) --- */}
+      <AnimatePresence>
+        {isBulkEditModalOpen && (
+          <div className="fixed inset-0 z-[110] flex items-center justify-center bg-slate-950/85 p-4 font-mono select-none overflow-y-auto">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 15 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 15 }}
+              className="w-full max-w-2xl bg-white border border-indigo-200 shadow-2xl rounded-2xl overflow-hidden font-sans text-slate-900 my-auto max-h-[90vh] flex flex-col"
+            >
+              {/* CABEÇALHO DO COCKPIT */}
+              <div className="bg-indigo-900 text-white p-4 sm:p-5 flex items-center justify-between border-b border-indigo-950 shadow-md">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/20">
+                    <SlidersHorizontal className="w-5 h-5 text-amber-300" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black font-mono uppercase tracking-wider text-white">
+                      COCKPIT DE EDIÇÃO EM MASSA ({selectedIds.length} ATIVOS SELECIONADOS)
+                    </h3>
+                    <p className="text-[11px] text-indigo-200 font-sans font-bold">
+                      Preencha somente os campos que deseja atualizar em lote nos itens selecionados
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsBulkEditModalOpen(false)}
+                  className="text-white/80 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* CORPO DO FORMULÁRIO DO COCKPIT */}
+              <div className="p-5 sm:p-6 space-y-4 overflow-y-auto text-xs font-sans">
+                {/* 1. STATUS DE ESTOQUE E STATUS DO ATIVO */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                      Status de Estoque (Inventário):
+                    </label>
+                    <select
+                      value={bulkStatusEstoque}
+                      onChange={(e: any) => setBulkStatusEstoque(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                    >
+                      <option value="">-- Manter Valores Originais --</option>
+                      <option value="ESTOQUE APLICAÇÃO">🟢 ESTOQUE APLICAÇÃO</option>
+                      <option value="ESTOQUE MANUTENÇÃO">🟡 ESTOQUE MANUTENÇÃO</option>
+                      <option value="EM MANUTENÇÃO">🔵 EM MANUTENÇÃO</option>
+                      <option value="CONDENADOS">🔴 CONDENADOS</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                      Status do Ativo (Situação):
+                    </label>
+                    <select
+                      value={bulkStatusEquipamento}
+                      onChange={(e) => setBulkStatusEquipamento(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                    >
+                      <option value="">-- Manter Valores Originais --</option>
+                      {STATUS_EQUIPAMENTO_OPTIONS.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* 2. FABRICANTE, MODELO E PESO/CAPACIDADE */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                      Fabricante:
+                    </label>
+                    <select
+                      value={bulkFabricante}
+                      onChange={(e) => setBulkFabricante(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                    >
+                      <option value="">-- Manter --</option>
+                      {FABRICANTE_OPTIONS.map((f) => (
+                        <option key={f} value={f}>
+                          {f}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                      Modelo:
+                    </label>
+                    <select
+                      value={bulkModel}
+                      onChange={(e) => setBulkModel(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                    >
+                      <option value="">-- Manter --</option>
+                      {MODEL_OPTIONS.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                      Capacidade / Peso:
+                    </label>
+                    <select
+                      value={bulkPesoCapacidade}
+                      onChange={(e) => setBulkPesoCapacidade(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                    >
+                      <option value="">-- Manter --</option>
+                      {WEIGHT_OPTIONS.map((w) => (
+                        <option key={w} value={w}>
+                          {w}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* 3. MÊS/ANO DA ÚLTIMA RECARGA E MÊS/ANO DE VENCIMENTO */}
+                <div className="p-3.5 bg-indigo-50/60 border border-indigo-200 rounded-xl space-y-3">
+                  <span className="font-mono text-[10px] font-black uppercase tracking-wider text-indigo-900 block border-b border-indigo-200 pb-1">
+                    📅 ATUALIZAÇÃO EM MASSA DE DATAS E REGRAS DE MANUTENÇÃO
+                  </span>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* MÊS / ANO ÚLTIMA RECARGA */}
+                    <div>
+                      <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                        Mês/Ano ÚLTIMA RECARGA (Lote):
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <select
+                          value={bulkExpiryMonthRecarga}
+                          onChange={(e) => setBulkExpiryMonthRecarga(e.target.value ? Number(e.target.value) : '')}
+                          className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                        >
+                          <option value="">Mês...</option>
+                          {MONTHS.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={bulkExpiryYearRecarga}
+                          onChange={(e) => setBulkExpiryYearRecarga(e.target.value ? Number(e.target.value) : '')}
+                          className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                        >
+                          <option value="">Ano...</option>
+                          {YEARS.map((y) => (
+                            <option key={y} value={y}>
+                              {y}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* MÊS / ANO VENCIMENTO */}
+                    <div>
+                      <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                        Mês/Ano DO VENCIMENTO (Lote):
+                      </label>
+                      <div className="grid grid-cols-2 gap-1.5">
+                        <select
+                          value={bulkExpiryMonthVencimento}
+                          onChange={(e) => setBulkExpiryMonthVencimento(e.target.value ? Number(e.target.value) : '')}
+                          className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                        >
+                          <option value="">Mês...</option>
+                          {MONTHS.map((m) => (
+                            <option key={m.value} value={m.value}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                        <select
+                          value={bulkExpiryYearVencimento}
+                          onChange={(e) => setBulkExpiryYearVencimento(e.target.value ? Number(e.target.value) : '')}
+                          className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-indigo-600"
+                        >
+                          <option value="">Ano...</option>
+                          {YEARS.map((y) => (
+                            <option key={y} value={y}>
+                              {y}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 4. LOCALIZAÇÃO */}
+                <div>
+                  <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                    Localização / Almoxarifado:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Almoxarifado Central / Setor A"
+                    value={bulkLocation}
+                    onChange={(e) => setBulkLocation(e.target.value)}
+                    className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-mono text-slate-900 font-bold focus:outline-none focus:border-indigo-600"
+                  />
+                </div>
+              </div>
+
+              {/* RODAPÉ DO COCKPIT */}
+              <div className="bg-slate-100 border-t border-slate-200 p-4 flex justify-end gap-2 font-mono">
+                <button
+                  type="button"
+                  onClick={() => setIsBulkEditModalOpen(false)}
+                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-200 cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmBulkEdit}
+                  disabled={isSavingBulk}
+                  className="px-6 py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded-xl text-xs font-black uppercase transition-all shadow-md cursor-pointer border-none flex items-center gap-2 active:scale-95"
+                >
+                  {isSavingBulk ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
+                      <span>Atualizando Lote...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4 text-emerald-400" />
+                      <span>Aplicar a {selectedIds.length} Ativos</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
       {/* --- SISTEMA DE ALERTA FORMAL CORPORATIVO (MODAL CORPORATIVO REQUISITO 4) --- */}
       <AnimatePresence>
         {showFormalAlertModal && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 font-mono select-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
+              animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95, y: 15 }}
               className="w-full max-w-xl bg-white border border-red-200 shadow-2xl rounded-2xl overflow-hidden font-sans text-slate-900 relative"
             >
@@ -1382,7 +1770,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
       {/* POP-UP HUD INFORMATIVO */}
       <AnimatePresence>
         {hudAlert.isOpen && (
-          <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
+          <div className="fixed inset-0 z-[120] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}

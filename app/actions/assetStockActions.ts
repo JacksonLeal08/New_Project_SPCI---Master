@@ -38,6 +38,7 @@ export interface AssetStockItemRecord {
   fabricante?: string;
   peso_capacidade?: string;
   validadeRecarga?: string;
+  ultima_recarga?: string;
   location: string;
   sub_location: string;
   status: string;
@@ -91,6 +92,7 @@ export async function getAssetStockItemsAction(statusEstoque?: string) {
       fabricante: row.fabricante || row.details?.fabricante || 'Kidde',
       peso_capacidade: row.peso_capacidade || row.peso || row.details?.peso_capacidade || '4KG',
       validadeRecarga: row.validadeRecarga || row.data_vencimento_teste || row.details?.validadeRecarga || null,
+      ultima_recarga: row.details?.ultima_recarga || null,
       location: row.location || 'Almoxarifado',
       sub_location: row.sub_location || 'Estoque',
       status: row.status || 'Conforme',
@@ -137,7 +139,8 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
         ...(asset.details || {}),
         fabricante: asset.fabricante || 'Kidde',
         peso_capacidade: asset.peso_capacidade || '4KG',
-        validadeRecarga: asset.validadeRecarga || null
+        validadeRecarga: asset.validadeRecarga || null,
+        ultima_recarga: asset.ultima_recarga || null
       },
       updated_at: new Date().toISOString()
     };
@@ -163,6 +166,12 @@ export async function bulkImportAssetsAction(
     numero_serie?: string;
     tipo_ativo?: string;
     modelo?: string;
+    capacidade_peso?: string;
+    fabricante?: string;
+    mes_ano_ultima_recarga?: string;
+    mes_ano_vencimento?: string;
+    formattedRecarga?: string;
+    formattedVencimento?: string;
     location?: string;
     sub_location?: string;
   }>,
@@ -188,17 +197,30 @@ export async function bulkImportAssetsAction(
       const pat = r.patrimonio || `PAT-${Date.now()}-${idx}`;
       const numSerie = r.numero_serie || `SN-${Date.now()}-${idx}`;
 
+      const validadeFormatted = r.formattedVencimento || r.mes_ano_vencimento || null;
+      const recargaFormatted = r.formattedRecarga || r.mes_ano_ultima_recarga || null;
+
       payloadAssets.push({
         id: assetId,
         id_ativo: pat,
         patrimonio: pat,
         numero_serie: numSerie,
-        category: (r.tipo_ativo || 'Extintor').toLowerCase().includes('hidrante') ? 'hidrantes' : 'extintores',
+        category: (r.tipo_ativo || 'extintores').toLowerCase().includes('hidrante')
+          ? 'hidrantes'
+          : (r.tipo_ativo || 'extintores').toLowerCase(),
         model: r.modelo || 'Padrão',
         location: r.location || 'Almoxarifado',
         sub_location: r.sub_location || 'Estoque',
         status: 'Conforme',
         status_estoque: categoriaDestino,
+        data_vencimento_teste: validadeFormatted,
+        details: {
+          fabricante: r.fabricante || 'Kidde',
+          peso_capacidade: r.capacidade_peso || '4KG',
+          validadeRecarga: validadeFormatted,
+          ultima_recarga: recargaFormatted,
+          serialNumber: numSerie
+        },
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       });
@@ -221,7 +243,6 @@ export async function bulkImportAssetsAction(
       return { success: false, error: errAssets.message };
     }
 
-    // Tenta gravar auditoria de movimentações se a tabela existir
     try {
       await supabaseAdmin.from('ativo_movimentacoes').insert(payloadMovements);
     } catch (e) {
@@ -232,6 +253,118 @@ export async function bulkImportAssetsAction(
   } catch (err: any) {
     console.error('[bulkImportAssetsAction Catch]:', err);
     return { success: false, error: err.message || 'Erro na importação em massa.' };
+  }
+}
+
+/**
+ * Realiza a edição/atualização em massa (Cockpit Batch Update) para múltiplos ativos selecionados
+ */
+export async function bulkUpdateAssetsAction(
+  assetIds: string[],
+  updates: {
+    status_estoque?: StatusEstoqueType;
+    status?: string;
+    fabricante?: string;
+    model?: string;
+    peso_capacidade?: string;
+    validadeRecarga?: string | null;
+    ultima_recarga?: string | null;
+    location?: string;
+    sub_location?: string;
+  },
+  usuarioNome: string = 'Gestor'
+) {
+  try {
+    const supabaseAdmin = getSupabaseAdminClient();
+
+    if (!assetIds || assetIds.length === 0) {
+      return { success: false, error: 'Nenhum ativo selecionado para atualização em massa.' };
+    }
+
+    // Busca itens atuais para preservar details existentes
+    const { data: existingAssets, error: fetchErr } = await supabaseAdmin
+      .from('assets')
+      .select('id, id_ativo, status_estoque, details')
+      .in('id', assetIds);
+
+    if (fetchErr) {
+      return { success: false, error: fetchErr.message };
+    }
+
+    const payloadMovements: any[] = [];
+    let updatedCount = 0;
+
+    for (const item of existingAssets || []) {
+      const currentDetails = item.details || {};
+      const newDetails = { ...currentDetails };
+
+      if (updates.fabricante !== undefined && updates.fabricante !== '') {
+        newDetails.fabricante = updates.fabricante;
+      }
+      if (updates.peso_capacidade !== undefined && updates.peso_capacidade !== '') {
+        newDetails.peso_capacidade = updates.peso_capacidade;
+      }
+      if (updates.validadeRecarga !== undefined && updates.validadeRecarga !== '') {
+        newDetails.validadeRecarga = updates.validadeRecarga;
+      }
+      if (updates.ultima_recarga !== undefined && updates.ultima_recarga !== '') {
+        newDetails.ultima_recarga = updates.ultima_recarga;
+      }
+
+      const updateData: any = {
+        details: newDetails,
+        updated_at: new Date().toISOString()
+      };
+
+      if (updates.status_estoque) {
+        updateData.status_estoque = updates.status_estoque;
+      }
+      if (updates.status) {
+        updateData.status = updates.status;
+      }
+      if (updates.model) {
+        updateData.model = updates.model;
+      }
+      if (updates.location) {
+        updateData.location = updates.location;
+      }
+      if (updates.sub_location) {
+        updateData.sub_location = updates.sub_location;
+      }
+      if (updates.validadeRecarga) {
+        updateData.data_vencimento_teste = updates.validadeRecarga;
+      }
+
+      const { error: errUpd } = await supabaseAdmin
+        .from('assets')
+        .update(updateData)
+        .eq('id', item.id);
+
+      if (!errUpd) {
+        updatedCount++;
+        if (updates.status_estoque && updates.status_estoque !== item.status_estoque) {
+          payloadMovements.push({
+            asset_id: item.id,
+            id_ativo: item.id_ativo,
+            status_anterior: item.status_estoque || 'ESTOQUE APLICAÇÃO',
+            status_novo: updates.status_estoque,
+            motivo_movimentacao: 'Edição em Massa via Cockpit',
+            usuario_nome: usuarioNome,
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+    }
+
+    if (payloadMovements.length > 0) {
+      try {
+        await supabaseAdmin.from('ativo_movimentacoes').insert(payloadMovements);
+      } catch (e) {}
+    }
+
+    return { success: true, updatedCount };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Erro na atualização em massa.' };
   }
 }
 
@@ -249,7 +382,6 @@ export async function moveAssetStatusAction(
   try {
     const supabaseAdmin = getSupabaseAdminClient();
 
-    // 1. Atualiza status_estoque no asset
     const { error: errUpdate } = await supabaseAdmin
       .from('assets')
       .update({
@@ -262,7 +394,6 @@ export async function moveAssetStatusAction(
       return { success: false, error: errUpdate.message };
     }
 
-    // 2. Grava histórico na tabela ativo_movimentacoes
     const movementPayload = {
       asset_id: assetId,
       id_ativo: idAtivo,
