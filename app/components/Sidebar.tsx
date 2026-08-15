@@ -87,7 +87,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
     { id: 'bombas', label: 'Casa de Bombas', icon: <Sliders className="w-5 h-5" />, path: '/bombas' },
     { id: 'ronda', label: 'Despacho & Ronda Campo', icon: <Smartphone className="w-5 h-5" />, path: '/ronda' },
     { id: 'alerts', label: 'Disparo de Alertas', icon: <Bell className="w-5 h-5" />, path: '/alerts' },
-    { id: 'gestao-ativo', label: 'Gestão de Ativo', icon: <Boxes className="w-5 h-5" />, path: '/dashboard' },
+    { id: 'gestao-ativo', label: 'Gestão de Ativo', icon: <Boxes className="w-5 h-5" />, path: '/gestao-ativo' },
     ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'logs', label: 'Logs do Sistema', icon: <History className="w-5 h-5" />, path: '/logs' }] : []),
     ...(isAdmin ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-5 h-5" />, path: '/configuracoes' }] : [])
   ];

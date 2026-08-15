@@ -37,7 +37,7 @@ export default function GestaoSubLocaisPage() {
   const { userProfile, logSystemAction, triggerSuccessNotification } = useSpci();
 
   // RBAC
-  const isDesenvolvedor = userProfile?.role === 'Desenvolvedor';
+  const canAccess = userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Administrador' || (userProfile as any)?.role === 'admin';
 
   // Estados de Dados
   const [setores, setSetores] = useState<Setor[]>([]);
@@ -109,16 +109,16 @@ export default function GestaoSubLocaisPage() {
   };
 
   useEffect(() => {
-    if (isDesenvolvedor) {
+    if (canAccess) {
       const timer = setTimeout(() => {
         loadData();
       }, 0);
       return () => clearTimeout(timer);
     }
-  }, [isDesenvolvedor]);
+  }, [canAccess]);
 
   // Bloqueio de Acesso
-  if (!isDesenvolvedor && userProfile) {
+  if (!canAccess && userProfile) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-4">
         <motion.div 
@@ -133,7 +133,7 @@ export default function GestaoSubLocaisPage() {
             Acesso Restrito
           </h2>
           <p className="text-[10px] text-slate-400 font-sans leading-relaxed mt-3 px-2">
-            Área restrita de tabelas auxiliares. Apenas credenciais com privilégios de <strong>Desenvolvedor SPCI</strong> podem acessar.
+            Área restrita de tabelas auxiliares. Apenas credenciais com privilégios de <strong>Administrador ou Desenvolvedor SPCI</strong> podem acessar.
           </p>
           <button
             onClick={() => router.push('/dashboard')}

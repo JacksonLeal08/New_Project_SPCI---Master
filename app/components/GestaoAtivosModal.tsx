@@ -2284,3 +2284,5 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     </div>
   );
 };
+
+export default GestaoAtivosModal;

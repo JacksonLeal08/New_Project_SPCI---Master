@@ -72,7 +72,7 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick, onGestaoAtivo
             aria-label="Abrir Gestão de Ativos"
           >
             <Boxes className="w-3.5 h-3.5 text-indigo-600" />
-            <span className="hidden sm:inline">Gestão Ativo</span>
+            <span className="hidden sm:inline">Estoque de Ativos</span>
           </button>
         )}
 

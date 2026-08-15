@@ -1,9 +1,10 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
+import GestaoAtivosModal from '@/app/components/GestaoAtivosModal';
 import { 
   Boxes, 
   MapPin, 
@@ -16,7 +17,9 @@ import {
   Lock, 
   ArrowLeft,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  Package,
+  ArrowRightLeft
 } from 'lucide-react';
 
 export default function GestaoAtivoPage() {
@@ -30,10 +33,12 @@ export default function GestaoAtivoPage() {
     bombas 
   } = useSpci();
 
-  // 1. RBAC - Acesso restrito ao cargo Desenvolvedor
-  const isDesenvolvedor = userProfile?.role === 'Desenvolvedor';
+  const [isStockModalOpen, setIsStockModalOpen] = useState(false);
 
-  if (!isDesenvolvedor) {
+  // 1. RBAC - Acesso para Administrador e Desenvolvedor
+  const canAccess = userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Administrador' || (userProfile as any)?.role === 'admin';
+
+  if (!canAccess) {
     return (
       <div className="min-h-[70vh] flex items-center justify-center p-4">
         <motion.div 
@@ -48,7 +53,7 @@ export default function GestaoAtivoPage() {
             Acesso Restrito
           </h2>
           <p className="text-[10px] text-slate-400 font-sans leading-relaxed mt-3 px-2">
-            Esta área contém configurações avançadas do banco de dados e checklists estruturais. Apenas credenciais com privilégios de <strong>Desenvolvedor SPCI</strong> podem acessar.
+            Esta área contém configurações avançadas de setores, prédios, sub-locais e checklists estruturais. Apenas credenciais com privilégios de <strong>Administrador ou Desenvolvedor SPCI</strong> podem acessar.
           </p>
           <button
             onClick={() => router.push('/dashboard')}
@@ -134,6 +139,46 @@ export default function GestaoAtivoPage() {
         className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
       >
         
+        {/* Card 0: Estoque & Movimentações de Ativos (Destaque Azul / Slate, col-span-3) */}
+        <motion.div 
+          variants={itemVariants}
+          onClick={() => setIsStockModalOpen(true)}
+          className="md:col-span-2 lg:col-span-3 group bg-gradient-to-r from-slate-900 via-blue-950 to-slate-900 text-white p-6 rounded-2xl shadow-xl transition-all duration-300 hover:shadow-2xl hover:border-blue-500/60 border border-blue-800/40 flex flex-col justify-between cursor-pointer relative overflow-hidden"
+        >
+          <div className="absolute -inset-px bg-gradient-to-r from-blue-500/0 via-blue-500/10 to-blue-500/0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          
+          <div className="relative">
+            <div className="flex justify-between items-start">
+              <div className="w-12 h-12 bg-blue-500/20 text-blue-400 border border-blue-400/30 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+                <Package className="w-6 h-6" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 bg-blue-500/20 text-blue-300 border border-blue-400/30 rounded-md">
+                  📦 Estoque & Inventário
+                </span>
+              </div>
+            </div>
+            
+            <div className="mt-4">
+              <h3 className="text-base font-extrabold uppercase text-white tracking-wide flex items-center gap-2">
+                Estoque & Movimentações de Ativos
+                <ArrowRightLeft className="w-4 h-4 text-blue-400" />
+              </h3>
+              <p className="text-xs text-slate-300 mt-1 max-w-2xl">
+                Controle operacional de extintores em estoque (aplicação, aguardando manutenção, em recarga e condenados), movimentações com histórico e importação XLSX.
+              </p>
+            </div>
+          </div>
+          
+          <div className="mt-6 pt-4 border-t border-slate-700/60 flex justify-between items-center relative">
+            <span className="text-xs font-mono font-bold text-blue-300 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              Acessar Painel de Estoque & Movimentações
+            </span>
+            <ChevronRight className="w-5 h-5 text-blue-400 transition-transform duration-300 group-hover:translate-x-1.5" />
+          </div>
+        </motion.div>
+
         {/* Card 1: Setores da Planta (Ciano, col-span-2) */}
         <motion.div 
           variants={itemVariants}
@@ -390,6 +435,12 @@ export default function GestaoAtivoPage() {
         </motion.div>
 
       </motion.div>
+
+      {/* Modal de Gestão de Ativos em Estoque Integrado */}
+      <GestaoAtivosModal 
+        isOpen={isStockModalOpen}
+        onClose={() => setIsStockModalOpen(false)}
+      />
     </div>
   );
 }
