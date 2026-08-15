@@ -113,7 +113,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Selo Inmetro e Etiquetas de validade/manutenção íntegros e legíveis',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: false
   },
   {
     id: 'chk-9',
@@ -122,7 +123,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Prazo de manutenção anual e teste hidrostático (5 anos) dentro da validade',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: true
   },
   {
     id: 'chk-10',
@@ -131,7 +133,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Prazo de pesagem semestral de CO2 dentro da validade e sem perda >10%',
     tiposAplicaveis: ['CO2'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: true
   },
   {
     id: 'chk-11',
@@ -140,7 +143,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Indicador de pressão (Manômetro) na faixa verde de operação',
     tiposAplicaveis: ['PQS', 'AP', 'Espuma', 'K'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: true
   },
   {
     id: 'chk-12',
@@ -149,7 +153,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Acessórios íntegros (mangueira, difusor, punho, gatilho e válvula)',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: false
   },
   {
     id: 'chk-13',
@@ -158,7 +163,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Mangueiras de descarga desobstruídas e sem ressecamento',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Todos'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: false
   },
   {
     id: 'chk-14',
@@ -167,7 +173,8 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
     item: 'Conjunto de rodagem, mangueira longa e suporte de transporte conforme (Carreta)',
     tiposAplicaveis: ['Todos'],
     pesosAplicaveis: ['Carreta / Sobre Rodas'],
-    status: 'Ativado'
+    status: 'Ativado',
+    isImpeditivo: false
   }
 ];
 

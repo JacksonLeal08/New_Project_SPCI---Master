@@ -480,6 +480,25 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } catch (err) {
           console.warn('Erro ao carregar notificações do IndexedDB:', err);
         }
+
+        // Carregar checklist de extintores do IndexedDB
+        try {
+          let cachedChecklist = await idb.get('config', 'checklist_extintores');
+          if (!cachedChecklist || cachedChecklist.length === 0) {
+            const localStored = localStorage.getItem('spci_checklist_extintores');
+            if (localStored) {
+              try {
+                cachedChecklist = JSON.parse(localStored);
+                await idb.set('config', 'checklist_extintores', cachedChecklist);
+              } catch(e) {}
+            }
+          }
+          if (cachedChecklist && cachedChecklist.length > 0) {
+            setExtintorChecklist(cachedChecklist);
+          }
+        } catch (err) {
+          console.warn('Erro ao carregar checklist do IndexedDB:', err);
+        }
       } catch (err) {
         console.error('Falha ao carregar caches do IndexedDB:', err);
       }
@@ -520,6 +539,23 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await idb.setAll('bombas', bomDb);
       }
       
+      // Sincronizar checklist de extintores configurado no Supabase
+      try {
+        const chkRes = await getChecklistItemsAction('extintores');
+        if (chkRes.success && chkRes.items && chkRes.items.length > 0) {
+          setExtintorChecklist(chkRes.items);
+          await idb.set('config', 'checklist_extintores', chkRes.items);
+        } else {
+          // Fallback: se não há no Supabase, garante preservação do cache local
+          const localChk = await idb.get('config', 'checklist_extintores');
+          if (localChk && localChk.length > 0) {
+            setExtintorChecklist(localChk);
+          }
+        }
+      } catch (err) {
+        console.warn('Erro ao sincronizar checklist do Supabase:', err);
+      }
+
       const recentInspections = await fetchRecentInspecoes();
       if (recentInspections && recentInspections.length > 0) {
         const mappedLogs = recentInspections.map(inspecao => {

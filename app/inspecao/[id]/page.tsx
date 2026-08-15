@@ -269,6 +269,21 @@ function InspecaoOuCadastroContent() {
     loadData();
   }, [rawId, editId]);
 
+  // Sincroniza checklist ativo de extintores customizado no SPCI
+  useEffect(() => {
+    if (extintorChecklist && extintorChecklist.length > 0 && targetCategory === 'extintores') {
+      const active = extintorChecklist.filter((c: any) => c.status === 'Ativado');
+      if (active.length > 0) {
+        setChecklist(active.map((c: any) => ({
+          key: c.id || c.item,
+          label: c.item,
+          conforme: null,
+          isImpeditivo: !!(c.is_impeditivo ?? c.isImpeditivo)
+        })));
+      }
+    }
+  }, [extintorChecklist, targetCategory]);
+
   // Efeito para detecção de vistorias duplicadas no mesmo dia
   useEffect(() => {
     if (ativo && !isCadastro && !isEdicao) {

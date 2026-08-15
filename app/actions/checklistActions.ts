@@ -55,19 +55,26 @@ export async function getChecklistItemsAction(categoria: string = 'extintores') 
       return { success: false, error: error.message, isTableMissing: isMissing, items: [] };
     }
 
-    const items: ChecklistItemRecord[] = (data || []).map((row: any) => ({
-      id: row.id,
-      ordem: row.ordem,
-      categoria: row.categoria,
-      item: row.item,
-      tipos_aplicaveis: Array.isArray(row.tipos_aplicaveis) ? row.tipos_aplicaveis : ['Todos'],
-      pesos_aplicaveis: Array.isArray(row.pesos_aplicaveis) ? row.pesos_aplicaveis : ['Todos'],
-      status: row.status === 'Desativado' ? 'Desativado' : 'Ativado',
-      is_impeditivo: !!row.is_impeditivo,
-      isImpeditivo: !!row.is_impeditivo,
-      created_at: row.created_at,
-      updated_at: row.updated_at
-    }));
+    const items: ChecklistItemRecord[] = (data || []).map((row: any) => {
+      const tipos = Array.isArray(row.tipos_aplicaveis) ? row.tipos_aplicaveis : ['Todos'];
+      const pesos = Array.isArray(row.pesos_aplicaveis) ? row.pesos_aplicaveis : ['Todos'];
+      const isImp = typeof row.is_impeditivo === 'boolean' ? row.is_impeditivo : false;
+      return {
+        id: row.id,
+        ordem: row.ordem,
+        categoria: row.categoria,
+        item: row.item,
+        tipos_aplicaveis: tipos,
+        pesos_aplicaveis: pesos,
+        tiposAplicaveis: tipos,
+        pesosAplicaveis: pesos,
+        status: row.status === 'Desativado' ? 'Desativado' : 'Ativado',
+        is_impeditivo: isImp,
+        isImpeditivo: isImp,
+        created_at: row.created_at,
+        updated_at: row.updated_at
+      };
+    });
 
     return { success: true, items };
   } catch (err: any) {

@@ -136,11 +136,11 @@ export default function AssetInspectionModal({
             if (chk.status !== 'Ativado') return false;
 
             // Valida Tipo
-            const tipos = chk.tiposAplicaveis || ['Todos'];
+            const tipos = chk.tiposAplicaveis || chk.tipos_aplicaveis || ['Todos'];
             const matchesTipo = tipos.includes('Todos') || tipos.includes(tipoAgente);
 
             // Valida Peso
-            const pesos = chk.pesosAplicaveis || ['Todos'];
+            const pesos = chk.pesosAplicaveis || chk.pesos_aplicaveis || ['Todos'];
             const matchesPeso =
               pesos.includes('Todos') ||
               (isCarreta && pesos.includes('Carreta / Sobre Rodas')) ||
@@ -243,9 +243,10 @@ export default function AssetInspectionModal({
 
   // Avalia inconformidades impeditivas (caráter de substituição imediata)
   const impeditivoInconformities = requirements
-    .map((reqText, idx) => {
+    .map((reqText) => {
       const chkObj = extintorChecklist?.find((c: any) => c.item === reqText) || DEFAULT_EXTINTOR_CHECKLIST.find(c => c.item === reqText);
-      const isImp = chkObj ? !!chkObj.isImpeditivo : (idx === 6); // Item 7 (index 6) lacre
+      const isImp = chkObj ? !!(chkObj.is_impeditivo ?? chkObj.isImpeditivo) : false;
+      const idx = requirements.indexOf(reqText);
       return { reqText, isImp, state: getItemState(idx) };
     })
     .filter(x => x.isImp && x.state.status === 'Não Conforme');
@@ -494,7 +495,7 @@ export default function AssetInspectionModal({
                 const state = getItemState(i);
                 const isNonConform = state.status === 'Não Conforme';
                 const chkObj = extintorChecklist?.find((c: any) => c.item === reqText) || DEFAULT_EXTINTOR_CHECKLIST.find(c => c.item === reqText);
-                const isImpeditivo = asset.category === 'extintores' && (chkObj ? !!chkObj.isImpeditivo : (i === 6));
+                const isImpeditivo = asset.category === 'extintores' && (chkObj ? !!(chkObj.is_impeditivo ?? chkObj.isImpeditivo) : false);
 
                 return (
                   <div
