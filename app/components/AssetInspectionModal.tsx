@@ -6,6 +6,7 @@ import { useSpci } from '@/app/context/SpciContext';
 import { MediaCaptureModal } from '@/app/components/MediaCaptureModal';
 import { NormasExtintorModal } from '@/app/components/NormasExtintorModal';
 import { DEFAULT_EXTINTOR_CHECKLIST } from './ChecklistEditModal';
+import { getAssetStockItemsAction, moveAssetStatusAction } from '@/app/actions/assetStockActions';
 import { 
   CheckCircle2, 
   XCircle, 
@@ -143,6 +144,8 @@ export default function AssetInspectionModal({
   const [substituicaoOpcao, setSubstituicaoOpcao] = useState<'SIM' | 'NAO' | null>(null);
   const [substitutoSearchTerm, setSubstitutoSearchTerm] = useState('');
   const [selectedSubstituto, setSelectedSubstituto] = useState<any | null>(null);
+  const [stockAssets, setStockAssets] = useState<any[]>([]);
+  const [loadingStock, setLoadingStock] = useState(false);
 
   // Campos de novo cadastro quando o ativo não é encontrado no Estoque
   const [novoPatrimonio, setNovoPatrimonio] = useState('');
@@ -161,6 +164,21 @@ export default function AssetInspectionModal({
     title: '',
     onCaptured: () => {}
   });
+
+  // Carrega os ativos da tabela de estoque (assets) para disponibilizar todos os 51+ extintores
+  useEffect(() => {
+    if (isOpen) {
+      setLoadingStock(true);
+      getAssetStockItemsAction('ESTOQUE APLICAÇÃO')
+        .then((res) => {
+          if (res.success && res.assets && res.assets.length > 0) {
+            setStockAssets(res.assets);
+          }
+        })
+        .catch((err) => console.warn('[AssetInspectionModal] Erro ao carregar estoque:', err))
+        .finally(() => setLoadingStock(false));
+    }
+  }, [isOpen, substituicaoOpcao]);
 
   useEffect(() => {
     // Reseta os estados de inspeção e substituição quando o ativo muda
@@ -406,6 +424,28 @@ export default function AssetInspectionModal({
             subLocation: 'AGUARDANDO MANUTENÇÃO'
           });
         }
+
+        // Trilha de auditoria na tabela ativo_movimentacoes
+        try {
+          moveAssetStatusAction(
+            selectedSubstituto.id || selectedSubstituto.idAtivo,
+            substPat,
+            'NA ÁREA (APLICADO)' as any,
+            selectedSubstituto.status_estoque || 'ESTOQUE APLICAÇÃO',
+            `Instalação na área (${asset.location || 'Planta'}) em substituição ao extintor ${oldPat}`,
+            'Inspetor de Campo'
+          );
+          moveAssetStatusAction(
+            asset.id,
+            oldPat,
+            'ESTOQUE MANUTENÇÃO',
+            assetAny.status_estoque || 'NA ÁREA (APLICADO)',
+            'Retirada de campo por inconformidade impeditiva na inspeção',
+            'Inspetor de Campo'
+          );
+        } catch (mErr) {
+          console.warn('[handleConfirmFinalize] Aviso ao gravar auditoria de movimentação:', mErr);
+        }
       } else if (novoPatrimonio.trim()) {
         const oldPat = assetAny.numero_patrimonio || assetAny.idAtivo || asset.id;
         compiledNotes += `\n\n🔄 SUBSTITUIÇÃO DE ATIVO EM CAMPO (NOVO CADASTRO):\n- Extintor Retirado (Não Conforme): ${oldPat}\n- Novo Extintor Instalado na Área: ${novoPatrimonio} (Modelo: ${novoModelo}, Selo Inmetro: ${novoSeloInmetro || 'Isento'})\n- Local de Instalação Assumido: ${asset.location || 'Área Industrial'}${asset.subLocation ? ` - ${asset.subLocation}` : ''}`;
@@ -447,11 +487,23 @@ export default function AssetInspectionModal({
             subLocation: 'AGUARDANDO MANUTENÇÃO'
           });
         }
+
+        try {
+          moveAssetStatusAction(
+            asset.id,
+            oldPat,
+            'ESTOQUE MANUTENÇÃO',
+            assetAny.status_estoque || 'NA ÁREA (APLICADO)',
+            'Retirada de campo por inconformidade impeditiva na inspeção',
+            'Inspetor de Campo'
+          );
+        } catch (mErr) {}
       }
     } else if (hasImpeditivoNonConformity && substituicaoOpcao === 'NAO') {
       compiledNotes += `\n\n⚠️ ALERTA: O extintor impeditivo foi retirado da área e NÃO foi substituído no momento da inspeção. Área encontra-se desprovida de extintor!`;
       
       const assetAny = asset as any;
+      const oldPat = assetAny.numero_patrimonio || assetAny.idAtivo || asset.id;
       if (updateAsset) {
         updateAsset('extintores', {
           ...assetAny,
@@ -462,6 +514,17 @@ export default function AssetInspectionModal({
           subLocation: 'AGUARDANDO MANUTENÇÃO'
         });
       }
+
+      try {
+        moveAssetStatusAction(
+          asset.id,
+          oldPat,
+          'ESTOQUE MANUTENÇÃO',
+          assetAny.status_estoque || 'NA ÁREA (APLICADO)',
+          'Retirada de campo por inconformidade impeditiva (sem substituição)',
+          'Inspetor de Campo'
+        );
+      } catch (mErr) {}
     }
 
     setInspectionNotes(compiledNotes.trim());
@@ -934,20 +997,56 @@ export default function AssetInspectionModal({
                       {(() => {
                         const searchLower = (substitutoSearchTerm || '').toLowerCase().trim();
 
+                        // Combina extintores do contexto + ativos de estoque do Supabase (51 itens)
+                        const poolMap = new Map<string, any>();
+                        
+                        (stockAssets || []).forEach((item: any) => {
+                          const key = String(item.patrimonio || item.id_ativo || item.id).trim().toLowerCase();
+                          if (key) {
+                            poolMap.set(key, {
+                              ...item,
+                              idAtivo: item.id_ativo || item.patrimonio || item.id,
+                              numero_patrimonio: item.patrimonio || item.id_ativo || item.id,
+                              chassi: item.numero_serie || item.chassi || '',
+                              seloInmetro: item.details?.seloInmetro || item.seloInmetro || '',
+                              tipo_movimentacao: item.tipo_movimentacao || 'estoque_aplicacao',
+                              status_estoque: item.status_estoque || 'ESTOQUE APLICAÇÃO'
+                            });
+                          }
+                        });
+
+                        (extintores || []).forEach((item: any) => {
+                          const key = String(item.numero_patrimonio || item.idAtivo || item.id).trim().toLowerCase();
+                          if (key) {
+                            const existing = poolMap.get(key);
+                            if (!existing) {
+                              poolMap.set(key, item);
+                            } else {
+                              poolMap.set(key, { ...item, ...existing });
+                            }
+                          }
+                        });
+
+                        const combinedList = Array.from(poolMap.values());
+
                         // Filtra estritamente extintores que estão em ESTOQUE (APLICAÇÃO)
-                        const stockList = (extintores || []).filter((ext: any) => {
-                          const mov = String(ext.tipo_movimentacao || ext.status_estoque || '').toLowerCase();
+                        const stockList = combinedList.filter((ext: any) => {
+                          const mov = String(ext.tipo_movimentacao || '').toLowerCase();
+                          const stEstoque = String(ext.status_estoque || '').toUpperCase();
+                          
                           const isEstoqueAplicacao = 
                             mov === 'estoque_aplicacao' || 
-                            mov === 'estoque aplicação' || 
-                            mov === 'estoque (aplicação)' ||
-                            ext.status_estoque === 'ESTOQUE APLICAÇÃO';
+                            mov.includes('estoque') ||
+                            stEstoque === 'ESTOQUE APLICAÇÃO' || 
+                            stEstoque === 'ESTOQUE (APLICAÇÃO)' ||
+                            stEstoque.includes('APLICAÇÃO') ||
+                            stEstoque.includes('APLICACAO');
                           
                           if (!isEstoqueAplicacao) return false;
 
                           if (searchLower.length > 0) {
                             const pat = String(ext.numero_patrimonio || ext.idAtivo || ext.id || '').toLowerCase();
-                            const chassi = String(ext.chassi || '').toLowerCase();
+                            const chassi = String(ext.chassi || ext.numero_serie || '').toLowerCase();
                             const selo = String(ext.seloInmetro || ext.selo_inmetro || '').toLowerCase();
                             const mod = String(ext.model || ext.modelo || '').toLowerCase();
                             const cap = getAssetCapacityLabel(ext).toLowerCase();

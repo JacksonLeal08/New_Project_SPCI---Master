@@ -28,7 +28,9 @@ export type StatusEstoqueType =
   | 'ESTOQUE APLICAÇÃO'
   | 'ESTOQUE MANUTENÇÃO'
   | 'EM MANUTENÇÃO'
-  | 'CONDENADOS';
+  | 'CONDENADOS'
+  | 'NA ÁREA (APLICADO)'
+  | 'EXTRAVIADO';
 
 export interface AssetStockItemRecord {
   id: string;
@@ -43,6 +45,7 @@ export interface AssetStockItemRecord {
   sub_location: string;
   status: string;
   status_estoque: StatusEstoqueType;
+  tipo_movimentacao?: string;
   numero_serie?: string;
   patrimonio?: string;
   data_fabricacao?: string;
@@ -65,6 +68,17 @@ export interface AssetMovementRecord {
   created_at: string;
 }
 
+const mapStatusEstoqueToTipoMovimentacao = (status: string | undefined): string => {
+  if (!status) return 'estoque_aplicacao';
+  const clean = String(status).toUpperCase();
+  if (clean.includes('APLICAÇÃO') || clean.includes('APLICACAO')) return 'estoque_aplicacao';
+  if (clean.includes('MANUTENÇÃO') || clean.includes('MANUTENCAO') || clean.includes('AG. MANUT') || clean.includes('AG_MANUT')) return 'estoque_ag_manut';
+  if (clean.includes('CONDENAD')) return 'condenado';
+  if (clean.includes('EXTRAVIAD')) return 'extraviado';
+  if (clean.includes('ÁREA') || clean.includes('AREA') || clean.includes('APLICADO')) return 'na_area_aplicado';
+  return 'estoque_aplicacao';
+};
+
 /**
  * Busca a lista completa de ativos de estoque registrados no Supabase
  */
@@ -74,7 +88,8 @@ export async function getAssetStockItemsAction(statusEstoque?: string) {
     let query = supabaseAdmin.from('assets').select('*');
 
     if (statusEstoque && statusEstoque !== 'Todos') {
-      query = query.eq('status_estoque', statusEstoque);
+      const tipo = mapStatusEstoqueToTipoMovimentacao(statusEstoque);
+      query = query.or(`status_estoque.eq."${statusEstoque}",tipo_movimentacao.eq."${tipo}"`);
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });
@@ -84,27 +99,33 @@ export async function getAssetStockItemsAction(statusEstoque?: string) {
       return { success: false, error: error.message, assets: [] };
     }
 
-    const assets: AssetStockItemRecord[] = (data || []).map((row: any) => ({
-      id: row.id,
-      id_ativo: row.id_ativo || row.id,
-      category: row.category || 'extintores',
-      model: row.model || row.details?.model || 'Padrão',
-      fabricante: row.fabricante || row.details?.fabricante || 'Kidde',
-      peso_capacidade: row.peso_capacidade || row.peso || row.details?.peso_capacidade || '4KG',
-      validadeRecarga: row.validadeRecarga || row.data_vencimento_teste || row.details?.validadeRecarga || null,
-      ultima_recarga: row.details?.ultima_recarga || null,
-      location: row.location || 'Almoxarifado',
-      sub_location: row.sub_location || 'Estoque',
-      status: row.status || 'Conforme',
-      status_estoque: (row.status_estoque as StatusEstoqueType) || 'ESTOQUE APLICAÇÃO',
-      numero_serie: row.numero_serie || row.details?.serialNumber || '',
-      patrimonio: row.patrimonio || row.id_ativo || row.id,
-      data_fabricacao: row.data_fabricacao || null,
-      data_vencimento_teste: row.data_vencimento_teste || row.validadeRecarga || null,
-      details: row.details || {},
-      created_at: row.created_at,
-      updated_at: row.updated_at
-    }));
+    const assets: AssetStockItemRecord[] = (data || []).map((row: any) => {
+      const stEstoque = (row.status_estoque as StatusEstoqueType) || 'ESTOQUE APLICAÇÃO';
+      const tipoMov = row.tipo_movimentacao || mapStatusEstoqueToTipoMovimentacao(stEstoque);
+
+      return {
+        id: row.id,
+        id_ativo: row.id_ativo || row.patrimonio || row.id,
+        category: row.category || 'extintores',
+        model: row.model || row.details?.model || 'Padrão',
+        fabricante: row.fabricante || row.details?.fabricante || 'Kidde',
+        peso_capacidade: row.peso_capacidade || row.peso || row.details?.peso_capacidade || '4KG',
+        validadeRecarga: row.validadeRecarga || row.data_vencimento_teste || row.details?.validadeRecarga || null,
+        ultima_recarga: row.details?.ultima_recarga || null,
+        location: row.location || 'Almoxarifado',
+        sub_location: row.sub_location || 'Estoque',
+        status: row.status || 'Conforme',
+        status_estoque: stEstoque,
+        tipo_movimentacao: tipoMov,
+        numero_serie: row.numero_serie || row.details?.serialNumber || '',
+        patrimonio: row.patrimonio || row.id_ativo || row.id,
+        data_fabricacao: row.data_fabricacao || null,
+        data_vencimento_teste: row.data_vencimento_teste || row.validadeRecarga || null,
+        details: row.details || {},
+        created_at: row.created_at,
+        updated_at: row.updated_at
+      };
+    });
 
     return { success: true, assets };
   } catch (err: any) {
@@ -121,6 +142,8 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
     const supabaseAdmin = getSupabaseAdminClient();
     const assetId = asset.id || `ast-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
     const patrimonio = asset.patrimonio || asset.id_ativo || assetId;
+    const stEstoque = asset.status_estoque || 'ESTOQUE APLICAÇÃO';
+    const tipoMov = (asset as any).tipo_movimentacao || mapStatusEstoqueToTipoMovimentacao(stEstoque);
 
     const payload = {
       id: assetId,
@@ -132,7 +155,8 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       location: asset.location || 'Almoxarifado',
       sub_location: asset.sub_location || 'Geral',
       status: asset.status || 'Conforme',
-      status_estoque: asset.status_estoque || 'ESTOQUE APLICAÇÃO',
+      status_estoque: stEstoque,
+      tipo_movimentacao: tipoMov,
       data_fabricacao: asset.data_fabricacao || null,
       data_vencimento_teste: asset.validadeRecarga || asset.data_vencimento_teste || null,
       details: {
@@ -140,7 +164,9 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
         fabricante: asset.fabricante || 'Kidde',
         peso_capacidade: asset.peso_capacidade || '4KG',
         validadeRecarga: asset.validadeRecarga || null,
-        ultima_recarga: asset.ultima_recarga || null
+        ultima_recarga: asset.ultima_recarga || null,
+        tipo_movimentacao: tipoMov,
+        status_estoque: stEstoque
       },
       updated_at: new Date().toISOString()
     };
@@ -226,6 +252,9 @@ export async function bulkImportAssetsAction(
       const validadeFormatted = r.formattedVencimento || r.mes_ano_vencimento || matchAsset?.details?.validadeRecarga || null;
       const recargaFormatted = r.formattedRecarga || r.mes_ano_ultima_recarga || matchAsset?.details?.ultima_recarga || null;
 
+      const stEstoque = categoriaDestino || matchAsset?.status_estoque || 'ESTOQUE APLICAÇÃO';
+      const tipoMov = mapStatusEstoqueToTipoMovimentacao(stEstoque);
+
       payloadAssets.push({
         id: assetId,
         id_ativo: finalPat,
@@ -238,7 +267,8 @@ export async function bulkImportAssetsAction(
         location: r.location || matchAsset?.location || 'Almoxarifado',
         sub_location: r.sub_location || matchAsset?.sub_location || 'Estoque',
         status: 'Conforme',
-        status_estoque: categoriaDestino || matchAsset?.status_estoque || 'ESTOQUE APLICAÇÃO',
+        status_estoque: stEstoque,
+        tipo_movimentacao: tipoMov,
         data_vencimento_teste: validadeFormatted,
         details: {
           ...(matchAsset?.details || {}),
@@ -246,7 +276,9 @@ export async function bulkImportAssetsAction(
           peso_capacidade: r.capacidade_peso || matchAsset?.details?.peso_capacidade || '4KG',
           validadeRecarga: validadeFormatted,
           ultima_recarga: recargaFormatted,
-          serialNumber: finalNumSerie
+          serialNumber: finalNumSerie,
+          tipo_movimentacao: tipoMov,
+          status_estoque: stEstoque
         },
         created_at: matchAsset?.created_at || new Date().toISOString(),
         updated_at: new Date().toISOString()
@@ -345,6 +377,9 @@ export async function bulkUpdateAssetsAction(
 
       if (updates.status_estoque) {
         updateData.status_estoque = updates.status_estoque;
+        updateData.tipo_movimentacao = mapStatusEstoqueToTipoMovimentacao(updates.status_estoque);
+        newDetails.tipo_movimentacao = updateData.tipo_movimentacao;
+        newDetails.status_estoque = updates.status_estoque;
       }
       if (updates.status) {
         updateData.status = updates.status;
@@ -408,11 +443,13 @@ export async function moveAssetStatusAction(
 ) {
   try {
     const supabaseAdmin = getSupabaseAdminClient();
+    const tipoMov = mapStatusEstoqueToTipoMovimentacao(statusNovo);
 
     const { error: errUpdate } = await supabaseAdmin
       .from('assets')
       .update({
         status_estoque: statusNovo,
+        tipo_movimentacao: tipoMov,
         updated_at: new Date().toISOString()
       })
       .eq('id', assetId);

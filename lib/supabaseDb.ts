@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { InspecaoRealizada } from './types';
+import { InspecaoRealizada, normalizeTipoMovimentacao, TIPO_MOVIMENTACAO_MAP } from './types';
 import { getUsersListAction } from '@/app/actions/userActions';
 
 
@@ -28,96 +28,178 @@ const serializeProfile = (profile: UserProfile) => {
     nome_completo: profile.name,
     email: profile.email,
     user_name: profile.userName,
-    photo_url: profile.photoURL || null,
-    logo_url: profile.logoUrl || null,
+    foto_perfil_url: profile.photoURL || null,
     perfil_acesso: profile.role,
     status_conta: dbStatus,
-    telefone_whatsapp: profile.telefoneWhatsapp || '',
-    data_expiracao: profile.dataExpiracao || null,
-    created_at: profile.createdAt || new Date().toISOString(),
+    telefone_whatsapp: profile.telefoneWhatsapp || null,
     updated_at: new Date().toISOString()
   };
 };
 
-const deserializeProfile = (row: any): UserProfile => {
-  let mappedStatus = 'active';
-  if (row.status_conta === 'Inativo/Suspenso' || row.status === 'suspended') {
-    mappedStatus = 'suspended';
-  } else if (row.status_conta === 'Pendente' || row.status === 'pending') {
-    mappedStatus = 'pending';
-  }
+const deserializeProfile = (data: any): UserProfile => {
+  const mappedRole = (data.perfil_acesso === 'Desenvolvedor' || data.perfil_acesso === 'Administrador' || data.perfil_acesso === 'Usuário')
+    ? data.perfil_acesso
+    : 'Usuário';
+
+  const mappedStatus = (data.status_conta === 'active' || data.status_conta === 'Ativo')
+    ? 'Ativo'
+    : (data.status_conta === 'pending' || data.status_conta === 'Pendente')
+    ? 'Pendente'
+    : 'Inativo/Suspenso';
+
   return {
-    uid: row.id,
-    name: row.nome_completo || row.name || '',
-    email: row.email,
-    userName: row.user_name || '',
-    photoURL: row.photo_url || '',
-    logoUrl: row.logo_url || '',
-    role: (row.perfil_acesso || row.role) as 'Desenvolvedor' | 'Administrador' | 'Usuário',
+    uid: data.id,
+    name: data.nome_completo || 'Usuário Sem Nome',
+    email: data.email || '',
+    userName: data.user_name || (data.email ? data.email.split('@')[0] : 'user'),
+    photoURL: data.foto_perfil_url || '',
+    logoUrl: data.logo_url || '',
+    role: mappedRole,
     status: mappedStatus,
-    site: row.site || 'TODOS OS SITES (Acesso Global)',
-    telefoneWhatsapp: row.telefone_whatsapp || '',
-    dataExpiracao: row.data_expiracao || null,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at
+    site: data.site || 'TODOS OS SITES (Acesso Global)',
+    telefoneWhatsapp: data.telefone_whatsapp || '',
+    dataExpiracao: data.data_expiracao || null,
+    createdAt: data.created_at || new Date().toISOString(),
+    updatedAt: data.updated_at || new Date().toISOString(),
+    permissions: Array.isArray(data.permissions) ? data.permissions : []
   };
 };
 
+// --- SYSTEM AUDIT LOGGING ---
+export async function logSystemAction(
+  acao: string, 
+  tipoAtivo?: string, 
+  patrimonio?: string, 
+  detalhes?: string,
+  userOverride?: { id?: string; nome?: string; email?: string }
+): Promise<void> {
+  try {
+    let uId = userOverride?.id || null;
+    let uName = userOverride?.nome || 'Sistema';
+    let uEmail = userOverride?.email || null;
+
+    if (!userOverride) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        uId = user.id;
+        uEmail = user.email || null;
+        uName = user.user_metadata?.nome_completo || user.user_metadata?.full_name || user.email?.split('@')[0] || 'Usuário';
+      }
+    }
+
+    await supabase.from('logs_auditoria').insert([{
+      usuario_id: uId,
+      usuario_nome: uName,
+      usuario_email: uEmail,
+      acao: acao,
+      tipo_ativo: tipoAtivo || null,
+      patrimonio: patrimonio || null,
+      detalhes: detalhes || null,
+      created_at: new Date().toISOString()
+    }]);
+  } catch (err) {
+    console.warn('[logSystemAction] Aviso ao registrar log:', err);
+  }
+}
+
 // --- ASSETS SERIALIZATION & DESERIALIZATION HELPER ---
-const getNormalizedCategory = (collectionName: string): 'extintores' | 'hidrantes' | 'sinalizacoes' | 'iluminacao' | 'bombas' => {
-  const name = collectionName.toLowerCase();
-  if (name.includes('extintor')) return 'extintores';
-  if (name.includes('hidrante')) return 'hidrantes';
-  if (name.includes('sinaliza')) return 'sinalizacoes';
-  if (name.includes('ilumina')) return 'iluminacao';
-  if (name.includes('bomba')) return 'bombas';
-  return 'extintores'; // fallback default
+const getNormalizedCategory = (collectionName: string) => {
+  if (collectionName === 'extintores') return 'extintores';
+  if (collectionName === 'hidrantes') return 'hidrantes';
+  if (collectionName === 'sinalizacoes') return 'sinalizacoes';
+  if (collectionName === 'iluminacao') return 'iluminacao';
+  if (collectionName === 'bombas') return 'bombas';
+  return collectionName;
 };
 
 const serializeAsset = (category: string, id: string, asset: any) => {
   const {
     idAtivo,
+    patrimonio,
     model,
     location,
     subLocation,
     status,
+    status_estoque,
+    tipo_movimentacao,
+    numero_serie,
+    chassi,
+    seloInmetro,
+    peso,
+    peso_capacidade,
+    validadeRecarga,
+    data_vencimento_teste,
+    data_fabricacao,
+    fabricante,
     geolocation,
-    category: omittedCategory, // omit category property from details if present
+    category: omittedCategory,
     ...details
   } = asset;
 
+  const tipoMov = normalizeTipoMovimentacao(tipo_movimentacao || status_estoque || details?.tipo_movimentacao);
+  const stEstoque = status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
+  const pat = patrimonio || idAtivo || id;
+  const numSerie = numero_serie || chassi || details?.serialNumber || '';
+
   return {
     id: id,
-    id_ativo: idAtivo || id,
+    id_ativo: pat,
+    patrimonio: pat,
+    numero_serie: numSerie,
     category: category,
-    model: model || null,
+    model: model || details?.model || null,
     location: location || null,
     sub_location: subLocation || null,
     status: status || 'Conforme',
+    status_estoque: stEstoque,
+    tipo_movimentacao: tipoMov,
+    data_fabricacao: data_fabricacao || null,
+    data_vencimento_teste: data_vencimento_teste || validadeRecarga || null,
     latitude: geolocation?.lat || null,
     longitude: geolocation?.lng || null,
-    details: details || {},
-    created_at: asset.createdAt || new Date().toISOString(),
+    details: {
+      ...details,
+      fabricante: fabricante || details?.fabricante || '',
+      peso_capacidade: peso_capacidade || peso || details?.peso_capacidade || '',
+      seloInmetro: seloInmetro || details?.seloInmetro || '',
+      serialNumber: numSerie,
+      validadeRecarga: validadeRecarga || data_vencimento_teste || null,
+      tipo_movimentacao: tipoMov,
+      status_estoque: stEstoque
+    },
+    created_at: asset.createdAt || asset.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
 };
 
 const deserializeAsset = (row: any) => {
-  // Normalize geolocation structure back to { lat, lng } if present in DB
   const geolocation = (row.latitude !== null && row.longitude !== null) ? {
     lat: Number(row.latitude),
     lng: Number(row.longitude)
   } : null;
 
+  const tipoMov = normalizeTipoMovimentacao(row.tipo_movimentacao || row.status_estoque || row.details?.tipo_movimentacao);
+  const statusEstoque = row.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
+
   return {
     id: row.id,
-    idAtivo: row.id_ativo,
-    model: row.model || '',
+    idAtivo: row.id_ativo || row.patrimonio || row.id,
+    numero_patrimonio: row.patrimonio || row.id_ativo || row.id,
+    model: row.model || row.details?.model || '',
     location: row.location || '',
     subLocation: row.sub_location || '',
-    status: row.status,
+    status: row.status || 'Conforme',
+    tipo_movimentacao: tipoMov,
+    status_estoque: statusEstoque,
+    numero_serie: row.numero_serie || row.details?.serialNumber || '',
+    seloInmetro: row.selo_inmetro || row.details?.seloInmetro || '',
+    chassi: row.numero_serie || row.chassi || '',
+    peso: row.peso_capacidade || row.peso || row.details?.peso_capacidade || '',
+    peso_capacidade: row.peso_capacidade || row.peso || row.details?.peso_capacidade || '',
+    validadeRecarga: row.data_vencimento_teste || row.validadeRecarga || row.details?.validadeRecarga || '',
+    data_vencimento_teste: row.data_vencimento_teste || row.validadeRecarga || row.details?.validadeRecarga || '',
     geolocation,
-    category: row.category,
+    category: row.category || 'extintores',
     ...row.details
   };
 };
@@ -128,26 +210,34 @@ const deserializeExtintor = (row: any) => {
     lng: Number(row.longitude)
   } : null;
 
+  const tipoMov = normalizeTipoMovimentacao(row.tipo_movimentacao || row.status_estoque);
+  const statusEstoque = row.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
+
   return {
     id: row.id,
-    idAtivo: row.id_ativo,
-    category: row.category,
-    location: row.location,
+    idAtivo: row.id_ativo || row.patrimonio || row.id,
+    numero_patrimonio: row.id_ativo || row.patrimonio || row.id,
+    category: row.category || 'extintores',
+    location: row.location || '',
     subLocation: row.sub_location || '',
-    status: row.status,
+    status: row.status || 'Conforme',
+    tipo_movimentacao: tipoMov,
+    status_estoque: statusEstoque,
     geolocation,
     // Mapeamento específico de extintores
     fabricante: row.fabricante || '',
-    model: row.modelo || '',
-    peso: row.peso_capacidade || '',
+    model: row.modelo || row.model || '',
+    peso: row.peso_capacidade || row.peso || '',
+    peso_capacidade: row.peso_capacidade || row.peso || '',
     capacidadeExtintora: row.capacidade_extintora || '',
     seloInmetro: row.selo_inmetro || '',
-    chassi: row.chassi || '',
+    chassi: row.chassi || row.numero_serie || '',
+    numero_serie: row.chassi || row.numero_serie || '',
     anoFabricacao: row.ano_fabricacao || new Date().getFullYear(),
     ultimoTesteHidro: row.ultimo_teste_hidro || new Date().getFullYear(),
     lastRecarga: row.data_ultima_recarga || '',
     validadeRecargaMeses: row.validade_recarga_meses || 12,
-    validadeRecarga: row.validade_recarga_data || '',
+    validadeRecarga: row.validade_recarga_data || row.validadeRecarga || '',
     createdAt: row.created_at,
     updatedAt: row.updated_at
   };
@@ -203,20 +293,27 @@ const deserializeNewExtintor = (row: any) => {
 
   const recargaDate = row.data_ultima_recarga || '';
   const limiteRecargaDate = row.data_limite_recarga || '';
+  const tipoMov = normalizeTipoMovimentacao(row.tipo_movimentacao || row.status_estoque);
+  const statusEstoque = row.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
 
   return {
     id: row.id,
-    idAtivo: row.numero_patrimonio,
+    idAtivo: row.numero_patrimonio || row.id,
+    numero_patrimonio: row.numero_patrimonio || row.id,
     qr_code_hash: row.qr_code_hash,
     category: 'extintores',
-    location: row.local_instalacao || '',
-    subLocation: row.sub_local_instalacao || '',
+    location: row.local_instalacao || row.location || '',
+    subLocation: row.sub_local_instalacao || row.subLocation || '',
     status: displayStatus,
+    tipo_movimentacao: tipoMov,
+    status_estoque: statusEstoque,
     // specific fields
-    model: row.modelo_tipo || '',
-    peso: row.peso_capacidade || '',
+    model: row.modelo_tipo || row.modelo || row.model || '',
+    peso: row.peso_capacidade || row.peso || '',
+    peso_capacidade: row.peso_capacidade || row.peso || '',
     seloInmetro: row.selo_inmetro || '',
-    chassi: row.numero_serie || '',
+    chassi: row.numero_serie || row.chassi || '',
+    numero_serie: row.numero_serie || row.chassi || '',
     lastRecarga: recargaDate,
     anoUltimoTesteHidro: row.ano_ultimo_teste_hidro || new Date().getFullYear(),
     ultimoTesteHidro: row.ano_ultimo_teste_hidro || new Date().getFullYear(),
@@ -666,12 +763,15 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         throw new Error('Não foi possível resolver local_id ou modelo_id para o extintor. Certifique-se de que a migração SQL foi aplicada no Supabase e de que existem registros nas tabelas.');
       }
 
+      const tipoMov = normalizeTipoMovimentacao(asset.tipo_movimentacao || asset.status_estoque);
+      const statusEstoque = asset.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
+
       const payload: any = {
         local_id: localId,
         sub_local_id: subLocalId || null,
-        numero_patrimonio: asset.idAtivo || id,
+        numero_patrimonio: asset.idAtivo || asset.patrimonio || id,
         selo_inmetro: asset.seloInmetro || null,
-        chassi: asset.chassi || null,
+        chassi: asset.chassi || asset.numero_serie || null,
         modelo_id: modeloId,
         peso_capacidade: asset.peso || asset.peso_capacidade || '6KG',
         data_ultima_recarga: normalizeToIsoDate(asset.lastRecarga || asset.data_ultima_recarga),
@@ -680,6 +780,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         ano_fabricacao: parseInt(asset.anoFabricacao || asset.ano_fabricacao || new Date().getFullYear().toString(), 10),
         data_pesagem_co2: asset.data_pesagem_co2 ? normalizeToIsoDate(asset.data_pesagem_co2) : null,
         foto_url: asset.fotoUrl || asset.foto_url || null,
+        tipo_movimentacao: tipoMov,
         updated_at: new Date().toISOString()
       };
 
@@ -696,16 +797,27 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
       extErr = initialErr;
 
       if (extErr) {
-        // Self-healing: if the remote database does not have the 'ano_fabricacao' column,
-        // retry the upsert without that column to allow normal system operation.
-        if (extErr.message?.includes('ano_fabricacao') || extErr.code === 'PGRST204') {
-          console.warn('[saveAssetToDb] Coluna ano_fabricacao ausente no banco remoto. Re-tentando upsert sem esta coluna...');
-          const { ano_fabricacao, ...fallbackPayload } = payload;
+        // Self-healing: se colunas novas não existirem no schema remoto legado, re-tenta sem elas
+        if (extErr.message?.includes('tipo_movimentacao') || extErr.message?.includes('ano_fabricacao') || extErr.code === 'PGRST204') {
+          console.warn('[saveAssetToDb] Tentando upsert com fallback resiliente:', extErr.message);
+          const { tipo_movimentacao, ano_fabricacao, ...fallbackPayload } = payload;
           const { error: fallbackErr } = await supabase
             .from('ativos_extintores')
             .upsert(fallbackPayload, { onConflict: 'numero_patrimonio' });
           extErr = fallbackErr;
         }
+      }
+
+      // Também sincroniza na tabela unificada 'assets' para manter a Gestão de Ativos em Estoque 100% atualizada
+      try {
+        const serialized = serializeAsset(category, id, {
+          ...asset,
+          tipo_movimentacao: tipoMov,
+          status_estoque: statusEstoque
+        });
+        await supabase.from('assets').upsert(serialized, { onConflict: 'id' });
+      } catch (aErr) {
+        console.warn('[saveAssetToDb] Aviso ao sincronizar em assets:', aErr);
       }
 
       if (extErr) throw extErr;
