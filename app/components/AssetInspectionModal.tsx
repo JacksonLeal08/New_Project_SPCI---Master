@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AnyAsset } from '@/lib/types';
 import AppFooter from '@/app/components/AppFooter';
@@ -22,7 +22,15 @@ import {
   RotateCcw,
   Save,
   ShieldAlert,
-  Search
+  Search,
+  Scale,
+  Clock,
+  Calendar,
+  ShieldCheck,
+  Ban,
+  ArrowRight,
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 
 interface AssetInspectionModalProps {
@@ -55,6 +63,59 @@ const SUGESTOES_OCORRENCIAS = [
   "Carcaça do extintor com amassados, corrosão ou marcas de colisão",
   "Pesagem semestral de CO2 vencida ou com perda de carga >10%"
 ];
+
+// Helper para cálculo regressivo de dias até o vencimento
+export const calculateDaysRemaining = (expiryDateStr?: string | null): number | null => {
+  if (!expiryDateStr) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  let expiryDate: Date;
+  if (expiryDateStr.length === 7) {
+    const [y, m] = expiryDateStr.split('-').map(Number);
+    expiryDate = new Date(y, m - 1, 1);
+  } else if (expiryDateStr.includes('/')) {
+    const parts = expiryDateStr.split('/');
+    if (parts.length === 3) {
+      expiryDate = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    } else {
+      expiryDate = new Date(expiryDateStr);
+    }
+  } else {
+    expiryDate = new Date(expiryDateStr);
+  }
+
+  if (isNaN(expiryDate.getTime())) return null;
+  expiryDate.setHours(0, 0, 0, 0);
+
+  const diffTime = expiryDate.getTime() - today.getTime();
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+};
+
+// Helper para formatar e extrair a capacidade/peso do extintor
+export const getAssetCapacityLabel = (ext: any): string => {
+  if (ext?.peso_capacidade) {
+    const raw = String(ext.peso_capacidade).trim();
+    if (!raw.toUpperCase().includes('KG') && !raw.toUpperCase().includes('L') && !isNaN(Number(raw))) {
+      return `${raw} KG`;
+    }
+    return raw.toUpperCase();
+  }
+  if (ext?.peso) {
+    const raw = String(ext.peso).trim();
+    if (!raw.toUpperCase().includes('KG') && !raw.toUpperCase().includes('L') && !isNaN(Number(raw))) {
+      return `${raw} KG`;
+    }
+    return raw.toUpperCase();
+  }
+  const model = String(ext?.model || ext?.modelo || '');
+  const match = model.match(/(\d+[\.,]?\d*)\s*(kg|k|l|litros?)/i);
+  if (match) {
+    const unit = match[2].toLowerCase().startsWith('l') ? 'L' : 'KG';
+    return `${match[1]} ${unit}`.toUpperCase();
+  }
+  return 'PADRÃO';
+};
 
 export default function AssetInspectionModal({
   isOpen,
@@ -314,20 +375,40 @@ export default function AssetInspectionModal({
     if (hasImpeditivoNonConformity && substituicaoOpcao === 'SIM') {
       const assetAny = asset as any;
       if (selectedSubstituto) {
-        compiledNotes += `\n\n🔄 SUBSTITUIÇÃO DE ATIVO EM CAMPO (ESTOQUE):\n- Extintor Retirado (Não Conforme): ${assetAny.numero_patrimonio || assetAny.idAtivo || asset.id}\n- Extintor Substituto Instalado: ${selectedSubstituto.numero_patrimonio || selectedSubstituto.idAtivo || selectedSubstituto.id} (${selectedSubstituto.model || 'SPCI'}, Selo Inmetro: ${selectedSubstituto.seloInmetro || selectedSubstituto.selo_inmetro || 'Isento'})`;
+        const substCap = selectedSubstituto._capacityLabel || getAssetCapacityLabel(selectedSubstituto);
+        const substPat = selectedSubstituto.numero_patrimonio || selectedSubstituto.idAtivo || selectedSubstituto.id;
+        const oldPat = assetAny.numero_patrimonio || assetAny.idAtivo || asset.id;
 
-        // Aloca o extintor do estoque na localização do atual
+        compiledNotes += `\n\n🔄 SUBSTITUIÇÃO DE ATIVO EM CAMPO (ESTOQUE):\n- Extintor Retirado (Não Conforme): ${oldPat}\n- Extintor Substituto Instalado: ${substPat} (${selectedSubstituto.model || selectedSubstituto.modelo || 'SPCI'}, Capacidade: ${substCap}, Selo Inmetro: ${selectedSubstituto.seloInmetro || selectedSubstituto.selo_inmetro || 'Isento'})\n- Local de Instalação Assumido: ${asset.location || 'Área Industrial'}${asset.subLocation ? ` - ${asset.subLocation}` : ''}`;
+
+        // 1. Aloca o extintor do estoque na localização do ativo na planta e marca como NA ÁREA (APLICADO)
         if (updateAsset) {
-          updateAsset(selectedSubstituto.id || selectedSubstituto.idAtivo, {
-            location: asset.location,
-            subLocation: asset.subLocation,
-            area: assetAny.area,
-            projeto: assetAny.projeto,
-            status: 'Conforme'
+          updateAsset('extintores', {
+            ...selectedSubstituto,
+            location: asset.location || 'Área Industrial',
+            subLocation: asset.subLocation || '',
+            area: assetAny.area || 'Planta Principal',
+            projeto: assetAny.projeto || 'SPCI',
+            status: 'Conforme',
+            tipo_movimentacao: 'na_area_aplicado',
+            status_estoque: 'NA ÁREA (APLICADO)'
+          });
+        }
+
+        // 2. Transfere o extintor retirado para ESTOQUE (AG. MANUT.)
+        if (updateAsset) {
+          updateAsset('extintores', {
+            ...assetAny,
+            status: 'Não Conforme',
+            tipo_movimentacao: 'estoque_ag_manut',
+            status_estoque: 'ESTOQUE (AG. MANUT.)',
+            location: 'ALMOXARIFADO / ESTOQUE',
+            subLocation: 'AGUARDANDO MANUTENÇÃO'
           });
         }
       } else if (novoPatrimonio.trim()) {
-        compiledNotes += `\n\n🔄 SUBSTITUIÇÃO DE ATIVO EM CAMPO (NOVO CADASTRO):\n- Extintor Retirado (Não Conforme): ${assetAny.numero_patrimonio || assetAny.idAtivo || asset.id}\n- Novo Extintor Instalado na Área: ${novoPatrimonio} (Modelo: ${novoModelo}, Selo Inmetro: ${novoSeloInmetro || 'Isento'})`;
+        const oldPat = assetAny.numero_patrimonio || assetAny.idAtivo || asset.id;
+        compiledNotes += `\n\n🔄 SUBSTITUIÇÃO DE ATIVO EM CAMPO (NOVO CADASTRO):\n- Extintor Retirado (Não Conforme): ${oldPat}\n- Novo Extintor Instalado na Área: ${novoPatrimonio} (Modelo: ${novoModelo}, Selo Inmetro: ${novoSeloInmetro || 'Isento'})\n- Local de Instalação Assumido: ${asset.location || 'Área Industrial'}${asset.subLocation ? ` - ${asset.subLocation}` : ''}`;
 
         // Cria o novo ativo e insere no estado de extintores
         const newAssetObj: any = {
@@ -346,15 +427,41 @@ export default function AssetInspectionModal({
           location: asset.location || 'Área Industrial',
           subLocation: asset.subLocation || '',
           status: 'Conforme',
-          category: 'extintores'
+          category: 'extintores',
+          tipo_movimentacao: 'na_area_aplicado',
+          status_estoque: 'NA ÁREA (APLICADO)'
         };
 
         if (setExtintores) {
-          setExtintores(prev => [newAssetObj, ...prev]);
+          setExtintores((prev: any[]) => [newAssetObj, ...prev]);
+        }
+
+        // Transfere o extintor avariado para ESTOQUE (AG. MANUT.)
+        if (updateAsset) {
+          updateAsset('extintores', {
+            ...assetAny,
+            status: 'Não Conforme',
+            tipo_movimentacao: 'estoque_ag_manut',
+            status_estoque: 'ESTOQUE (AG. MANUT.)',
+            location: 'ALMOXARIFADO / ESTOQUE',
+            subLocation: 'AGUARDANDO MANUTENÇÃO'
+          });
         }
       }
     } else if (hasImpeditivoNonConformity && substituicaoOpcao === 'NAO') {
       compiledNotes += `\n\n⚠️ ALERTA: O extintor impeditivo foi retirado da área e NÃO foi substituído no momento da inspeção. Área encontra-se desprovida de extintor!`;
+      
+      const assetAny = asset as any;
+      if (updateAsset) {
+        updateAsset('extintores', {
+          ...assetAny,
+          status: 'Não Conforme',
+          tipo_movimentacao: 'estoque_ag_manut',
+          status_estoque: 'ESTOQUE (AG. MANUT.)',
+          location: 'ALMOXARIFADO / ESTOQUE',
+          subLocation: 'AGUARDANDO MANUTENÇÃO'
+        });
+      }
     }
 
     setInspectionNotes(compiledNotes.trim());
@@ -773,202 +880,379 @@ export default function AssetInspectionModal({
 
               {/* BUSCA NO ESTOQUE OU NOVO CADASTRO */}
               {substituicaoOpcao === 'SIM' && (
-                <div className="bg-white p-4 border border-red-200 rounded-xl space-y-4 shadow-xs">
-                  <div className="space-y-1.5">
-                    <label className="block text-xs font-mono font-black uppercase text-slate-900 flex items-center gap-1.5">
-                      <Search className="w-4 h-4 text-red-600" />
-                      Informe o Nº do Extintor Substituto (Campo Selecionável / Digitável) *
-                    </label>
-                    <p className="text-[10.5px] text-slate-600 font-bold">
-                      Ao digitar o número do ativo, o sistema filtrará os extintores compatíveis do **Estoque**. Se não for encontrado, serão exibidos os campos para **cadastrar o novo extintor**.
-                    </p>
-                    <input
-                      type="text"
-                      value={substitutoSearchTerm}
-                      onChange={(e) => {
-                        setSubstitutoSearchTerm(e.target.value);
-                        setSelectedSubstituto(null);
-                        setNovoPatrimonio(e.target.value);
-                      }}
-                      placeholder="Digite o Nº Patrimônio, Chassi ou ID (Ex: EXT-2026, 88741, PQS-002)..."
-                      className="w-full bg-slate-50 border border-slate-300 focus:border-red-600 rounded-xl p-3 text-xs text-slate-900 font-bold shadow-xs focus:outline-none font-mono"
-                    />
+                <div className="bg-white p-4.5 border border-red-200 rounded-2xl space-y-4 shadow-xs">
+                  
+                  {/* CABEÇALHO DA SEÇÃO DE SUBSTITUIÇÃO */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div className="space-y-0.5">
+                      <label className="block text-xs font-mono font-black uppercase text-slate-900 flex items-center gap-1.5">
+                        <Search className="w-4 h-4 text-red-600" />
+                        Extintor Substituto do Estoque (Aplicação Imediata) *
+                      </label>
+                      <p className="text-[11px] text-slate-600 font-sans">
+                        Selecione um extintor apto em estoque ou informe um novo patrimônio para instalação na área.
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-1.5 self-start sm:self-auto">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 font-mono text-[10px] font-black">
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                        ESTOQUE (APLICAÇÃO)
+                      </span>
+                    </div>
                   </div>
 
+                  {/* CAMPO DE BUSCA INSTANTÂNEA */}
+                  {!selectedSubstituto && (
+                    <div className="relative">
+                      <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={substitutoSearchTerm}
+                        onChange={(e) => {
+                          setSubstitutoSearchTerm(e.target.value);
+                          setNovoPatrimonio(e.target.value);
+                        }}
+                        placeholder="Buscar por Patrimônio, Chassi, Selo ou Capacidade (ex: EXT-01, 6 KG, CO2)..."
+                        className="w-full bg-slate-50 border border-slate-300 focus:border-red-600 focus:bg-white rounded-xl pl-10 pr-10 py-3 text-xs text-slate-900 font-bold shadow-xs focus:outline-none font-mono transition-all"
+                      />
+                      {substitutoSearchTerm && (
+                        <button
+                          type="button"
+                          onClick={() => setSubstitutoSearchTerm('')}
+                          className="absolute right-3 top-3 text-slate-400 hover:text-slate-600 cursor-pointer p-0.5"
+                          title="Limpar busca"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   {/* RESULTADOS DA BUSCA OU FORMULÁRIO DE NOVO CADASTRO */}
-                  {substitutoSearchTerm.trim().length >= 1 && (
+                  {!selectedSubstituto && (
                     <div>
                       {(() => {
-                        const matchingStock = (extintores || []).filter((ext: any) => {
-                          const searchLower = substitutoSearchTerm.toLowerCase().trim();
-                          const pat = (ext.numero_patrimonio || ext.idAtivo || ext.id || '').toLowerCase();
-                          const chassi = (ext.chassi || '').toLowerCase();
-                          const selo = (ext.seloInmetro || ext.selo_inmetro || '').toLowerCase();
-                          return pat.includes(searchLower) || chassi.includes(searchLower) || selo.includes(searchLower);
+                        const searchLower = (substitutoSearchTerm || '').toLowerCase().trim();
+
+                        // Filtra estritamente extintores que estão em ESTOQUE (APLICAÇÃO)
+                        const stockList = (extintores || []).filter((ext: any) => {
+                          const mov = String(ext.tipo_movimentacao || ext.status_estoque || '').toLowerCase();
+                          const isEstoqueAplicacao = 
+                            mov === 'estoque_aplicacao' || 
+                            mov === 'estoque aplicação' || 
+                            mov === 'estoque (aplicação)' ||
+                            ext.status_estoque === 'ESTOQUE APLICAÇÃO';
+                          
+                          if (!isEstoqueAplicacao) return false;
+
+                          if (searchLower.length > 0) {
+                            const pat = String(ext.numero_patrimonio || ext.idAtivo || ext.id || '').toLowerCase();
+                            const chassi = String(ext.chassi || '').toLowerCase();
+                            const selo = String(ext.seloInmetro || ext.selo_inmetro || '').toLowerCase();
+                            const mod = String(ext.model || ext.modelo || '').toLowerCase();
+                            const cap = getAssetCapacityLabel(ext).toLowerCase();
+                            return pat.includes(searchLower) || chassi.includes(searchLower) || selo.includes(searchLower) || mod.includes(searchLower) || cap.includes(searchLower);
+                          }
+                          return true;
                         });
 
-                        if (matchingStock.length > 0 && !selectedSubstituto) {
-                          return (
-                            <div className="space-y-2 bg-slate-50 p-3 rounded-xl border border-slate-200">
-                              <span className="text-[10px] font-mono font-black uppercase text-emerald-800 flex items-center gap-1">
-                                🟢 Ativos Compatíveis Encontrados no Estoque ({matchingStock.length}):
-                              </span>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                                {matchingStock.map((stockAsset: any) => (
-                                  <button
-                                    key={stockAsset.id || stockAsset.idAtivo}
-                                    type="button"
-                                    onClick={() => setSelectedSubstituto(stockAsset)}
-                                    className="text-left bg-white hover:bg-emerald-50 border border-slate-200 hover:border-emerald-400 p-2.5 rounded-xl transition-all cursor-pointer shadow-xs space-y-1"
-                                  >
-                                    <div className="flex justify-between items-center">
-                                      <span className="font-mono font-black text-xs text-slate-900">
-                                        {stockAsset.numero_patrimonio || stockAsset.idAtivo}
-                                      </span>
-                                      <span className="text-[9px] font-black uppercase bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded">
-                                        {stockAsset.area || stockAsset.status || 'Estoque'}
-                                      </span>
-                                    </div>
-                                    <p className="text-[10px] font-bold text-slate-600 truncate">{stockAsset.model || stockAsset.modelo || 'Extintor SPCI'}</p>
-                                    <p className="text-[9px] text-slate-500 font-mono">Selo: {stockAsset.seloInmetro || stockAsset.selo_inmetro || 'Isento'}</p>
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        }
+                        // Mapeia atributos e calcula dias a vencer
+                        const mapped = stockList.map((ext: any) => {
+                          const expiryDate = ext.validadeRecarga || ext.data_vencimento_teste || ext.data_vencimento || ext.data_ultima_recarga || ext.lastRecarga;
+                          const daysRemaining = calculateDaysRemaining(expiryDate);
+                          const capacityLabel = getAssetCapacityLabel(ext);
+                          const isExpired = daysRemaining !== null && daysRemaining < 0;
 
-                        if (matchingStock.length === 0 && !selectedSubstituto) {
+                          return {
+                            ...ext,
+                            _daysRemaining: daysRemaining,
+                            _capacityLabel: capacityLabel,
+                            _isExpired: isExpired,
+                            _expiryDateStr: expiryDate
+                          };
+                        });
+
+                        // Ordenação Inteligente (FEFO):
+                        // 1º Dias a Vencer (crescente) - Válidos com menor prazo aparecem primeiro
+                        // 2º Capacidade (peso)
+                        // Ativos vencidos vão para o final
+                        const matchingStock = mapped.sort((a: any, b: any) => {
+                          if (a._isExpired && !b._isExpired) return 1;
+                          if (!a._isExpired && b._isExpired) return -1;
+
+                          const daysA = a._daysRemaining ?? 999999;
+                          const daysB = b._daysRemaining ?? 999999;
+                          if (daysA !== daysB) {
+                            return daysA - daysB;
+                          }
+
+                          return a._capacityLabel.localeCompare(b._capacityLabel);
+                        });
+
+                        if (matchingStock.length > 0) {
+                          const totalDisponiveis = matchingStock.filter((x: any) => !x._isExpired).length;
+                          const totalBloqueados = matchingStock.length - totalDisponiveis;
+
                           return (
-                            <div className="bg-amber-50/90 border-2 border-amber-300 p-4 rounded-xl space-y-3 font-sans shadow-xs">
-                              <div className="flex items-center gap-2">
-                                <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                                <span className="text-xs font-mono font-black uppercase text-amber-950">
-                                  Nenhum extintor encontrado no Estoque com o número "{substitutoSearchTerm}"
+                            <div className="space-y-3 bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-mono font-black uppercase text-slate-800 flex items-center gap-1.5">
+                                  <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                                  Extintores em Estoque Disponíveis ({totalDisponiveis} aptos{totalBloqueados > 0 ? `, ${totalBloqueados} vencidos` : ''}):
+                                </span>
+                                <span className="text-[9.5px] font-mono text-slate-500 font-bold">
+                                  Prioridade FEFO (Menor Validade Primeiro)
                                 </span>
                               </div>
-                              <p className="text-[11px] text-amber-900 font-bold">
-                                Informe os dados padrões abaixo para **cadastrar o novo extintor** imediatamente no sistema:
-                              </p>
 
-                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 font-mono">
-                                <div>
-                                  <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
-                                    Nº Patrimônio / ID *
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={novoPatrimonio}
-                                    onChange={(e) => setNovoPatrimonio(e.target.value)}
-                                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
-                                    placeholder="Ex: EXT-1099"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
-                                    Nº Chassi / Recipiente
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={novoChassi}
-                                    onChange={(e) => setNovoChassi(e.target.value)}
-                                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
-                                    placeholder="Ex: CH-88741"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
-                                    Selo Inmetro *
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={novoSeloInmetro}
-                                    onChange={(e) => setNovoSeloInmetro(e.target.value)}
-                                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
-                                    placeholder="Ex: 14253678"
-                                  />
-                                </div>
-                                <div>
-                                  <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
-                                    Modelo / Agente
-                                  </label>
-                                  <select
-                                    value={novoModelo}
-                                    onChange={(e) => setNovoModelo(e.target.value)}
-                                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
-                                  >
-                                    <option value="PQS 4kg (Portátil)">PQS 4kg (Portátil)</option>
-                                    <option value="PQS 6kg (Portátil)">PQS 6kg (Portátil)</option>
-                                    <option value="CO2 6kg (Portátil)">CO2 6kg (Portátil)</option>
-                                    <option value="AP 10L (Portátil)">AP 10L (Portátil)</option>
-                                    <option value="Espuma Mecânica 9L">Espuma Mecânica 9L</option>
-                                    <option value="PQS 20kg (Carreta / Sobre Rodas)">PQS 20kg (Carreta)</option>
-                                  </select>
-                                </div>
-                                <div>
-                                  <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
-                                    Validade da Recarga
-                                  </label>
-                                  <input
-                                    type="date"
-                                    value={novaValidadeRecarga}
-                                    onChange={(e) => setNovaValidadeRecarga(e.target.value)}
-                                    className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
-                                  />
-                                </div>
+                              {/* GRID BENTO DE ATIVOS EM ESTOQUE */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-72 overflow-y-auto pr-1">
+                                {matchingStock.map((stockAsset: any) => {
+                                  const isExpired = stockAsset._isExpired;
+                                  const days = stockAsset._daysRemaining;
+
+                                  return (
+                                    <div
+                                      key={stockAsset.id || stockAsset.idAtivo}
+                                      onClick={() => {
+                                        if (!isExpired) {
+                                          setSelectedSubstituto(stockAsset);
+                                        }
+                                      }}
+                                      className={`text-left rounded-xl p-3 transition-all flex flex-col justify-between space-y-2.5 border ${
+                                        isExpired
+                                          ? 'bg-red-50/60 border-red-200 opacity-65 cursor-not-allowed'
+                                          : 'bg-white hover:bg-emerald-50/60 border-slate-200 hover:border-emerald-500 cursor-pointer shadow-xs hover:shadow-md active:scale-[0.99]'
+                                      }`}
+                                    >
+                                      {/* TOPO: PATRIMÔNIO & CHIP DE CAPACIDADE */}
+                                      <div className="flex justify-between items-start gap-2">
+                                        <div>
+                                          <span className="font-mono font-black text-xs text-slate-900 block leading-tight">
+                                            {stockAsset.numero_patrimonio || stockAsset.idAtivo || stockAsset.id}
+                                          </span>
+                                          <span className="text-[9px] font-mono text-slate-500 block">
+                                            Série: {stockAsset.chassi || stockAsset.numero_serie || 'N/A'}
+                                          </span>
+                                        </div>
+
+                                        {/* BADGE DE CAPACIDADE (PESO) */}
+                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-900 text-white font-mono text-[10px] font-black shrink-0 shadow-2xs">
+                                          <Scale className="w-3 h-3 text-amber-400" />
+                                          {stockAsset._capacityLabel}
+                                        </span>
+                                      </div>
+
+                                      {/* MEIO: MODELO / AGENTE & SELO INMETRO */}
+                                      <div className="space-y-0.5">
+                                        <p className="text-[11px] font-bold text-slate-700 truncate font-sans">
+                                          {stockAsset.model || stockAsset.modelo || 'Extintor SPCI'}
+                                        </p>
+                                        <p className="text-[9.5px] text-slate-500 font-mono flex items-center gap-1">
+                                          <span>Selo:</span>
+                                          <strong className="text-slate-700">{stockAsset.seloInmetro || stockAsset.selo_inmetro || 'Isento'}</strong>
+                                        </p>
+                                      </div>
+
+                                      {/* RODAPÉ: DIAS A VENCER (SEMÂNTICO) + BOTÃO DE SELEÇÃO */}
+                                      <div className="pt-1.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                                        {/* BADGE DIAS A VENCER */}
+                                        <div>
+                                          {days === null ? (
+                                            <span className="text-[9.5px] text-slate-400 font-mono font-bold">Validade N/D</span>
+                                          ) : isExpired ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black bg-red-100 text-red-800 border border-red-300">
+                                              <Ban className="w-3 h-3 text-red-600" />
+                                              VENCIDO ({Math.abs(days)}d atrás)
+                                            </span>
+                                          ) : days > 60 ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                              <Clock className="w-3 h-3 text-emerald-600" />
+                                              +{days} dias (No Prazo)
+                                            </span>
+                                          ) : days >= 30 ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black bg-amber-100 text-amber-900 border border-amber-300">
+                                              <Clock className="w-3 h-3 text-amber-700" />
+                                              {days} dias restantes
+                                            </span>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-black bg-orange-100 text-orange-900 border border-orange-400 animate-pulse">
+                                              <AlertTriangle className="w-3 h-3 text-orange-600" />
+                                              A VENCER ({days}d)
+                                            </span>
+                                          )}
+                                        </div>
+
+                                        {/* AÇÃO */}
+                                        {isExpired ? (
+                                          <span className="text-[9px] font-mono font-bold text-red-600 uppercase">
+                                            Bloqueado
+                                          </span>
+                                        ) : (
+                                          <span className="inline-flex items-center gap-1 text-[10px] font-mono font-black text-emerald-700 group-hover:text-emerald-900">
+                                            Selecionar
+                                            <ArrowRight className="w-3 h-3" />
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
                           );
                         }
 
-                        return null;
+                        // Caso nenhum ativo seja encontrado com o termo ou no estoque
+                        return (
+                          <div className="bg-amber-50/90 border-2 border-amber-300 p-4 rounded-xl space-y-3 font-sans shadow-xs">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                              <span className="text-xs font-mono font-black uppercase text-amber-950">
+                                {substitutoSearchTerm.trim() 
+                                  ? `Nenhum extintor disponível em estoque com o termo "${substitutoSearchTerm}"`
+                                  : 'Nenhum extintor disponível no momento com status "ESTOQUE (APLICAÇÃO)"'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-amber-900 font-bold">
+                              Se você está instalando um extintor que ainda não foi cadastrado no estoque, preencha os dados abaixo para registrá-lo imediatamente:
+                            </p>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1 font-mono">
+                              <div>
+                                <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
+                                  Nº Patrimônio / ID *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={novoPatrimonio}
+                                  onChange={(e) => setNovoPatrimonio(e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
+                                  placeholder="Ex: EXT-1099"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
+                                  Nº Chassi / Recipiente
+                                </label>
+                                <input
+                                  type="text"
+                                  value={novoChassi}
+                                  onChange={(e) => setNovoChassi(e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
+                                  placeholder="Ex: CH-88741"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
+                                  Selo Inmetro *
+                                </label>
+                                <input
+                                  type="text"
+                                  value={novoSeloInmetro}
+                                  onChange={(e) => setNovoSeloInmetro(e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
+                                  placeholder="Ex: 14253678"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
+                                  Modelo / Agente
+                                </label>
+                                <select
+                                  value={novoModelo}
+                                  onChange={(e) => setNovoModelo(e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
+                                >
+                                  <option value="PQS 4kg (Portátil)">PQS 4kg (Portátil)</option>
+                                  <option value="PQS 6kg (Portátil)">PQS 6kg (Portátil)</option>
+                                  <option value="CO2 6kg (Portátil)">CO2 6kg (Portátil)</option>
+                                  <option value="AP 10L (Portátil)">AP 10L (Portátil)</option>
+                                  <option value="Espuma Mecânica 9L">Espuma Mecânica 9L</option>
+                                  <option value="PQS 20kg (Carreta / Sobre Rodas)">PQS 20kg (Carreta)</option>
+                                </select>
+                              </div>
+                              <div>
+                                <label className="block text-[9.5px] font-black uppercase text-slate-700 mb-1">
+                                  Validade da Recarga
+                                </label>
+                                <input
+                                  type="date"
+                                  value={novaValidadeRecarga}
+                                  onChange={(e) => setNovaValidadeRecarga(e.target.value)}
+                                  className="w-full bg-white border border-slate-300 rounded-xl p-2.5 text-xs font-bold text-slate-900 focus:border-red-600 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
                       })()}
                     </div>
                   )}
 
-                  {/* EXIBIÇÃO DO ATIVO DO ESTOQUE SELECIONADO NO ESTILO PADRÃO SPCI */}
+                  {/* EXIBIÇÃO DO ATIVO DO ESTOQUE SELECIONADO NO ESTILO BENTO MASTER */}
                   {selectedSubstituto && (
-                    <div className="bg-emerald-50 border-2 border-emerald-500 p-4 rounded-xl space-y-2 shadow-xs">
-                      <div className="flex justify-between items-start">
-                        <div className="flex items-center gap-2.5">
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                    <motion.div 
+                      initial={{ opacity: 0, y: 5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-emerald-50/90 border-2 border-emerald-500 p-4.5 rounded-2xl space-y-3.5 shadow-sm"
+                    >
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-emerald-600 rounded-xl flex items-center justify-center text-white shadow-xs">
+                            <CheckCircle2 className="w-5 h-5" />
+                          </div>
                           <div>
-                            <span className="text-[10px] font-mono font-black uppercase text-emerald-900 block">
+                            <span className="text-[9.5px] font-mono font-black uppercase text-emerald-900 block tracking-wider">
                               EXTINTOR DO ESTOQUE SELECIONADO PARA SUBSTITUIÇÃO:
                             </span>
-                            <h4 className="text-sm font-black text-slate-900 font-mono">
-                              {selectedSubstituto.numero_patrimonio || selectedSubstituto.idAtivo || selectedSubstituto.id}
-                            </h4>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-base font-black text-slate-900 font-mono">
+                                {selectedSubstituto.numero_patrimonio || selectedSubstituto.idAtivo || selectedSubstituto.id}
+                              </h4>
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-900 text-white font-mono text-[10px] font-black">
+                                <Scale className="w-3 h-3 text-amber-400" />
+                                {selectedSubstituto._capacityLabel || getAssetCapacityLabel(selectedSubstituto)}
+                              </span>
+                            </div>
                           </div>
                         </div>
+
                         <button
                           type="button"
                           onClick={() => setSelectedSubstituto(null)}
-                          className="text-xs font-mono font-black text-red-600 hover:text-red-800 cursor-pointer underline"
+                          className="px-3 py-1.5 rounded-lg bg-white hover:bg-red-50 border border-slate-300 hover:border-red-400 text-xs font-mono font-black text-red-600 hover:text-red-700 cursor-pointer shadow-2xs transition-all"
                         >
                           Alterar Seleção
                         </button>
                       </div>
 
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 font-mono text-[11px] text-slate-800 bg-white p-3 rounded-xl border border-emerald-200 shadow-2xs">
+                      {/* DETALHES TÉCNICOS DO ATIVO SUBMETIDO */}
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-1 font-mono text-[11px] text-slate-800 bg-white/90 p-3 rounded-xl border border-emerald-200 shadow-2xs">
                         <div>
                           <span className="text-[9px] text-slate-500 font-bold block uppercase">Modelo</span>
-                          <span className="font-black">{selectedSubstituto.model || selectedSubstituto.modelo || 'PQS'}</span>
+                          <span className="font-black truncate block">{selectedSubstituto.model || selectedSubstituto.modelo || 'PQS'}</span>
                         </div>
                         <div>
                           <span className="text-[9px] text-slate-500 font-bold block uppercase">Selo Inmetro</span>
                           <span className="font-black">{selectedSubstituto.seloInmetro || selectedSubstituto.selo_inmetro || 'Isento'}</span>
                         </div>
                         <div>
-                          <span className="text-[9px] text-slate-500 font-bold block uppercase">Origem</span>
-                          <span className="font-black text-emerald-700">{selectedSubstituto.area || selectedSubstituto.location || 'Estoque'}</span>
+                          <span className="text-[9px] text-slate-500 font-bold block uppercase">Dias a Vencer</span>
+                          <span className="font-black text-emerald-700">
+                            {selectedSubstituto._daysRemaining !== null 
+                              ? `${selectedSubstituto._daysRemaining} dias` 
+                              : 'Válido'}
+                          </span>
                         </div>
                         <div>
-                          <span className="text-[9px] text-slate-500 font-bold block uppercase">Validade Recarga</span>
-                          <span className="font-black">{selectedSubstituto.data_ultima_recarga || 'Válido'}</span>
+                          <span className="text-[9px] text-slate-500 font-bold block uppercase">Local a Assumir</span>
+                          <span className="font-black text-slate-900 truncate block">
+                            {asset.location || 'Área Industrial'}{asset.subLocation ? ` (${asset.subLocation})` : ''}
+                          </span>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   )}
                 </div>
               )}
