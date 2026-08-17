@@ -4,10 +4,15 @@ export default function robots(): MetadataRoute.Robots {
   return {
     rules: {
       userAgent: '*',
-      allow: ['/', '/login', '/acesso-expirado', '/consulta/', '/public/'],
+      allow: [
+        '/',
+        '/login',
+        '/consulta',
+        '/consulta/*',
+        '/public/*',
+      ],
       disallow: [
         '/api/',
-        '/usuarios/',
         '/dashboard/',
         '/extintores/',
         '/hidrantes/',
@@ -16,8 +21,17 @@ export default function robots(): MetadataRoute.Robots {
         '/bombas/',
         '/ronda/',
         '/alerts/',
+        '/alertas-criticos/',
+        '/gestao-ativo/',
+        '/configuracoes/',
+        '/logs/',
         '/sheets-db/',
-        '/qr/'
+        '/usuarios/',
+        '/inspecao/',
+        '/inspecao/*',
+        '/logout',
+        '/acesso-expirado',
+        '/qr/',
       ],
     },
     sitemap: 'https://spci.compliance.app/sitemap.xml',

@@ -45,7 +45,7 @@ export default function QuietLuxuryHome() {
             />
             <div className="border-l border-slate-200 dark:border-slate-800 pl-4 py-1 hidden sm:block">
               <span className="text-[9px] font-black text-red-600 dark:text-red-500 tracking-[0.25em] block uppercase leading-none">PLATAFORMA</span>
-              <h1 className="text-sm font-black text-slate-900 dark:text-slate-100 tracking-wider leading-none mt-1 font-['Hanken_Grotesk']">SPCI MASTER</h1>
+              <span className="text-sm font-black text-slate-900 dark:text-slate-100 tracking-wider leading-none mt-1 font-['Hanken_Grotesk'] block">SPCI MASTER</span>
             </div>
           </div>
 

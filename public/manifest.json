@@ -1,23 +1,25 @@
 {
-  "name": "Ronda & Monitoramento SPCI",
-  "short_name": "SPCI",
-  "description": "Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI",
-  "start_url": "/dashboard",
+  "name": "SPCI Master - Grupo OMG",
+  "short_name": "SPCI Master",
+  "description": "Sistema de Segurança e Conformidade contra Incêndio para Inspeções em Campo",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#1b2a32",
-  "theme_color": "#af101a",
+  "background_color": "#0f172a",
+  "theme_color": "#dc2626",
   "orientation": "portrait-primary",
   "scope": "/",
   "icons": [
     {
       "src": "/icons/icon-192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any maskable"
     },
     {
       "src": "/icons/icon-512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any maskable"
     }
   ]
 }

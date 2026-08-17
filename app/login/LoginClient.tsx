@@ -187,7 +187,7 @@ export default function LoginClient() {
             />
             <div>
               <span className="text-[10px] text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
-              <h2 className="text-base font-black text-white tracking-tight leading-none mt-1">SPCI MASTER</h2>
+              <span className="text-base font-black text-white tracking-tight leading-none mt-1 block">SPCI MASTER</span>
             </div>
           </div>
 
@@ -198,9 +198,9 @@ export default function LoginClient() {
               Conformidade Legal NBR 12962 / 13434 / 13714
             </div>
             <div className="space-y-3">
-              <h1 className="text-3xl lg:text-4xl font-black text-white uppercase tracking-tight leading-tight">
+              <h2 className="text-3xl lg:text-4xl font-black text-white uppercase tracking-tight leading-tight">
                 Gestão & Governança de Combate a Incêndio
-              </h1>
+              </h2>
               <p className="text-xs text-slate-200 font-sans leading-relaxed">
                 Centralização de laudos técnicos, vistorias em tempo real, rastreabilidade offline-first de ativos e relatórios executivos para governança predial e industrial.
               </p>
@@ -222,12 +222,12 @@ export default function LoginClient() {
               <img src="/logo-omg.png" alt="Logo Grupo OMG" className="h-10 w-auto object-contain drop-shadow-md" />
               <div>
                 <span className="text-[8px] text-red-600 dark:text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
-                <h2 className="text-sm font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none mt-1">SPCI MASTER</h2>
+                <span className="text-sm font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none mt-1 block">SPCI MASTER</span>
               </div>
             </div>
 
             <div className="space-y-1 text-left">
-              <h2 className="text-xl font-bold uppercase text-slate-900 dark:text-slate-100 tracking-wider">Acessar Cockpit</h2>
+              <h1 className="text-xl font-bold uppercase text-slate-900 dark:text-slate-100 tracking-wider">Acessar Cockpit SPCI</h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-sans">Entre com suas credenciais corporativas SPCI.</p>
             </div>
 

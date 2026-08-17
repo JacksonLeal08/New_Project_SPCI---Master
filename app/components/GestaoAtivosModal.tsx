@@ -27,7 +27,8 @@ import {
   CheckSquare,
   Square,
   SlidersHorizontal,
-  Wrench
+  Wrench,
+  Truck
 } from 'lucide-react';
 import {
   getAssetStockItemsAction,
@@ -41,6 +42,8 @@ import {
 } from '@/app/actions/assetStockActions';
 import { exportStockItemsToCSV } from '@/lib/excelStockUtils';
 import { GestaoAtivosImportModal } from './GestaoAtivosImportModal';
+import BatchCreationModal from './BatchCreationModal';
+import BatchManagementBento from './BatchManagementBento';
 import { idb } from '@/lib/indexedDb';
 
 interface GestaoAtivosModalProps {
@@ -121,6 +124,8 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState<boolean>(false);
   const [isSavingBulk, setIsSavingBulk] = useState<boolean>(false);
+  const [isBatchCreationModalOpen, setIsBatchCreationModalOpen] = useState<boolean>(false);
+  const [emManutencaoViewMode, setEmManutencaoViewMode] = useState<'LOTES' | 'ATIVOS'>('LOTES');
 
   // Campos do Cockpit de Edição em Massa
   const [bulkStatusEstoque, setBulkStatusEstoque] = useState<StatusEstoqueType | ''>('');
@@ -850,13 +855,23 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {/* BOTÃO GERAR LOTE DE MANUTENÇÃO COM OS SELECIONADOS */}
+              <button
+                onClick={() => setIsBatchCreationModalOpen(true)}
+                className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border-none shadow-sm active:scale-95"
+                title="Gerar Lote de Manutenção e Romaneio Oficial para os itens selecionados"
+              >
+                <Truck className="w-4 h-4 text-white" />
+                <span>📦 Gerar Lote de Manutenção ({selectedIds.length})</span>
+              </button>
+
               {/* BOTÃO PARA COCKPIT DE EDIÇÃO EM MASSA DOS SELECIONADOS */}
               <button
                 onClick={() => setIsBulkEditModalOpen(true)}
                 className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border-none shadow-sm active:scale-95"
               >
                 <SlidersHorizontal className="w-4 h-4" />
-                <span>⚡ Editar Selecionados no Cockpit ({selectedIds.length})</span>
+                <span>⚡ Editar no Cockpit ({selectedIds.length})</span>
               </button>
 
               {/* BOTÃO EXPORTAR SOMENTE SELECIONADOS PARA EDIÇÃO NO EXCEL */}
@@ -973,10 +988,54 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           </div>
         </div>
 
-        {/* TABELA PRINCIPAL & ACCORDION DE CADASTRO */}
+        {/* TABELA PRINCIPAL & ACCORDION DE CADASTRO OU VISÃO BENTO DE LOTES */}
         <div className="flex-1 overflow-y-auto p-4 bg-slate-50 space-y-4">
-          {/* COMPONENTE EXPANSÍVEL (ACCORDION) DE CADASTRO DE ATIVO EM ESTOQUE */}
-          {activeTab !== 'NA ÁREA (APLICADO)' && (
+          
+          {/* SUB-TOGGLE QUANDO NA ABA EM MANUTENÇÃO */}
+          {activeTab === 'EM MANUTENÇÃO' && (
+            <div className="flex items-center justify-between bg-white dark:bg-slate-900 p-2 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs">
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEmManutencaoViewMode('LOTES')}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border-none ${
+                    emManutencaoViewMode === 'LOTES'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-transparent text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Truck className="w-3.5 h-3.5" />
+                  <span>Visão de Lotes Bento Grid</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEmManutencaoViewMode('ATIVOS')}
+                  className={`px-3.5 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer border-none ${
+                    emManutencaoViewMode === 'ATIVOS'
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-transparent text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  <Boxes className="w-3.5 h-3.5" />
+                  <span>Lista Individual de Extintores</span>
+                </button>
+              </div>
+
+              <span className="text-[10px] text-slate-500 font-mono hidden sm:inline-block">
+                Gestão de Lotes, Fornecedores e Romaneios de Remessa
+              </span>
+            </div>
+          )}
+
+          {activeTab === 'EM MANUTENÇÃO' && emManutencaoViewMode === 'LOTES' ? (
+            <BatchManagementBento
+              currentUserName="Operador SPCI"
+              onRefreshParent={loadAssets}
+            />
+          ) : (
+            <>
+              {/* COMPONENTE EXPANSÍVEL (ACCORDION) DE CADASTRO DE ATIVO EM ESTOQUE */}
+              {activeTab !== 'NA ÁREA (APLICADO)' && (
             <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden transition-all">
               <button
                 type="button"
@@ -1440,6 +1499,8 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
               </tbody>
             </table>
           </div>
+          </>
+        )}
         </div>
 
         {/* RODAPÉ DE RESUMO - TEMA CLARO */}
@@ -2281,6 +2342,27 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           </div>
         )}
       </AnimatePresence>
+      {/* MODAL DE GERAÇÃO DE LOTE DE MANUTENÇÃO */}
+      {isBatchCreationModalOpen && (
+        <BatchCreationModal
+          isOpen={isBatchCreationModalOpen}
+          onClose={() => setIsBatchCreationModalOpen(false)}
+          selectedAssets={items.filter((it) => selectedIds.includes(it.id))}
+          currentUserName="Operador SPCI"
+          onBatchCreatedSuccess={(numeroLote) => {
+            loadAssets();
+            setSelectedIds([]);
+            setActiveTab('EM MANUTENÇÃO');
+            setEmManutencaoViewMode('LOTES');
+            setHudAlert({
+              isOpen: true,
+              title: 'LOTE GERADO COM SUCESSO! 🟢',
+              message: `Lote "${numeroLote}" gerado com sucesso. Os extintores foram transferidos para "Em Manutenção".`,
+              type: 'success'
+            });
+          }}
+        />
+      )}
     </div>
   );
 };

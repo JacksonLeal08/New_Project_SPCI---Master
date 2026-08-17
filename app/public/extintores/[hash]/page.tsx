@@ -8,6 +8,8 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { hash } = await params;
+  const canonicalUrl = `/public/extintores/${hash}`;
+  const fullUrl = `https://spci.compliance.app/public/extintores/${hash}`;
   
   try {
     const { data } = await supabase
@@ -20,17 +22,46 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
       return {
         title: 'Ativo Não Localizado - SPCI Compliance',
         description: 'Ficha pública de segurança SPCI para ativo de combate a incêndio.',
+        alternates: { canonical: canonicalUrl },
+        robots: { index: false, follow: true },
       };
     }
 
+    const pageTitle = `Ativo ${data.numero_patrimonio} (${data.status_conformidade}) - SPCI Master`;
+    const pageDesc = `Ficha pública de conformidade de combate a incêndio do ativo ${data.numero_patrimonio} instalado em ${data.local_instalacao}.`;
+
     return {
-      title: `Ativo ${data.numero_patrimonio} (${data.status_conformidade}) - SPCI`,
-      description: `Ficha pública de conformidade de combate a incêndio do ativo ${data.numero_patrimonio} instalado em ${data.local_instalacao}.`,
+      title: pageTitle,
+      description: pageDesc,
+      alternates: {
+        canonical: canonicalUrl,
+      },
+      openGraph: {
+        title: pageTitle,
+        description: pageDesc,
+        url: fullUrl,
+        type: 'website',
+        images: [
+          {
+            url: '/og-image.png',
+            width: 1200,
+            height: 630,
+            alt: `Ficha Técnica do Ativo ${data.numero_patrimonio} - SPCI`,
+          },
+        ],
+      },
+      twitter: {
+        card: 'summary_large_image',
+        title: pageTitle,
+        description: pageDesc,
+        images: ['/og-image.png'],
+      },
     };
   } catch (error) {
     return {
       title: 'Ficha de Segurança - SPCI Compliance',
       description: 'Consulta pública de conformidade e status de ativos SPCI.',
+      alternates: { canonical: canonicalUrl },
     };
   }
 }

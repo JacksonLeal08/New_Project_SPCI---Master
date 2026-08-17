@@ -26,7 +26,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const viewport: Viewport = {
-  themeColor: '#af101a',
+  themeColor: '#dc2626',
   width: 'device-width',
   initialScale: 1,
 };
@@ -34,14 +34,21 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL('https://spci.compliance.app'),
   title: {
-    default: 'SISTEMA SPCI - Gestão de Ativos e Inspeção',
+    default: 'SISTEMA SPCI - Gestão de Ativos, Prevenção e Combate a Incêndio',
     template: '%s | SISTEMA SPCI',
   },
-  description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI',
+  description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios, Auditoria de Conformidade NBR 12962/13714 e Inspeções de Campo SPCI.',
   manifest: '/manifest.json',
   robots: {
     index: true,
     follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
   },
   alternates: {
     canonical: '/',
@@ -58,45 +65,60 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
-    title: 'SPCI Inspeções',
+    title: 'SPCI Master',
   },
   openGraph: {
-    title: 'SISTEMA SPCI - Gestão de Ativos e Inspeção',
-    description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI',
+    title: 'SISTEMA SPCI - Gestão de Ativos e Prevenção de Incêndios',
+    description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios, Auditoria de Conformidade NBR e Inspeções de Campo.',
     url: 'https://spci.compliance.app',
     siteName: 'SISTEMA SPCI',
     locale: 'pt_BR',
     type: 'website',
     images: [
       {
-        url: '/icons/icon-512.png',
-        width: 512,
-        height: 512,
-        alt: 'Logo Sistema SPCI - Gestão de Incêndio',
+        url: '/og-image.png',
+        width: 1200,
+        height: 630,
+        alt: 'SISTEMA SPCI Master - Governança e Segurança Contra Incêndio',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'SISTEMA SPCI - Gestão de Ativos e Inspeção',
-    description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI',
-    images: ['/icons/icon-512.png'],
+    title: 'SISTEMA SPCI - Gestão de Ativos e Prevenção de Incêndios',
+    description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios, Auditoria de Conformidade NBR e Inspeções de Campo.',
+    images: ['/og-image.png'],
   },
 };
 
 const jsonLdData = {
   '@context': 'https://schema.org',
-  '@type': 'WebApplication',
-  name: 'SISTEMA SPCI',
-  applicationCategory: 'BusinessApplication',
-  operatingSystem: 'All',
-  url: 'https://spci.compliance.app',
-  description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios e Inspeções de Campo SPCI',
-  offers: {
-    '@type': 'Offer',
-    price: '0',
-    priceCurrency: 'BRL',
-  },
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': 'https://spci.compliance.app/#organization',
+      name: 'Grupo OMG - Segurança Contra Incêndio',
+      url: 'https://spci.compliance.app',
+      logo: 'https://spci.compliance.app/logo-omg.png',
+    },
+    {
+      '@type': 'WebApplication',
+      '@id': 'https://spci.compliance.app/#webapp',
+      name: 'SISTEMA SPCI Master',
+      applicationCategory: 'SecurityApplication',
+      operatingSystem: 'All',
+      url: 'https://spci.compliance.app',
+      description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios, Auditoria NBR e Inspeções de Campo SPCI.',
+      publisher: {
+        '@id': 'https://spci.compliance.app/#organization',
+      },
+      offers: {
+        '@type': 'Offer',
+        price: '0',
+        priceCurrency: 'BRL',
+      },
+    },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

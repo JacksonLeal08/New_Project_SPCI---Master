@@ -49,26 +49,26 @@ def is_page_file(file_path: Path) -> bool:
     """Check if this file is likely a public-facing page."""
     name = file_path.name.lower()
     stem = file_path.stem.lower()
+    parts = [p.lower() for p in file_path.parts]
     
+    # Skip non-page directories
+    non_page_dirs = ['components', 'context', 'hooks', 'lib', 'actions', 'api', 'ui', 'styles', 'utils']
+    if any(d in parts for d in non_page_dirs):
+        return False
+
     # Skip utility/config files
     if any(skip in name for skip in SKIP_PATTERNS):
         return False
     
-    # Check path - pages in specific directories are likely pages
-    parts = [p.lower() for p in file_path.parts]
-    page_dirs = ['pages', 'app', 'routes', 'views', 'screens']
-    
-    if any(d in parts for d in page_dirs):
+    # In Next.js App Router, public pages are page.tsx / page.jsx or layout.tsx
+    if stem in ['page', 'layout']:
+        # Don't treat internal dashboard sub-pages as public root pages
         return True
     
-    # Filename indicators for pages
-    page_names = ['page', 'index', 'home', 'about', 'contact', 'blog', 
-                  'post', 'article', 'product', 'landing', 'layout']
-    
-    if any(p in stem for p in page_names):
+    # Pages Router or HTML files
+    if 'pages' in parts:
         return True
-    
-    # HTML files are usually pages
+        
     if file_path.suffix.lower() in ['.html', '.htm']:
         return True
     
@@ -102,22 +102,26 @@ def check_page(file_path: Path) -> dict:
     except Exception as e:
         return {"file": str(file_path.name), "issues": [f"Error: {e}"]}
     
-    # Detect if this is a layout/template file (has Head component)
-    is_layout = '<Head>' in content or '<Head ' in content or '<head>' in content.lower() or '<head ' in content.lower()
+    # Detect if this is a root layout file (e.g. app/layout.tsx)
+    is_root_layout = file_path.name.lower().startswith('layout') and file_path.parent.name.lower() in ['app', 'src']
+    is_layout = is_root_layout or '<Head>' in content or '<Head ' in content
+    
+    # Check for Next.js App Router metadata or Pages Router / HTML tags
+    has_metadata_export = 'metadata' in content or 'generateMetadata' in content
     
     # 1. Title tag
-    has_title = '<title' in content.lower() or 'title=' in content or 'Head>' in content
-    if not has_title and is_layout:
+    has_title = '<title' in content.lower() or 'title:' in content or 'title=' in content or 'Head>' in content
+    if not has_title and is_layout and not has_metadata_export:
         issues.append("Missing <title> tag")
     
     # 2. Meta description
-    has_description = 'name="description"' in content.lower() or 'name=\'description\'' in content.lower()
-    if not has_description and is_layout:
+    has_description = 'name="description"' in content.lower() or 'name=\'description\'' in content.lower() or 'description:' in content
+    if not has_description and is_layout and not has_metadata_export:
         issues.append("Missing meta description")
     
     # 3. Open Graph tags
-    has_og = 'og:' in content or 'property="og:' in content.lower()
-    if not has_og and is_layout:
+    has_og = 'og:' in content or 'opengraph:' in content.lower() or 'property="og:' in content.lower()
+    if not has_og and is_layout and not has_metadata_export:
         issues.append("Missing Open Graph tags")
     
     # 4. Heading hierarchy - multiple H1s
@@ -140,7 +144,7 @@ def check_page(file_path: Path) -> dict:
     # has_canonical = 'rel="canonical"' in content.lower()
     
     return {
-        "file": str(file_path.name),
+        "file": str(file_path),
         "issues": issues
     }
 
