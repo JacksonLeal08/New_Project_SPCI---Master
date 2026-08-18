@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
 import { createSiteAction, fetchSitesAction, deleteSiteAction } from '@/app/actions/userActions';
+import SuppliersManagementBento from '@/app/components/SuppliersManagementBento';
 
 
 const DEFAULT_SITES = [
@@ -42,7 +43,7 @@ export default function ConfiguracoesPage() {
   } = useSpci();
 
   // Navigation tab state
-  const [activeTab, setActiveTab] = useState<'profile' | 'users'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'suppliers'>('profile');
 
   // Guard: exclusive for admin/dev and credential login (google users blocked)
   const isAdmin = userProfile?.role === 'Administrador' || userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'admin';
@@ -321,6 +322,16 @@ export default function ConfiguracoesPage() {
           }`}
         >
           <span>👥</span> Controle de Usuários
+        </button>
+        <button 
+          onClick={() => setActiveTab('suppliers')}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-t-xl flex items-center gap-2 ${
+            activeTab === 'suppliers' 
+              ? 'bg-white border-t-2 border-t-red-600 border-x border-x-slate-200 text-red-600 font-extrabold shadow-xs' 
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'
+          }`}
+        >
+          <span>🏢</span> Fornecedores & Prestadores
         </button>
       </div>
 
@@ -709,6 +720,17 @@ export default function ConfiguracoesPage() {
                 </div>
               )}
             </div>
+          </motion.div>
+        )}
+
+        {/* TAB 3: FORNECEDORES & PRESTADORES */}
+        {activeTab === 'suppliers' && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            <SuppliersManagementBento />
           </motion.div>
         )}
 
