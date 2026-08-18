@@ -888,15 +888,17 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
-              {/* BOTÃO GERAR LOTE DE MANUTENÇÃO COM OS SELECIONADOS */}
-              <button
-                onClick={() => setIsBatchCreationModalOpen(true)}
-                className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border-none shadow-sm active:scale-95"
-                title="Gerar Lote de Manutenção e Romaneio Oficial para os itens selecionados"
-              >
-                <Truck className="w-4 h-4 text-white" />
-                <span>📦 Gerar Lote de Manutenção ({selectedIds.length})</span>
-              </button>
+              {/* BOTÃO GERAR LOTE DE MANUTENÇÃO: EXIBIDO EXCLUSIVAMENTE NA ETAPA 'ESTOQUE MANUTENÇÃO' */}
+              {activeTab === 'ESTOQUE MANUTENÇÃO' && (
+                <button
+                  onClick={() => setIsBatchCreationModalOpen(true)}
+                  className="px-3.5 py-1.5 bg-red-600 hover:bg-red-500 text-white font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border-none shadow-sm active:scale-95"
+                  title="Gerar Lote de Manutenção e Romaneio Oficial para os itens selecionados em Estoque Manutenção"
+                >
+                  <Truck className="w-4 h-4 text-white" />
+                  <span>📦 Gerar Lote de Manutenção ({selectedIds.length})</span>
+                </button>
+              )}
 
               {/* BOTÃO PARA COCKPIT DE EDIÇÃO EM MASSA DOS SELECIONADOS */}
               <button
@@ -942,7 +944,10 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
             ].map((tab) => (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => {
+                  setActiveTab(tab.id as any);
+                  setSelectedIds([]);
+                }}
                 className={`px-3.5 py-1.5 rounded-xl font-bold transition-all border cursor-pointer whitespace-nowrap flex items-center gap-1.5 shrink-0 ${
                   activeTab === tab.id
                     ? 'bg-white text-slate-900 border-slate-300 shadow-xs font-black ring-1 ring-slate-300/50'
