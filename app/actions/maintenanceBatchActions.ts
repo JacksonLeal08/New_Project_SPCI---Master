@@ -24,6 +24,14 @@ const getSupabaseAdminClient = () => {
   });
 };
 
+export type StatusEstoqueType =
+  | 'ESTOQUE APLICAÇÃO'
+  | 'ESTOQUE MANUTENÇÃO'
+  | 'EM MANUTENÇÃO'
+  | 'CONDENADOS'
+  | 'NA ÁREA (APLICADO)'
+  | 'EXTRAVIADO';
+
 export interface CreateBatchItemPayload {
   asset_id: string;
   id_ativo: string;
@@ -565,5 +573,104 @@ export async function getExtinguisherMaintenanceHistoryAction(assetId: string) {
     return { success: true, history: data || [] };
   } catch (error: any) {
     return { success: false, error: error.message, history: [] };
+  }
+}
+
+/**
+ * Realiza a reconciliação automática e atômica de lotes finalizados e ativos de estoque,
+ * garantindo que todos os extintores de lotes concluídos estejam com status 'ESTOQUE APLICAÇÃO'
+ * e com as datas e selos Inmetro perfeitamente atualizados no Supabase.
+ */
+export async function reconcileBatchesAndAssetsAction() {
+  try {
+    const supabase = getSupabaseAdminClient();
+    const nowIso = new Date().toISOString();
+
+    // 1. Buscar todos os lotes finalizados
+    const { data: lotesFinalizados, error: lotesErr } = await supabase
+      .from('lotes_manutencao')
+      .select('id, numero_lote, status')
+      .eq('status', 'FINALIZADO');
+
+    if (lotesErr || !lotesFinalizados || lotesFinalizados.length === 0) {
+      return { success: true, reconciledCount: 0 };
+    }
+
+    const loteIds = lotesFinalizados.map((l) => l.id);
+
+    // 2. Buscar itens triados desses lotes
+    const { data: itensLote, error: itensErr } = await supabase
+      .from('itens_lote_manutencao')
+      .select('*')
+      .in('lote_id', loteIds);
+
+    if (itensErr || !itensLote || itensLote.length === 0) {
+      return { success: true, reconciledCount: 0 };
+    }
+
+    let reconciledCount = 0;
+
+    for (const item of itensLote) {
+      const isApproved = item.status_triagem === 'APROVADO';
+      const isCondemned = item.status_triagem === 'CONDENADO';
+
+      if (!isApproved && !isCondemned) continue;
+
+      const targetStatus: StatusEstoqueType = isApproved ? 'ESTOQUE APLICAÇÃO' : 'CONDENADOS';
+      const targetTipoMov = isApproved ? 'estoque_aplicacao' : 'condenado';
+      const targetStatusEquip = isApproved ? 'Conforme' : 'Não Conforme';
+
+      const updateData: any = {
+        status_estoque: targetStatus,
+        tipo_movimentacao: targetTipoMov,
+        lote_manutencao_atual_id: null,
+        status: targetStatusEquip,
+        updated_at: nowIso,
+      };
+
+      if (isApproved) {
+        if (item.nova_validade_recarga) {
+          updateData.validadeRecarga = item.nova_validade_recarga;
+          updateData.ultima_recarga = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+        }
+        if (item.nova_validade_hidro) {
+          updateData.data_vencimento_teste = item.nova_validade_hidro;
+        }
+        if (item.novo_selo_inmetro) {
+          updateData.numero_serie = item.novo_selo_inmetro;
+        }
+      }
+
+      // Tenta atualizar por asset_id
+      if (item.asset_id) {
+        await supabase
+          .from('assets')
+          .update(updateData)
+          .eq('id', item.asset_id);
+      }
+
+      // Tenta atualizar por id_ativo ou patrimonio
+      if (item.id_ativo) {
+        await supabase
+          .from('assets')
+          .update(updateData)
+          .or(`id_ativo.eq."${item.id_ativo}",patrimonio.eq."${item.id_ativo}"`);
+      }
+
+      // Tenta atualizar por numero_serie
+      if (item.numero_serie) {
+        await supabase
+          .from('assets')
+          .update(updateData)
+          .eq('numero_serie', item.numero_serie);
+      }
+
+      reconciledCount++;
+    }
+
+    return { success: true, reconciledCount };
+  } catch (error: any) {
+    console.error('[reconcileBatchesAndAssetsAction] Erro na reconciliação:', error);
+    return { success: false, error: error.message };
   }
 }

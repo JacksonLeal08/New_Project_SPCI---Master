@@ -1,6 +1,7 @@
 'use server';
 
 import { createClient } from '@supabase/supabase-js';
+import { reconcileBatchesAndAssetsAction } from './maintenanceBatchActions';
 
 const getSupabaseAdminClient = () => {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -84,6 +85,13 @@ const mapStatusEstoqueToTipoMovimentacao = (status: string | undefined): string 
  */
 export async function getAssetStockItemsAction(statusEstoque?: string) {
   try {
+    // Executa autocorreção e reconciliação atômica de lotes finalizados
+    try {
+      await reconcileBatchesAndAssetsAction();
+    } catch (recErr) {
+      console.warn('[getAssetStockItemsAction] Aviso na reconciliação prévia:', recErr);
+    }
+
     const supabaseAdmin = getSupabaseAdminClient();
     let query = supabaseAdmin.from('assets').select('*');
 

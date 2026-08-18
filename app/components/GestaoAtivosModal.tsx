@@ -427,6 +427,8 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
 
         if (criticalCount > 0) {
           setShowFormalAlertModal(true);
+        } else {
+          setShowFormalAlertModal(false);
         }
       }
     } catch (err: any) {
