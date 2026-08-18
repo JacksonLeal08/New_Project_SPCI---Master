@@ -117,16 +117,35 @@ export interface ItemLoteManutencaoRecord {
 }
 
 /**
- * Gera um identificador de lote sequencial e temporal único
- * Ex: LOTE-MAN-20260817-0001
+ * Gera um identificador de lote sequencial anual progressivo para controle contábil
+ * Ex: LOTE-MAN-2026-001, LOTE-MAN-2026-002...
  */
-function generateLoteCode(): string {
-  const now = new Date();
-  const yyyy = now.getFullYear();
-  const mm = String(now.getMonth() + 1).padStart(2, '0');
-  const dd = String(now.getDate()).padStart(2, '0');
-  const randomSuffix = Math.floor(1000 + Math.random() * 9000);
-  return `LOTE-MAN-${yyyy}${mm}${dd}-${randomSuffix}`;
+async function generateNextLoteCode(supabase: any): Promise<string> {
+  const yyyy = new Date().getFullYear();
+  const prefix = `LOTE-MAN-${yyyy}-`;
+
+  try {
+    const { data, error } = await supabase
+      .from('lotes_manutencao')
+      .select('numero_lote')
+      .ilike('numero_lote', `${prefix}%`);
+
+    if (error || !data || data.length === 0) {
+      return `${prefix}001`;
+    }
+
+    const numbers = data.map((d: any) => {
+      const match = d.numero_lote.match(/LOTE-MAN-\d{4}-(\d+)/);
+      return match ? parseInt(match[1], 10) : 0;
+    });
+
+    const maxNum = Math.max(0, ...numbers);
+    const nextSeq = maxNum + 1;
+    return `${prefix}${String(nextSeq).padStart(3, '0')}`;
+  } catch (e) {
+    console.warn('[generateNextLoteCode] Fallback para 001:', e);
+    return `${prefix}001`;
+  }
 }
 
 /**
@@ -144,7 +163,7 @@ export async function createMaintenanceBatchAction(payload: CreateBatchPayload) 
       return { success: false, error: 'O nome da empresa/fornecedor prestador de serviço é obrigatório.' };
     }
 
-    const numeroLote = generateLoteCode();
+    const numeroLote = await generateNextLoteCode(supabase);
 
     // 1. Inserir cabeçalho do lote
     const { data: loteData, error: loteError } = await supabase
