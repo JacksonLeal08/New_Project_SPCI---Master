@@ -264,20 +264,30 @@ export default function ExtintoresPage() {
 
   const getCustomAttributes = (asset: any) => {
     const standardKeys = [
-      'id', 'idAtivo', 'category', 'model', 'location', 'subLocation', 'seloInmetro', 'chassi', 'peso',
-      'lastRecarga', 'recurrenceInterval', 'validadeRecarga', 'validadeTesteHidro', 'status', 'geolocation',
-      'type', 'components', 'lastInsp', 'nextInsp', 'group', 'systemType', 'qty', 'battery', 'autonomy',
-      'name', 'code', 'power', 'range', 'starts',
-      'qr_code_hash', 'qrCodeHash', 'statusConformidade', 'status_conformidade',
-      'fotoUrl', 'foto_url', 'ultimoTesteHidro', 'anoFabricacao', 'ano_ultimo_teste_hidro',
-      'created_at', 'updated_at', 'validadeRecargaMeses', 'data_pesagem_co2',
-      'data_ultima_recarga', 'meses_validade_recarga', 'peso_capacidade', 'validadeTesteHidro', 'anoUltimoTesteHidro'
+      'id', 'idAtivo', 'id_ativo', 'patrimonio', 'numero_patrimonio', 'numeroPatrimonio', 'cod_patrimonio', 'patrimonio_sugerido',
+      'category', 'model', 'modelo', 'location', 'subLocation', 'sub_location', 'seloInmetro', 'selo_inmetro', 'selo_inmetro_anterior',
+      'chassi', 'numero_serie', 'numeroSerie', 'serialNumber', 'peso', 'peso_capacidade', 'capacidade', 'capacidade_peso',
+      'lastRecarga', 'data_ultima_recarga', 'ultima_recarga', 'recurrenceInterval', 'meses_validade_recarga', 'mes_ano_ultima_recarga', 'mes_ano_vencimento',
+      'validadeRecarga', 'validade_recarga', 'validadeTesteHidro', 'data_vencimento_teste', 'status', 'status_estoque', 'statusEstoque',
+      'tipo_movimentacao', 'tipoMovimentacao', 'statusConformidade', 'status_conformidade', 'geolocation', 'type', 'components',
+      'lastInsp', 'nextInsp', 'group', 'systemType', 'qty', 'battery', 'autonomy', 'name', 'code', 'power', 'range', 'starts',
+      'qr_code_hash', 'qrCodeHash', 'fotoUrl', 'foto_url', 'ultimoTesteHidro', 'anoFabricacao', 'ano_fabricacao', 'ano_ultimo_teste_hidro',
+      'anoUltimoTesteHidro', 'created_at', 'updated_at', 'validadeRecargaMeses', 'data_pesagem_co2', 'details', 'lote_manutencao_atual_id',
+      'fabricante', 'etiqueta_garantia', 'area', 'projeto', 'local', 'setor', 'tipo_equipamento', 'agente_extintor', 'sub_local', 'prateleira',
+      'formattedRecarga', 'formattedVencimento', 'createdAt', 'updatedAt', 'loteId', 'lote_id'
     ];
+
+    const formatLabel = (rawKey: string): string => {
+      const clean = rawKey.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim();
+      return clean.charAt(0).toUpperCase() + clean.slice(1);
+    };
+
     return Object.keys(asset).filter(k => {
       if (standardKeys.includes(k)) return false;
       if (standardKeys.some(sk => sk.toLowerCase() === k.toLowerCase())) return false;
-      return typeof asset[k] === 'string' && String(asset[k]).trim() !== '';
-    }).map(k => ({ key: k, value: asset[k] }));
+      const val = asset[k];
+      return val !== null && val !== undefined && typeof val !== 'object' && String(val).trim() !== '' && String(val).trim() !== '---';
+    }).map(k => ({ key: formatLabel(k), rawKey: k, value: String(asset[k]) }));
   };
 
   const handleOpenAlertCenter = (asset: any) => {
@@ -1842,12 +1852,16 @@ export default function ExtintoresPage() {
                         )}
                         
                         {getCustomAttributes(asset).length > 0 && (
-                          <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200">
-                            <p className="text-[8px] font-mono font-black text-teal-700 uppercase tracking-widest mb-1.5 flex items-center gap-1">✨ Campos Auto-Modelados IA</p>
-                            <div className="grid grid-cols-2 gap-x-2.5 gap-y-1 text-[9px] font-mono text-slate-700 bg-teal-50/50 p-2 rounded-xl border border-teal-100/60 leading-tight">
+                          <div className="mt-2.5 pt-2.5 border-t border-slate-200/80">
+                            <p className="text-[8.5px] font-mono font-black text-indigo-700 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse"></span>
+                              Atributos Avançados IA
+                            </p>
+                            <div className="grid grid-cols-2 gap-1.5 text-[9px] font-mono bg-slate-100/70 p-2 rounded-xl border border-slate-200/60 leading-tight">
                               {getCustomAttributes(asset).map((attr, idx) => (
-                                <div key={idx} className="truncate" title={`${attr.key}: ${attr.value}`}>
-                                  <span className="font-bold text-teal-800">{attr.key}:</span> {attr.value}
+                                <div key={idx} className="truncate flex items-center gap-1" title={`${attr.key}: ${attr.value}`}>
+                                  <span className="font-bold text-slate-700">{attr.key}:</span>
+                                  <span className="text-slate-900 font-semibold truncate">{attr.value}</span>
                                 </div>
                               ))}
                             </div>
