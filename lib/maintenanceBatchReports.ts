@@ -3,6 +3,17 @@
 import * as XLSX from 'xlsx';
 import { LoteManutencaoRecord, ItemLoteManutencaoRecord } from '@/app/actions/maintenanceBatchActions';
 
+export function formatFriendlyPatrimonio(idAtivo?: string, patrimonio?: string): string {
+  const target = (patrimonio || idAtivo || '').trim();
+  if (!target) return 'S/N';
+  // Transforma identificadores gerados automaticamente como PAT-1786709848773-32 em PAT #32
+  const match = target.match(/^PAT-\d+-(\d+)$/i);
+  if (match) {
+    return `PAT #${match[1]}`;
+  }
+  return target;
+}
+
 /**
  * Gera e abre o documento oficial de Romaneio de Envio de Manutenção formatado para impressão / salvamento em PDF
  */
@@ -30,13 +41,13 @@ export function generateBatchRomaneioPDF(lote: LoteManutencaoRecord, itens: Item
       (item, idx) => `
       <tr>
         <td style="text-align: center; font-weight: bold; width: 35px;">${String(idx + 1).padStart(2, '0')}</td>
-        <td style="font-weight: bold; color: #af101a; font-family: monospace;">${item.id_ativo}</td>
-        <td>${item.patrimonio || item.id_ativo}</td>
-        <td>${item.numero_serie || 'N/A'}</td>
+        <td style="font-weight: bold; color: #af101a; font-family: monospace;">${formatFriendlyPatrimonio(item.id_ativo, item.patrimonio)}</td>
+        <td style="font-family: monospace; font-weight: 600; color: #334155;">${item.numero_serie || 'S/N'}</td>
         <td><strong>${item.modelo_tipo || 'PQS ABC'}</strong></td>
         <td>${item.capacidade || 'N/A'}</td>
         <td style="font-family: monospace;">${item.selo_inmetro_anterior || 'Isento/Antigo'}</td>
         <td style="text-align: center;">${item.data_ultimo_hidro || 'N/A'}</td>
+        <td style="text-align: center; color: #94a3b8; font-size: 8px;">[ &nbsp; ] OK</td>
       </tr>
     `
     )
@@ -50,8 +61,8 @@ export function generateBatchRomaneioPDF(lote: LoteManutencaoRecord, itens: Item
       <title>Romaneio de Manutenção - ${lote.numero_lote}</title>
       <style>
         @page {
-          size: A4 portrait;
-          margin: 15mm 12mm 15mm 12mm;
+          size: A4 landscape;
+          margin: 10mm 12mm 10mm 12mm;
         }
         * {
           box-sizing: border-box;
@@ -287,14 +298,14 @@ export function generateBatchRomaneioPDF(lote: LoteManutencaoRecord, itens: Item
       <table>
         <thead>
           <tr>
-            <th style="text-align: center;">Item</th>
-            <th>ID Ativo</th>
-            <th>Patrimônio</th>
+            <th style="text-align: center; width: 40px;">Item</th>
+            <th>Patrimônio / Identificação</th>
             <th>Nº Série / Chassi</th>
-            <th>Agente / Modelo</th>
+            <th>Agente Extintor / Modelo</th>
             <th>Carga</th>
             <th>Selo Inmetro Anterior</th>
             <th style="text-align: center;">Últ. Teste Hidro</th>
+            <th style="text-align: center; width: 90px;">Conferência</th>
           </tr>
         </thead>
         <tbody>
@@ -376,7 +387,7 @@ export function exportBatchRomaneioXLSX(lote: LoteManutencaoRecord, itens: ItemL
   itens.forEach((item, index) => {
     sheetData.push([
       index + 1,
-      item.id_ativo,
+      formatFriendlyPatrimonio(item.id_ativo, item.patrimonio),
       item.patrimonio || item.id_ativo,
       item.numero_serie || 'N/A',
       item.modelo_tipo || 'PQS ABC',

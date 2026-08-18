@@ -25,6 +25,7 @@ import {
   triageBatchReturnAction,
   TriageItemResult
 } from '@/app/actions/maintenanceBatchActions';
+import { formatFriendlyPatrimonio } from '@/lib/maintenanceBatchReports';
 
 interface BatchTriageModalProps {
   isOpen: boolean;
@@ -261,13 +262,26 @@ export default function BatchTriageModal({
                       <span className="w-6 h-6 rounded-lg bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold flex items-center justify-center text-[10px]">
                         {idx + 1}
                       </span>
-                      <div>
-                        <strong className="text-red-600 dark:text-red-500 font-mono text-sm">
-                          {item.id_ativo}
+                      <div className="flex flex-wrap items-center gap-2">
+                        <strong className="text-red-600 dark:text-red-500 font-mono text-sm tracking-tight">
+                          {formatFriendlyPatrimonio(item.id_ativo, item.patrimonio)}
                         </strong>
-                        <span className="text-slate-400 text-[10px] ml-2">
-                          (Patrimônio: {item.patrimonio || 'N/A'} • {item.modelo_tipo || 'PQS'} {item.capacidade || ''})
+
+                        {item.numero_serie && (
+                          <span className="px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono text-[10px] font-semibold border border-slate-200 dark:border-slate-700">
+                            🏷️ Chassi: {item.numero_serie}
+                          </span>
+                        )}
+
+                        <span className="px-2 py-0.5 rounded-md bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 text-[10px] font-bold">
+                          🧯 {item.modelo_tipo || 'PQS ABC'} {item.capacidade || ''}
                         </span>
+
+                        {item.selo_inmetro_anterior && (
+                          <span className="text-slate-400 text-[10px] hidden sm:inline">
+                            Selo Antigo: {item.selo_inmetro_anterior}
+                          </span>
+                        )}
                       </div>
                     </div>
 

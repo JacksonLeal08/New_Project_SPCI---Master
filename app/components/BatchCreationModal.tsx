@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { AssetStockItemRecord } from '@/app/actions/assetStockActions';
 import { createMaintenanceBatchAction, CreateBatchItemPayload } from '@/app/actions/maintenanceBatchActions';
-import { generateBatchRomaneioPDF, exportBatchRomaneioXLSX } from '@/lib/maintenanceBatchReports';
+import { generateBatchRomaneioPDF, exportBatchRomaneioXLSX, formatFriendlyPatrimonio } from '@/lib/maintenanceBatchReports';
 import { FornecedorRecord, getSuppliersAction } from '@/app/actions/supplierActions';
 import SupplierFormModal from './SupplierFormModal';
 
@@ -268,9 +268,24 @@ export default function BatchCreationModal({
                 ))}
               </div>
 
-              {/* Mini preview dos IDs */}
-              <div className="text-[10px] text-slate-500 dark:text-slate-400 font-mono truncate pt-1">
-                <strong>Ativos:</strong> {selectedAssets.map((a) => a.id_ativo || a.id).join(', ')}
+              {/* Mini preview dos IDs com Patrimônio Amigável e Chassi */}
+              <div className="text-[10px] text-slate-600 dark:text-slate-400 font-mono flex flex-wrap items-center gap-1.5 pt-1">
+                <strong className="text-slate-500 text-[10px]">Ativos:</strong>
+                {selectedAssets.map((a) => (
+                  <span
+                    key={a.id}
+                    className="px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] flex items-center gap-1 shadow-2xs"
+                  >
+                    <span className="font-bold text-red-600 dark:text-red-500">
+                      {formatFriendlyPatrimonio(a.id_ativo, a.patrimonio)}
+                    </span>
+                    {a.numero_serie && (
+                      <span className="text-slate-400 text-[9px]">
+                        (Chassi: {a.numero_serie})
+                      </span>
+                    )}
+                  </span>
+                ))}
               </div>
             </div>
 
