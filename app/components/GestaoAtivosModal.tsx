@@ -157,13 +157,10 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   const [historyLogs, setHistoryLogs] = useState<AssetMovementRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState<boolean>(false);
 
-  // Modal Cadastro / Edição Individual
-  const [editingItem, setEditingItem] = useState<Partial<AssetStockItemRecord> | null>(null);
-  const [isSavingItem, setIsSavingItem] = useState<boolean>(false);
 
-  // States do form Mês/Ano de Vencimento no Modal de Edição
-  const [editExpiryMonth, setEditExpiryMonth] = useState<number | ''>('');
-  const [editExpiryYear, setEditExpiryYear] = useState<number | ''>('');
+  // Estado de Edição Inline no Card Superior
+  const [editingAssetId, setEditingAssetId] = useState<string | null>(null);
+  const [inlineCustomPatrimonio, setInlineCustomPatrimonio] = useState<string>('');
 
   // Estado do Accordion de Cadastro em Estoque (Substitui o modal intrusivo)
   const [showForm, setShowForm] = useState<boolean>(false);
@@ -183,22 +180,51 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   const [inlineVencimentoAno, setInlineVencimentoAno] = useState<number | ''>(currentYear + 1);
   const [isSubmittingInline, setIsSubmittingInline] = useState<boolean>(false);
 
-  // Cálculo do Patrimônio Sugerido Automático (ex: EXT-000053)
-  const suggestedPatrimonio = useMemo(() => {
-    let maxNum = 0;
-    items.forEach((it) => {
-      const code = it.patrimonio || it.id_ativo || '';
-      const match = code.match(/\d+/);
-      if (match) {
-        const num = parseInt(match[0], 10);
-        if (num > maxNum) maxNum = num;
+  // Inicia edição inline carregando os dados do ativo no card superior
+  const handleStartInlineEdit = (item: AssetStockItemRecord) => {
+    setEditingAssetId(item.id);
+    const patCode = item.patrimonio || item.id_ativo || '';
+    setInlineCustomPatrimonio(patCode);
+    setInlineChassi(item.numero_serie || item.details?.seloInmetro || item.details?.inmetro || '');
+    setInlineCategory(item.category || 'extintores');
+    setInlineAgente(item.model || 'PÓ QUÍMICO ABC');
+    setInlineCapacidade(item.peso_capacidade || '6KG');
+    setInlineFabricante(item.fabricante || 'Kidde');
+    setInlineModelo(item.details?.model || item.model || 'ABC');
+    setInlineLocal(item.location || 'ALMOXARIFADO');
+    setInlineSubLocal(item.sub_location || item.details?.subLocation || '');
+
+    // Vencimento
+    const venc = item.validadeRecarga || item.data_vencimento_teste;
+    if (venc) {
+      const parts = venc.split('-').map(Number);
+      if (parts[0] && parts[1]) {
+        setInlineVencimentoAno(parts[0]);
+        setInlineVencimentoMes(parts[1]);
       }
-    });
-    const nextNum = maxNum > 0 ? maxNum + 1 : 53;
-    return `EXT-${String(nextNum).padStart(6, '0')}`;
-  }, [items]);
+    }
+
+    // Recarga
+    const rec = item.ultima_recarga || item.details?.ultima_recarga;
+    if (rec) {
+      const parts = rec.split('-').map(Number);
+      if (parts[0] && parts[1]) {
+        setInlineRecargaAno(parts[0]);
+        setInlineRecargaMes(parts[1]);
+      }
+    }
+
+    setShowForm(true);
+
+    const formEl = document.getElementById('gestao-ativos-inline-card');
+    if (formEl) {
+      formEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  };
 
   const handleResetInlineForm = () => {
+    setEditingAssetId(null);
+    setInlineCustomPatrimonio('');
     setInlineChassi('');
     setInlineCategory('extintores');
     setInlineAgente('PÓ QUÍMICO ABC');
@@ -212,6 +238,21 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     setInlineVencimentoMes(currentMonth);
     setInlineVencimentoAno(currentYear + 1);
   };
+
+  // Cálculo do Patrimônio Sugerido Automático para novos cadastros (ex: EXT-000053)
+  const suggestedPatrimonio = useMemo(() => {
+    let maxNum = 0;
+    items.forEach((it) => {
+      const code = it.patrimonio || it.id_ativo || '';
+      const match = code.match(/\d+/);
+      if (match) {
+        const num = parseInt(match[0], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    });
+    const nextNum = maxNum > 0 ? maxNum + 1 : 53;
+    return `EXT-${String(nextNum).padStart(6, '0')}`;
+  }, [items]);
 
   const handleSaveInlineStockAsset = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -233,9 +274,14 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           ? (activeTab as StatusEstoqueType)
           : 'ESTOQUE APLICAÇÃO';
 
+      const finalPatrimonio = editingAssetId
+        ? (inlineCustomPatrimonio.trim() || suggestedPatrimonio)
+        : suggestedPatrimonio;
+
       const payload: any = {
-        id_ativo: suggestedPatrimonio,
-        patrimonio: suggestedPatrimonio,
+        id: editingAssetId || undefined,
+        id_ativo: finalPatrimonio,
+        patrimonio: finalPatrimonio,
         numero_serie: inlineChassi || '',
         category: inlineCategory,
         model: inlineModelo || inlineAgente || 'ABC',
@@ -247,7 +293,16 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         status_estoque: targetStatusEstoque,
         validadeRecarga: finalValidade,
         ultima_recarga: finalRecarga,
-        data_vencimento_teste: finalValidade
+        data_vencimento_teste: finalValidade,
+        details: {
+          fabricante: inlineFabricante,
+          peso_capacidade: inlineCapacidade,
+          model: inlineModelo,
+          seloInmetro: inlineChassi,
+          subLocation: inlineSubLocal,
+          ultima_recarga: finalRecarga,
+          validadeRecarga: finalValidade
+        }
       };
 
       const res = await saveSingleAssetStockAction(payload);
@@ -257,22 +312,24 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         handleResetInlineForm();
         setHudAlert({
           isOpen: true,
-          title: 'ATIVO CADASTRADO EM ESTOQUE! 🟢',
-          message: `Ativo "${payload.patrimonio}" gravado com sucesso no inventário em ${payload.status_estoque}.`,
+          title: editingAssetId ? 'ATIVO ATUALIZADO COM SUCESSO! 🟢' : 'ATIVO CADASTRADO EM ESTOQUE! 🟢',
+          message: editingAssetId
+            ? `Ativo "${payload.patrimonio}" atualizado com sucesso no estoque.`
+            : `Ativo "${payload.patrimonio}" gravado com sucesso no inventário em ${payload.status_estoque}.`,
           type: 'success'
         });
       } else {
         setHudAlert({
           isOpen: true,
-          title: 'FALHA AO CADASTRAR ⚠️',
-          message: res.error || 'Não foi possível cadastrar o ativo em estoque.',
+          title: 'FALHA AO SALVAR ⚠️',
+          message: res.error || 'Não foi possível salvar o ativo.',
           type: 'error'
         });
       }
     } catch (err: any) {
       setHudAlert({
         isOpen: true,
-        title: 'ERRO AO CADASTRAR ⚠️',
+        title: 'ERRO AO SALVAR ⚠️',
         message: err.message || err,
         type: 'error'
       });
@@ -358,22 +415,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     }
   }, [isOpen]);
 
-  // Sincroniza mês e ano de vencimento no form de edição
-  useEffect(() => {
-    if (editingItem && (editingItem.validadeRecarga || editingItem.data_vencimento_teste)) {
-      const vStr = editingItem.validadeRecarga || editingItem.data_vencimento_teste || '';
-      if (vStr.length >= 7) {
-        const parts = vStr.split('-');
-        if (parts.length >= 2) {
-          setEditExpiryYear(Number(parts[0]));
-          setEditExpiryMonth(Number(parts[1]));
-        }
-      }
-    } else if (editingItem && !editingItem.validadeRecarga) {
-      setEditExpiryMonth('');
-      setEditExpiryYear('');
-    }
-  }, [editingItem]);
+
 
   // Cálculos de KPI de Regras de Vencimento para Ativos em Estoque
   const stockAssets = useMemo(() => {
@@ -626,54 +668,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     }
   };
 
-  // Salva ativo individual (Novo ou Edição)
-  const handleSaveSingleAsset = async () => {
-    if (!editingItem) return;
 
-    // Atualiza campo de validade formato YYYY-MM-01
-    let finalValidade = editingItem.validadeRecarga;
-    if (editExpiryYear && editExpiryMonth) {
-      finalValidade = `${editExpiryYear}-${String(editExpiryMonth).padStart(2, '0')}-01`;
-    }
-
-    const payloadToSave = {
-      ...editingItem,
-      category: editingItem.category || 'extintores',
-      validadeRecarga: finalValidade,
-      data_vencimento_teste: finalValidade
-    };
-
-    setIsSavingItem(true);
-    try {
-      const res = await saveSingleAssetStockAction(payloadToSave);
-      if (res.success) {
-        await loadAssets();
-        setEditingItem(null);
-        setHudAlert({
-          isOpen: true,
-          title: 'ATIVO GRAVADO COM SUCESSO! 🟢',
-          message: 'As alterações foram salvas e sincronizadas no banco de dados SPCI Master.',
-          type: 'success'
-        });
-      } else {
-        setHudAlert({
-          isOpen: true,
-          title: 'ERRO AO SALVAR ⚠️',
-          message: res.error || 'Falha ao salvar ativo.',
-          type: 'error'
-        });
-      }
-    } catch (err: any) {
-      setHudAlert({
-        isOpen: true,
-        title: 'ERRO AO SALVAR ⚠️',
-        message: err.message || err,
-        type: 'error'
-      });
-    } finally {
-      setIsSavingItem(false);
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-3 sm:p-6 font-mono select-none overflow-y-auto">
@@ -1034,36 +1029,46 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
             />
           ) : (
             <>
-              {/* COMPONENTE EXPANSÍVEL (ACCORDION) DE CADASTRO DE ATIVO EM ESTOQUE */}
+              {/* COMPONENTE EXPANSÍVEL (ACCORDION) DE CADASTRO / EDIÇÃO DE ATIVO EM ESTOQUE */}
               {activeTab !== 'NA ÁREA (APLICADO)' && (
-            <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden transition-all">
+            <div id="gestao-ativos-inline-card" className={`rounded-2xl border bg-white shadow-xs overflow-hidden transition-all ${editingAssetId ? 'border-amber-400 ring-2 ring-amber-400/20' : 'border-slate-200'}`}>
               <button
                 type="button"
                 onClick={() => setShowForm((s) => !s)}
                 aria-expanded={showForm}
-                className="w-full flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3.5 bg-slate-50/80 hover:bg-slate-100/80 transition-colors border-b border-transparent gap-2 cursor-pointer"
+                className={`w-full flex flex-col sm:flex-row items-start sm:items-center justify-between px-4 py-3.5 transition-colors border-b border-transparent gap-2 cursor-pointer ${
+                  editingAssetId ? 'bg-amber-50/70 hover:bg-amber-100/70' : 'bg-slate-50/80 hover:bg-slate-100/80'
+                }`}
               >
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-lg bg-indigo-50 border border-indigo-200 flex items-center justify-center text-indigo-600">
-                    <Package className="w-4 h-4" />
+                  <div className={`w-7 h-7 rounded-lg border flex items-center justify-center ${
+                    editingAssetId ? 'bg-amber-100 border-amber-300 text-amber-800' : 'bg-indigo-50 border-indigo-200 text-indigo-600'
+                  }`}>
+                    {editingAssetId ? <Edit3 className="w-4 h-4" /> : <Package className="w-4 h-4" />}
                   </div>
                   <span className="text-sm font-black font-['Hanken_Grotesk'] text-slate-900 tracking-tight">
-                    Cadastrar Ativo em Estoque
+                    {editingAssetId ? '✏️ Editar Ativo em Estoque' : 'Cadastrar Ativo em Estoque'}
                   </span>
-                  <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-wide bg-slate-200/80 px-2 py-0.5 rounded-md">
+                  <span className={`text-[10px] font-mono font-bold uppercase tracking-wide px-2 py-0.5 rounded-md ${
+                    editingAssetId ? 'bg-amber-200 text-amber-900' : 'bg-slate-200/80 text-slate-500'
+                  }`}>
                     → {activeTab}
                   </span>
                 </div>
                 <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end">
                   <span className="text-[11px] font-sans text-slate-600">
-                    Patrimônio sugerido:{' '}
-                    <span className="font-mono font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">
-                      {suggestedPatrimonio}
+                    {editingAssetId ? 'Ativo em Edição:' : 'Patrimônio sugerido:'}{' '}
+                    <span className={`font-mono font-bold px-1.5 py-0.5 rounded border ${
+                      editingAssetId
+                        ? 'text-amber-800 bg-amber-100/80 border-amber-300'
+                        : 'text-indigo-600 bg-indigo-50 border-indigo-100'
+                    }`}>
+                      {editingAssetId ? inlineCustomPatrimonio : suggestedPatrimonio}
                     </span>
                   </span>
                   <Layers
                     className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${
-                      showForm ? 'rotate-180 text-indigo-600' : ''
+                      showForm ? (editingAssetId ? 'rotate-180 text-amber-600' : 'rotate-180 text-indigo-600') : ''
                     }`}
                   />
                 </div>
@@ -1087,9 +1092,18 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                           </label>
                           <input
                             type="text"
-                            value={suggestedPatrimonio}
-                            readOnly
-                            className="w-full bg-slate-100 border border-slate-300 p-2.5 rounded-xl font-mono text-xs font-black text-indigo-700 cursor-not-allowed select-none shadow-inner"
+                            value={editingAssetId ? inlineCustomPatrimonio : suggestedPatrimonio}
+                            onChange={(e) => {
+                              if (editingAssetId) {
+                                setInlineCustomPatrimonio(e.target.value);
+                              }
+                            }}
+                            readOnly={!editingAssetId}
+                            className={`w-full border p-2.5 rounded-xl font-mono text-xs font-black shadow-inner ${
+                              editingAssetId
+                                ? 'bg-white border-amber-400 text-slate-900 focus:outline-none focus:border-amber-600'
+                                : 'bg-slate-100 border-slate-300 text-indigo-700 cursor-not-allowed select-none'
+                            }`}
                           />
                         </div>
 
@@ -1278,9 +1292,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                       {/* RODAPÉ DO FORMULÁRIO COM AVISO E BOTÕES */}
                       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pt-3 border-t border-slate-200 gap-3">
                         <span className="text-[11px] text-amber-800 font-sans flex items-center gap-1.5">
-                          ⚠️ O ativo será cadastrado diretamente em{' '}
-                          <strong className="font-mono font-bold text-slate-900">{activeTab}</strong> com status{' '}
-                          <strong className="text-emerald-700 font-bold">No Prazo</strong>.
+                          ⚠️ {editingAssetId ? 'As alterações serão aplicadas diretamente ao cadastro do ativo.' : `O ativo será cadastrado diretamente em ${activeTab} com status No Prazo.`}
                         </span>
 
                         <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
@@ -1289,22 +1301,26 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                             onClick={handleResetInlineForm}
                             className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-mono font-bold hover:bg-slate-100 transition-all cursor-pointer"
                           >
-                            Limpar
+                            {editingAssetId ? 'Cancelar Edição' : 'Limpar'}
                           </button>
                           <button
                             type="submit"
                             disabled={isSubmittingInline}
-                            className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-mono font-black uppercase tracking-wider transition-all shadow-md cursor-pointer border-none flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+                            className={`px-5 py-2.5 text-white rounded-xl text-xs font-mono font-black uppercase tracking-wider transition-all shadow-md cursor-pointer border-none flex items-center gap-1.5 active:scale-95 disabled:opacity-50 ${
+                              editingAssetId
+                                ? 'bg-emerald-600 hover:bg-emerald-700'
+                                : 'bg-indigo-600 hover:bg-indigo-700'
+                            }`}
                           >
                             {isSubmittingInline ? (
                               <>
                                 <RefreshCw className="w-4 h-4 animate-spin text-amber-300" />
-                                <span>Gravando...</span>
+                                <span>{editingAssetId ? 'Salvando...' : 'Gravando...'}</span>
                               </>
                             ) : (
                               <>
                                 <Check className="w-4 h-4 text-emerald-300" />
-                                <span>Registrar em Estoque</span>
+                                <span>{editingAssetId ? 'Salvar Alterações' : 'Registrar em Estoque'}</span>
                               </>
                             )}
                           </button>
@@ -1484,9 +1500,9 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                             </button>
 
                             <button
-                              onClick={() => setEditingItem(it)}
+                              onClick={() => handleStartInlineEdit(it)}
                               className="p-1.5 text-slate-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all border border-slate-200 hover:border-red-200 cursor-pointer"
-                              title="Editar Ativo"
+                              title="Editar Ativo no Painel Superior"
                             >
                               <Edit3 className="w-3.5 h-3.5" />
                             </button>
@@ -2054,242 +2070,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         )}
       </AnimatePresence>
 
-      {/* MODAL SECUNDÁRIO: NOVO / EDITAR ATIVO */}
-      <AnimatePresence>
-        {editingItem && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="w-full max-w-xl bg-white border border-slate-200 shadow-2xl rounded-2xl p-6 text-slate-900 relative font-sans max-h-[90vh] overflow-y-auto"
-            >
-              <div className="flex items-center justify-between border-b border-slate-200 pb-3 mb-4 font-mono">
-                <h3 className="text-sm font-black uppercase text-slate-900 flex items-center gap-2">
-                  <Edit3 className="w-4 h-4 text-red-600" />
-                  {editingItem.id ? 'EDITAR ATIVO DE ESTOQUE' : 'CADASTRAR NOVO ATIVO'}
-                </h3>
-                <button
-                  onClick={() => setEditingItem(null)}
-                  className="text-slate-400 hover:text-slate-800"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              <div className="space-y-4 font-sans text-xs">
-                {/* SELEÇÃO DO TIPO DE ATIVO CONTROLADO */}
-                <div>
-                  <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
-                    Tipo de Ativo Controlado em Estoque *:
-                  </label>
-                  <select
-                    value={editingItem.category || 'extintores'}
-                    onChange={(e) => setEditingItem({ ...editingItem, category: e.target.value })}
-                    className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-red-600 cursor-pointer"
-                  >
-                    {ASSET_CATEGORY_OPTIONS.map((cat) => (
-                      <option key={cat.id} value={cat.id}>
-                        {cat.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* SEÇÃO IDENTIFICAÇÃO */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
-                      Código / Patrimônio *:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: EXT-2026-0099"
-                      value={editingItem.patrimonio || editingItem.id_ativo || ''}
-                      onChange={(e) =>
-                        setEditingItem({
-                          ...editingItem,
-                          patrimonio: e.target.value,
-                          id_ativo: e.target.value
-                        })
-                      }
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-red-600"
-                    />
-                  </div>
-                  <div>
-                    <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
-                      Número de Série:
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Ex: SR-991204"
-                      value={editingItem.numero_serie || ''}
-                      onChange={(e) =>
-                        setEditingItem({ ...editingItem, numero_serie: e.target.value })
-                      }
-                      className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-red-600"
-                    />
-                  </div>
-                </div>
-
-                {/* SEÇÃO DADOS TÉCNICOS SINCRO COM CADASTRO EXTINTOR */}
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-3">
-                  <span className="font-mono text-[10px] font-black uppercase tracking-wider text-slate-600 block border-b border-slate-200 pb-1">
-                    ⚙️ DADOS TÉCNICOS DADOS MESTRE
-                  </span>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* MODELO */}
-                    <div>
-                      <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
-                        Modelo do Equipamento *:
-                      </label>
-                      <select
-                        value={editingItem.model || 'ABC'}
-                        onChange={(e) => setEditingItem({ ...editingItem, model: e.target.value })}
-                        className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-red-600"
-                      >
-                        {MODEL_OPTIONS.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* CAPACIDADE / PESO */}
-                    <div>
-                      <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
-                        Capacidade / Peso *:
-                      </label>
-                      <select
-                        value={editingItem.peso_capacidade || '4KG'}
-                        onChange={(e) => setEditingItem({ ...editingItem, peso_capacidade: e.target.value })}
-                        className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-red-600"
-                      >
-                        {WEIGHT_OPTIONS.map((w) => (
-                          <option key={w} value={w}>
-                            {w}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* FABRICANTE */}
-                    <div>
-                      <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
-                        Fabricante *:
-                      </label>
-                      <select
-                        value={editingItem.fabricante || 'Kidde'}
-                        onChange={(e) => setEditingItem({ ...editingItem, fabricante: e.target.value })}
-                        className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-red-600"
-                      >
-                        {FABRICANTE_OPTIONS.map((f) => (
-                          <option key={f} value={f}>
-                            {f}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    {/* STATUS DO ATIVO (EQUIPAMENTO) */}
-                    <div>
-                      <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
-                        Status do Ativo * (Situação):
-                      </label>
-                      <select
-                        value={editingItem.status || 'Operacional'}
-                        onChange={(e) => setEditingItem({ ...editingItem, status: e.target.value })}
-                        className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-bold text-slate-900 focus:outline-none focus:border-red-600"
-                      >
-                        {STATUS_EQUIPAMENTO_OPTIONS.map((s) => (
-                          <option key={s} value={s}>
-                            {s}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* MÊS / ANO DO VENCIMENTO */}
-                  <div>
-                    <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
-                      Mês/Ano do Vencimento * (Validação Futura):
-                    </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <select
-                        value={editExpiryMonth}
-                        onChange={(e) => setEditExpiryMonth(e.target.value ? Number(e.target.value) : '')}
-                        className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-red-600"
-                      >
-                        <option value="">Selecione Mês...</option>
-                        {MONTHS.map((m) => (
-                          <option key={m.value} value={m.value}>
-                            {m.label}
-                          </option>
-                        ))}
-                      </select>
-
-                      <select
-                        value={editExpiryYear}
-                        onChange={(e) => setEditExpiryYear(e.target.value ? Number(e.target.value) : '')}
-                        className="w-full bg-white border border-slate-300 p-2 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-red-600"
-                      >
-                        <option value="">Selecione Ano...</option>
-                        {YEARS.map((y) => (
-                          <option key={y} value={y}>
-                            {y}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* CATEGORIA DE ESTOQUE OPERACIONAL */}
-                <div>
-                  <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
-                    Categoria de Estoque Operacional (Fluxo Inventário):
-                  </label>
-                  <select
-                    value={editingItem.status_estoque || 'ESTOQUE APLICAÇÃO'}
-                    onChange={(e: any) =>
-                      setEditingItem({ ...editingItem, status_estoque: e.target.value })
-                    }
-                    className="w-full bg-slate-50 border border-slate-300 p-2.5 rounded-xl text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-red-600"
-                  >
-                    <option value="ESTOQUE APLICAÇÃO">🟢 ESTOQUE APLICAÇÃO</option>
-                    <option value="ESTOQUE MANUTENÇÃO">🟡 ESTOQUE MANUTENÇÃO</option>
-                    <option value="EM MANUTENÇÃO">🔵 EM MANUTENÇÃO</option>
-                    <option value="CONDENADOS">🔴 CONDENADOS</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="mt-6 flex justify-end gap-2 font-mono">
-                <button
-                  type="button"
-                  onClick={() => setEditingItem(null)}
-                  className="px-4 py-2 border border-slate-300 text-slate-700 rounded-xl text-xs font-bold hover:bg-slate-100 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={handleSaveSingleAsset}
-                  disabled={isSavingItem}
-                  className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white rounded-xl text-xs font-black uppercase transition-all shadow-md cursor-pointer border-none active:scale-95"
-                >
-                  {isSavingItem ? 'Gravando...' : 'Salvar Ativo'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      {/* MODAL SECUNDÁRIO DE EDIÇÃO REMOVIDO: FLUXO UNIFICADO NO CARD SUPERIOR EXPANSÍVEL */}
 
       {/* POP-UP HUD INFORMATIVO */}
       <AnimatePresence>
