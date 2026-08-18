@@ -413,44 +413,61 @@ export async function triageBatchReturnAction(payload: TriageBatchPayload) {
       const assetIdentifier = itemResult.asset_id;
       const idAtivo = itemResult.id_ativo;
 
+      const targetStatus: StatusEstoqueType = isApproved ? 'ESTOQUE APLICAÇÃO' : 'CONDENADOS';
+      const targetTipoMov = isApproved ? 'estoque_aplicacao' : 'condenado';
+      const targetStatusEquip = isApproved ? 'Conforme' : 'Não Conforme';
+
+      const validadeRecargaValue = itemResult.nova_validade_recarga || `${new Date().getFullYear() + 1}-08-18`;
+      const validadeHidroValue = itemResult.nova_validade_hidro || `${new Date().getFullYear() + 5}-12-31`;
+      const defaultUltimaRecarga = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+
+      const orFilters: string[] = [];
+      if (assetIdentifier) orFilters.push(`id.eq."${assetIdentifier}"`);
+      if (idAtivo) orFilters.push(`id_ativo.eq."${idAtivo}"`);
+      if (idAtivo) orFilters.push(`patrimonio.eq."${idAtivo}"`);
+
+      if (orFilters.length > 0) {
+        const { data: matchedAssets } = await supabase
+          .from('assets')
+          .select('id, details, data_vencimento_teste, numero_serie')
+          .or(orFilters.join(','));
+
+        if (matchedAssets && matchedAssets.length > 0) {
+          for (const assetRow of matchedAssets) {
+            const currentDetails = (assetRow.details as any) || {};
+            const mergedDetails = {
+              ...currentDetails,
+              status_estoque: targetStatus,
+              tipo_movimentacao: targetTipoMov,
+              validadeRecarga: isApproved ? validadeRecargaValue : currentDetails.validadeRecarga,
+              ultima_recarga: isApproved ? defaultUltimaRecarga : currentDetails.ultima_recarga,
+              data_vencimento_teste: isApproved ? validadeHidroValue : currentDetails.data_vencimento_teste,
+              seloInmetro: isApproved && itemResult.novo_selo_inmetro ? itemResult.novo_selo_inmetro : (currentDetails.seloInmetro || currentDetails.inmetro),
+            };
+
+            const assetUpdatePayload: any = {
+              status_estoque: targetStatus,
+              tipo_movimentacao: targetTipoMov,
+              lote_manutencao_atual_id: null,
+              status: targetStatusEquip,
+              data_vencimento_teste: isApproved ? validadeRecargaValue : assetRow.data_vencimento_teste,
+              details: mergedDetails,
+              updated_at: nowIso,
+            };
+
+            if (isApproved && itemResult.novo_selo_inmetro) {
+              assetUpdatePayload.numero_serie = itemResult.novo_selo_inmetro;
+            }
+
+            await supabase
+              .from('assets')
+              .update(assetUpdatePayload)
+              .eq('id', assetRow.id);
+          }
+        }
+      }
+
       if (isApproved) {
-        // APROVADO -> Vai para 'ESTOQUE APLICAÇÃO' com novas validades e status Conforme
-        const updatePayload: any = {
-          status_estoque: 'ESTOQUE APLICAÇÃO',
-          tipo_movimentacao: 'estoque_aplicacao',
-          lote_manutencao_atual_id: null,
-          status: 'Conforme',
-          updated_at: nowIso,
-        };
-
-        if (itemResult.nova_validade_recarga) {
-          updatePayload.validadeRecarga = itemResult.nova_validade_recarga;
-          updatePayload.ultima_recarga = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
-        }
-
-        if (itemResult.nova_validade_hidro) {
-          updatePayload.data_vencimento_teste = itemResult.nova_validade_hidro;
-        }
-
-        if (itemResult.novo_selo_inmetro) {
-          updatePayload.numero_serie = itemResult.novo_selo_inmetro;
-        }
-
-        // Executar atualização em assets
-        if (assetIdentifier) {
-          await supabase
-            .from('assets')
-            .update(updatePayload)
-            .eq('id', assetIdentifier);
-        }
-
-        if (idAtivo) {
-          await supabase
-            .from('assets')
-            .update(updatePayload)
-            .or(`id_ativo.eq."${idAtivo}",patrimonio.eq."${idAtivo}"`);
-        }
-
         // Log de auditoria perpétuo de retorno
         await supabase.from('historico_movimentacoes_ativos').insert({
           asset_id: assetIdentifier || idAtivo || 'DESCONHECIDO',
@@ -471,29 +488,6 @@ export async function triageBatchReturnAction(payload: TriageBatchPayload) {
           },
         });
       } else {
-        // CONDENADO -> Vai para 'CONDENADOS' / Inativo
-        const updateCondenadoPayload: any = {
-          status_estoque: 'CONDENADOS',
-          tipo_movimentacao: 'condenado',
-          lote_manutencao_atual_id: null,
-          status: 'Não Conforme',
-          updated_at: nowIso,
-        };
-
-        if (assetIdentifier) {
-          await supabase
-            .from('assets')
-            .update(updateCondenadoPayload)
-            .eq('id', assetIdentifier);
-        }
-
-        if (idAtivo) {
-          await supabase
-            .from('assets')
-            .update(updateCondenadoPayload)
-            .or(`id_ativo.eq."${idAtivo}",patrimonio.eq."${idAtivo}"`);
-        }
-
         // Log de auditoria de condenação
         await supabase.from('historico_movimentacoes_ativos').insert({
           asset_id: assetIdentifier || idAtivo || 'DESCONHECIDO',
@@ -584,7 +578,12 @@ export async function getExtinguisherMaintenanceHistoryAction(assetId: string) {
 export async function reconcileBatchesAndAssetsAction() {
   try {
     const supabase = getSupabaseAdminClient();
-    const nowIso = new Date().toISOString();
+    const now = new Date();
+    const nowIso = now.toISOString();
+    const currentYear = now.getFullYear();
+    const defaultRecargaDate = `${currentYear + 1}-08-18`;
+    const defaultHidroDate = `${currentYear + 5}-12-31`;
+    const defaultUltimaRecarga = `${currentYear}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
 
     // 0. Atualizar lotes legados cadastrados com nome genérico para o gestor responsável
     await supabase
@@ -598,19 +597,17 @@ export async function reconcileBatchesAndAssetsAction() {
       .select('id, numero_lote, status')
       .or('status.eq.FINALIZADO,status.eq.CONCLUIDO,status.eq.CONCLUÍDO');
 
-    const loteIds = (lotesFinalizados || []).map((l) => l.id);
-
-    // 2. Buscar todos os itens triados (Aprovados ou Condenados)
-    let itensQuery = supabase
-      .from('itens_lote_manutencao')
-      .select('*')
-      .in('status_triagem', ['APROVADO', 'CONDENADO']);
-
-    if (loteIds.length > 0) {
-      itensQuery = itensQuery.in('lote_id', loteIds);
+    if (!lotesFinalizados || lotesFinalizados.length === 0) {
+      return { success: true, reconciledCount: 0 };
     }
 
-    const { data: itensLote, error: itensErr } = await itensQuery;
+    const loteIds = lotesFinalizados.map((l) => l.id);
+
+    // 2. Buscar todos os itens pertencentes a lotes finalizados
+    const { data: itensLote, error: itensErr } = await supabase
+      .from('itens_lote_manutencao')
+      .select('*')
+      .in('lote_id', loteIds);
 
     if (itensErr || !itensLote || itensLote.length === 0) {
       return { success: true, reconciledCount: 0 };
@@ -619,69 +616,78 @@ export async function reconcileBatchesAndAssetsAction() {
     let reconciledCount = 0;
 
     for (const item of itensLote) {
-      const isApproved = item.status_triagem === 'APROVADO';
       const isCondemned = item.status_triagem === 'CONDENADO';
+      const isApproved = !isCondemned; // Se o lote foi finalizado e o item não foi condenado, é aprovado
 
-      if (!isApproved && !isCondemned) continue;
+      // Se ainda estava como pendente na tabela de itens, atualiza para APROVADO
+      if (item.status_triagem === 'PENDENTE') {
+        await supabase
+          .from('itens_lote_manutencao')
+          .update({
+            status_triagem: 'APROVADO',
+            nova_validade_recarga: item.nova_validade_recarga || defaultRecargaDate,
+            nova_validade_hidro: item.nova_validade_hidro || defaultHidroDate,
+            triado_em: nowIso,
+          })
+          .eq('id', item.id);
+      }
 
       const targetStatus: StatusEstoqueType = isApproved ? 'ESTOQUE APLICAÇÃO' : 'CONDENADOS';
       const targetTipoMov = isApproved ? 'estoque_aplicacao' : 'condenado';
       const targetStatusEquip = isApproved ? 'Conforme' : 'Não Conforme';
 
-      const updateData: any = {
-        status_estoque: targetStatus,
-        tipo_movimentacao: targetTipoMov,
-        lote_manutencao_atual_id: null,
-        status: targetStatusEquip,
-        updated_at: nowIso,
-      };
+      const validadeRecargaValue = item.nova_validade_recarga || defaultRecargaDate;
+      const validadeHidroValue = item.nova_validade_hidro || defaultHidroDate;
 
-      if (isApproved) {
-        if (item.nova_validade_recarga) {
-          updateData.validadeRecarga = item.nova_validade_recarga;
-          updateData.ultima_recarga = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
+      // Busca o ativo correspondente na tabela assets
+      const orFilters: string[] = [];
+      if (item.asset_id) orFilters.push(`id.eq."${item.asset_id}"`);
+      if (item.id_ativo) orFilters.push(`id_ativo.eq."${item.id_ativo}"`);
+      if (item.patrimonio) orFilters.push(`patrimonio.eq."${item.patrimonio}"`);
+      if (item.numero_serie) orFilters.push(`numero_serie.eq."${item.numero_serie}"`);
+
+      if (orFilters.length === 0) continue;
+
+      const { data: matchedAssets } = await supabase
+        .from('assets')
+        .select('id, details, data_vencimento_teste, numero_serie')
+        .or(orFilters.join(','));
+
+      if (matchedAssets && matchedAssets.length > 0) {
+        for (const assetRow of matchedAssets) {
+          const currentDetails = (assetRow.details as any) || {};
+          const mergedDetails = {
+            ...currentDetails,
+            status_estoque: targetStatus,
+            tipo_movimentacao: targetTipoMov,
+            validadeRecarga: isApproved ? validadeRecargaValue : currentDetails.validadeRecarga,
+            ultima_recarga: isApproved ? defaultUltimaRecarga : currentDetails.ultima_recarga,
+            data_vencimento_teste: isApproved ? validadeHidroValue : currentDetails.data_vencimento_teste,
+            seloInmetro: isApproved && item.novo_selo_inmetro ? item.novo_selo_inmetro : (currentDetails.seloInmetro || currentDetails.inmetro),
+          };
+
+          const updateAssetPayload: any = {
+            status_estoque: targetStatus,
+            tipo_movimentacao: targetTipoMov,
+            lote_manutencao_atual_id: null,
+            status: targetStatusEquip,
+            data_vencimento_teste: isApproved ? validadeRecargaValue : assetRow.data_vencimento_teste,
+            details: mergedDetails,
+            updated_at: nowIso,
+          };
+
+          if (isApproved && item.novo_selo_inmetro) {
+            updateAssetPayload.numero_serie = item.novo_selo_inmetro;
+          }
+
+          await supabase
+            .from('assets')
+            .update(updateAssetPayload)
+            .eq('id', assetRow.id);
+
+          reconciledCount++;
         }
-        if (item.nova_validade_hidro) {
-          updateData.data_vencimento_teste = item.nova_validade_hidro;
-        }
-        if (item.novo_selo_inmetro) {
-          updateData.numero_serie = item.novo_selo_inmetro;
-        }
       }
-
-      // 1. Tenta atualizar por asset_id
-      if (item.asset_id) {
-        await supabase
-          .from('assets')
-          .update(updateData)
-          .eq('id', item.asset_id);
-      }
-
-      // 2. Tenta atualizar por id_ativo
-      if (item.id_ativo) {
-        await supabase
-          .from('assets')
-          .update(updateData)
-          .eq('id_ativo', item.id_ativo);
-      }
-
-      // 3. Tenta atualizar por patrimonio
-      if (item.patrimonio) {
-        await supabase
-          .from('assets')
-          .update(updateData)
-          .eq('patrimonio', item.patrimonio);
-      }
-
-      // 4. Tenta atualizar por numero_serie anterior ou selo
-      if (item.numero_serie) {
-        await supabase
-          .from('assets')
-          .update(updateData)
-          .eq('numero_serie', item.numero_serie);
-      }
-
-      reconciledCount++;
     }
 
     return { success: true, reconciledCount };
