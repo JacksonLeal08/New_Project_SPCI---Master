@@ -586,6 +586,12 @@ export async function reconcileBatchesAndAssetsAction() {
     const supabase = getSupabaseAdminClient();
     const nowIso = new Date().toISOString();
 
+    // 0. Atualizar lotes legados cadastrados com nome genérico para o gestor responsável
+    await supabase
+      .from('lotes_manutencao')
+      .update({ usuario_envio_nome: 'Jackson Leal' })
+      .eq('usuario_envio_nome', 'Operador SPCI');
+
     // 1. Buscar todos os lotes finalizados ou concluídos
     const { data: lotesFinalizados } = await supabase
       .from('lotes_manutencao')

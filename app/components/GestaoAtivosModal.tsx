@@ -45,6 +45,7 @@ import { GestaoAtivosImportModal } from './GestaoAtivosImportModal';
 import BatchCreationModal from './BatchCreationModal';
 import BatchManagementBento from './BatchManagementBento';
 import { idb } from '@/lib/indexedDb';
+import { useSpci } from '@/app/context/SpciContext';
 
 interface GestaoAtivosModalProps {
   isOpen: boolean;
@@ -113,6 +114,14 @@ export const calculateDaysRemaining = (expiryDateStr?: string | null): number | 
 };
 
 export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, onClose }) => {
+  const { currentUser, userProfile } = useSpci();
+  const loggedUserName =
+    userProfile?.name ||
+    currentUser?.displayName ||
+    (currentUser?.email ? currentUser.email.split('@')[0] : '') ||
+    'Jackson Leal';
+  const loggedUserEmail = userProfile?.email || currentUser?.email || undefined;
+
   const [items, setItems] = useState<AssetStockItemRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'Todos' | StatusEstoqueType | 'NA ÁREA (APLICADO)'>('Todos');
@@ -1053,7 +1062,8 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
 
           {activeTab === 'EM MANUTENÇÃO' && emManutencaoViewMode === 'LOTES' ? (
             <BatchManagementBento
-              currentUserName="Operador SPCI"
+              currentUserName={loggedUserName}
+              currentUserEmail={loggedUserEmail}
               onRefreshParent={loadAssets}
             />
           ) : (
@@ -2158,7 +2168,8 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
           isOpen={isBatchCreationModalOpen}
           onClose={() => setIsBatchCreationModalOpen(false)}
           selectedAssets={items.filter((it) => selectedIds.includes(it.id))}
-          currentUserName="Operador SPCI"
+          currentUserName={loggedUserName}
+          currentUserEmail={loggedUserEmail}
           onBatchCreatedSuccess={(numeroLote) => {
             loadAssets();
             setSelectedIds([]);
