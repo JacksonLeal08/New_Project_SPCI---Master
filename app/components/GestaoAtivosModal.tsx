@@ -388,6 +388,33 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
       if (res.success && res.assets && res.assets.length > 0) {
         loaded = res.assets;
         setItems(res.assets);
+
+        // Sincroniza o IndexedDB com o estado atualizado do banco
+        try {
+          const mappedForIdb = res.assets.map((a) => ({
+            id: a.id,
+            idAtivo: a.id_ativo,
+            patrimonio: a.patrimonio,
+            numero_serie: a.numero_serie,
+            category: a.category,
+            model: a.model,
+            fabricante: a.fabricante,
+            peso_capacidade: a.peso_capacidade,
+            validadeRecarga: a.validadeRecarga,
+            ultima_recarga: a.ultima_recarga,
+            data_vencimento_teste: a.data_vencimento_teste,
+            location: a.location,
+            sub_location: a.sub_location,
+            status: a.status,
+            status_estoque: a.status_estoque,
+            tipo_movimentacao: a.tipo_movimentacao,
+            details: a.details,
+            updatedAt: a.updated_at || new Date().toISOString()
+          }));
+          await idb.setAll('extintores', mappedForIdb);
+        } catch (syncErr) {
+          console.warn('[GestaoAtivosModal] Erro ao sincronizar IndexedDB:', syncErr);
+        }
       }
 
       // Dispara o Alerta Formal se houver itens críticos em estoque (dias <= 30)

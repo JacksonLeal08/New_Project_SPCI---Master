@@ -382,8 +382,8 @@ export async function triageBatchReturnAction(payload: TriageBatchPayload) {
         condenadosCount++;
       }
 
-      // Atualizar o item na tabela do lote
-      await supabase
+      // Atualizar o item na tabela do lote (alinhado com schema EXECUTAR_NO_SUPABASE_SPCI_MASTER.sql)
+      const { error: itemUpdateError } = await supabase
         .from('itens_lote_manutencao')
         .update({
           status_triagem: itemResult.status_triagem,
@@ -391,83 +391,119 @@ export async function triageBatchReturnAction(payload: TriageBatchPayload) {
           nova_validade_recarga: itemResult.nova_validade_recarga || null,
           nova_validade_hidro: itemResult.nova_validade_hidro || null,
           motivo_condenacao: itemResult.motivo_condenacao || null,
-          laudo_url: itemResult.laudo_url || null,
+          laudo_tecnico_url: itemResult.laudo_url || null,
           observacoes_triagem: itemResult.observacoes_triagem || null,
-          data_triagem: nowIso,
-          usuario_triagem_nome: payload.usuario_triagem_nome || 'Operador SPCI',
-          updated_at: nowIso,
+          triado_em: nowIso,
         })
         .eq('id', itemResult.item_id);
 
-      // Atualizar o ativo correspondente em assets
-      if (itemResult.asset_id) {
-        if (isApproved) {
-          // APROVADO -> Vai para 'ESTOQUE APLICAÇÃO' com novas validades
-          await supabase
-            .from('assets')
-            .update({
-              status_estoque: 'ESTOQUE APLICAÇÃO',
-              tipo_movimentacao: 'estoque_aplicacao',
-              lote_manutencao_atual_id: null,
-              validadeRecarga: itemResult.nova_validade_recarga || undefined,
-              ultima_recarga: itemResult.nova_validade_recarga ? `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}` : undefined,
-              data_vencimento_teste: itemResult.nova_validade_hidro || undefined,
-              status: 'Conforme',
-              updated_at: nowIso,
-            })
-            .eq('id', itemResult.asset_id);
+      if (itemUpdateError) {
+        console.warn('[triageBatchReturnAction] Aviso ao atualizar item do lote:', itemUpdateError.message);
+      }
 
-          // Log de auditoria
-          await supabase.from('historico_movimentacoes_ativos').insert({
-            asset_id: itemResult.asset_id,
-            id_ativo: itemResult.id_ativo,
-            tipo_evento: 'RETORNO_APROVADO',
-            lote_id: payload.lote_id,
-            numero_lote: lote.numero_lote,
-            status_origem: 'EM MANUTENÇÃO',
-            status_destino: 'ESTOQUE APLICAÇÃO',
-            usuario_responsavel_nome: payload.usuario_triagem_nome || 'Operador SPCI',
-            usuario_responsavel_email: payload.usuario_triagem_email || null,
-            descricao_evento: 'Retorno de manutenção aprovado com selo Inmetro e novas validades aplicadas.',
-            detalhes_alteracao: {
-              novo_selo_inmetro: itemResult.novo_selo_inmetro,
-              nova_validade_recarga: itemResult.nova_validade_recarga,
-              nova_validade_hidro: itemResult.nova_validade_hidro,
-              observacoes: itemResult.observacoes_triagem,
-            },
-          });
-        } else {
-          // CONDENADO -> Vai para 'CONDENADOS' / Inativo
-          await supabase
-            .from('assets')
-            .update({
-              status_estoque: 'CONDENADOS',
-              tipo_movimentacao: 'condenado',
-              lote_manutencao_atual_id: null,
-              status: 'Não Conforme',
-              updated_at: nowIso,
-            })
-            .eq('id', itemResult.asset_id);
+      // Atualizar o ativo correspondente em assets (Busca robusta por ID, id_ativo ou patrimonio)
+      const assetIdentifier = itemResult.asset_id;
+      const idAtivo = itemResult.id_ativo;
 
-          // Log de auditoria de condenação
-          await supabase.from('historico_movimentacoes_ativos').insert({
-            asset_id: itemResult.asset_id,
-            id_ativo: itemResult.id_ativo,
-            tipo_evento: 'CONDENACAO_ATIVO',
-            lote_id: payload.lote_id,
-            numero_lote: lote.numero_lote,
-            status_origem: 'EM MANUTENÇÃO',
-            status_destino: 'CONDENADOS',
-            usuario_responsavel_nome: payload.usuario_triagem_nome || 'Operador SPCI',
-            usuario_responsavel_email: payload.usuario_triagem_email || null,
-            descricao_evento: `Ativo condenado no retorno de manutenção. Motivo: ${itemResult.motivo_condenacao || 'Não especificado'}`,
-            detalhes_alteracao: {
-              motivo_condenacao: itemResult.motivo_condenacao,
-              laudo_url: itemResult.laudo_url,
-              observacoes: itemResult.observacoes_triagem,
-            },
-          });
+      if (isApproved) {
+        // APROVADO -> Vai para 'ESTOQUE APLICAÇÃO' com novas validades e status Conforme
+        const updatePayload: any = {
+          status_estoque: 'ESTOQUE APLICAÇÃO',
+          tipo_movimentacao: 'estoque_aplicacao',
+          lote_manutencao_atual_id: null,
+          status: 'Conforme',
+          updated_at: nowIso,
+        };
+
+        if (itemResult.nova_validade_recarga) {
+          updatePayload.validadeRecarga = itemResult.nova_validade_recarga;
+          updatePayload.ultima_recarga = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-01`;
         }
+
+        if (itemResult.nova_validade_hidro) {
+          updatePayload.data_vencimento_teste = itemResult.nova_validade_hidro;
+        }
+
+        if (itemResult.novo_selo_inmetro) {
+          updatePayload.numero_serie = itemResult.novo_selo_inmetro;
+        }
+
+        // Executar atualização em assets
+        if (assetIdentifier) {
+          await supabase
+            .from('assets')
+            .update(updatePayload)
+            .eq('id', assetIdentifier);
+        }
+
+        if (idAtivo) {
+          await supabase
+            .from('assets')
+            .update(updatePayload)
+            .or(`id_ativo.eq."${idAtivo}",patrimonio.eq."${idAtivo}"`);
+        }
+
+        // Log de auditoria perpétuo de retorno
+        await supabase.from('historico_movimentacoes_ativos').insert({
+          asset_id: assetIdentifier || idAtivo || 'DESCONHECIDO',
+          id_ativo: idAtivo || assetIdentifier || 'DESCONHECIDO',
+          tipo_evento: 'RETORNO_APROVADO',
+          lote_id: payload.lote_id,
+          numero_lote: lote.numero_lote,
+          status_origem: 'EM MANUTENÇÃO',
+          status_destino: 'ESTOQUE APLICAÇÃO',
+          usuario_responsavel_nome: payload.usuario_triagem_nome || 'Operador SPCI',
+          usuario_responsavel_email: payload.usuario_triagem_email || null,
+          descricao_evento: 'Retorno de manutenção aprovado com selo Inmetro e novas validades aplicadas.',
+          detalhes_alteracao: {
+            novo_selo_inmetro: itemResult.novo_selo_inmetro,
+            nova_validade_recarga: itemResult.nova_validade_recarga,
+            nova_validade_hidro: itemResult.nova_validade_hidro,
+            observacoes: itemResult.observacoes_triagem,
+          },
+        });
+      } else {
+        // CONDENADO -> Vai para 'CONDENADOS' / Inativo
+        const updateCondenadoPayload: any = {
+          status_estoque: 'CONDENADOS',
+          tipo_movimentacao: 'condenado',
+          lote_manutencao_atual_id: null,
+          status: 'Não Conforme',
+          updated_at: nowIso,
+        };
+
+        if (assetIdentifier) {
+          await supabase
+            .from('assets')
+            .update(updateCondenadoPayload)
+            .eq('id', assetIdentifier);
+        }
+
+        if (idAtivo) {
+          await supabase
+            .from('assets')
+            .update(updateCondenadoPayload)
+            .or(`id_ativo.eq."${idAtivo}",patrimonio.eq."${idAtivo}"`);
+        }
+
+        // Log de auditoria de condenação
+        await supabase.from('historico_movimentacoes_ativos').insert({
+          asset_id: assetIdentifier || idAtivo || 'DESCONHECIDO',
+          id_ativo: idAtivo || assetIdentifier || 'DESCONHECIDO',
+          tipo_evento: 'CONDENACAO_ATIVO',
+          lote_id: payload.lote_id,
+          numero_lote: lote.numero_lote,
+          status_origem: 'EM MANUTENÇÃO',
+          status_destino: 'CONDENADOS',
+          usuario_responsavel_nome: payload.usuario_triagem_nome || 'Operador SPCI',
+          usuario_responsavel_email: payload.usuario_triagem_email || null,
+          descricao_evento: `Ativo condenado no retorno de manutenção. Motivo: ${itemResult.motivo_condenacao || 'Não especificado'}`,
+          detalhes_alteracao: {
+            motivo_condenacao: itemResult.motivo_condenacao,
+            laudo_url: itemResult.laudo_url,
+            observacoes: itemResult.observacoes_triagem,
+          },
+        });
       }
     }
 
@@ -489,7 +525,9 @@ export async function triageBatchReturnAction(payload: TriageBatchPayload) {
         status: isLoteFinalizado ? 'FINALIZADO' : 'EM_ANDAMENTO',
         total_aprovados: totalAprovadosLote,
         total_condenados: totalCondenadosLote,
-        data_finalizacao: isLoteFinalizado ? nowIso : null,
+        data_conclusao: isLoteFinalizado ? nowIso : null,
+        usuario_triagem_nome: payload.usuario_triagem_nome || 'Operador SPCI',
+        usuario_triagem_email: payload.usuario_triagem_email || null,
         updated_at: nowIso,
       })
       .eq('id', payload.lote_id);
