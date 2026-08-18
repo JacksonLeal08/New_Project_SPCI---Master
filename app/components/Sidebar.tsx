@@ -106,7 +106,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
 
   return (
     <aside 
-      className={`bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex flex-col py-6 shrink-0 shadow-xl border-r border-slate-200 dark:border-slate-800 z-50 h-screen select-none font-sans fixed lg:static inset-y-0 left-0 transform lg:transform-none transition-all duration-300 ${
+      className={`bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex flex-col py-6 shrink-0 shadow-xl border-r border-slate-200 dark:border-slate-800 z-40 h-screen select-none font-sans fixed lg:static inset-y-0 left-0 transform lg:transform-none transition-all duration-300 ${
         isCollapsed ? 'w-20 px-2' : 'w-72 px-4'
       } ${
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'

@@ -153,7 +153,6 @@ export async function createMaintenanceBatchAction(payload: CreateBatchPayload) 
         numero_lote: numeroLote,
         fornecedor_nome: payload.fornecedor_nome.trim(),
         fornecedor_cnpj: payload.fornecedor_cnpj?.trim() || null,
-        fornecedor_contato: payload.fornecedor_contato?.trim() || null,
         status: 'EM_ANDAMENTO',
         total_itens: payload.itens.length,
         total_aprovados: 0,
@@ -169,7 +168,11 @@ export async function createMaintenanceBatchAction(payload: CreateBatchPayload) 
 
     if (loteError || !loteData) {
       console.error('[createMaintenanceBatchAction] Erro ao criar lote:', loteError);
-      return { success: false, error: `Erro ao criar lote: ${loteError?.message}` };
+      const isSchemaError = loteError?.message?.includes('schema cache') || loteError?.message?.includes('does not exist') || loteError?.message?.includes('Could not find');
+      const customMsg = isSchemaError
+        ? "As tabelas de lotes de manutenção ainda não foram criadas no seu banco de dados Supabase. Por favor, execute o script 'EXECUTAR_NO_SUPABASE_SPCI_MASTER.sql' no SQL Editor do Supabase."
+        : `Erro ao criar lote: ${loteError?.message}`;
+      return { success: false, error: customMsg };
     }
 
     const loteId = loteData.id;
@@ -224,13 +227,13 @@ export async function createMaintenanceBatchAction(payload: CreateBatchPayload) 
       id_ativo: item.id_ativo,
       tipo_evento: 'ENVIO_MANUTENCAO',
       lote_id: loteId,
-      lote_numero: numeroLote,
-      status_anterior: 'ESTOQUE MANUTENÇÃO',
-      status_novo: 'EM MANUTENÇÃO',
-      usuario_nome: payload.usuario_envio_nome || 'Operador SPCI',
-      usuario_email: payload.usuario_envio_email || null,
-      motivo: `Envio para recarga/teste hidrostático junto ao fornecedor: ${payload.fornecedor_nome}`,
-      detalhes_tecnicos: {
+      numero_lote: numeroLote,
+      status_origem: 'ESTOQUE MANUTENÇÃO',
+      status_destino: 'EM MANUTENÇÃO',
+      usuario_responsavel_nome: payload.usuario_envio_nome || 'Operador SPCI',
+      usuario_responsavel_email: payload.usuario_envio_email || null,
+      descricao_evento: `Envio para recarga/teste hidrostático junto ao fornecedor: ${payload.fornecedor_nome}`,
+      detalhes_alteracao: {
         fornecedor: payload.fornecedor_nome,
         previsao_retorno: payload.previsao_retorno,
         selo_inmetro_anterior: item.selo_inmetro_anterior,
@@ -401,13 +404,13 @@ export async function triageBatchReturnAction(payload: TriageBatchPayload) {
             id_ativo: itemResult.id_ativo,
             tipo_evento: 'RETORNO_APROVADO',
             lote_id: payload.lote_id,
-            lote_numero: lote.numero_lote,
-            status_anterior: 'EM MANUTENÇÃO',
-            status_novo: 'ESTOQUE APLICAÇÃO',
-            usuario_nome: payload.usuario_triagem_nome || 'Operador SPCI',
-            usuario_email: payload.usuario_triagem_email || null,
-            motivo: 'Retorno de manutenção aprovado com selo Inmetro e novas validades aplicadas.',
-            detalhes_tecnicos: {
+            numero_lote: lote.numero_lote,
+            status_origem: 'EM MANUTENÇÃO',
+            status_destino: 'ESTOQUE APLICAÇÃO',
+            usuario_responsavel_nome: payload.usuario_triagem_nome || 'Operador SPCI',
+            usuario_responsavel_email: payload.usuario_triagem_email || null,
+            descricao_evento: 'Retorno de manutenção aprovado com selo Inmetro e novas validades aplicadas.',
+            detalhes_alteracao: {
               novo_selo_inmetro: itemResult.novo_selo_inmetro,
               nova_validade_recarga: itemResult.nova_validade_recarga,
               nova_validade_hidro: itemResult.nova_validade_hidro,
@@ -433,13 +436,13 @@ export async function triageBatchReturnAction(payload: TriageBatchPayload) {
             id_ativo: itemResult.id_ativo,
             tipo_evento: 'CONDENACAO_ATIVO',
             lote_id: payload.lote_id,
-            lote_numero: lote.numero_lote,
-            status_anterior: 'EM MANUTENÇÃO',
-            status_novo: 'CONDENADOS',
-            usuario_nome: payload.usuario_triagem_nome || 'Operador SPCI',
-            usuario_email: payload.usuario_triagem_email || null,
-            motivo: `Ativo condenado no retorno de manutenção. Motivo: ${itemResult.motivo_condenacao || 'Não especificado'}`,
-            detalhes_tecnicos: {
+            numero_lote: lote.numero_lote,
+            status_origem: 'EM MANUTENÇÃO',
+            status_destino: 'CONDENADOS',
+            usuario_responsavel_nome: payload.usuario_triagem_nome || 'Operador SPCI',
+            usuario_responsavel_email: payload.usuario_triagem_email || null,
+            descricao_evento: `Ativo condenado no retorno de manutenção. Motivo: ${itemResult.motivo_condenacao || 'Não especificado'}`,
+            detalhes_alteracao: {
               motivo_condenacao: itemResult.motivo_condenacao,
               laudo_url: itemResult.laudo_url,
               observacoes: itemResult.observacoes_triagem,

@@ -159,7 +159,11 @@ export async function saveSupplierAction(payload: SaveSupplierPayload): Promise<
     return { success: true, supplier: resultData || undefined };
   } catch (err: any) {
     console.error('[saveSupplierAction] Erro ao salvar fornecedor:', err);
-    return { success: false, error: err.message || 'Erro ao registrar fornecedor no banco de dados.' };
+    const isSchemaError = err?.message?.includes('schema cache') || err?.message?.includes('does not exist') || err?.message?.includes('Could not find');
+    const customMsg = isSchemaError
+      ? "A tabela de fornecedores ainda não foi criada no seu banco Supabase. Por favor, execute o script 'EXECUTAR_NO_SUPABASE_SPCI_MASTER.sql' no SQL Editor do Supabase."
+      : (err.message || 'Erro ao registrar fornecedor no banco de dados.');
+    return { success: false, error: customMsg };
   }
 }
 
