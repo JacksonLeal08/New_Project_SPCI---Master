@@ -586,23 +586,25 @@ export async function reconcileBatchesAndAssetsAction() {
     const supabase = getSupabaseAdminClient();
     const nowIso = new Date().toISOString();
 
-    // 1. Buscar todos os lotes finalizados
-    const { data: lotesFinalizados, error: lotesErr } = await supabase
+    // 1. Buscar todos os lotes finalizados ou concluídos
+    const { data: lotesFinalizados } = await supabase
       .from('lotes_manutencao')
       .select('id, numero_lote, status')
-      .eq('status', 'FINALIZADO');
+      .or('status.eq.FINALIZADO,status.eq.CONCLUIDO,status.eq.CONCLUÍDO');
 
-    if (lotesErr || !lotesFinalizados || lotesFinalizados.length === 0) {
-      return { success: true, reconciledCount: 0 };
-    }
+    const loteIds = (lotesFinalizados || []).map((l) => l.id);
 
-    const loteIds = lotesFinalizados.map((l) => l.id);
-
-    // 2. Buscar itens triados desses lotes
-    const { data: itensLote, error: itensErr } = await supabase
+    // 2. Buscar todos os itens triados (Aprovados ou Condenados)
+    let itensQuery = supabase
       .from('itens_lote_manutencao')
       .select('*')
-      .in('lote_id', loteIds);
+      .in('status_triagem', ['APROVADO', 'CONDENADO']);
+
+    if (loteIds.length > 0) {
+      itensQuery = itensQuery.in('lote_id', loteIds);
+    }
+
+    const { data: itensLote, error: itensErr } = await itensQuery;
 
     if (itensErr || !itensLote || itensLote.length === 0) {
       return { success: true, reconciledCount: 0 };
@@ -641,7 +643,7 @@ export async function reconcileBatchesAndAssetsAction() {
         }
       }
 
-      // Tenta atualizar por asset_id
+      // 1. Tenta atualizar por asset_id
       if (item.asset_id) {
         await supabase
           .from('assets')
@@ -649,15 +651,23 @@ export async function reconcileBatchesAndAssetsAction() {
           .eq('id', item.asset_id);
       }
 
-      // Tenta atualizar por id_ativo ou patrimonio
+      // 2. Tenta atualizar por id_ativo
       if (item.id_ativo) {
         await supabase
           .from('assets')
           .update(updateData)
-          .or(`id_ativo.eq."${item.id_ativo}",patrimonio.eq."${item.id_ativo}"`);
+          .eq('id_ativo', item.id_ativo);
       }
 
-      // Tenta atualizar por numero_serie
+      // 3. Tenta atualizar por patrimonio
+      if (item.patrimonio) {
+        await supabase
+          .from('assets')
+          .update(updateData)
+          .eq('patrimonio', item.patrimonio);
+      }
+
+      // 4. Tenta atualizar por numero_serie anterior ou selo
       if (item.numero_serie) {
         await supabase
           .from('assets')
