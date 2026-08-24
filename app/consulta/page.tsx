@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { SITE_URL } from '@/config/seo';
 import ConsultaIndexClient from './ConsultaIndexClient';
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Consulta Pública de Ativos de Segurança | SISTEMA SPCI',
     description: 'Verifique a conformidade e histórico de manutenção de equipamentos de combate a incêndio.',
-    url: 'https://spci.compliance.app/consulta',
+    url: `${SITE_URL}/consulta`,
     type: 'website',
   },
   twitter: {

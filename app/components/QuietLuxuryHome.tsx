@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { motion } from 'motion/react';
 import { 
   Flame, 
@@ -38,9 +39,12 @@ export default function QuietLuxuryHome() {
           
           {/* Logo & Brand Mark */}
           <div className="flex items-center gap-4">
-            <img 
+            <Image 
               src="/logo-omg.png" 
               alt="Logo Grupo OMG" 
+              width={140}
+              height={40}
+              priority
               className="h-10 w-auto object-contain filter drop-shadow-sm transition-transform hover:scale-105" 
             />
             <div className="border-l border-slate-200 dark:border-slate-800 pl-4 py-1 hidden sm:block">

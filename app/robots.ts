@@ -1,4 +1,5 @@
 import { MetadataRoute } from 'next';
+import { SITE_URL } from '@/config/seo';
 
 export default function robots(): MetadataRoute.Robots {
   return {
@@ -10,6 +11,7 @@ export default function robots(): MetadataRoute.Robots {
         '/consulta',
         '/consulta/*',
         '/public/*',
+        '/qr/*',
       ],
       disallow: [
         '/api/',
@@ -31,9 +33,8 @@ export default function robots(): MetadataRoute.Robots {
         '/inspecao/*',
         '/logout',
         '/acesso-expirado',
-        '/qr/',
       ],
     },
-    sitemap: 'https://spci.compliance.app/sitemap.xml',
+    sitemap: `${SITE_URL}/sitemap.xml`,
   };
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { supabase } from '@/lib/supabaseClient';
 import { 
   ShieldCheck, 
@@ -244,12 +245,14 @@ export default function ExtintorPublicClient({ hash }: { hash: string }) {
             <h3 className="text-[10px] font-extrabold uppercase tracking-widest text-slate-400 border-b border-slate-100 pb-2 flex items-center gap-1.5">
               📷 Foto Registrada do Ativo
             </h3>
-            <div className="w-full h-64 border border-slate-100 rounded-xl overflow-hidden shadow-inner flex items-center justify-center bg-slate-50">
-              <img 
+            <div className="w-full h-64 border border-slate-100 rounded-xl overflow-hidden shadow-inner flex items-center justify-center bg-slate-50 relative">
+              <Image 
                 src={publicPhotoUrl} 
                 alt={`Extintor ${extintor.numero_patrimonio}`} 
+                width={600}
+                height={400}
+                unoptimized
                 className="w-full h-full object-cover" 
-                referrerPolicy="no-referrer"
               />
             </div>
           </section>

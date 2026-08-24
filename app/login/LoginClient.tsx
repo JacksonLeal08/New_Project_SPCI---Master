@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '../context/SpciContext';
 import { Shield, Key, Mail, AlertTriangle, ArrowRight, Eye, EyeOff, CheckSquare, Square } from 'lucide-react';
@@ -180,9 +181,12 @@ export default function LoginClient() {
 
           {/* Logo Brand top - Grupo OMG */}
           <div className="relative flex items-center gap-5">
-            <img 
+            <Image 
               src="/logo-omg.png" 
               alt="Logo Grupo OMG" 
+              width={180}
+              height={56}
+              priority
               className="h-14 lg:h-16 w-auto object-contain brightness-110 drop-shadow-[0_4px_16px_rgba(220,38,38,0.4)] transition-transform hover:scale-105" 
             />
             <div>
@@ -219,7 +223,13 @@ export default function LoginClient() {
           <div className="my-auto w-full max-w-sm mx-auto space-y-8">
             {/* Header info for mobile (logo + branding) */}
             <div className="md:hidden flex items-center gap-3 mb-6">
-              <img src="/logo-omg.png" alt="Logo Grupo OMG" className="h-10 w-auto object-contain drop-shadow-md" />
+              <Image 
+                src="/logo-omg.png" 
+                alt="Logo Grupo OMG" 
+                width={120}
+                height={40}
+                className="h-10 w-auto object-contain drop-shadow-md" 
+              />
               <div>
                 <span className="text-[8px] text-red-600 dark:text-red-500 font-bold tracking-[0.2em] block uppercase leading-none">PLATAFORMA</span>
                 <span className="text-sm font-black text-slate-900 dark:text-slate-100 tracking-tight leading-none mt-1 block">SPCI MASTER</span>

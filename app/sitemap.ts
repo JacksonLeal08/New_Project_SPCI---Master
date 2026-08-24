@@ -1,8 +1,7 @@
 import { MetadataRoute } from 'next';
+import { SITE_URL } from '@/config/seo';
 
 export default function sitemap(): MetadataRoute.Sitemap {
-  const baseUrl = 'https://spci.compliance.app';
-  
   const routes = [
     { path: '', priority: 1.0, changeFrequency: 'daily' as const },
     { path: '/login', priority: 0.8, changeFrequency: 'monthly' as const },
@@ -10,7 +9,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   ];
 
   return routes.map((route) => ({
-    url: `${baseUrl}${route.path}`,
+    url: `${SITE_URL}${route.path}`,
     lastModified: new Date(),
     changeFrequency: route.changeFrequency,
     priority: route.priority,

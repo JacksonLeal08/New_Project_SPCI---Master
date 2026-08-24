@@ -76,21 +76,25 @@ def is_page_file(file_path: Path) -> bool:
 
 
 def find_pages(project_path: Path) -> list:
-    """Find page files to check."""
-    patterns = ['**/*.html', '**/*.htm', '**/*.jsx', '**/*.tsx']
-    
+    """Find page files to check efficiently without traversing ignored directories."""
+    import os
+    valid_suffixes = {'.html', '.htm', '.jsx', '.tsx'}
     files = []
-    for pattern in patterns:
-        for f in project_path.glob(pattern):
-            # Skip excluded directories
-            if any(skip in f.parts for skip in SKIP_DIRS):
-                continue
-            
-            # Check if it's likely a page
-            if is_page_file(f):
-                files.append(f)
     
-    return files[:50]  # Limit to 50 files
+    for root, dirs, filenames in os.walk(project_path):
+        # Prune ignored directories in place
+        dirs[:] = [d for d in dirs if d not in SKIP_DIRS and not d.startswith('.')]
+        
+        for filename in filenames:
+            ext = os.path.splitext(filename)[1].lower()
+            if ext in valid_suffixes:
+                f_path = Path(root) / filename
+                if is_page_file(f_path):
+                    files.append(f_path)
+                    if len(files) >= 100:
+                        return files
+                        
+    return files
 
 
 def check_page(file_path: Path) -> dict:

@@ -1,5 +1,6 @@
 import { Metadata } from 'next';
 import { supabase } from '@/lib/supabaseClient';
+import { SITE_URL } from '@/config/seo';
 import ExtintorPublicClient from './ExtintorPublicClient';
 
 interface Props {
@@ -9,7 +10,7 @@ interface Props {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { hash } = await params;
   const canonicalUrl = `/public/extintores/${hash}`;
-  const fullUrl = `https://spci.compliance.app/public/extintores/${hash}`;
+  const fullUrl = `${SITE_URL}/public/extintores/${hash}`;
   
   try {
     const { data } = await supabase

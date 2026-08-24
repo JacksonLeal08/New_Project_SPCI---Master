@@ -3,6 +3,7 @@ import { Hanken_Grotesk, IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google'
 import { SpciProvider } from './context/SpciContext';
 import { ThemeProvider } from './context/ThemeContext';
 import InstallPwaBanner from './components/InstallPwaBanner';
+import { SITE_URL, SEO_CONFIG } from '@/config/seo';
 import './globals.css';
 
 const hankenGrotesk = Hanken_Grotesk({
@@ -32,13 +33,14 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://spci.compliance.app'),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: 'SISTEMA SPCI - Gestão de Ativos, Prevenção e Combate a Incêndio',
-    template: '%s | SISTEMA SPCI',
+    default: SEO_CONFIG.defaultTitle,
+    template: SEO_CONFIG.titleTemplate,
   },
-  description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios, Auditoria de Conformidade NBR 12962/13714 e Inspeções de Campo SPCI.',
-  manifest: '/manifest.json',
+  description: SEO_CONFIG.defaultDescription,
+  keywords: SEO_CONFIG.keywords,
+  category: SEO_CONFIG.category,
   robots: {
     index: true,
     follow: true,
@@ -68,11 +70,11 @@ export const metadata: Metadata = {
     title: 'SPCI Master',
   },
   openGraph: {
-    title: 'SISTEMA SPCI - Gestão de Ativos e Prevenção de Incêndios',
-    description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios, Auditoria de Conformidade NBR e Inspeções de Campo.',
-    url: 'https://spci.compliance.app',
-    siteName: 'SISTEMA SPCI',
-    locale: 'pt_BR',
+    title: SEO_CONFIG.defaultTitle,
+    description: SEO_CONFIG.defaultDescription,
+    url: SITE_URL,
+    siteName: SEO_CONFIG.siteName,
+    locale: SEO_CONFIG.locale,
     type: 'website',
     images: [
       {
@@ -85,8 +87,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'SISTEMA SPCI - Gestão de Ativos e Prevenção de Incêndios',
-    description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios, Auditoria de Conformidade NBR e Inspeções de Campo.',
+    title: SEO_CONFIG.defaultTitle,
+    description: SEO_CONFIG.defaultDescription,
     images: ['/og-image.png'],
   },
 };
@@ -96,27 +98,57 @@ const jsonLdData = {
   '@graph': [
     {
       '@type': 'Organization',
-      '@id': 'https://spci.compliance.app/#organization',
+      '@id': `${SITE_URL}/#organization`,
       name: 'Grupo OMG - Segurança Contra Incêndio',
-      url: 'https://spci.compliance.app',
-      logo: 'https://spci.compliance.app/logo-omg.png',
+      url: SITE_URL,
+      logo: `${SITE_URL}/logo-omg.png`,
     },
     {
       '@type': 'WebApplication',
-      '@id': 'https://spci.compliance.app/#webapp',
+      '@id': `${SITE_URL}/#webapp`,
       name: 'SISTEMA SPCI Master',
       applicationCategory: 'SecurityApplication',
       operatingSystem: 'All',
-      url: 'https://spci.compliance.app',
-      description: 'Gestão Inteligente de Ativos, Prevenção de Incêndios, Auditoria NBR e Inspeções de Campo SPCI.',
+      url: SITE_URL,
+      description: SEO_CONFIG.defaultDescription,
       publisher: {
-        '@id': 'https://spci.compliance.app/#organization',
+        '@id': `${SITE_URL}/#organization`,
       },
       offers: {
         '@type': 'Offer',
         price: '0',
         priceCurrency: 'BRL',
       },
+    },
+    {
+      '@type': 'FAQPage',
+      '@id': `${SITE_URL}/#faq`,
+      mainEntity: [
+        {
+          '@type': 'Question',
+          name: 'Qual é a periodicidade da inspeção de extintores segundo a NBR 12962?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'A inspeção de nível 1 (visual e operacional) deve ser realizada mensalmente, a manutenção de nível 2 (recarga) anualmente e o ensaio hidrostático (nível 3) a cada 5 anos conforme as normas ABNT NBR 12962 e regulamentações do Inmetro.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Como funciona a vistoria técnica offline-first no SISTEMA SPCI?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'O técnico de campo realiza todo o checklist normativo no smartphone mesmo sem sinal de internet. Ao restabelecer a conexão, os dados e fotos são sincronizados automaticamente com a nuvem em conformidade com o AVCB e NBRs.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Quais itens são vistoriados na rede de hidrantes NBR 13714?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'São auditados o estado das mangueiras de incêndio, acoplamentos Storz, esguichos reguláveis, chaves de mangueira, abrigo, desobstrução física e verificação de pressão residual estática e dinâmica da casa de bombas.',
+          },
+        },
+      ],
     },
   ],
 };

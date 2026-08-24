@@ -19,6 +19,12 @@ import argparse
 import subprocess
 from pathlib import Path
 
+# Fix Windows console encoding
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except:
+    pass
+
 # Detect agent directory name dynamically
 AGENT_DIR = Path(".agents") if Path(".agents").exists() else Path(".agents")
 PID_FILE = AGENT_DIR / "preview.pid"

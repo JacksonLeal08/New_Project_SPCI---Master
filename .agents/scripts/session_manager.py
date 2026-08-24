@@ -13,8 +13,15 @@ Usage:
 import os
 import json
 import argparse
+import sys
 from pathlib import Path
 from typing import Dict, Any, List
+
+# Fix Windows console encoding
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except:
+    pass
 
 def get_project_root(path: str) -> Path:
     return Path(path).resolve()

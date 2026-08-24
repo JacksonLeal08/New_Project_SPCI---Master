@@ -1,16 +1,17 @@
 import { Metadata } from 'next';
+import { SITE_URL, SEO_CONFIG } from '@/config/seo';
 import QuietLuxuryHome from './components/QuietLuxuryHome';
 
 export const metadata: Metadata = {
   title: 'SISTEMA SPCI Master | Gestão e Governança de Combate a Incêndio',
-  description: 'Plataforma de alta precisão para rastreabilidade offline-first de ativos, emissão de laudos de vistoria técnica em tempo real e inteligência preditiva para plantas industriais e edifícios corporativos.',
+  description: 'Plataforma para rastreabilidade de ativos SPCI, emissão de laudos NBR 12962 em tempo real e gestão de combate a incêndio offline-first.',
   alternates: {
     canonical: '/',
   },
   openGraph: {
     title: 'SISTEMA SPCI Master | Gestão e Governança de Combate a Incêndio',
     description: 'Centralização de laudos técnicos NBR 12962, vistorias em tempo real e rastreabilidade offline-first de ativos de segurança contra incêndio.',
-    url: 'https://spci.compliance.app',
+    url: SITE_URL,
     type: 'website',
     images: [
       {

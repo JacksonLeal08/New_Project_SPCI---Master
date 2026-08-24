@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { SITE_URL } from '@/config/seo';
 import LoginClient from './LoginClient';
 
 export const metadata: Metadata = {
@@ -10,7 +11,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Entrar no Cockpit | SPCI Compliance',
     description: 'Acesse o Cockpit de governança e gestão de combate a incêndio do sistema SPCI.',
-    url: 'https://spci.compliance.app/login',
+    url: `${SITE_URL}/login`,
   },
   twitter: {
     card: 'summary_large_image',

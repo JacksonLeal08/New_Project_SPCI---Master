@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { SITE_URL } from '@/config/seo';
 import ConsultaClient from './ConsultaClient';
 
 interface PageProps {
@@ -20,7 +21,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     openGraph: {
       title: `Equipamento ${idUpper} - Inspeção SPCI`,
       description: `Verificação de conformidade e histórico de manutenção do ativo ${idUpper}.`,
-      url: `https://spci.compliance.app/consulta/${id}`,
+      url: `${SITE_URL}/consulta/${id}`,
     },
     twitter: {
       card: 'summary_large_image',
