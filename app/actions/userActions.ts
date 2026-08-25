@@ -45,8 +45,11 @@ export async function createUserAction(payload: {
   try {
     const { email, username, name, role, phone, password, expiresAt, allowedModules, site } = payload;
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+    const serviceRoleKey = 
+      process.env.SUPABASE_SERVICE_ROLE_KEY || 
+      process.env.SUPABASE_SERVICE_KEY || 
+      process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
 
     if (!supabaseUrl) {
       return { success: false, error: 'Variável NEXT_PUBLIC_SUPABASE_URL não configurada no servidor.' };
@@ -55,7 +58,7 @@ export async function createUserAction(payload: {
     if (!serviceRoleKey) {
       return {
         success: false,
-        error: 'SUPABASE_SERVICE_ROLE_KEY ausente. Configure a variável no servidor para criar usuários com segurança.'
+        error: 'SUPABASE_SERVICE_ROLE_KEY ausente. Configure a chave no servidor (.env.local) e reinicie o Next.js para criar usuários com segurança.'
       };
     }
 
