@@ -32,6 +32,7 @@ const serializeProfile = (profile: UserProfile) => {
     perfil_acesso: profile.role,
     status_conta: dbStatus,
     telefone_whatsapp: profile.telefoneWhatsapp || null,
+    site: profile.site || 'TODOS OS SITES (Acesso Global)',
     updated_at: new Date().toISOString()
   };
 };
@@ -375,6 +376,7 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
             logoUrl: cachedAvatar || '',
             role: (isMasterDev ? 'Desenvolvedor' : found.role) as any,
             status: found.status,
+            site: found.site || 'TODOS OS SITES (Acesso Global)',
             telefoneWhatsapp: found.phone || '',
             dataExpiracao: found.dataExpiracao,
             createdAt: found.createdAt || new Date().toISOString(),
@@ -396,6 +398,7 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
       logoUrl: cachedAvatar || '',
       role: initialRole,
       status: 'active',
+      site: 'TODOS OS SITES (Acesso Global)',
       telefoneWhatsapp: '',
       dataExpiracao: null,
       createdAt: new Date().toISOString(),
@@ -421,6 +424,7 @@ export async function registerOrLoginUserProfile(user: { uid: string; displayNam
       logoUrl: cachedAvatar || '',
       role: isMasterDev ? 'Desenvolvedor' : 'Usuário',
       status: 'active',
+      site: 'TODOS OS SITES (Acesso Global)',
       telefoneWhatsapp: '',
       dataExpiracao: null,
       createdAt: new Date().toISOString(),

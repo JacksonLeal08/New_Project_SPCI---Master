@@ -109,10 +109,13 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Redireciona usuários logados para a dashboard se tentarem ir no login
+  // Permite acesso à tela de login para que o usuário possa visualizar a conta conectada ou alternar credenciais
   if (sessionToken && path === '/login') {
-    url.pathname = '/dashboard';
-    return NextResponse.redirect(url);
+    const isDirectNavigate = url.searchParams.get('redirect') === 'dashboard';
+    if (isDirectNavigate) {
+      url.pathname = '/dashboard';
+      return NextResponse.redirect(url);
+    }
   }
 
   // 6. Validação de Expiração de Acesso (ABAC Temporal)

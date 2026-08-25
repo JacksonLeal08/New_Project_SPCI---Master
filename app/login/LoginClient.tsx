@@ -26,8 +26,10 @@ export default function LoginClient() {
   const router = useRouter();
   const { 
     currentUser, 
+    userProfile,
     authChecking, 
-    handleCredentialsLogin 
+    handleCredentialsLogin,
+    handleSystemLogout
   } = useSpci();
 
   const [identifier, setIdentifier] = useState('');
@@ -42,13 +44,6 @@ export default function LoginClient() {
   const [loading, setLoading] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState('');
   const [progress, setProgress] = useState(0);
-
-  // Redirect if already authenticated
-  useEffect(() => {
-    if (!authChecking && currentUser) {
-      router.push('/dashboard');
-    }
-  }, [currentUser, authChecking, router]);
 
   // Capturar e tratar erros de links de e-mail expirados / hash de autenticação
   useEffect(() => {
@@ -240,6 +235,44 @@ export default function LoginClient() {
               <h1 className="text-xl font-bold uppercase text-slate-900 dark:text-slate-100 tracking-wider">Acessar Cockpit SPCI</h1>
               <p className="text-xs text-slate-500 dark:text-slate-400 font-sans">Entre com suas credenciais corporativas SPCI.</p>
             </div>
+
+            {/* Card de Sessão Ativa / Troca Rápida de Conta */}
+            {currentUser && (
+              <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800/60 p-4 rounded-2xl space-y-3 text-left">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300 text-xs font-bold font-['Hanken_Grotesk']">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                    <span>SESSÃO ATIVA DETECTADA</span>
+                  </div>
+                  <span className="text-[9px] font-extrabold uppercase bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 px-2 py-0.5 rounded-md">
+                    {userProfile?.role || 'Conectado'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed">
+                  Conectado como <strong className="font-mono text-slate-900 dark:text-white">{userProfile?.name || currentUser.displayName || currentUser.email}</strong> ({currentUser.email}).
+                </p>
+                <div className="flex gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => router.push('/dashboard')}
+                    className="flex-1 py-2.5 bg-red-600 hover:bg-red-500 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-md flex items-center justify-center gap-1.5 active:scale-95"
+                  >
+                    <span>Ir ao Cockpit</span> <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleSystemLogout();
+                      setIdentifier('');
+                      setPassword('');
+                    }}
+                    className="flex-1 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold text-[10px] uppercase tracking-wider rounded-xl transition-all cursor-pointer border border-slate-200 dark:border-slate-700 active:scale-95"
+                  >
+                    Trocar de Conta 🔄
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Error box */}
             <AnimatePresence>

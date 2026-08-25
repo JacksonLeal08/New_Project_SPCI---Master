@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { CompatibleUser as User } from '@/lib/supabaseAuth';
 import { 
   initAuth, 
@@ -274,6 +274,62 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [complianceLogs, setComplianceLogs] = useState<any[]>([]);
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
+
+  // Helper de correspondência de Site / Planta para isolamento de dados por colaborador
+  const matchesUserSite = useCallback((item: any, site: string | null | undefined) => {
+    if (!site || site.startsWith('TODOS') || userProfile?.role === 'Desenvolvedor') {
+      return true;
+    }
+    const siteUpper = site.trim().toUpperCase();
+    const loc = (item.location || item.local || item.local_instalacao || '').toUpperCase();
+    const subLoc = (item.subLocation || item.sub_location || '').toUpperCase();
+    const proj = (item.projeto || item.details?.projeto || '').toUpperCase();
+    const itemSite = (item.site || item.details?.site || '').toUpperCase();
+    const area = (item.area || item.details?.area || '').toUpperCase();
+
+    return (
+      loc.includes(siteUpper) ||
+      subLoc.includes(siteUpper) ||
+      proj.includes(siteUpper) ||
+      itemSite.includes(siteUpper) ||
+      area.includes(siteUpper)
+    );
+  }, [userProfile?.role]);
+
+  // Listas filtradas reativas de acordo com o escopo do usuário ativo
+  const filteredExtintores = useMemo(() => {
+    return extintores.filter(x => matchesUserSite(x, userProfile?.site));
+  }, [extintores, userProfile?.site, matchesUserSite]);
+
+  const filteredHidrantes = useMemo(() => {
+    return hidrantes.filter(x => matchesUserSite(x, userProfile?.site));
+  }, [hidrantes, userProfile?.site, matchesUserSite]);
+
+  const filteredSinalizacoes = useMemo(() => {
+    return sinalizacoes.filter(x => matchesUserSite(x, userProfile?.site));
+  }, [sinalizacoes, userProfile?.site, matchesUserSite]);
+
+  const filteredIluminacoes = useMemo(() => {
+    return iluminacoes.filter(x => matchesUserSite(x, userProfile?.site));
+  }, [iluminacoes, userProfile?.site, matchesUserSite]);
+
+  const filteredBombas = useMemo(() => {
+    return bombas.filter(x => matchesUserSite(x, userProfile?.site));
+  }, [bombas, userProfile?.site, matchesUserSite]);
+
+  const filteredComplianceLogs = useMemo(() => {
+    if (!userProfile?.site || userProfile.site.startsWith('TODOS') || userProfile.role === 'Desenvolvedor') {
+      return complianceLogs;
+    }
+    const validAssetIds = new Set([
+      ...filteredExtintores.map((x: any) => x.idAtivo || x.id),
+      ...filteredHidrantes.map((x: any) => x.idAtivo || x.id),
+      ...filteredSinalizacoes.map((x: any) => x.idAtivo || x.id),
+      ...filteredIluminacoes.map((x: any) => x.idAtivo || x.id),
+      ...filteredBombas.map((x: any) => x.code || x.idAtivo || x.id)
+    ]);
+    return complianceLogs.filter((log: any) => validAssetIds.has(log.assetId) || matchesUserSite(log, userProfile.site));
+  }, [complianceLogs, userProfile?.site, userProfile?.role, filteredExtintores, filteredHidrantes, filteredSinalizacoes, filteredIluminacoes, filteredBombas, matchesUserSite]);
 
   // Notificações
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -917,6 +973,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
                   logoUrl: '',
                   role: u.role as any,
                   status: u.status,
+                  site: u.site || 'TODOS OS SITES (Acesso Global)',
                   telefoneWhatsapp: u.phone || '',
                   dataExpiracao: u.dataExpiracao,
                   createdAt: u.createdAt || new Date().toISOString(),
@@ -1288,6 +1345,35 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (!res.success) {
         throw new Error(res.error || 'Falha ao atualizar cadastro do colaborador no banco.');
       }
+      // Atualização otimista imediata no estado local
+      const resolvedSite = payload.site || 'TODOS OS SITES (Acesso Global)';
+      setUserList(prev => prev.map(u => u.uid === uid ? {
+        ...u,
+        name: payload.name,
+        userName: payload.username,
+        username: payload.username,
+        email: payload.email,
+        phone: payload.phone,
+        telefoneWhatsapp: payload.phone,
+        role: payload.role,
+        status: payload.status,
+        dataExpiracao: payload.expiresAt,
+        site: resolvedSite
+      } : u));
+
+      // Se o usuário editado for o próprio usuário logado, atualiza seu perfil ativo
+      if (currentUser && currentUser.uid === uid) {
+        setUserProfile((prev: any) => prev ? {
+          ...prev,
+          name: payload.name,
+          userName: payload.username,
+          role: payload.role,
+          status: payload.status,
+          site: resolvedSite,
+          dataExpiracao: payload.expiresAt
+        } : prev);
+      }
+
       await fetchUsers();
       triggerSuccessNotification("Perfil Atualizado! 🟢", `As alterações do usuário ${payload.name} foram salvas no Supabase.`);
       return res;
@@ -1296,7 +1382,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       triggerSuccessNotification("Falha na Atualização ❌", err.message || "Erro de permissão.");
       throw err;
     }
-  }, [fetchUsers, triggerSuccessNotification]);
+  }, [currentUser, fetchUsers, triggerSuccessNotification]);
 
   const handleAdminDeleteUser = useCallback(async (uid: string) => {
     try {
@@ -1506,12 +1592,12 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       authChecking,
       userList,
       loadingUsersList,
-      extintores,
-      hidrantes,
-      sinalizacoes,
-      iluminacoes,
-      bombas,
-      complianceLogs,
+      extintores: filteredExtintores,
+      hidrantes: filteredHidrantes,
+      sinalizacoes: filteredSinalizacoes,
+      iluminacoes: filteredIluminacoes,
+      bombas: filteredBombas,
+      complianceLogs: filteredComplianceLogs,
       extintorChecklist,
       setExtintores,
       setExtintorChecklist,

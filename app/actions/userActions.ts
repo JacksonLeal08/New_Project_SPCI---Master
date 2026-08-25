@@ -349,7 +349,7 @@ export async function updateFullUserAction(
       }
     }
 
-    // 2. Atualizar tabela public.usuarios (SEM o campo site — ele não existe na tabela)
+    // 2. Atualizar tabela public.usuarios (com o campo site e fallback resiliente)
     const userPayload: any = {
       id: userId,
       nome_completo: name,
@@ -359,6 +359,7 @@ export async function updateFullUserAction(
       perfil_acesso: role,
       status_conta: status,
       data_expiracao: expiresAt || null,
+      site: resolvedSite,
       updated_at: new Date().toISOString()
     };
 
@@ -368,6 +369,10 @@ export async function updateFullUserAction(
       .eq('id', userId);
 
     if (updateErr) {
+      // Se a coluna site não existir no schema, remove e tenta novamente
+      if (updateErr.message?.toLowerCase().includes('site')) {
+        delete userPayload.site;
+      }
       // Fallback para upsert caso o registro ainda não exista na tabela
       const { error: upsertErr } = await supabaseAdmin
         .from('usuarios')
@@ -439,13 +444,24 @@ export async function getUsersListAction() {
       });
     });
 
-    // Mescla dados da tabela publica com Auth — Auth metadata TEM PRIORIDADE para o campo site
+    // Mescla dados da tabela publica com Auth garantindo que o site específico prevaleça
     (dbUsers || []).forEach((u: any) => {
       const existing = userMap.get(u.id);
 
-      // SITE: Auth metadata é a FONTE DE VERDADE ÚNICA
-      // O campo site pode não existir na tabela usuarios, por isso Auth sempre prevalece
-      const authSite = existing?.site || 'TODOS OS SITES (Acesso Global)';
+      // Resolução inteligente do Site:
+      // Se houver site customizado no Auth que não seja o default, usa o do Auth.
+      // Se na tabela pública houver site customizado, usa o da tabela pública.
+      // Caso contrário, usa o default 'TODOS OS SITES (Acesso Global)'.
+      let resolvedSite = 'TODOS OS SITES (Acesso Global)';
+      if (existing?.site && !existing.site.startsWith('TODOS')) {
+        resolvedSite = existing.site;
+      } else if (u.site && !u.site.startsWith('TODOS')) {
+        resolvedSite = u.site;
+      } else if (existing?.site) {
+        resolvedSite = existing.site;
+      } else if (u.site) {
+        resolvedSite = u.site;
+      }
 
       userMap.set(u.id, {
         uid: u.id,
@@ -455,7 +471,7 @@ export async function getUsersListAction() {
         phone: u.telefone_whatsapp || existing?.phone || '',
         role: u.perfil_acesso || existing?.role || 'Usuário',
         status: u.status_conta || existing?.status || 'Ativo',
-        site: authSite,
+        site: resolvedSite,
         dataExpiracao: u.data_expiracao || existing?.dataExpiracao || null,
         createdAt: u.created_at || existing?.createdAt || new Date().toISOString()
       });
