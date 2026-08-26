@@ -50,40 +50,69 @@ export async function createUserAction(payload: {
       process.env.SUPABASE_SERVICE_ROLE_KEY || 
       process.env.SUPABASE_SERVICE_KEY || 
       process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
     if (!supabaseUrl) {
       return { success: false, error: 'Variável NEXT_PUBLIC_SUPABASE_URL não configurada no servidor.' };
     }
 
-    if (!serviceRoleKey) {
+    if (!serviceRoleKey && !anonKey) {
       return {
         success: false,
-        error: 'SUPABASE_SERVICE_ROLE_KEY ausente. Configure a chave no servidor (.env.local) e reinicie o Next.js para criar usuários com segurança.'
+        error: 'Configuração ausente: Nenhuma chave Supabase (Service Role ou Anon Key) configurada no ambiente.'
       };
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
-      auth: { autoRefreshToken: false, persistSession: false }
-    });
+    let userId: string | undefined;
+    let supabaseClientOrAdmin: any;
 
-    // 1. Cria o usuário no Supabase Auth com confirmação automática de e-mail
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: {
-        user_name: username,
-        full_name: name,
-        perfil_acesso: role,
-        site: site || 'TODOS OS SITES (Acesso Global)'
+    if (serviceRoleKey) {
+      supabaseClientOrAdmin = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      });
+
+      // 1. Cria o usuário no Supabase Auth com confirmação automática de e-mail (Service Role Admin)
+      const { data: authData, error: authError } = await supabaseClientOrAdmin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: {
+          user_name: username,
+          full_name: name,
+          perfil_acesso: role,
+          site: site || 'TODOS OS SITES (Acesso Global)'
+        }
+      });
+
+      if (authError) {
+        return { success: false, error: `Erro no Supabase Auth: ${authError.message}` };
       }
-    });
+      userId = authData.user?.id;
+    } else {
+      // Fallback gracioso: cria a conta usando a chave anônima pública
+      supabaseClientOrAdmin = createClient(supabaseUrl, anonKey!, {
+        auth: { autoRefreshToken: false, persistSession: false }
+      });
 
-    if (authError) {
-      return { success: false, error: `Erro no Supabase Auth: ${authError.message}` };
+      const { data: authData, error: authError } = await supabaseClientOrAdmin.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            user_name: username,
+            full_name: name,
+            perfil_acesso: role,
+            site: site || 'TODOS OS SITES (Acesso Global)'
+          }
+        }
+      });
+
+      if (authError) {
+        return { success: false, error: `Erro no Supabase Auth (signUp): ${authError.message}` };
+      }
+      userId = authData.user?.id;
     }
 
-    const userId = authData.user?.id;
     if (!userId) {
       return { success: false, error: 'Falha ao obter ID do novo usuário criado no Auth.' };
     }
@@ -98,34 +127,37 @@ export async function createUserAction(payload: {
       perfil_acesso: role,
       status_conta: 'Ativo',
       data_expiracao: expiresAt || null,
-      site: site || 'TODOS'
+      site: site || 'TODOS OS SITES (Acesso Global)',
+      updated_at: new Date().toISOString()
     };
 
-    let { error: dbError } = await supabaseAdmin.from('usuarios').upsert([userPayload], { onConflict: 'id' });
+    let { error: dbError } = await supabaseClientOrAdmin.from('usuarios').upsert([userPayload], { onConflict: 'id' });
 
     // Fallback: se a coluna site não existir no schema da tabela usuarios, remove site e tenta novamente
     if (dbError && dbError.message.includes('site')) {
       console.warn('[createUserAction] Coluna site não encontrada em usuarios. Salvando site exclusivamente no Auth metadata...');
       delete userPayload.site;
-      const fallbackRes = await supabaseAdmin.from('usuarios').upsert([userPayload], { onConflict: 'id' });
+      const fallbackRes = await supabaseClientOrAdmin.from('usuarios').upsert([userPayload], { onConflict: 'id' });
       dbError = fallbackRes.error;
     }
 
     if (dbError) {
-      // Erro crítico: reverter criação no Auth para não deixar órfão
-      console.error('[createUserAction] ERRO ao salvar na tabela usuarios — executando rollback no Auth:', dbError.message);
-      await supabaseAdmin.auth.admin.deleteUser(userId).catch((rErr: any) =>
-        console.error('[createUserAction] Falha no rollback do Auth:', rErr.message)
-      );
+      // Se tiver serviceRoleKey, reverter criação no Auth para não deixar órfão
+      if (serviceRoleKey) {
+        console.error('[createUserAction] ERRO ao salvar na tabela usuarios — executando rollback no Auth:', dbError.message);
+        await supabaseClientOrAdmin.auth.admin.deleteUser(userId).catch((rErr: any) =>
+          console.error('[createUserAction] Falha no rollback do Auth:', rErr.message)
+        );
+      }
       return {
         success: false,
-        error: `Usuário criado no Auth mas falhou ao salvar no banco: ${dbError.message}. A conta foi removida para consistência.`
+        error: `Usuário criado no Auth mas falhou ao salvar no banco: ${dbError.message}.`
       };
     }
 
     // 3. Cadastra as permissões modulares do usuário (se a tabela modulos existir)
     try {
-      const { data: modules } = await supabaseAdmin.from('modulos').select('id, nome');
+      const { data: modules } = await supabaseClientOrAdmin.from('modulos').select('id, nome');
 
       if (modules && modules.length > 0) {
         const permissionsToInsert = modules.map((m: any) => ({
@@ -136,7 +168,7 @@ export async function createUserAction(payload: {
         }));
 
         try {
-          await supabaseAdmin
+          await supabaseClientOrAdmin
             .from('permissoes_modulos')
             .upsert(permissionsToInsert, { onConflict: 'usuario_id,modulo_id' });
         } catch (pErr: any) {
