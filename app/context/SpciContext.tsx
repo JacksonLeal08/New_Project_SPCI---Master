@@ -831,8 +831,12 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
             // Atualizar lista local de auditLogs
             setAuditLogs(prev => [newLog, ...prev]);
 
-            // Se a ação for LOGIN e for de outro usuário, notifica com sinal sonoro e aviso no sininho
-            if (newLog.acao === 'LOGIN' && newLog.usuario_id !== currentUser?.uid) {
+            // Se a ação for LOGIN e for de outro usuário recente, notifica com sinal sonoro e aviso no sininho
+            const logTime = newLog.created_at ? new Date(newLog.created_at).getTime() : 0;
+            const ageMs = Date.now() - logTime;
+            const isDifferentUser = newLog.usuario_id !== currentUser?.uid && newLog.usuario_email !== currentUser?.email;
+
+            if (newLog.acao === 'LOGIN' && isDifferentUser && ageMs < 90000) {
               playTelemetryPingSound();
               triggerSuccessNotification(
                 "👤 Colaborador Conectado!",
@@ -849,6 +853,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 created_at: newLog.created_at || new Date().toISOString()
               };
               setNotifications(prev => {
+                if (prev.some(n => n.id === loginNotif.id)) return prev;
                 const next = [loginNotif, ...prev];
                 idb.setAll('notificacoes', next).catch(console.error);
                 return next;
@@ -1116,31 +1121,40 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         if (data && data.length > 0) {
           const latest = data[0];
           const latestId = latest.id;
+          const logTime = latest.created_at ? new Date(latest.created_at).getTime() : 0;
+          const ageMs = Date.now() - logTime;
+
           if (lastSeenLoginRef.current !== latestId) {
+            const isFirstCheck = lastSeenLoginRef.current === null;
             lastSeenLoginRef.current = latestId;
             const seenKey = `spci_seen_login_${latestId}`;
+
+            // Só notifica se for um login recente (ocorrido nos últimos 90 segundos) e não na carga fria inicial
             if (!sessionStorage.getItem(seenKey)) {
               sessionStorage.setItem(seenKey, '1');
-              playTelemetryPingSound();
-              triggerSuccessNotification(
-                "👤 Colaborador Conectado!",
-                `${latest.usuario_nome || 'Usuário'} (${latest.usuario_email || 'N/A'}) acabou de acessar o sistema.`
-              );
-              const notif: NotificationItem = {
-                id: latestId || generateUUID(),
-                title: "👤 Colaborador Conectado! 🔑",
-                message: `${latest.usuario_nome || 'Usuário'} (${latest.usuario_email || 'N/A'}) efetuou login.`,
-                type: 'alerta',
-                category: 'acesso',
-                read: false,
-                created_at: latest.created_at || new Date().toISOString()
-              };
-              setNotifications(prev => {
-                if (prev.some(n => n.id === notif.id)) return prev;
-                const next = [notif, ...prev];
-                idb.setAll('notificacoes', next).catch(console.error);
-                return next;
-              });
+
+              if (!isFirstCheck && ageMs < 90000) {
+                playTelemetryPingSound();
+                triggerSuccessNotification(
+                  "👤 Colaborador Conectado!",
+                  `${latest.usuario_nome || 'Usuário'} (${latest.usuario_email || 'N/A'}) acabou de acessar o sistema.`
+                );
+                const notif: NotificationItem = {
+                  id: latestId || generateUUID(),
+                  title: "👤 Colaborador Conectado! 🔑",
+                  message: `${latest.usuario_nome || 'Usuário'} (${latest.usuario_email || 'N/A'}) efetuou login.`,
+                  type: 'alerta',
+                  category: 'acesso',
+                  read: false,
+                  created_at: latest.created_at || new Date().toISOString()
+                };
+                setNotifications(prev => {
+                  if (prev.some(n => n.id === notif.id)) return prev;
+                  const next = [notif, ...prev];
+                  idb.setAll('notificacoes', next).catch(console.error);
+                  return next;
+                });
+              }
             }
           }
         }
