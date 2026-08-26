@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { resolveEmailByUsernameAction } from '@/app/actions/userActions';
 
 export interface CompatibleUser {
   uid: string;
@@ -63,6 +64,7 @@ export const googleSignIn = async (): Promise<null> => {
 
 /**
  * Efetua login hibrido aceitando tanto o e-mail quanto o user_name do usuario.
+ * Utiliza Server Action resiliente com auto-cura e fallback para RPC.
  */
 export const signInWithEmailOrUsername = async (identifier: string, password: string): Promise<CompatibleUser | null> => {
   try {
@@ -77,17 +79,39 @@ export const signInWithEmailOrUsername = async (identifier: string, password: st
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     const isEmail = emailRegex.test(email);
 
-    // If it is not a valid email, assume it's a username and call public.get_email_by_username RPC
+    // If it is not a valid email, assume it's a username and resolve via Server Action with RPC fallback
     if (!isEmail) {
-      const { data, error: lookupError } = await supabase.rpc('get_email_by_username', {
-        p_username: email
-      });
+      let resolvedEmail: string | null = null;
 
-      if (lookupError) throw lookupError;
-      if (!data) {
+      // 1. Tenta resolver via Server Action com privilégios Admin e auto-cura na tabela usuarios
+      try {
+        const actionRes = await resolveEmailByUsernameAction(email);
+        if (actionRes?.success && actionRes.email) {
+          resolvedEmail = actionRes.email;
+        }
+      } catch (actErr) {
+        console.warn('Falha na Server Action de resolução de username, tentando RPC:', actErr);
+      }
+
+      // 2. Fallback para RPC se o Server Action não encontrar
+      if (!resolvedEmail) {
+        try {
+          const { data, error: lookupError } = await supabase.rpc('get_email_by_username', {
+            p_username: email
+          });
+
+          if (!lookupError && data) {
+            resolvedEmail = data;
+          }
+        } catch (rpcErr) {
+          console.warn('Falha no RPC get_email_by_username:', rpcErr);
+        }
+      }
+
+      if (!resolvedEmail) {
         throw new Error('Nome de usuário não cadastrado no sistema.');
       }
-      email = data;
+      email = resolvedEmail;
     }
 
     // Efetua autenticacao tradicional por email/senha no Supabase Auth

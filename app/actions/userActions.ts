@@ -45,79 +45,65 @@ export async function createUserAction(payload: {
   try {
     const { email, username, name, role, phone, password, expiresAt, allowedModules, site } = payload;
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
-    const serviceRoleKey = 
-      process.env.SUPABASE_SERVICE_ROLE_KEY || 
-      process.env.SUPABASE_SERVICE_KEY || 
-      process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl) {
-      return { success: false, error: 'Variável NEXT_PUBLIC_SUPABASE_URL não configurada no servidor.' };
-    }
-
-    if (!serviceRoleKey && !anonKey) {
+    // Usa o cliente admin resiliente (já faz fallback para anon key)
+    let supabaseAdmin: any;
+    try {
+      supabaseAdmin = getSupabaseAdminClient();
+    } catch {
       return {
         success: false,
         error: 'Configuração ausente: Nenhuma chave Supabase (Service Role ou Anon Key) configurada no ambiente.'
       };
     }
 
+    const userMetadata = {
+      user_name: username,
+      full_name: name,
+      perfil_acesso: role,
+      site: site || 'TODOS OS SITES (Acesso Global)'
+    };
+
     let userId: string | undefined;
-    let supabaseClientOrAdmin: any;
+    let usedAdminApi = false;
 
-    if (serviceRoleKey) {
-      supabaseClientOrAdmin = createClient(supabaseUrl, serviceRoleKey, {
-        auth: { autoRefreshToken: false, persistSession: false }
-      });
-
-      // 1. Cria o usuário no Supabase Auth com confirmação automática de e-mail (Service Role Admin)
-      const { data: authData, error: authError } = await supabaseClientOrAdmin.auth.admin.createUser({
+    // Estratégia 1: Tenta admin.createUser (funciona com Service Role Key)
+    try {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
         email,
         password,
         email_confirm: true,
-        user_metadata: {
-          user_name: username,
-          full_name: name,
-          perfil_acesso: role,
-          site: site || 'TODOS OS SITES (Acesso Global)'
-        }
+        user_metadata: userMetadata
       });
 
-      if (authError) {
-        return { success: false, error: `Erro no Supabase Auth: ${authError.message}` };
+      if (!authError && authData?.user?.id) {
+        userId = authData.user.id;
+        usedAdminApi = true;
+      } else if (authError) {
+        console.warn('[createUserAction] admin.createUser falhou, tentando signUp:', authError.message);
       }
-      userId = authData.user?.id;
-    } else {
-      // Fallback gracioso: cria a conta usando a chave anônima pública
-      supabaseClientOrAdmin = createClient(supabaseUrl, anonKey!, {
-        auth: { autoRefreshToken: false, persistSession: false }
-      });
+    } catch (adminErr: any) {
+      console.warn('[createUserAction] admin.createUser indisponível:', adminErr?.message || adminErr);
+    }
 
-      const { data: authData, error: authError } = await supabaseClientOrAdmin.auth.signUp({
+    // Estratégia 2: Fallback para signUp (funciona com qualquer chave)
+    if (!userId) {
+      const { data: signUpData, error: signUpError } = await supabaseAdmin.auth.signUp({
         email,
         password,
-        options: {
-          data: {
-            user_name: username,
-            full_name: name,
-            perfil_acesso: role,
-            site: site || 'TODOS OS SITES (Acesso Global)'
-          }
-        }
+        options: { data: userMetadata }
       });
 
-      if (authError) {
-        return { success: false, error: `Erro no Supabase Auth (signUp): ${authError.message}` };
+      if (signUpError) {
+        return { success: false, error: `Erro no Supabase Auth: ${signUpError.message}` };
       }
-      userId = authData.user?.id;
+      userId = signUpData?.user?.id;
     }
 
     if (!userId) {
       return { success: false, error: 'Falha ao obter ID do novo usuário criado no Auth.' };
     }
 
-    // 2. Upsert na tabela pública public.usuarios (tolerante a duplicatas)
+    // 2. Upsert na tabela pública public.usuarios com retry para aguardar propagação do FK
     const userPayload: any = {
       id: userId,
       user_name: username,
@@ -131,21 +117,37 @@ export async function createUserAction(payload: {
       updated_at: new Date().toISOString()
     };
 
-    let { error: dbError } = await supabaseClientOrAdmin.from('usuarios').upsert([userPayload], { onConflict: 'id' });
+    let dbError: any = null;
+    const maxRetries = 3;
 
-    // Fallback: se a coluna site não existir no schema da tabela usuarios, remove site e tenta novamente
-    if (dbError && dbError.message.includes('site')) {
-      console.warn('[createUserAction] Coluna site não encontrada em usuarios. Salvando site exclusivamente no Auth metadata...');
-      delete userPayload.site;
-      const fallbackRes = await supabaseClientOrAdmin.from('usuarios').upsert([userPayload], { onConflict: 'id' });
-      dbError = fallbackRes.error;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      const { error } = await supabaseAdmin.from('usuarios').upsert([userPayload], { onConflict: 'id' });
+      dbError = error;
+
+      // Se a coluna site não existir, remove e tenta novamente
+      if (dbError && dbError.message?.includes('site')) {
+        console.warn('[createUserAction] Coluna site não encontrada. Removendo do payload...');
+        delete userPayload.site;
+        const fallback = await supabaseAdmin.from('usuarios').upsert([userPayload], { onConflict: 'id' });
+        dbError = fallback.error;
+      }
+
+      // Se for FK violation, aguarda e retenta (auth.users pode levar alguns ms para propagar)
+      if (dbError && dbError.message?.includes('foreign key') && attempt < maxRetries) {
+        console.warn(`[createUserAction] FK violation no attempt ${attempt}/${maxRetries}. Aguardando 1.5s...`);
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        continue;
+      }
+
+      // Se não houve erro ou erro não é FK, sai do loop
+      break;
     }
 
     if (dbError) {
-      // Se tiver serviceRoleKey, reverter criação no Auth para não deixar órfão
-      if (serviceRoleKey) {
-        console.error('[createUserAction] ERRO ao salvar na tabela usuarios — executando rollback no Auth:', dbError.message);
-        await supabaseClientOrAdmin.auth.admin.deleteUser(userId).catch((rErr: any) =>
+      // Se usou admin API, reverter criação no Auth para não deixar órfão
+      if (usedAdminApi) {
+        console.error('[createUserAction] ERRO ao salvar na tabela usuarios — executando rollback:', dbError.message);
+        await supabaseAdmin.auth.admin.deleteUser(userId).catch((rErr: any) =>
           console.error('[createUserAction] Falha no rollback do Auth:', rErr.message)
         );
       }
@@ -157,7 +159,7 @@ export async function createUserAction(payload: {
 
     // 3. Cadastra as permissões modulares do usuário (se a tabela modulos existir)
     try {
-      const { data: modules } = await supabaseClientOrAdmin.from('modulos').select('id, nome');
+      const { data: modules } = await supabaseAdmin.from('modulos').select('id, nome');
 
       if (modules && modules.length > 0) {
         const permissionsToInsert = modules.map((m: any) => ({
@@ -168,7 +170,7 @@ export async function createUserAction(payload: {
         }));
 
         try {
-          await supabaseClientOrAdmin
+          await supabaseAdmin
             .from('permissoes_modulos')
             .upsert(permissionsToInsert, { onConflict: 'usuario_id,modulo_id' });
         } catch (pErr: any) {
@@ -384,7 +386,7 @@ export async function updateFullUserAction(
       }
     }
 
-    // 2. Atualizar tabela public.usuarios (com o campo site e fallback resiliente)
+    // 2. Garantir persistência na tabela public.usuarios usando UPSERT (cria se não existir, atualiza se já existir)
     const userPayload: any = {
       id: userId,
       nome_completo: name,
@@ -398,23 +400,21 @@ export async function updateFullUserAction(
       updated_at: new Date().toISOString()
     };
 
-    let { error: updateErr } = await supabaseAdmin
+    let { error: upsertErr } = await supabaseAdmin
       .from('usuarios')
-      .update(userPayload)
-      .eq('id', userId);
+      .upsert([userPayload], { onConflict: 'id' });
 
-    if (updateErr) {
+    if (upsertErr) {
       // Se a coluna site não existir no schema, remove e tenta novamente
-      if (updateErr.message?.toLowerCase().includes('site')) {
+      if (upsertErr.message?.toLowerCase().includes('site')) {
         delete userPayload.site;
+        const retry = await supabaseAdmin
+          .from('usuarios')
+          .upsert([userPayload], { onConflict: 'id' });
+        upsertErr = retry.error;
       }
-      // Fallback para upsert caso o registro ainda não exista na tabela
-      const { error: upsertErr } = await supabaseAdmin
-        .from('usuarios')
-        .upsert([userPayload], { onConflict: 'id' });
-
       if (upsertErr) {
-        console.warn('[updateFullUserAction] Erro no upsert da tabela usuarios:', upsertErr.message);
+        console.warn('[updateFullUserAction] Aviso no upsert da tabela usuarios:', upsertErr.message);
       }
     }
 
@@ -658,5 +658,97 @@ export async function deleteSiteAction(siteName: string) {
   } catch (err: any) {
     console.error('[deleteSiteAction Catch]', err);
     return { success: true };
+  }
+}
+
+/**
+ * Server Action resiliente para resolver o e-mail a partir do nome de usuário (username).
+ * 1. Procura na tabela pública 'usuarios' (case-insensitive)
+ * 2. Se não encontrar, busca nas contas do Supabase Auth Admin (metadados user_name/username)
+ * 3. Se encontrar no Auth mas não na tabela pública, efetua a auto-cura (upsert) na tabela public.usuarios
+ * 4. Retorna o e-mail correspondente para autenticação segura.
+ */
+export async function resolveEmailByUsernameAction(username: string): Promise<{ success: boolean; email?: string; error?: string }> {
+  try {
+    if (!username || !username.trim()) {
+      return { success: false, error: 'Nome de usuário não informado.' };
+    }
+
+    let clean = username.trim();
+    if (clean.startsWith('@')) {
+      clean = clean.slice(1);
+    }
+    const cleanLower = clean.toLowerCase();
+
+    const supabaseAdmin = getSupabaseAdminClient();
+
+    // 1. Tenta buscar na tabela public.usuarios
+    try {
+      const { data: dbUser, error: dbErr } = await supabaseAdmin
+        .from('usuarios')
+        .select('id, email, user_name, nome_completo, perfil_acesso, status_conta, telefone_whatsapp, data_expiracao, site')
+        .ilike('user_name', cleanLower)
+        .maybeSingle();
+
+      if (!dbErr && dbUser?.email) {
+        return { success: true, email: dbUser.email.trim() };
+      }
+    } catch (e: any) {
+      console.warn('[resolveEmailByUsernameAction] Erro na consulta db usuarios:', e?.message || e);
+    }
+
+    // 2. Fallback resiliente: Busca no Supabase Auth Admin listUsers
+    try {
+      const { data: authData, error: authErr } = await supabaseAdmin.auth.admin.listUsers();
+      if (!authErr && authData?.users && authData.users.length > 0) {
+        const foundUser = authData.users.find((u: any) => {
+          const meta = u.user_metadata || {};
+          const metaUsername = (meta.user_name || meta.username || '').toLowerCase().trim();
+          const emailPrefix = (u.email || '').split('@')[0].toLowerCase().trim();
+          return metaUsername === cleanLower || emailPrefix === cleanLower;
+        });
+
+        if (foundUser && foundUser.email) {
+          const userEmail = foundUser.email.trim();
+          const meta = foundUser.user_metadata || {};
+
+          // 3. Auto-cura: Sincroniza o usuário que estava faltando na tabela public.usuarios
+          try {
+            const syncPayload: any = {
+              id: foundUser.id,
+              nome_completo: meta.full_name || meta.name || foundUser.email?.split('@')[0] || 'Sem nome',
+              user_name: cleanLower,
+              email: userEmail,
+              telefone_whatsapp: meta.telefone_whatsapp || foundUser.phone || '',
+              perfil_acesso: meta.perfil_acesso || meta.role || 'Usuário',
+              status_conta: foundUser.banned_until ? 'Inativo/Suspenso' : 'Ativo',
+              data_expiracao: meta.data_expiracao || null,
+              site: meta.site || 'TODOS OS SITES (Acesso Global)',
+              updated_at: new Date().toISOString()
+            };
+
+            const { error: syncErr } = await supabaseAdmin
+              .from('usuarios')
+              .upsert([syncPayload], { onConflict: 'id' });
+
+            if (syncErr && syncErr.message?.toLowerCase().includes('site')) {
+              delete syncPayload.site;
+              await supabaseAdmin.from('usuarios').upsert([syncPayload], { onConflict: 'id' });
+            }
+          } catch (syncError) {
+            console.warn('[resolveEmailByUsernameAction] Auto-cura ignorada por aviso:', syncError);
+          }
+
+          return { success: true, email: userEmail };
+        }
+      }
+    } catch (authListErr: any) {
+      console.warn('[resolveEmailByUsernameAction] Erro no fallback Auth listUsers:', authListErr?.message || authListErr);
+    }
+
+    return { success: false, error: 'Nome de usuário não cadastrado no sistema.' };
+  } catch (globalErr: any) {
+    console.error('[resolveEmailByUsernameAction Global Catch]', globalErr);
+    return { success: false, error: globalErr.message || 'Erro ao validar nome de usuário.' };
   }
 }
