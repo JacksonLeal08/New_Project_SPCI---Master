@@ -9,7 +9,9 @@ import {
   Trash2, 
   UserPlus, 
   Check,
-  Pencil
+  Pencil,
+  Share2,
+  Copy
 } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
 import { createSiteAction, fetchSitesAction, deleteSiteAction } from '@/app/actions/userActions';
@@ -214,6 +216,29 @@ export default function ConfiguracoesPage() {
     'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
   ]);
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // User share credentials modal & quick copy states
+  const [sharingUser, setSharingUser] = useState<any | null>(null);
+  const [shareCustomPassword, setShareCustomPassword] = useState('');
+  const [shareCopied, setShareCopied] = useState(false);
+
+  const handleOpenShareModal = (user: any) => {
+    setSharingUser(user);
+    setShareCustomPassword('');
+    setShareCopied(false);
+  };
+
+  const handleQuickCopyUserCredentials = async (user: any) => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://spci-master.vercel.app';
+    const textToCopy = `🏢 *GRUPO OMG // SPCI MASTER*\n───────────────\n🔥 *CREDENCIAIS DE ACESSO CORPORATIVO*\n\nOlá, *${user.name}*!\nSeu perfil de acesso ao *SPCI Master* está ativo.\n\n📍 *Nível de Acesso:* ${user.role || 'Usuário'}\n🌐 *Link do Cockpit:* ${origin}/login\n📧 *E-mail / Login:* ${user.email}\n👤 *Username:* @${user.userName || user.username || 'usuario'}\n` + (user.dataExpiracao ? `⏳ *Validade:* até ${new Date(user.dataExpiracao).toLocaleDateString('pt-BR')}\n` : '') + `\n───────────────\n⚠️ *Instrução:* Acesse o link acima para entrar no sistema com suas credenciais.\n\n_Grupo OMG © 2026 - Todos os Direitos Reservados_`;
+
+    try {
+      await copyToClipboard(textToCopy);
+      triggerSuccessNotification("Credenciais Copiadas! 📋", `Os dados de acesso de ${user.name} foram copiados.`);
+    } catch (e) {
+      console.error('Erro ao copiar credenciais:', e);
+    }
+  };
 
   const handleOpenEditModal = (user: any) => {
     setEditingUser(user);
@@ -645,7 +670,17 @@ export default function ConfiguracoesPage() {
                               </div>
                             </td>
                             <td className="p-4 text-[10px] text-slate-500">
-                              <p className="font-bold text-red-650">@{u.userName || 'n/a'}</p>
+                              <div className="flex items-center gap-1.5">
+                                <p className="font-bold text-red-650">@{u.userName || 'n/a'}</p>
+                                <button
+                                  type="button"
+                                  onClick={() => handleQuickCopyUserCredentials(u)}
+                                  className="p-1 hover:bg-slate-100 text-slate-400 hover:text-red-650 rounded-md transition-all cursor-pointer border border-transparent hover:border-slate-200"
+                                  title="Copiar dados de acesso do colaborador (1 clique)"
+                                >
+                                  <Copy className="w-3 h-3" />
+                                </button>
+                              </div>
                               <p className="text-slate-400 mt-0.5">{u.email}</p>
                               {u.telefoneWhatsapp && (
                                 <p className="text-emerald-600 font-bold mt-0.5">📞 {u.telefoneWhatsapp}</p>
@@ -693,7 +728,14 @@ export default function ConfiguracoesPage() {
                               </select>
                             </td>
                             <td className="p-4 text-center">
-                              <div className="flex items-center justify-center gap-2">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button 
+                                  onClick={() => handleOpenShareModal(u)}
+                                  className="text-emerald-600 hover:text-emerald-700 p-2 bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200/80 rounded-xl cursor-pointer transition-all shadow-xs"
+                                  title="Compartilhar credenciais de acesso via WhatsApp ou Copiar"
+                                >
+                                  <Share2 className="w-3.5 h-3.5" />
+                                </button>
                                 <button 
                                   onClick={() => handleOpenEditModal(u)}
                                   disabled={disableActions}
@@ -1142,6 +1184,138 @@ export default function ConfiguracoesPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* 3.5. Modal: Compartilhamento de Credenciais de Usuário Existente */}
+      {sharingUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-mono select-none">
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 12 }}
+            className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl p-6 relative overflow-hidden space-y-4 text-xs text-slate-800"
+          >
+            <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-600 rounded-t-2xl" />
+
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-inner">
+                📲
+              </div>
+              <div>
+                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
+                  Compartilhar Credenciais
+                </h3>
+                <p className="text-[10px] text-slate-500 font-sans mt-0.5">
+                  Envio de dados de acesso corporativo e link do Cockpit SPCI
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2.5 text-[11px]">
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Colaborador</span>
+                <span className="font-extrabold text-slate-900 text-xs">{sharingUser.name}</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Username</span>
+                  <span className="text-red-650 font-bold">@{sharingUser.userName || sharingUser.username}</span>
+                </div>
+                <div>
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Nível RBAC</span>
+                  <span className="text-slate-800 font-bold">{sharingUser.role || 'Usuário'}</span>
+                </div>
+              </div>
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">E-mail Corporativo</span>
+                <span className="text-slate-800 font-bold">{sharingUser.email}</span>
+              </div>
+              {sharingUser.telefoneWhatsapp && (
+                <div>
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">WhatsApp Cadastrado</span>
+                  <span className="text-emerald-700 font-bold">📞 {sharingUser.telefoneWhatsapp}</span>
+                </div>
+              )}
+              <div>
+                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Site / Localidade</span>
+                <span className="text-slate-700 font-bold">{sharingUser.site || 'TODOS OS SITES (Acesso Global)'}</span>
+              </div>
+              {sharingUser.dataExpiracao && (
+                <div>
+                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Expiração da Conta</span>
+                  <span className="text-amber-600 font-bold">{new Date(sharingUser.dataExpiracao).toLocaleDateString('pt-BR')}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="block text-[9px] font-bold uppercase text-slate-500">
+                Senha Provisória / Nova Senha (Opcional)
+              </label>
+              <input
+                type="text"
+                value={shareCustomPassword}
+                onChange={(e) => setShareCustomPassword(e.target.value)}
+                placeholder="Ex: Digite uma nova senha caso queira incluir"
+                className="w-full bg-white border border-slate-200 focus:border-emerald-600 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold shadow-xs"
+              />
+              <p className="text-[9px] text-slate-400 font-sans">
+                Deixe em branco para enviar a instrução de login com a senha já definida pelo usuário.
+              </p>
+            </div>
+
+            <div className="space-y-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => {
+                  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://spci-master.vercel.app';
+                  const passText = shareCustomPassword.trim() 
+                    ? `🔑 *Senha Temporária:* ${shareCustomPassword.trim()}\n` 
+                    : `🔑 *Senha:* Utilize sua senha já cadastrada no sistema.\n`;
+                  const textToCopy = `🏢 *GRUPO OMG // SPCI MASTER*\n───────────────\n🔥 *CREDENCIAIS DE ACESSO CORPORATIVO*\n\nOlá, *${sharingUser.name}*!\nSeu perfil de acesso ao *SPCI Master* está pronto para uso.\n\n📍 *Nível de Acesso:* ${sharingUser.role || 'Usuário'}\n🌐 *Link do Cockpit:* ${origin}/login\n📧 *E-mail / Login:* ${sharingUser.email}\n👤 *Username:* @${sharingUser.userName || sharingUser.username}\n${passText}` + (sharingUser.dataExpiracao ? `⏳ *Validade:* até ${new Date(sharingUser.dataExpiracao).toLocaleDateString('pt-BR')}\n` : '') + `\n───────────────\n⚠️ *Instrução:* Acesse o link acima para entrar no sistema.\n\n_Grupo OMG © 2026 - Todos os Direitos Reservados_`;
+                  
+                  copyToClipboard(textToCopy)
+                    .then(() => {
+                      setShareCopied(true);
+                      setTimeout(() => setShareCopied(false), 2000);
+                    })
+                    .catch((err) => console.error('Erro ao copiar:', err));
+                }}
+                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer shadow-md"
+              >
+                {shareCopied ? '✓ Mensagem Copiada!' : '📋 Copiar Mensagem de Acesso'}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://spci-master.vercel.app';
+                  const passText = shareCustomPassword.trim() 
+                    ? `🔑 *Senha Temporária:* ${shareCustomPassword.trim()}\n` 
+                    : `🔑 *Senha:* Utilize sua senha já cadastrada no sistema.\n`;
+                  const msg = `🏢 *GRUPO OMG // SPCI MASTER*\n───────────────\n🔥 *CREDENCIAIS DE ACESSO CORPORATIVO*\n\nOlá, *${sharingUser.name}*!\nSeu perfil de acesso ao *SPCI Master* está pronto para uso.\n\n📍 *Nível de Acesso:* ${sharingUser.role || 'Usuário'}\n🌐 *Link do Cockpit:* ${origin}/login\n📧 *E-mail / Login:* ${sharingUser.email}\n👤 *Username:* @${sharingUser.userName || sharingUser.username}\n${passText}` + (sharingUser.dataExpiracao ? `⏳ *Validade:* até ${new Date(sharingUser.dataExpiracao).toLocaleDateString('pt-BR')}\n` : '') + `\n───────────────\n⚠️ *Instrução:* Acesse o link acima para entrar no sistema.\n\n_Grupo OMG © 2026 - Todos os Direitos Reservados_`;
+                  const rawPhone = sharingUser.telefoneWhatsapp || sharingUser.phone || '';
+                  const cleanPhone = rawPhone.replace(/\D/g, '');
+                  const whatsappUrl = cleanPhone 
+                    ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
+                    : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
+                  window.open(whatsappUrl, '_blank');
+                }}
+                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-2 transition-all border-none cursor-pointer shadow-md"
+              >
+                <span>📲</span> Compartilhar via WhatsApp
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSharingUser(null)}
+                className="w-full py-2.5 border border-slate-200 hover:bg-slate-50 bg-white text-slate-500 font-bold rounded-xl text-[10px] uppercase transition-all cursor-pointer shadow-xs"
+              >
+                Fechar
+              </button>
+            </div>
+          </motion.div>
         </div>
       )}
 
