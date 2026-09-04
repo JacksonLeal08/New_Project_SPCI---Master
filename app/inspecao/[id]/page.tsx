@@ -25,7 +25,8 @@ import {
   Plus,
   Sun,
   Moon,
-  QrCode
+  QrCode,
+  Camera
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fetchAtivoParaInspecao, salvarInspecaoNoSupabase, saveAssetToDb } from '@/lib/supabaseDb';
@@ -36,6 +37,9 @@ import { sanitizeInputText, parseInmetroCode, copyToClipboard } from '@/lib/util
 import { useSpci } from '@/app/context/SpciContext';
 import { useSync } from '@/hooks/useSync';
 import QrCameraScanner from '@/app/components/QrCameraScanner';
+import { MediaCaptureModal } from '@/app/components/MediaCaptureModal';
+import { processAssetLocationUpdateAction } from '@/app/actions/geoTrackingActions';
+import { GeoCoordinates } from '@/lib/geoUtils';
 
 // Tipagem de categorias
 interface CategoriaOpcao {
@@ -136,6 +140,12 @@ function InspecaoOuCadastroContent() {
   const [observacoes, setObservacoes] = useState<string>('');
   const [formSubmitted, setFormSubmitted] = useState<boolean>(false);
   const [submissionStatus, setSubmissionStatus] = useState<'success_online' | 'success_offline' | 'error' | null>(null);
+
+  // --- ESTADOS DE EVIDÊNCIA FOTOGRÁFICA E GEOCAPTURA (MOMENTOS 2 E 3) ---
+  const [fotoEvidenciaUrl, setFotoEvidenciaUrl] = useState<string | null>(null);
+  const [fotoEvidenciaCoords, setFotoEvidenciaCoords] = useState<GeoCoordinates | null>(null);
+  const [isMediaModalOpen, setIsMediaModalOpen] = useState<boolean>(false);
+  const [geoDisplacementInfo, setGeoDisplacementInfo] = useState<string | null>(null);
 
   // Estados Visuais
   const [copied, setCopied] = useState<boolean>(false);
@@ -564,6 +574,19 @@ function InspecaoOuCadastroContent() {
         sub_local_id: finalSubLocalId === 'NEW' ? null : (finalSubLocalId || null),
         modelo_id: null,
         
+        // Momento 2: Dados de georreferenciamento (Ronda Descoberta)
+        latitude: fotoEvidenciaCoords?.latitude || null,
+        longitude: fotoEvidenciaCoords?.longitude || null,
+        precisao_gps: fotoEvidenciaCoords?.accuracy || null,
+        origem_localizacao: 'RONDA_CAMPO',
+        data_ultima_localizacao: fotoEvidenciaCoords ? new Date().toISOString() : null,
+        geolocation: (fotoEvidenciaCoords?.latitude && fotoEvidenciaCoords?.longitude) ? {
+          lat: fotoEvidenciaCoords.latitude,
+          lng: fotoEvidenciaCoords.longitude
+        } : null,
+        foto_url: fotoEvidenciaUrl || null,
+        fotoUrl: fotoEvidenciaUrl || null,
+
         // Novos atributos estruturados
         fabricante: fabricante.trim() || 'N/A',
         capacidadeExtintora: capacidadeExtintora.trim() || 'N/A',
@@ -590,6 +613,20 @@ function InspecaoOuCadastroContent() {
 
       // Adiciona ao IndexedDB local do técnico imediatamente para aparecer na listagem
       await idb.set(cadastroCategoria, patrimonioCompleto, novoAtivo);
+
+      // Se coordenadas foram capturadas no Momento 2, processar rastreamento e histórico no backend
+      if (fotoEvidenciaCoords) {
+        processAssetLocationUpdateAction({
+          assetId: patrimonioCompleto,
+          category: cadastroCategoria,
+          latitude: fotoEvidenciaCoords.latitude,
+          longitude: fotoEvidenciaCoords.longitude,
+          accuracy: fotoEvidenciaCoords.accuracy,
+          tipoEvento: 'RONDA_CAMPO',
+          fotoEvidenciaUrl: fotoEvidenciaUrl,
+          usuario: { nome: 'Técnico Ronda' }
+        }).catch(err => console.warn('[Ronda Descoberta] Aviso ao registrar histórico GPS:', err));
+      }
 
       setCadastroSucesso(true);
     } catch (err) {
@@ -631,13 +668,17 @@ function InspecaoOuCadastroContent() {
       checklistDetails[item.key] = item.conforme || false;
     });
 
-    const inspecao: InspecaoRealizada = {
+    const inspecao: InspecaoRealizada & { latitude?: number | null; longitude?: number | null; precisao_gps?: number | null; foto_evidencia_url?: string | null } = {
       asset_id: ativo.id,
       asset_patrimonio: ativo.idAtivo || ativo.id_ativo || rawId,
       status: finalStatus,
       tecnico_nome: tecnicoNome.trim(),
       observacoes: observacoes.trim(),
       data_inspecao: new Date().toISOString(),
+      latitude: fotoEvidenciaCoords?.latitude || null,
+      longitude: fotoEvidenciaCoords?.longitude || null,
+      precisao_gps: fotoEvidenciaCoords?.accuracy || null,
+      foto_evidencia_url: fotoEvidenciaUrl || null,
       details: {
         lacre_presente: checklistDetails.lacre_presente,
         pressao_adequada: checklistDetails.pressao_adequada,
@@ -645,6 +686,10 @@ function InspecaoOuCadastroContent() {
         obstruido: checklistDetails.obstruido,
         sinalizado: checklistDetails.sinalizado,
         casco_pintura: checklistDetails.casco_pintura || false,
+        foto_evidencia_url: fotoEvidenciaUrl || null,
+        geo_latitude: fotoEvidenciaCoords?.latitude || null,
+        geo_longitude: fotoEvidenciaCoords?.longitude || null,
+        geo_precisao: fotoEvidenciaCoords?.accuracy || null
       }
     };
 
@@ -670,6 +715,27 @@ function InspecaoOuCadastroContent() {
       } else {
         await SyncQueue.enqueueInspection(inspecao);
         setSubmissionStatus('success_offline');
+      }
+
+      // Momento 3: Processamento transacional de divergência e histórico (Haversine >= 5m)
+      if (fotoEvidenciaCoords) {
+        try {
+          const geoRes = await processAssetLocationUpdateAction({
+            assetId: ativo.idAtivo || ativo.id_ativo || ativo.id || rawId,
+            category: ativo.category || 'extintores',
+            latitude: fotoEvidenciaCoords.latitude,
+            longitude: fotoEvidenciaCoords.longitude,
+            accuracy: fotoEvidenciaCoords.accuracy,
+            tipoEvento: 'INSPECAO',
+            fotoEvidenciaUrl: fotoEvidenciaUrl,
+            usuario: { nome: tecnicoNome.trim() }
+          });
+          if (geoRes?.reason) {
+            setGeoDisplacementInfo(geoRes.reason);
+          }
+        } catch (geoErr) {
+          console.warn('[Inspeção] Erro no processamento geoespacial:', geoErr);
+        }
       }
 
       // Registrar log de auditoria no cliente (tanto online quanto offline)
@@ -1231,6 +1297,60 @@ function InspecaoOuCadastroContent() {
                   </section>
                 )}
 
+                {/* 4. Evidência Fotográfica e Geocaptura (Momento 2: Descoberta) */}
+                <section className={`${cardClass} p-5 space-y-3 rounded-2xl`}>
+                  <div className={`flex items-center justify-between border-b pb-2 ${borderBottomClass}`}>
+                    <h3 className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${isDark ? 'text-slate-350' : 'text-slate-700'}`}>
+                      <Camera size={12} className="text-red-500" />
+                      Foto Comprobatória & Georreferenciamento
+                    </h3>
+                    <span className="text-[8px] font-mono font-bold text-red-500 uppercase">Momento 2 (Ronda de Descoberta)</span>
+                  </div>
+
+                  {fotoEvidenciaUrl ? (
+                    <div className="space-y-2">
+                      <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 flex items-center justify-center max-h-48">
+                        <img src={fotoEvidenciaUrl} alt="Evidência" className="max-h-48 w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFotoEvidenciaUrl(null);
+                            setFotoEvidenciaCoords(null);
+                          }}
+                          className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-black/70 text-white hover:bg-black/90 text-[9px] font-bold cursor-pointer"
+                        >
+                          ✕ Trocar Foto
+                        </button>
+                      </div>
+                      {fotoEvidenciaCoords && (
+                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-450 text-[9px] flex items-center gap-2 font-mono">
+                          <MapPin size={13} className="shrink-0" />
+                          <div>
+                            <span className="font-bold block">GPS Satelital Coletado com Sucesso:</span>
+                            <span>{fotoEvidenciaCoords.latitude.toFixed(6)}, {fotoEvidenciaCoords.longitude.toFixed(6)} (Margem: ±{fotoEvidenciaCoords.accuracy}m)</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsMediaModalOpen(true)}
+                      className={`w-full p-4 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
+                        isDark 
+                          ? 'border-slate-800 hover:border-red-500/60 bg-slate-950/30' 
+                          : 'border-slate-200 hover:border-red-500 bg-slate-50'
+                      }`}
+                    >
+                      <div className="p-2.5 rounded-full bg-red-600/10 text-red-600">
+                        <Camera size={20} />
+                      </div>
+                      <span className="text-xs font-bold font-sans">Disparar Câmera / Anexar Foto do Ativo</span>
+                      <span className="text-[9px] text-slate-500 font-mono">Captura automaticamente a latitude e longitude exata no momento do clique</span>
+                    </button>
+                  )}
+                </section>
+
                 {/* Banner de Aviso SPCI */}
                 <div className={`border-l-4 border-orange-500 p-4 rounded-xl text-left flex items-start gap-3 ${
                   isDark ? 'bg-orange-950/15' : 'bg-orange-50'
@@ -1478,6 +1598,60 @@ function InspecaoOuCadastroContent() {
                   </div>
                 </section>
 
+                {/* Evidência Fotográfica Obrigatória com Geocaptura (Momento 3: Inspeção Periódica) */}
+                <section className={`${cardClass} p-5 space-y-3 rounded-2xl`}>
+                  <div className={`flex items-center justify-between border-b pb-2 ${borderBottomClass}`}>
+                    <h3 className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${isDark ? 'text-slate-350' : 'text-slate-700'}`}>
+                      <Camera size={12} className="text-red-500" />
+                      Foto de Conformidade & Georreferenciamento
+                    </h3>
+                    <span className="text-[8px] font-mono font-bold text-red-500 uppercase">Momento 3 (Auditoria GPS)</span>
+                  </div>
+
+                  {fotoEvidenciaUrl ? (
+                    <div className="space-y-2">
+                      <div className="relative rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-950 flex items-center justify-center max-h-48">
+                        <img src={fotoEvidenciaUrl} alt="Evidência Inspeção" className="max-h-48 w-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFotoEvidenciaUrl(null);
+                            setFotoEvidenciaCoords(null);
+                          }}
+                          className="absolute top-2 right-2 px-2 py-1 rounded-lg bg-black/70 text-white hover:bg-black/90 text-[9px] font-bold cursor-pointer"
+                        >
+                          ✕ Trocar Foto
+                        </button>
+                      </div>
+                      {fotoEvidenciaCoords && (
+                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-450 text-[9px] flex items-center gap-2 font-mono">
+                          <MapPin size={13} className="shrink-0" />
+                          <div>
+                            <span className="font-bold block">Coordenadas da Vistoria Validadas:</span>
+                            <span>{fotoEvidenciaCoords.latitude.toFixed(6)}, {fotoEvidenciaCoords.longitude.toFixed(6)} (Margem: ±{fotoEvidenciaCoords.accuracy}m)</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setIsMediaModalOpen(true)}
+                      className={`w-full p-4 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
+                        isDark 
+                          ? 'border-slate-800 hover:border-red-500/60 bg-slate-950/30' 
+                          : 'border-slate-200 hover:border-red-500 bg-slate-50'
+                      }`}
+                    >
+                      <div className="p-2.5 rounded-full bg-red-600/10 text-red-600">
+                        <Camera size={22} />
+                      </div>
+                      <span className="text-xs font-bold font-sans">Tirar Foto do Extintor no Local</span>
+                      <span className="text-[9px] text-slate-500 font-mono">Grava a posição GPS real para conferência de deslocamento (&ge;5m)</span>
+                    </button>
+                  )}
+                </section>
+
                 {/* Observações */}
                 <section className={`${cardClass} p-5 space-y-4 rounded-2xl`}>
                   <h3 className={`text-[10px] font-bold uppercase tracking-widest border-b pb-2 ${borderBottomClass} ${isDark ? 'text-slate-350' : 'text-slate-700'}`}>
@@ -1542,6 +1716,18 @@ function InspecaoOuCadastroContent() {
                     : 'Laudo de inspeção transmitido e integrado ao banco de dados histórico do SPCI com sucesso.'}
                 </p>
               </div>
+
+              {geoDisplacementInfo && (
+                <div className={`p-3.5 rounded-xl border text-left flex items-start gap-3 ${
+                  isDark ? 'border-blue-900/40 bg-blue-955/20 text-blue-300' : 'border-blue-200 bg-blue-50 text-blue-900'
+                }`}>
+                  <MapPin size={18} className="text-blue-500 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5 font-mono text-[10px]">
+                    <h4 className="font-bold text-blue-500 uppercase tracking-wider">Auditoria Geoespacial (Haversine):</h4>
+                    <p className="leading-snug">{geoDisplacementInfo}</p>
+                  </div>
+                </div>
+              )}
 
               {submissionStatus === 'success_offline' && (
                 <div className={`border p-4 rounded-xl text-left flex items-start gap-3 ${
@@ -1831,6 +2017,17 @@ function InspecaoOuCadastroContent() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* MODAL UNIFICADO DE CAPTURA DE FOTO E GEOLOCALIZAÇÃO GPS */}
+      <MediaCaptureModal
+        isOpen={isMediaModalOpen}
+        onClose={() => setIsMediaModalOpen(false)}
+        autoCaptureGeo={true}
+        onPhotoCaptured={(photoDataUrl, coords) => {
+          setFotoEvidenciaUrl(photoDataUrl);
+          if (coords) setFotoEvidenciaCoords(coords);
+        }}
+      />
 
     </div>
   );

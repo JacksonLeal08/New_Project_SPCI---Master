@@ -97,6 +97,7 @@ export async function middleware(request: NextRequest) {
     path.startsWith('/iluminacao') ||
     path.startsWith('/bombas') ||
     path.startsWith('/alerts') ||
+    path.startsWith('/mapa') ||
     path.startsWith('/logs') ||
     path.startsWith('/gestao-ativo');
 

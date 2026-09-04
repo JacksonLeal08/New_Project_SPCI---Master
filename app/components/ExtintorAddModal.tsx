@@ -8,6 +8,9 @@ import { Flame, Check, X, Upload, Shield, Calendar, MapPin, ClipboardList, Info,
 import QrCameraScanner from './QrCameraScanner';
 import { parseInmetroCode } from '@/lib/utils';
 import { TipoMovimentacaoType, TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
+import { useGeoCapture } from '@/hooks/useGeoCapture';
+import { processAssetLocationUpdateAction } from '@/app/actions/geoTrackingActions';
+import { GeoCoordinates } from '@/lib/geoUtils';
 
 interface ExtintorAddModalProps {
   isOpen: boolean;
@@ -108,6 +111,18 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
 
   // Section 3: Localização
   const [tipoMovimentacao, setTipoMovimentacao] = useState<TipoMovimentacaoType>('na_area_aplicado');
+  const { capturePosition, isCapturing: isCapturingGps } = useGeoCapture();
+  const [capturedGps, setCapturedGps] = useState<GeoCoordinates | null>(null);
+
+  // Momento 1: Captura automática de GPS ao selecionar ESTOQUE (APLICAÇÃO)
+  useEffect(() => {
+    if (tipoMovimentacao === 'estoque_aplicacao' && !capturedGps) {
+      capturePosition({ enableHighAccuracy: true }).then(coords => {
+        if (coords) setCapturedGps(coords);
+      });
+    }
+  }, [tipoMovimentacao, capturePosition, capturedGps]);
+
   const [selectedLocalId, setSelectedLocalId] = useState(''); // local ID or "NEW"
   const [newLocalName, setNewLocalName] = useState('');
   const [formSubLocal, setFormSubLocal] = useState('');
@@ -612,6 +627,11 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       const dateUltimaRecargaStr = `${lastRechargeYear}-${String(lastRechargeMonth).padStart(2, '0')}-01`;
       const dateVencimentoStr = `${expiryYear}-${String(expiryMonth).padStart(2, '0')}-01`;
 
+      let finalGps = capturedGps;
+      if (tipoMovimentacao === 'estoque_aplicacao' && !finalGps) {
+        finalGps = await capturePosition({ enableHighAccuracy: true });
+      }
+
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
@@ -622,6 +642,13 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         projeto: finalProjetoName,
         status: 'Conforme',
         tipo_movimentacao: tipoMovimentacao,
+        
+        latitude: finalGps?.latitude || null,
+        longitude: finalGps?.longitude || null,
+        precisao_gps: finalGps?.accuracy || null,
+        origem_localizacao: tipoMovimentacao === 'estoque_aplicacao' ? 'CADASTRO_ESTOQUE' : 'CADASTRO',
+        data_ultima_localizacao: finalGps ? new Date().toISOString() : null,
+        geolocation: (finalGps?.latitude && finalGps?.longitude) ? { lat: finalGps.latitude, lng: finalGps.longitude } : null,
         
         local_id: finalLocalId || null,
         sub_local_id: finalSubLocalId || null, 
@@ -650,6 +677,19 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       const updated = [newObj, ...extintores];
       setExtintores(updated);
       await saveAssetsList('extintores', updated);
+
+      // Processar rastreamento geoespacial no backend se houver GPS capturado
+      if (finalGps) {
+        processAssetLocationUpdateAction({
+          assetId: codePatrimonio,
+          category: 'extintores',
+          latitude: finalGps.latitude,
+          longitude: finalGps.longitude,
+          accuracy: finalGps.accuracy,
+          tipoEvento: 'CADASTRO_ESTOQUE',
+          fotoEvidenciaUrl: uploadedFotoUrl || null
+        }).catch(err => console.warn('[ExtintorAddModal] Aviso ao registrar histórico geoespacial:', err));
+      }
 
       // Registrar log de auditoria no cliente
       await logSystemAction(
@@ -1211,6 +1251,31 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                       </option>
                     ))}
                   </select>
+
+                  {/* Indicador de Captura de GPS no Momento 1 (Estoque / Depósito) */}
+                  {tipoMovimentacao === 'estoque_aplicacao' && (
+                    <div className="mt-2.5 p-2 rounded-lg bg-blue-50/90 border border-blue-200 text-blue-900 text-[10px] flex items-center justify-between gap-2 shadow-2xs">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                        <span className="truncate">
+                          {isCapturingGps 
+                            ? '🛰️ Obtendo coordenadas GPS do almoxarifado...' 
+                            : capturedGps 
+                            ? `📍 Depósito/Almoxarifado: ${capturedGps.latitude.toFixed(5)}, ${capturedGps.longitude.toFixed(5)} (±${capturedGps.accuracy}m)` 
+                            : '📍 Coordenadas do almoxarifado serão registradas automaticamente ao salvar.'}
+                        </span>
+                      </div>
+                      {!isCapturingGps && (
+                        <button
+                          type="button"
+                          onClick={() => capturePosition({ enableHighAccuracy: true }).then(c => c && setCapturedGps(c))}
+                          className="text-[9px] underline font-bold cursor-pointer text-blue-700 hover:text-blue-900 shrink-0 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs"
+                        >
+                          {capturedGps ? 'Recapturar' : 'Capturar GPS'}
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

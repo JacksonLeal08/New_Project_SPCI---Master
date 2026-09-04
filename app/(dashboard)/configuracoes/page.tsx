@@ -192,7 +192,7 @@ export default function ConfiguracoesPage() {
   const [invitePassword, setInvitePassword] = useState('');
   const [inviting, setInviting] = useState(false);
   const [selectedModules, setSelectedModules] = useState<string[]>([
-    'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
+    'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts'
   ]);
 
   // Onboarding credentials & delete confirmation display state
@@ -213,7 +213,7 @@ export default function ConfiguracoesPage() {
   const [editExpiresAt, setEditExpiresAt] = useState('');
   const [editPassword, setEditPassword] = useState('');
   const [editModules, setEditModules] = useState<string[]>([
-    'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
+    'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts'
   ]);
   const [savingEdit, setSavingEdit] = useState(false);
 
@@ -260,8 +260,8 @@ export default function ConfiguracoesPage() {
     setEditPassword('');
     setEditModules(
       user.role === 'Desenvolvedor' || userProfile?.role === 'Desenvolvedor'
-        ? ['dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts', 'configuracoes']
-        : ['dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts']
+        ? ['dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts', 'configuracoes']
+        : ['dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts']
     );
   };
 
@@ -849,7 +849,7 @@ export default function ConfiguracoesPage() {
                 setInviteSite('TODOS OS SITES (Acesso Global)');
                 setInviteExpiresAt('');
                 setSelectedModules([
-                  'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
+                  'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts'
                 ]);
               } catch (err: any) {
                 alert(`Erro ao cadastrar usuário: ${err.message || err}`);
@@ -1036,6 +1036,7 @@ export default function ConfiguracoesPage() {
                       { id: 'iluminacao', label: '💡 Iluminação' },
                       { id: 'bombas', label: '🔧 Casa de Bombas' },
                       { id: 'ronda', label: '📱 Ronda & Campo' },
+                      { id: 'mapa', label: '🗺️ Mapa Operacional' },
                       { id: 'alerts', label: '🔔 Alertas' },
                       ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'configuracoes', label: '⚙️ Configurações' }] : [])
                     ].map(mod => (
@@ -1073,7 +1074,7 @@ export default function ConfiguracoesPage() {
                   onClick={() => {
                     setShowInviteModal(false);
                     setSelectedModules([
-                      'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'alerts'
+                      'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts'
                     ]);
                   }}
                   className="px-4 py-2.5 border border-slate-200 hover:border-slate-350 bg-white text-slate-600 font-bold rounded-xl cursor-pointer text-[10px] uppercase transition-all shadow-xs"
@@ -1668,6 +1669,7 @@ export default function ConfiguracoesPage() {
                       { id: 'iluminacao', label: '💡 Iluminação' },
                       { id: 'bombas', label: '🔧 Casa de Bombas' },
                       { id: 'ronda', label: '📱 Ronda & Campo' },
+                      { id: 'mapa', label: '🗺️ Mapa Operacional' },
                       { id: 'alerts', label: '🔔 Alertas' },
                       ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'configuracoes', label: '⚙️ Configurações' }] : [])
                     ].map(mod => (

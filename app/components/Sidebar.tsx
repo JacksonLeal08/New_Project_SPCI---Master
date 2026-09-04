@@ -22,7 +22,8 @@ import {
   ChevronLeft,
   ChevronRight,
   Bot,
-  Sparkles
+  Sparkles,
+  MapPin
 } from 'lucide-react';
 import { SYSTEM_VERSION } from '@/config/version';
 import WhatsNewModal from './WhatsNewModal';
@@ -86,6 +87,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
     { id: 'iluminacao', label: 'Iluminação Emergência', icon: <Lightbulb className="w-5 h-5" />, path: '/iluminacao' },
     { id: 'bombas', label: 'Casa de Bombas', icon: <Sliders className="w-5 h-5" />, path: '/bombas' },
     { id: 'ronda', label: 'Despacho & Ronda Campo', icon: <Smartphone className="w-5 h-5" />, path: '/ronda' },
+    { id: 'mapa', label: 'Mapa Operacional', icon: <MapPin className="w-5 h-5" />, path: '/mapa' },
     { id: 'alerts', label: 'Disparo de Alertas', icon: <Bell className="w-5 h-5" />, path: '/alerts' },
     { id: 'gestao-ativo', label: 'Gestão de Ativo', icon: <Boxes className="w-5 h-5" />, path: '/gestao-ativo' },
     ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'logs', label: 'Logs do Sistema', icon: <History className="w-5 h-5" />, path: '/logs' }] : []),
@@ -96,6 +98,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
     if (userProfile?.role === 'Desenvolvedor') return true;
     if (item.id === 'logs') return false;
     if (item.id === 'gestao-ativo') return true;
+    if (item.id === 'mapa') return true;
     if (item.id === 'configuracoes') return isAdmin;
     if (item.id === 'dashboard') return true;
     if (userProfile?.permissions && userProfile.permissions.length > 0) {

@@ -1,40 +1,74 @@
 'use client';
 
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { motion } from 'framer-motion';
-import { Camera, Image, X, Sparkles } from 'lucide-react';
+import { Camera, Image, X, MapPin, Loader2 } from 'lucide-react';
+import { useGeoCapture } from '@/hooks/useGeoCapture';
+import { GeoCoordinates } from '@/lib/geoUtils';
 
 interface MediaCaptureModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onPhotoCaptured: (photoDataUrl: string) => void;
+  onPhotoCaptured: (photoDataUrl: string, coords?: GeoCoordinates | null) => void;
   title?: string;
+  autoCaptureGeo?: boolean;
 }
 
 export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
   isOpen,
   onClose,
   onPhotoCaptured,
-  title = 'Adicionar Foto de Evidência'
+  title = 'Adicionar Foto de Evidência',
+  autoCaptureGeo = true
 }) => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const { isCapturing, capturePosition } = useGeoCapture();
+  const [capturingCoords, setCapturingCoords] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      setCapturingCoords(true);
+
+      // Captura GPS simultaneamente em alta precisão
+      let coords: GeoCoordinates | null = null;
+      if (autoCaptureGeo) {
+        try {
+          coords = await capturePosition({ enableHighAccuracy: true, timeout: 8000 });
+        } catch (err) {
+          console.warn('[MediaCaptureModal] Não foi possível capturar GPS:', err);
+        }
+      }
+
       const reader = new FileReader();
       reader.onload = (event) => {
         const result = event.target?.result as string;
         if (result) {
-          onPhotoCaptured(result);
+          setCapturingCoords(false);
+          onPhotoCaptured(result, coords);
           onClose();
         }
       };
       reader.readAsDataURL(file);
     }
+  };
+
+  const triggerCamera = () => {
+    // Pré-aciona a busca de satélite no clique para diminuir latência
+    if (autoCaptureGeo) {
+      capturePosition({ enableHighAccuracy: true, timeout: 10000 });
+    }
+    cameraInputRef.current?.click();
+  };
+
+  const triggerGallery = () => {
+    if (autoCaptureGeo) {
+      capturePosition({ enableHighAccuracy: true, timeout: 10000 });
+    }
+    galleryInputRef.current?.click();
   };
 
   return (
@@ -65,6 +99,23 @@ export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
             Escolha o método desejado para capturar a imagem da vistoria:
           </p>
 
+          {/* INDICADOR DE GEOLOCALIZAÇÃO ATIVA */}
+          {autoCaptureGeo && (
+            <div className="flex items-center justify-center gap-1.5 py-1 px-3 bg-emerald-50 border border-emerald-200 rounded-full text-emerald-800 text-[10px] font-sans font-semibold mx-auto w-fit">
+              {isCapturing || capturingCoords ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin text-emerald-600" />
+                  <span>Sincronizando satélite GPS de alta precisão...</span>
+                </>
+              ) : (
+                <>
+                  <MapPin className="w-3 h-3 text-emerald-600" />
+                  <span>Geocaptura Automática Ativa (Precisão Satelital)</span>
+                </>
+              )}
+            </div>
+          )}
+
           {/* INPUTS ESCONDIDOS */}
           <input
             ref={cameraInputRef}
@@ -86,8 +137,9 @@ export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
             {/* BOTÃO CÂMERA */}
             <button
               type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="p-4 bg-red-50 hover:bg-red-100 border-2 border-red-200 hover:border-red-600 rounded-2xl flex items-center gap-4 transition-all group cursor-pointer text-left shadow-xs"
+              onClick={triggerCamera}
+              disabled={capturingCoords}
+              className="p-4 bg-red-50 hover:bg-red-100 border-2 border-red-200 hover:border-red-600 rounded-2xl flex items-center gap-4 transition-all group cursor-pointer text-left shadow-xs disabled:opacity-50"
             >
               <div className="w-12 h-12 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
                 <Camera className="w-6 h-6" />
@@ -97,7 +149,7 @@ export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
                   📸 Tirar Foto com a Câmera
                 </span>
                 <span className="text-[10.5px] font-sans font-bold text-slate-600 mt-0.5 block">
-                  Abre a câmera traseira do celular ou notebook
+                  Abre a câmera traseira e coleta as coordenadas GPS
                 </span>
               </div>
             </button>
@@ -105,8 +157,9 @@ export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
             {/* BOTÃO GALERIA / ARQUIVOS */}
             <button
               type="button"
-              onClick={() => galleryInputRef.current?.click()}
-              className="p-4 bg-slate-50 hover:bg-slate-100 border-2 border-slate-200 hover:border-slate-400 rounded-2xl flex items-center gap-4 transition-all group cursor-pointer text-left shadow-xs"
+              onClick={triggerGallery}
+              disabled={capturingCoords}
+              className="p-4 bg-slate-50 hover:bg-slate-100 border-2 border-slate-200 hover:border-slate-400 rounded-2xl flex items-center gap-4 transition-all group cursor-pointer text-left shadow-xs disabled:opacity-50"
             >
               <div className="w-12 h-12 rounded-xl bg-slate-800 text-white flex items-center justify-center shrink-0 shadow-md group-hover:scale-105 transition-transform">
                 <Image className="w-6 h-6" />
