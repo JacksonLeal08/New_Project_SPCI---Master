@@ -43,7 +43,7 @@ export default function OperationalMap({
   const markersLayerRef = useRef<any>(null);
   const userLocationLayerRef = useRef<any>(null);
   const [mapReady, setMapReady] = useState(false);
-  const [currentTileLayer, setCurrentTileLayer] = useState<'osm' | 'dark' | 'sat'>('dark');
+  const [currentTileLayer, setCurrentTileLayer] = useState<'hybrid' | 'streets' | 'dark'>('hybrid');
   const [locatingUser, setLocatingUser] = useState(false);
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
 
@@ -182,15 +182,33 @@ export default function OperationalMap({
         attributionControl: false
       });
 
-      // Camadas de Tile
-      const tileUrls = {
-        osm: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-        sat: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+      // Camadas de Tile Google Maps e Noturno
+      const tileConfigs: Record<'hybrid' | 'streets' | 'dark', { url: string; subdomains: string[]; maxZoom: number; className?: string }> = {
+        hybrid: {
+          url: 'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+          subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+          maxZoom: 20,
+          className: ''
+        },
+        streets: {
+          url: 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+          maxZoom: 20,
+          className: ''
+        },
+        dark: {
+          url: 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+          subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+          maxZoom: 20,
+          className: 'spci-dark-tiles'
+        }
       };
 
-      L.tileLayer(tileUrls[currentTileLayer], {
-        maxZoom: 19
+      const initialConfig = tileConfigs[currentTileLayer];
+      L.tileLayer(initialConfig.url, {
+        subdomains: initialConfig.subdomains,
+        maxZoom: initialConfig.maxZoom,
+        className: initialConfig.className || ''
       }).addTo(map);
 
       // LayerGroup para markers e para user location
@@ -227,10 +245,25 @@ export default function OperationalMap({
     if (!mapInstanceRef.current) return;
     const map = mapInstanceRef.current;
 
-    const tileUrls = {
-      osm: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-      dark: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
-      sat: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'
+    const tileConfigs: Record<'hybrid' | 'streets' | 'dark', { url: string; subdomains: string[]; maxZoom: number; className?: string }> = {
+      hybrid: {
+        url: 'https://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        maxZoom: 20,
+        className: ''
+      },
+      streets: {
+        url: 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        maxZoom: 20,
+        className: ''
+      },
+      dark: {
+        url: 'https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        subdomains: ['mt0', 'mt1', 'mt2', 'mt3'],
+        maxZoom: 20,
+        className: 'spci-dark-tiles'
+      }
     };
 
     import('leaflet').then((module) => {
@@ -240,7 +273,12 @@ export default function OperationalMap({
           map.removeLayer(layer);
         }
       });
-      L.tileLayer(tileUrls[currentTileLayer], { maxZoom: 19 }).addTo(map);
+      const activeConfig = tileConfigs[currentTileLayer];
+      L.tileLayer(activeConfig.url, {
+        subdomains: activeConfig.subdomains,
+        maxZoom: activeConfig.maxZoom,
+        className: activeConfig.className || ''
+      }).addTo(map);
     });
   }, [currentTileLayer]);
 
@@ -489,8 +527,32 @@ export default function OperationalMap({
           <span>{locatingUser ? 'Localizando...' : 'Minha Posição'}</span>
         </button>
 
-        {/* Seletor de Camadas (Dark / Satélite / Rua) */}
+        {/* Seletor de Camadas (Google Satélite / Google Ruas / Noturno) */}
         <div className="flex items-center bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-xl p-1 shadow-lg text-xs font-mono">
+          <button
+            type="button"
+            onClick={() => setCurrentTileLayer('hybrid')}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              currentTileLayer === 'hybrid'
+                ? 'bg-red-600 text-white shadow'
+                : 'text-slate-400 hover:text-white'
+            }`}
+            title="Google Maps Satélite com nomes de ruas e localidades"
+          >
+            Satélite (Google)
+          </button>
+          <button
+            type="button"
+            onClick={() => setCurrentTileLayer('streets')}
+            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+              currentTileLayer === 'streets'
+                ? 'bg-red-600 text-white shadow'
+                : 'text-slate-400 hover:text-white'
+            }`}
+            title="Google Maps Ruas"
+          >
+            Google Ruas
+          </button>
           <button
             type="button"
             onClick={() => setCurrentTileLayer('dark')}
@@ -499,33 +561,19 @@ export default function OperationalMap({
                 ? 'bg-red-600 text-white shadow'
                 : 'text-slate-400 hover:text-white'
             }`}
+            title="Modo Noturno sem marcas d'água"
           >
             Noturno
           </button>
-          <button
-            type="button"
-            onClick={() => setCurrentTileLayer('sat')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-              currentTileLayer === 'sat'
-                ? 'bg-red-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Satélite
-          </button>
-          <button
-            type="button"
-            onClick={() => setCurrentTileLayer('osm')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
-              currentTileLayer === 'osm'
-                ? 'bg-red-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            Rua (OSM)
-          </button>
         </div>
       </div>
+
+      {/* Estilos para renderização dos tiles no modo Noturno */}
+      <style>{`
+        .spci-dark-tiles {
+          filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(115%) !important;
+        }
+      `}</style>
 
       {/* Legenda Flutuante (SPCI Pins + Usuário) */}
       <div className="absolute bottom-4 left-4 z-20 hidden sm:flex items-center gap-3 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-2 shadow-lg text-[10px] font-mono text-slate-200">

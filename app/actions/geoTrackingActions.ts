@@ -85,19 +85,19 @@ export async function processAssetLocationUpdateAction(
 
   try {
     const supabase = getSupabaseAdminClient();
-    const cleanId = String(assetId).trim().toUpperCase();
-
-    // 1. Obter localização atual do ativo
+    const cleanId = String(assetId).trim();
     let currentLat: number | null = null;
     let currentLng: number | null = null;
     let resolvedId = cleanId;
+    const cleanIdWithoutSpaces = cleanId.replace(/\s+/g, '');
 
     // Verificar na tabela de extintores
-    if (category === 'extintores' || cleanId.startsWith('EXT-')) {
+    if (category === 'extintores' || cleanId.includes('EXT')) {
       const { data: extData } = await supabase
         .from('ativos_extintores')
         .select('id, numero_patrimonio, latitude, longitude')
-        .or(`numero_patrimonio.eq.${cleanId},id.eq.${cleanId}`)
+        .or(`numero_patrimonio.eq.${cleanId},numero_patrimonio.eq.${cleanIdWithoutSpaces},numero_patrimonio.ilike.%${cleanIdWithoutSpaces}%,id.eq.${cleanId}`)
+        .limit(1)
         .maybeSingle();
 
       if (extData) {
@@ -112,7 +112,8 @@ export async function processAssetLocationUpdateAction(
       const { data: assetData } = await supabase
         .from('assets')
         .select('id, id_ativo, patrimonio, latitude, longitude')
-        .or(`id.eq.${cleanId},id_ativo.eq.${cleanId},patrimonio.eq.${cleanId}`)
+        .or(`id.eq.${cleanId},id_ativo.eq.${cleanId},patrimonio.eq.${cleanId},id_ativo.eq.${cleanIdWithoutSpaces},patrimonio.eq.${cleanIdWithoutSpaces}`)
+        .limit(1)
         .maybeSingle();
 
       if (assetData) {
@@ -135,21 +136,28 @@ export async function processAssetLocationUpdateAction(
 
     // 3. Atualizar posição principal se houver deslocamento significativo
     if (evaluation.shouldUpdate) {
-      // Atualizar tabela 'assets'
-      await supabase
+      // Atualizar / sincronizar tabela unificada 'assets'
+      const { error: assetUpdateErr } = await supabase
         .from('assets')
-        .update({
+        .upsert({
+          id: resolvedId,
+          id_ativo: resolvedId,
+          patrimonio: resolvedId,
+          category: category || (resolvedId.includes('EXT') ? 'extintores' : 'outros'),
           latitude: latitude,
           longitude: longitude,
           precisao_gps: accuracy,
           data_ultima_localizacao: nowIso,
           origem_localizacao: tipoEvento,
           updated_at: nowIso
-        })
-        .or(`id.eq.${resolvedId},id_ativo.eq.${resolvedId},patrimonio.eq.${resolvedId}`);
+        }, { onConflict: 'id' });
+
+      if (assetUpdateErr) {
+        console.warn('[processAssetLocationUpdateAction] Aviso ao sincronizar em assets:', assetUpdateErr.message);
+      }
 
       // Se for extintor, atualizar também 'ativos_extintores'
-      if (category === 'extintores' || resolvedId.startsWith('EXT-')) {
+      if (category === 'extintores' || resolvedId.includes('EXT')) {
         await supabase
           .from('ativos_extintores')
           .update({
@@ -160,7 +168,7 @@ export async function processAssetLocationUpdateAction(
             origem_localizacao: tipoEvento,
             updated_at: nowIso
           })
-          .or(`numero_patrimonio.eq.${resolvedId},id.eq.${resolvedId}`);
+          .or(`numero_patrimonio.eq.${resolvedId},numero_patrimonio.eq.${cleanIdWithoutSpaces},numero_patrimonio.ilike.%${cleanIdWithoutSpaces}%,id.eq.${resolvedId}`);
       }
     }
 
@@ -200,7 +208,7 @@ export async function processAssetLocationUpdateAction(
       success: false,
       updated: false,
       distanceMeters: 0,
-      reason: 'Erro interno ao processar georreferenciamento.',
+      reason: 'Erro interno ao processar localização.',
       error: err.message || String(err)
     };
   }
@@ -251,17 +259,32 @@ export async function getOperationalMapAssetsAction(): Promise<{
   try {
     const supabase = getSupabaseAdminClient();
 
-    // 1. Buscar todos os ativos com coordenadas da tabela assets
-    const { data: assetsData, error: assetsError } = await supabase
+    // 1. Buscar extintores tanto da view quanto direto de ativos_extintores
+    let extList: any[] = [];
+    try {
+      const { data: viewData, error: viewErr } = await supabase
+        .from('vw_extintores_publico')
+        .select('*');
+
+      if (!viewErr && viewData && viewData.length > 0) {
+        extList = viewData;
+      } else {
+        const { data: directData } = await supabase
+          .from('ativos_extintores')
+          .select('*');
+        extList = directData || [];
+      }
+    } catch {
+      const { data: directData } = await supabase
+        .from('ativos_extintores')
+        .select('*');
+      extList = directData || [];
+    }
+
+    // 2. Buscar ativos cadastrados na tabela unificada 'assets'
+    const { data: assetsData } = await supabase
       .from('assets')
       .select('*');
-
-    if (assetsError) throw assetsError;
-
-    // 2. Buscar também de ativos_extintores para capturar status e enriquecer
-    const { data: extData } = await supabase
-      .from('ativos_extintores')
-      .select('id, numero_patrimonio, latitude, longitude, precisao_gps, data_ultima_localizacao, origem_localizacao, foto_url');
 
     // 3. Contar inspeções que possuem GPS registrado
     let totalInspecoesComGps = 0;
@@ -275,43 +298,81 @@ export async function getOperationalMapAssetsAction(): Promise<{
       totalInspecoesComGps = 0;
     }
 
-    // Mesclar e mapear ativos
-    const extMap = new Map<string, any>();
-    if (extData) {
-      for (const ext of extData) {
-        const key = String(ext.numero_patrimonio || ext.id).toUpperCase();
-        extMap.set(key, ext);
+    // 4. Mapear e unir todos os ativos com coordenadas válidas
+    const resultMap = new Map<string, any>();
+
+    // Processar extintores primeiro
+    for (const ext of extList) {
+      const lat = ext.latitude != null ? Number(ext.latitude) : null;
+      const lng = ext.longitude != null ? Number(ext.longitude) : null;
+
+      if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+        const pat = String(ext.numero_patrimonio || ext.id_ativo || ext.id).trim().toUpperCase();
+        const key = pat.replace(/\s+/g, '');
+
+        resultMap.set(key, {
+          id: ext.id,
+          idAtivo: pat,
+          patrimonio: pat,
+          category: 'extintores',
+          model: ext.modelo_tipo || ext.modelo || ext.model || 'Extintor de Incêndio',
+          location: ext.local_instalacao || ext.location || 'Área Operacional',
+          subLocation: ext.sub_local_instalacao || ext.sub_location || ext.subLocation || '',
+          status: ext.status_conformidade === 'VENCIDO' ? 'Vencido' : (ext.status || 'Conforme'),
+          status_estoque: ext.status_estoque || 'NA ÁREA (APLICADO)',
+          tipo_movimentacao: ext.tipo_movimentacao || 'na_area_aplicado',
+          latitude: lat,
+          longitude: lng,
+          precisao_gps: ext.precisao_gps ? Number(ext.precisao_gps) : null,
+          data_ultima_localizacao: ext.data_ultima_localizacao || ext.updated_at,
+          origem_localizacao: ext.origem_localizacao || 'EDICAO_MANUAL',
+          foto_url: ext.foto_url || null
+        });
       }
     }
 
-    const validAssets = (assetsData || [])
-      .map(item => {
-        const pat = String(item.id_ativo || item.patrimonio || item.id).toUpperCase();
-        const extExtra = extMap.get(pat);
+    // Processar ativos da tabela 'assets' (hidrantes, iluminação, sinalização, bombas, extintores unificados)
+    for (const item of (assetsData || [])) {
+      const lat = item.latitude != null ? Number(item.latitude) : null;
+      const lng = item.longitude != null ? Number(item.longitude) : null;
 
-        const lat = item.latitude != null ? Number(item.latitude) : (extExtra?.latitude != null ? Number(extExtra.latitude) : null);
-        const lng = item.longitude != null ? Number(item.longitude) : (extExtra?.longitude != null ? Number(extExtra.longitude) : null);
+      if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+        const pat = String(item.id_ativo || item.patrimonio || item.id).trim().toUpperCase();
+        const key = pat.replace(/\s+/g, '');
 
-        return {
-          id: item.id,
-          idAtivo: pat,
-          patrimonio: pat,
-          category: item.category || 'extintores',
-          model: item.model || item.details?.model || 'Equipamento SPCI',
-          location: item.location || 'Área Operacional',
-          subLocation: item.sub_location || item.subLocation || '',
-          status: item.status || 'Conforme',
-          status_estoque: item.status_estoque || 'NA ÁREA (APLICADO)',
-          tipo_movimentacao: item.tipo_movimentacao || 'na_area_aplicado',
-          latitude: lat,
-          longitude: lng,
-          precisao_gps: item.precisao_gps || extExtra?.precisao_gps || null,
-          data_ultima_localizacao: item.data_ultima_localizacao || extExtra?.data_ultima_localizacao || item.updated_at,
-          origem_localizacao: item.origem_localizacao || extExtra?.origem_localizacao || 'INSPECAO',
-          foto_url: item.foto_url || item.details?.foto_url || extExtra?.foto_url || null
-        };
-      })
-      .filter(a => a.latitude != null && a.longitude != null && !isNaN(a.latitude) && !isNaN(a.longitude));
+        if (resultMap.has(key)) {
+          const existing = resultMap.get(key);
+          resultMap.set(key, {
+            ...existing,
+            model: existing.model || item.model || item.details?.model,
+            location: existing.location || item.location,
+            subLocation: existing.subLocation || item.sub_location,
+            foto_url: existing.foto_url || item.foto_url || item.details?.foto_url
+          });
+        } else {
+          resultMap.set(key, {
+            id: item.id,
+            idAtivo: pat,
+            patrimonio: pat,
+            category: item.category || 'extintores',
+            model: item.model || item.details?.model || 'Equipamento SPCI',
+            location: item.location || 'Área Operacional',
+            subLocation: item.sub_location || item.subLocation || '',
+            status: item.status || 'Conforme',
+            status_estoque: item.status_estoque || 'NA ÁREA (APLICADO)',
+            tipo_movimentacao: item.tipo_movimentacao || 'na_area_aplicado',
+            latitude: lat,
+            longitude: lng,
+            precisao_gps: item.precisao_gps ? Number(item.precisao_gps) : null,
+            data_ultima_localizacao: item.data_ultima_localizacao || item.updated_at,
+            origem_localizacao: item.origem_localizacao || 'EDICAO_MANUAL',
+            foto_url: item.foto_url || item.details?.foto_url || null
+          });
+        }
+      }
+    }
+
+    const validAssets = Array.from(resultMap.values());
 
     return {
       success: true,

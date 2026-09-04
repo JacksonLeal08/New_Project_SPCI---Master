@@ -156,8 +156,11 @@ const serializeAsset = (category: string, id: string, asset: any) => {
     tipo_movimentacao: tipoMov,
     data_fabricacao: data_fabricacao || null,
     data_vencimento_teste: data_vencimento_teste || validadeRecarga || null,
-    latitude: geolocation?.lat || null,
-    longitude: geolocation?.lng || null,
+    latitude: asset.latitude != null ? Number(asset.latitude) : (geolocation?.lat != null ? Number(geolocation.lat) : null),
+    longitude: asset.longitude != null ? Number(asset.longitude) : (geolocation?.lng != null ? Number(geolocation.lng) : null),
+    precisao_gps: asset.precisao_gps != null ? Number(asset.precisao_gps) : null,
+    data_ultima_localizacao: asset.data_ultima_localizacao || null,
+    origem_localizacao: asset.origem_localizacao || null,
     details: {
       ...details,
       fabricante: fabricante || details?.fabricante || '',
@@ -174,10 +177,9 @@ const serializeAsset = (category: string, id: string, asset: any) => {
 };
 
 const deserializeAsset = (row: any) => {
-  const geolocation = (row.latitude !== null && row.longitude !== null) ? {
-    lat: Number(row.latitude),
-    lng: Number(row.longitude)
-  } : null;
+  const lat = row.latitude != null ? Number(row.latitude) : (row.geolocation?.lat != null ? Number(row.geolocation.lat) : null);
+  const lng = row.longitude != null ? Number(row.longitude) : (row.geolocation?.lng != null ? Number(row.geolocation.lng) : null);
+  const geolocation = (lat !== null && lng !== null) ? { lat, lng } : null;
 
   const tipoMov = normalizeTipoMovimentacao(row.tipo_movimentacao || row.status_estoque || row.details?.tipo_movimentacao);
   const statusEstoque = row.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
@@ -199,6 +201,11 @@ const deserializeAsset = (row: any) => {
     peso_capacidade: row.peso_capacidade || row.peso || row.details?.peso_capacidade || '',
     validadeRecarga: row.data_vencimento_teste || row.validadeRecarga || row.details?.validadeRecarga || '',
     data_vencimento_teste: row.data_vencimento_teste || row.validadeRecarga || row.details?.validadeRecarga || '',
+    latitude: lat,
+    longitude: lng,
+    precisao_gps: row.precisao_gps || null,
+    data_ultima_localizacao: row.data_ultima_localizacao || null,
+    origem_localizacao: row.origem_localizacao || null,
     geolocation,
     category: row.category || 'extintores',
     ...row.details
@@ -224,6 +231,11 @@ const deserializeExtintor = (row: any) => {
     status: row.status || 'Conforme',
     tipo_movimentacao: tipoMov,
     status_estoque: statusEstoque,
+    latitude: row.latitude != null ? Number(row.latitude) : null,
+    longitude: row.longitude != null ? Number(row.longitude) : null,
+    precisao_gps: row.precisao_gps || null,
+    data_ultima_localizacao: row.data_ultima_localizacao || null,
+    origem_localizacao: row.origem_localizacao || null,
     geolocation,
     // Mapeamento específico de extintores
     fabricante: row.fabricante || '',
@@ -297,6 +309,10 @@ const deserializeNewExtintor = (row: any) => {
   const tipoMov = normalizeTipoMovimentacao(row.tipo_movimentacao || row.status_estoque);
   const statusEstoque = row.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
 
+  const lat = row.latitude != null ? Number(row.latitude) : null;
+  const lng = row.longitude != null ? Number(row.longitude) : null;
+  const geolocation = (lat !== null && lng !== null) ? { lat, lng } : null;
+
   return {
     id: row.id,
     idAtivo: row.numero_patrimonio || row.id,
@@ -308,6 +324,12 @@ const deserializeNewExtintor = (row: any) => {
     status: displayStatus,
     tipo_movimentacao: tipoMov,
     status_estoque: statusEstoque,
+    latitude: lat,
+    longitude: lng,
+    precisao_gps: row.precisao_gps || null,
+    data_ultima_localizacao: row.data_ultima_localizacao || null,
+    origem_localizacao: row.origem_localizacao || null,
+    geolocation,
     // specific fields
     model: row.modelo_tipo || row.modelo || row.model || '',
     peso: row.peso_capacidade || row.peso || '',
@@ -785,6 +807,11 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         data_pesagem_co2: asset.data_pesagem_co2 ? normalizeToIsoDate(asset.data_pesagem_co2) : null,
         foto_url: asset.fotoUrl || asset.foto_url || null,
         tipo_movimentacao: tipoMov,
+        latitude: asset.latitude != null ? Number(asset.latitude) : (asset.geolocation?.lat != null ? Number(asset.geolocation.lat) : null),
+        longitude: asset.longitude != null ? Number(asset.longitude) : (asset.geolocation?.lng != null ? Number(asset.geolocation.lng) : null),
+        precisao_gps: asset.precisao_gps != null ? Number(asset.precisao_gps) : null,
+        data_ultima_localizacao: asset.data_ultima_localizacao || new Date().toISOString(),
+        origem_localizacao: asset.origem_localizacao || 'EDICAO_MANUAL',
         updated_at: new Date().toISOString()
       };
 
@@ -802,9 +829,9 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
 
       if (extErr) {
         // Self-healing: se colunas novas não existirem no schema remoto legado, re-tenta sem elas
-        if (extErr.message?.includes('tipo_movimentacao') || extErr.message?.includes('ano_fabricacao') || extErr.code === 'PGRST204') {
+        if (extErr.message?.includes('tipo_movimentacao') || extErr.message?.includes('ano_fabricacao') || extErr.message?.includes('latitude') || extErr.message?.includes('origem_localizacao') || extErr.code === 'PGRST204') {
           console.warn('[saveAssetToDb] Tentando upsert com fallback resiliente:', extErr.message);
-          const { tipo_movimentacao, ano_fabricacao, ...fallbackPayload } = payload;
+          const { tipo_movimentacao, ano_fabricacao, latitude, longitude, precisao_gps, data_ultima_localizacao, origem_localizacao, ...fallbackPayload } = payload;
           const { error: fallbackErr } = await supabase
             .from('ativos_extintores')
             .upsert(fallbackPayload, { onConflict: 'numero_patrimonio' });
