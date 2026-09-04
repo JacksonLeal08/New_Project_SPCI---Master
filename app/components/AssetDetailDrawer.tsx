@@ -13,14 +13,18 @@ import {
   Camera,
   FileText,
   CheckCircle,
+  CheckCircle2,
   XCircle,
   Clock,
   MapPin,
   Shield,
   Loader2,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Crosshair,
+  Compass
 } from 'lucide-react';
 import { TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
+import { processAssetLocationUpdateAction } from '@/app/actions/geoTrackingActions';
 
 type TabKey = 'dados' | 'inspecoes' | 'historico' | 'fotos';
 
@@ -57,6 +61,8 @@ export default function AssetDetailDrawer() {
 
   // Editable form state
   const [formData, setFormData] = useState<any>({});
+  const [capturingGps, setCapturingGps] = useState(false);
+  const [gpsSuccess, setGpsSuccess] = useState<string | null>(null);
 
   const asset = selectedAssetForDetail;
   const isOpen = !!asset;
@@ -68,6 +74,7 @@ export default function AssetDetailDrawer() {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setFormData({ ...asset });
       setActiveTab('dados');
+      setGpsSuccess(null);
     }
   }, [asset]);
 
@@ -96,6 +103,66 @@ export default function AssetDetailDrawer() {
 
   const handleFieldChange = (field: string, value: any) => {
     setFormData((prev: any) => ({ ...prev, [field]: value }));
+  };
+
+  // Capturar geolocalização do operador e fixar no ativo
+  const handleCaptureCurrentDeviceGps = async () => {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
+      alert('Geolocalização não disponível neste dispositivo.');
+      return;
+    }
+
+    setCapturingGps(true);
+    setGpsSuccess(null);
+
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        const accuracy = Math.round(pos.coords.accuracy || 10);
+
+        setFormData((prev: any) => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng,
+          precisao_gps: accuracy,
+          origem_localizacao: 'EDICAO_MANUAL',
+          data_ultima_localizacao: new Date().toISOString()
+        }));
+
+        try {
+          const assetId = asset?.idAtivo || asset?.numero_patrimonio || asset?.id;
+          if (assetId) {
+            const res = await processAssetLocationUpdateAction({
+              assetId,
+              latitude: lat,
+              longitude: lng,
+              accuracy,
+              tipoEvento: 'EDICAO_MANUAL',
+              usuario: {
+                nome: userProfile?.name || 'Operador'
+              }
+            });
+
+            if (res.success) {
+              setGpsSuccess(`GPS gravado com sucesso! (±${accuracy}m de precisão)`);
+            } else {
+              setGpsSuccess(`Coordenadas fixadas no formulário. Clique em Salvar.`);
+            }
+          }
+        } catch (e: any) {
+          console.warn('Erro ao processar ação geoespacial:', e);
+          setGpsSuccess(`Coordenadas fixadas no formulário.`);
+        } finally {
+          setCapturingGps(false);
+        }
+      },
+      (err) => {
+        setCapturingGps(false);
+        alert('Erro ao capturar GPS do aparelho: ' + err.message);
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 10000 }
+    );
   };
 
   const handleSave = async () => {
@@ -275,6 +342,79 @@ export default function AssetDetailDrawer() {
                       <FieldInput label="Última Recarga" value={formData.lastRecarga || formData.data_ultima_recarga || ''} onChange={(v) => handleFieldChange('lastRecarga', v)} type="date" />
                       <FieldInput label="Ano Teste Hidrostático" value={formData.ultimoTesteHidro || formData.ano_ultimo_teste_hidro || ''} onChange={(v) => handleFieldChange('ultimoTesteHidro', v)} type="number" />
                       <FieldInput label="Ano Fabricação" value={formData.anoFabricacao || formData.ano_fabricacao || ''} onChange={(v) => handleFieldChange('anoFabricacao', v)} type="number" />
+                    </div>
+
+                    {/* Card de Rastreamento Geoespacial (GPS) */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5 font-mono">
+                          <MapPin className="w-3.5 h-3.5 text-red-600" />
+                          Rastreamento Geoespacial (GPS)
+                        </label>
+                        {formData.latitude && formData.longitude ? (
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                            Georreferenciado
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                            Sem GPS
+                          </span>
+                        )}
+                      </div>
+
+                      {formData.latitude && formData.longitude ? (
+                        <div className="bg-white border border-slate-200 rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs font-mono">
+                          <div>
+                            <span className="text-[9px] text-slate-400 block uppercase">Latitude</span>
+                            <span className="font-bold text-slate-800">{Number(formData.latitude).toFixed(6)}</span>
+                          </div>
+                          <div>
+                            <span className="text-[9px] text-slate-400 block uppercase">Longitude</span>
+                            <span className="font-bold text-slate-800">{Number(formData.longitude).toFixed(6)}</span>
+                          </div>
+                          {formData.precisao_gps && (
+                            <div className="col-span-2 text-[10px] text-slate-500 flex items-center gap-1 border-t border-slate-100 pt-1.5 mt-0.5">
+                              <span>🛰️ Precisão: ±{formData.precisao_gps}m</span>
+                              <span>•</span>
+                              <span>Origem: {formData.origem_localizacao || 'GPS'}</span>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-500">
+                          Este ativo ainda não possui coordenadas geográficas registradas no mapa.
+                        </p>
+                      )}
+
+                      {gpsSuccess && (
+                        <div className="p-2 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-800 text-[10px] font-bold flex items-center gap-1.5">
+                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          <span>{gpsSuccess}</span>
+                        </div>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={handleCaptureCurrentDeviceGps}
+                        disabled={capturingGps}
+                        className="w-full flex items-center justify-center gap-2 py-2 px-3 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-98 disabled:opacity-50"
+                      >
+                        {capturingGps ? (
+                          <>
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            Capturando Satélite...
+                          </>
+                        ) : (
+                          <>
+                            <Crosshair className="w-3.5 h-3.5" />
+                            {formData.latitude && formData.longitude
+                              ? 'Atualizar GPS com Minha Posição Atual'
+                              : 'Fixar GPS Deste Aparelho Agora'}
+                          </>
+                        )}
+                      </button>
                     </div>
 
                     <FieldInput label="URL da Foto" value={formData.fotoUrl || formData.foto_url || ''} onChange={(v) => handleFieldChange('fotoUrl', v)} fullWidth />

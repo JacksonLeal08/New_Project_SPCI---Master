@@ -5,7 +5,7 @@
 
 export const GEO_DRIFT_TOLERANCE_METERS = 5.0; // Limiar de tolerância contra ruído/drift de sinal GPS
 
-export type LocationSource = 'CADASTRO_ESTOQUE' | 'RONDA_CAMPO' | 'INSPECAO';
+export type LocationSource = 'CADASTRO_ESTOQUE' | 'RONDA_CAMPO' | 'INSPECAO' | 'EDICAO_MANUAL';
 
 export interface GeoCoordinates {
   latitude: number;

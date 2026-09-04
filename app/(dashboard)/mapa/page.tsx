@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { useSpci } from '@/app/context/SpciContext';
-import { getOperationalMapAssetsAction } from '@/app/actions/geoTrackingActions';
+import { getOperationalMapAssetsAction, processAssetLocationUpdateAction } from '@/app/actions/geoTrackingActions';
 import AssetMovementHistoryModal from '@/app/components/AssetMovementHistoryModal';
 import type { MapAssetItem } from '@/app/components/OperationalMap';
 import { 
@@ -141,6 +141,48 @@ export default function MapaOperacionalPage() {
   const handleOpenHistory = (asset: MapAssetItem) => {
     setSelectedAssetForHistory(asset);
     setIsHistoryModalOpen(true);
+  };
+
+  const handleUpdateAssetLocation = async (
+    asset: MapAssetItem,
+    coords: { latitude: number; longitude: number; accuracy: number }
+  ) => {
+    try {
+      const assetId = asset.idAtivo || asset.patrimonio || asset.id;
+      const res = await processAssetLocationUpdateAction({
+        assetId,
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        accuracy: coords.accuracy,
+        tipoEvento: 'EDICAO_MANUAL',
+        usuario: {
+          nome: userProfile?.name || 'Operador'
+        }
+      });
+
+      if (res.success) {
+        setAssets((prev) =>
+          prev.map((item) => {
+            if (item.id === asset.id || item.idAtivo === asset.idAtivo) {
+              return {
+                ...item,
+                latitude: coords.latitude,
+                longitude: coords.longitude,
+                precisao_gps: coords.accuracy,
+                origem_localizacao: 'EDICAO_MANUAL',
+                data_ultima_localizacao: new Date().toISOString()
+              };
+            }
+            return item;
+          })
+        );
+      } else {
+        alert('Erro ao atualizar posição do ativo: ' + (res.error || 'Erro desconhecido'));
+      }
+    } catch (e: any) {
+      console.error('Erro ao atualizar localização do ativo:', e);
+      alert('Erro inesperado: ' + (e.message || String(e)));
+    }
   };
 
   return (
@@ -398,6 +440,7 @@ export default function MapaOperacionalPage() {
           <OperationalMap
             assets={filteredAssets}
             onSelectAssetForHistory={handleOpenHistory}
+            onUpdateAssetLocation={handleUpdateAssetLocation}
             className="h-[620px] w-full rounded-xl overflow-hidden shadow-inner"
           />
         </div>
