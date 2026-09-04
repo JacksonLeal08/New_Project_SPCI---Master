@@ -26,7 +26,8 @@ import {
   Sun,
   Moon,
   QrCode,
-  Camera
+  Camera,
+  Crosshair
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fetchAtivoParaInspecao, salvarInspecaoNoSupabase, saveAssetToDb } from '@/lib/supabaseDb';
@@ -718,14 +719,20 @@ function InspecaoOuCadastroContent() {
       }
 
       // Momento 3: Processamento transacional de divergência e histórico (Haversine >= 5m)
-      if (fotoEvidenciaCoords) {
+      const coordsToUse = fotoEvidenciaCoords || (ativo.latitude != null && ativo.longitude != null ? {
+        latitude: Number(ativo.latitude),
+        longitude: Number(ativo.longitude),
+        accuracy: Number(ativo.precisao_gps || 15)
+      } : null);
+
+      if (coordsToUse) {
         try {
           const geoRes = await processAssetLocationUpdateAction({
             assetId: ativo.idAtivo || ativo.id_ativo || ativo.id || rawId,
             category: ativo.category || 'extintores',
-            latitude: fotoEvidenciaCoords.latitude,
-            longitude: fotoEvidenciaCoords.longitude,
-            accuracy: fotoEvidenciaCoords.accuracy,
+            latitude: coordsToUse.latitude,
+            longitude: coordsToUse.longitude,
+            accuracy: coordsToUse.accuracy,
             tipoEvento: 'INSPECAO',
             fotoEvidenciaUrl: fotoEvidenciaUrl,
             usuario: { nome: tecnicoNome.trim() }
@@ -1634,21 +1641,64 @@ function InspecaoOuCadastroContent() {
                       )}
                     </div>
                   ) : (
-                    <button
-                      type="button"
-                      onClick={() => setIsMediaModalOpen(true)}
-                      className={`w-full p-4 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
-                        isDark 
-                          ? 'border-slate-800 hover:border-red-500/60 bg-slate-950/30' 
-                          : 'border-slate-200 hover:border-red-500 bg-slate-50'
-                      }`}
-                    >
-                      <div className="p-2.5 rounded-full bg-red-600/10 text-red-600">
-                        <Camera size={22} />
-                      </div>
-                      <span className="text-xs font-bold font-sans">Tirar Foto do Extintor no Local</span>
-                      <span className="text-[9px] text-slate-500 font-mono">Grava a posição GPS real para conferência de deslocamento (&ge;5m)</span>
-                    </button>
+                    <div className="space-y-2">
+                      <button
+                        type="button"
+                        onClick={() => setIsMediaModalOpen(true)}
+                        className={`w-full p-4 border-2 border-dashed rounded-xl flex flex-col items-center justify-center gap-2 transition-all cursor-pointer ${
+                          isDark 
+                            ? 'border-slate-800 hover:border-red-500/60 bg-slate-950/30' 
+                            : 'border-slate-200 hover:border-red-500 bg-slate-50'
+                        }`}
+                      >
+                        <div className="p-2.5 rounded-full bg-red-600/10 text-red-600">
+                          <Camera size={22} />
+                        </div>
+                        <span className="text-xs font-bold font-sans">Tirar Foto do Extintor no Local</span>
+                        <span className="text-[9px] text-slate-500 font-mono">Grava a posição GPS real para conferência de deslocamento (&ge;5m)</span>
+                      </button>
+
+                      {/* Botão alternativo para capturar GPS mesmo sem foto */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (typeof window !== 'undefined' && navigator.geolocation) {
+                            navigator.geolocation.getCurrentPosition(
+                              (pos) => {
+                                setFotoEvidenciaCoords({
+                                  latitude: pos.coords.latitude,
+                                  longitude: pos.coords.longitude,
+                                  accuracy: Math.round(pos.coords.accuracy || 10)
+                                });
+                              },
+                              (err) => alert('Erro ao obter GPS do aparelho: ' + err.message),
+                              { enableHighAccuracy: true, timeout: 10000 }
+                            );
+                          }
+                        }}
+                        className="w-full py-2.5 px-3 bg-slate-800/80 hover:bg-slate-700 text-slate-200 rounded-xl text-[10px] font-bold font-mono flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-700/60"
+                      >
+                        <Crosshair size={13} className="text-red-400" />
+                        <span>{fotoEvidenciaCoords ? 'Atualizar GPS Atual do Aparelho' : 'Capturar Apenas GPS do Aparelho (Sem Foto)'}</span>
+                      </button>
+
+                      {fotoEvidenciaCoords && (
+                        <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-450 text-[9px] flex items-center justify-between font-mono">
+                          <div className="flex items-center gap-2">
+                            <MapPin size={13} className="shrink-0" />
+                            <span>GPS Gravado: {fotoEvidenciaCoords.latitude.toFixed(6)}, {fotoEvidenciaCoords.longitude.toFixed(6)} (±{fotoEvidenciaCoords.accuracy}m)</span>
+                          </div>
+                          <button type="button" onClick={() => setFotoEvidenciaCoords(null)} className="text-slate-400 hover:text-red-500 text-[10px] font-bold">✕</button>
+                        </div>
+                      )}
+
+                      {!fotoEvidenciaCoords && ativo?.latitude != null && ativo?.longitude != null && (
+                        <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-400 text-[9px] flex items-center gap-2 font-mono">
+                          <MapPin size={12} className="shrink-0 text-blue-400" />
+                          <span>GPS Atual do Cadastro: {Number(ativo.latitude).toFixed(6)}, {Number(ativo.longitude).toFixed(6)}</span>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </section>
 

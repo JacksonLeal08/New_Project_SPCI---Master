@@ -113,6 +113,23 @@ const getNormalizedCategory = (collectionName: string) => {
   return collectionName;
 };
 
+export const getValidStatusEstoqueEnum = (val: any): string | null => {
+  if (!val) return null;
+  const str = String(val).trim().toUpperCase();
+  const valid = [
+    'ESTOQUE APLICAÇÃO',
+    'ESTOQUE MANUTENÇÃO',
+    'EM MANUTENÇÃO',
+    'CONDENADOS'
+  ];
+  if (valid.includes(str)) return str;
+  if (str === 'ESTOQUE' || str.includes('ESTOQUE_APLICACAO') || str.includes('APLICACAO')) return 'ESTOQUE APLICAÇÃO';
+  if (str.includes('ESTOQUE_MANUTENCAO')) return 'ESTOQUE MANUTENÇÃO';
+  if (str === 'MANUTENCAO' || str.includes('EM_MANUTENCAO')) return 'EM MANUTENÇÃO';
+  if (str === 'CONDENADO' || str.includes('CONDENAD')) return 'CONDENADOS';
+  return null;
+};
+
 const serializeAsset = (category: string, id: string, asset: any) => {
   const {
     idAtivo,
@@ -138,9 +155,16 @@ const serializeAsset = (category: string, id: string, asset: any) => {
   } = asset;
 
   const tipoMov = normalizeTipoMovimentacao(tipo_movimentacao || status_estoque || details?.tipo_movimentacao);
-  const stEstoque = status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
+  const rawStatusEstoque = status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label;
+  const validStatusEstoque = getValidStatusEstoqueEnum(rawStatusEstoque);
   const pat = patrimonio || idAtivo || id;
   const numSerie = numero_serie || chassi || details?.serialNumber || '';
+
+  const lat = asset.latitude != null ? Number(asset.latitude) : (geolocation?.lat != null ? Number(geolocation.lat) : null);
+  const lng = asset.longitude != null ? Number(asset.longitude) : (geolocation?.lng != null ? Number(geolocation.lng) : null);
+  const accuracy = asset.precisao_gps != null ? Number(asset.precisao_gps) : (details?.precisao_gps != null ? Number(details.precisao_gps) : null);
+  const dataLoc = asset.data_ultima_localizacao || details?.data_ultima_localizacao || null;
+  const origemLoc = asset.origem_localizacao || details?.origem_localizacao || null;
 
   return {
     id: id,
@@ -152,15 +176,12 @@ const serializeAsset = (category: string, id: string, asset: any) => {
     location: location || null,
     sub_location: subLocation || null,
     status: status || 'Conforme',
-    status_estoque: stEstoque,
+    status_estoque: validStatusEstoque,
     tipo_movimentacao: tipoMov,
     data_fabricacao: data_fabricacao || null,
     data_vencimento_teste: data_vencimento_teste || validadeRecarga || null,
-    latitude: asset.latitude != null ? Number(asset.latitude) : (geolocation?.lat != null ? Number(geolocation.lat) : null),
-    longitude: asset.longitude != null ? Number(asset.longitude) : (geolocation?.lng != null ? Number(geolocation.lng) : null),
-    precisao_gps: asset.precisao_gps != null ? Number(asset.precisao_gps) : null,
-    data_ultima_localizacao: asset.data_ultima_localizacao || null,
-    origem_localizacao: asset.origem_localizacao || null,
+    latitude: lat,
+    longitude: lng,
     details: {
       ...details,
       fabricante: fabricante || details?.fabricante || '',
@@ -169,7 +190,10 @@ const serializeAsset = (category: string, id: string, asset: any) => {
       serialNumber: numSerie,
       validadeRecarga: validadeRecarga || data_vencimento_teste || null,
       tipo_movimentacao: tipoMov,
-      status_estoque: stEstoque
+      status_estoque: rawStatusEstoque || 'NA ÁREA (APLICADO)',
+      precisao_gps: accuracy,
+      data_ultima_localizacao: dataLoc,
+      origem_localizacao: origemLoc
     },
     created_at: asset.createdAt || asset.created_at || new Date().toISOString(),
     updated_at: new Date().toISOString()
@@ -182,7 +206,7 @@ const deserializeAsset = (row: any) => {
   const geolocation = (lat !== null && lng !== null) ? { lat, lng } : null;
 
   const tipoMov = normalizeTipoMovimentacao(row.tipo_movimentacao || row.status_estoque || row.details?.tipo_movimentacao);
-  const statusEstoque = row.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
+  const statusEstoque = row.status_estoque || row.details?.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
 
   return {
     id: row.id,
@@ -203,9 +227,9 @@ const deserializeAsset = (row: any) => {
     data_vencimento_teste: row.data_vencimento_teste || row.validadeRecarga || row.details?.validadeRecarga || '',
     latitude: lat,
     longitude: lng,
-    precisao_gps: row.precisao_gps || null,
-    data_ultima_localizacao: row.data_ultima_localizacao || null,
-    origem_localizacao: row.origem_localizacao || null,
+    precisao_gps: row.details?.precisao_gps || row.precisao_gps || null,
+    data_ultima_localizacao: row.details?.data_ultima_localizacao || row.data_ultima_localizacao || null,
+    origem_localizacao: row.details?.origem_localizacao || row.origem_localizacao || null,
     geolocation,
     category: row.category || 'extintores',
     ...row.details
@@ -635,6 +659,7 @@ export async function getAssetsList(collectionName: string): Promise<any[]> {
     const category = getNormalizedCategory(collectionName);
     
     if (category === 'extintores') {
+      let extintoresList: any[] = [];
       const { data, error } = await supabase
         .from('vw_extintores_publico')
         .select('*');
@@ -645,9 +670,46 @@ export async function getAssetsList(collectionName: string): Promise<any[]> {
           .from('view_extintores')
           .select('*');
         if (oldErr) throw oldErr;
-        return (oldData || []).map(deserializeExtintor);
+        extintoresList = (oldData || []).map(deserializeExtintor);
+      } else {
+        extintoresList = (data || []).map(deserializeNewExtintor);
       }
-      return (data || []).map(deserializeNewExtintor);
+
+      // Enriquecer com coordenadas salvas na tabela assets
+      try {
+        const { data: assetsGeo } = await supabase
+          .from('assets')
+          .select('id, id_ativo, patrimonio, latitude, longitude, details')
+          .eq('category', 'extintores')
+          .not('latitude', 'is', null);
+
+        if (assetsGeo && assetsGeo.length > 0) {
+          const geoMap = new Map<string, any>();
+          for (const g of assetsGeo) {
+            if (g.id) geoMap.set(String(g.id).toLowerCase(), g);
+            if (g.id_ativo) geoMap.set(String(g.id_ativo).toLowerCase(), g);
+            if (g.patrimonio) geoMap.set(String(g.patrimonio).toLowerCase(), g);
+          }
+
+          for (const ext of extintoresList) {
+            const keyId = String(ext.id || '').toLowerCase();
+            const keyPat = String(ext.idAtivo || ext.numero_patrimonio || '').toLowerCase();
+            const geo = geoMap.get(keyId) || geoMap.get(keyPat);
+            if (geo && geo.latitude != null && geo.longitude != null) {
+              ext.latitude = Number(geo.latitude);
+              ext.longitude = Number(geo.longitude);
+              ext.geolocation = { lat: ext.latitude, lng: ext.longitude };
+              ext.precisao_gps = geo.details?.precisao_gps || null;
+              ext.origem_localizacao = geo.details?.origem_localizacao || 'EDICAO_MANUAL';
+              ext.data_ultima_localizacao = geo.details?.data_ultima_localizacao || null;
+            }
+          }
+        }
+      } catch (gErr) {
+        console.warn('[getAssetsList] Aviso ao enriquecer coordenadas de extintores:', gErr);
+      }
+
+      return extintoresList;
     }
 
     const { data, error } = await supabase
@@ -803,15 +865,8 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         data_ultima_recarga: normalizeToIsoDate(asset.lastRecarga || asset.data_ultima_recarga),
         meses_validade_recarga: parseInt(asset.validadeRecargaMeses || asset.meses_validade_recarga || '12', 10),
         ano_ultimo_teste_hidro: parseInt(asset.ultimoTesteHidro || asset.ano_ultimo_teste_hidro || new Date().getFullYear().toString(), 10),
-        ano_fabricacao: parseInt(asset.anoFabricacao || asset.ano_fabricacao || new Date().getFullYear().toString(), 10),
         data_pesagem_co2: asset.data_pesagem_co2 ? normalizeToIsoDate(asset.data_pesagem_co2) : null,
         foto_url: asset.fotoUrl || asset.foto_url || null,
-        tipo_movimentacao: tipoMov,
-        latitude: asset.latitude != null ? Number(asset.latitude) : (asset.geolocation?.lat != null ? Number(asset.geolocation.lat) : null),
-        longitude: asset.longitude != null ? Number(asset.longitude) : (asset.geolocation?.lng != null ? Number(asset.geolocation.lng) : null),
-        precisao_gps: asset.precisao_gps != null ? Number(asset.precisao_gps) : null,
-        data_ultima_localizacao: asset.data_ultima_localizacao || new Date().toISOString(),
-        origem_localizacao: asset.origem_localizacao || 'EDICAO_MANUAL',
         updated_at: new Date().toISOString()
       };
 
@@ -820,38 +875,42 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         payload.id = id;
       }
 
-      let extErr;
-      const { error: initialErr } = await supabase
+      const { data: extSaved, error: extErr } = await supabase
         .from('ativos_extintores')
-        .upsert(payload, { onConflict: 'numero_patrimonio' });
-      
-      extErr = initialErr;
+        .upsert(payload, { onConflict: 'numero_patrimonio' })
+        .select('id, numero_patrimonio')
+        .maybeSingle();
 
-      if (extErr) {
-        // Self-healing: se colunas novas não existirem no schema remoto legado, re-tenta sem elas
-        if (extErr.message?.includes('tipo_movimentacao') || extErr.message?.includes('ano_fabricacao') || extErr.message?.includes('latitude') || extErr.message?.includes('origem_localizacao') || extErr.code === 'PGRST204') {
-          console.warn('[saveAssetToDb] Tentando upsert com fallback resiliente:', extErr.message);
-          const { tipo_movimentacao, ano_fabricacao, latitude, longitude, precisao_gps, data_ultima_localizacao, origem_localizacao, ...fallbackPayload } = payload;
-          const { error: fallbackErr } = await supabase
-            .from('ativos_extintores')
-            .upsert(fallbackPayload, { onConflict: 'numero_patrimonio' });
-          extErr = fallbackErr;
-        }
-      }
+      if (extErr) throw extErr;
 
-      // Também sincroniza na tabela unificada 'assets' para manter a Gestão de Ativos em Estoque 100% atualizada
+      // Também sincroniza na tabela unificada 'assets' para manter Georreferenciamento e Gestão de Estoque 100% atualizados
       try {
-        const serialized = serializeAsset(category, id, {
+        let assetTargetId = isUuid ? id : (extSaved?.id || id);
+        if (!isUuid && !extSaved?.id) {
+          const patUpper = String(payload.numero_patrimonio).toUpperCase();
+          const { data: existingAsset } = await supabase
+            .from('assets')
+            .select('id')
+            .or(`id_ativo.eq.${patUpper},patrimonio.eq.${patUpper}`)
+            .limit(1)
+            .maybeSingle();
+          if (existingAsset?.id) assetTargetId = existingAsset.id;
+        }
+
+        const serialized = serializeAsset(category, assetTargetId, {
           ...asset,
+          id: assetTargetId,
           tipo_movimentacao: tipoMov,
           status_estoque: statusEstoque
         });
-        await supabase.from('assets').upsert(serialized, { onConflict: 'id' });
+        const { error: aErr } = await supabase.from('assets').upsert(serialized, { onConflict: 'id' });
+        if (aErr) {
+          console.warn('[saveAssetToDb] Erro ao sincronizar em assets:', aErr.message);
+        }
       } catch (aErr) {
         console.warn('[saveAssetToDb] Aviso ao sincronizar em assets:', aErr);
       }
 
-      if (extErr) throw extErr;
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('spci_sync_success', { detail: { type: 'asset', id, category: 'extintores', silent } }));
       }
@@ -891,6 +950,7 @@ export async function fetchAtivoParaInspecao(idOrPatrimonio: string): Promise<an
         query.eq('numero_patrimonio', idUpper);
       }
       const { data, error } = await query.maybeSingle();
+      let oldData = null;
       if (error || !data) {
         console.warn('Erro ao buscar de vw_extintores_publico, tentando view_extintores...', error);
         const oldQuery = supabase.from('view_extintores').select('*');
@@ -899,10 +959,37 @@ export async function fetchAtivoParaInspecao(idOrPatrimonio: string): Promise<an
         } else {
           oldQuery.eq('id_ativo', idUpper);
         }
-        const { data: oldData, error: oldErr } = await oldQuery.maybeSingle();
-        if (!oldErr && oldData) return deserializeExtintor(oldData);
+        const { data: od, error: oldErr } = await oldQuery.maybeSingle();
+        if (!oldErr && od) oldData = od;
       }
-      if (data) return deserializeNewExtintor(data);
+
+      let resolvedExt: any = null;
+      if (data) resolvedExt = deserializeNewExtintor(data);
+      else if (oldData) resolvedExt = deserializeExtintor(oldData);
+
+      if (resolvedExt) {
+        // Enriquecer com dados de geolocalização da tabela assets
+        try {
+          const { data: assetGeo } = await supabase
+            .from('assets')
+            .select('latitude, longitude, details')
+            .or(`id.eq.${resolvedExt.id},id_ativo.eq.${resolvedExt.numero_patrimonio},patrimonio.eq.${resolvedExt.numero_patrimonio}`)
+            .limit(1)
+            .maybeSingle();
+
+          if (assetGeo && assetGeo.latitude != null && assetGeo.longitude != null) {
+            resolvedExt.latitude = Number(assetGeo.latitude);
+            resolvedExt.longitude = Number(assetGeo.longitude);
+            resolvedExt.geolocation = { lat: resolvedExt.latitude, lng: resolvedExt.longitude };
+            resolvedExt.precisao_gps = assetGeo.details?.precisao_gps || null;
+            resolvedExt.origem_localizacao = assetGeo.details?.origem_localizacao || 'EDICAO_MANUAL';
+            resolvedExt.data_ultima_localizacao = assetGeo.details?.data_ultima_localizacao || null;
+          }
+        } catch (geoErr) {
+          console.warn('[fetchAtivoParaInspecao] Aviso ao buscar coordenadas de assets:', geoErr);
+        }
+        return resolvedExt;
+      }
     }
 
     // Fallback/Outras categorias
