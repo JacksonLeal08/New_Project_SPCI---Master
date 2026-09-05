@@ -56,6 +56,7 @@ export default function OperationalMap({
   onUpdateAssetLocation,
   className = 'h-[600px] w-full'
 }: OperationalMapProps) {
+  const mapRootRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
   const markersLayerRef = useRef<any>(null);
@@ -72,6 +73,62 @@ export default function OperationalMap({
   const [zoomedAsset, setZoomedAsset] = useState<MapAssetItem | null>(null);
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
 
+  // Alternar Modo Tela Cheia Real (Fullscreen API nativo do navegador)
+  const toggleMaximize = async () => {
+    const el = mapRootRef.current;
+    if (!el) return;
+
+    if (!isMaximized) {
+      setIsMaximized(true);
+      try {
+        if (el.requestFullscreen) {
+          await el.requestFullscreen();
+        } else if ((el as any).webkitRequestFullscreen) {
+          await (el as any).webkitRequestFullscreen();
+        } else if ((el as any).mozRequestFullScreen) {
+          await (el as any).mozRequestFullScreen();
+        } else if ((el as any).msRequestFullscreen) {
+          await (el as any).msRequestFullscreen();
+        }
+      } catch (err) {
+        console.warn('[OperationalMap] Fullscreen API bloqueada ou não suportada, utilizando fallback de viewport:', err);
+      }
+    } else {
+      try {
+        if (document.fullscreenElement || (document as any).webkitFullscreenElement) {
+          if (document.exitFullscreen) {
+            await document.exitFullscreen();
+          } else if ((document as any).webkitExitFullscreen) {
+            await (document as any).webkitExitFullscreen();
+          }
+        }
+      } catch (err) {
+        console.warn('[OperationalMap] Erro ao sair de tela cheia:', err);
+      }
+      setIsMaximized(false);
+    }
+  };
+
+  // Sincronizar estado com eventos nativos do navegador (ex: quando o usuário pressiona ESC ou botão voltar no Android)
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      setIsMaximized(isCurrentlyFullscreen);
+      if (mapInstanceRef.current) {
+        setTimeout(() => {
+          mapInstanceRef.current?.invalidateSize();
+        }, 200);
+      }
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
   // Ajustar tamanho dos tiles do mapa ao maximizar ou minimizar
   useEffect(() => {
     if (!mapInstanceRef.current) return;
@@ -81,11 +138,11 @@ export default function OperationalMap({
     return () => clearTimeout(timeout);
   }, [isMaximized]);
 
-  // Fechar tela cheia com ESC
+  // Fechar tela cheia com tecla ESC no fallback
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isMaximized) {
-        setIsMaximized(false);
+        toggleMaximize();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -506,12 +563,46 @@ export default function OperationalMap({
               📍 <strong style="color: #cbd5e1;">Local:</strong> ${asset.location} ${asset.subLocation ? ` - ${asset.subLocation}` : ''}
             </div>
 
-            <!-- Selo de Satélite e Precisão -->
-            ${asset.precisao_gps ? `
-              <div style="font-size: 9.5px; color: #34d399; margin-bottom: 10px; display: flex; align-items: center; gap: 4px; background: rgba(6, 78, 59, 0.4); border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 8px; border-radius: 8px;">
-                🛰️ <span>GPS: ±${asset.precisao_gps}m (${asset.origem_localizacao || 'Satélite'})</span>
+            <!-- Coordenadas Geográficas e Origem da Captura -->
+            <div style="
+              background: rgba(15, 23, 42, 0.7);
+              border: 1px solid rgba(51, 65, 85, 0.8);
+              border-radius: 8px;
+              padding: 6px 8px;
+              margin-bottom: 8px;
+              font-family: ui-monospace, monospace;
+              font-size: 9.5px;
+            ">
+              <div style="display: flex; justify-content: space-between; color: #94a3b8; margin-bottom: 4px;">
+                <span>LAT: <strong style="color: #f1f5f9;">${Number(asset.latitude).toFixed(6)}</strong></span>
+                <span>LONG: <strong style="color: #f1f5f9;">${Number(asset.longitude).toFixed(6)}</strong></span>
               </div>
-            ` : ''}
+              ${(() => {
+                const orig = String(asset.origem_localizacao || '').toUpperCase();
+                if (orig === 'FOTO_EXIF') {
+                  return `
+                    <div style="display: flex; align-items: center; gap: 4px; color: #38bdf8; font-weight: 700; border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 4px; padding-top: 3px;">
+                      <span>📸</span>
+                      <span>Origem: Metadados da Imagem (EXIF)</span>
+                    </div>
+                  `;
+                }
+                if (orig === 'GPS_DISPOSITIVO' || orig === 'DISPOSITIVO') {
+                  return `
+                    <div style="display: flex; align-items: center; gap: 4px; color: #34d399; font-weight: 700; border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 4px; padding-top: 3px;">
+                      <span>🛰️</span>
+                      <span>Origem: GPS do Dispositivo (±${asset.precisao_gps || 10}m)</span>
+                    </div>
+                  `;
+                }
+                return `
+                  <div style="display: flex; align-items: center; gap: 4px; color: #cbd5e1; font-weight: 700; border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 4px; padding-top: 3px;">
+                    <span>📍</span>
+                    <span>Origem: ${asset.origem_localizacao || 'Localização Fixada'}</span>
+                  </div>
+                `;
+              })()}
+            </div>
 
             <!-- Miniatura da Imagem com Chamada para Zoom -->
             ${asset.foto_url ? `
@@ -814,10 +905,24 @@ export default function OperationalMap({
 
   return (
     <div
-      className={`relative transition-all duration-300 ${
+      ref={mapRootRef}
+      style={
         isMaximized
-          ? 'fixed inset-0 z-[1000] w-screen h-screen rounded-none border-none shadow-none bg-slate-950'
-          : `rounded-2xl overflow-hidden border border-slate-800 shadow-2xl ${className}`
+          ? {
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              width: '100vw',
+              height: '100vh',
+              zIndex: 999999,
+              backgroundColor: '#020617'
+            }
+          : undefined
+      }
+      className={`transition-all duration-300 ${
+        isMaximized
+          ? 'fixed inset-0 z-[999999] w-screen h-screen max-w-none max-h-none m-0 p-0 rounded-none border-none shadow-none bg-slate-950 flex flex-col'
+          : `relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl ${className}`
       }`}
     >
       {/* Contêiner Leaflet */}
@@ -886,9 +991,9 @@ export default function OperationalMap({
         {/* Botão de Maximizar / Minimizar Tela Cheia */}
         <button
           type="button"
-          onClick={() => setIsMaximized((prev) => !prev)}
+          onClick={toggleMaximize}
           className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-white rounded-xl shadow-lg border border-slate-700/80 text-xs font-bold font-mono transition-all cursor-pointer active:scale-95"
-          title={isMaximized ? "Minimizar Mapa (ESC)" : "Maximizar Mapa para Tela Cheia"}
+          title={isMaximized ? "Minimizar Mapa (ESC)" : "Projetar Mapa em Tela Cheia (Modo Imersivo)"}
         >
           {isMaximized ? (
             <>

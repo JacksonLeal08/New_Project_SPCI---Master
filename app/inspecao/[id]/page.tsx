@@ -1632,10 +1632,15 @@ function InspecaoOuCadastroContent() {
                       </div>
                       {fotoEvidenciaCoords && (
                         <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-450 text-[9px] flex items-center gap-2 font-mono">
-                          <MapPin size={13} className="shrink-0" />
+                          <MapPin size={13} className="shrink-0 text-emerald-500" />
                           <div>
                             <span className="font-bold block">Coordenadas da Vistoria Validadas:</span>
                             <span>{fotoEvidenciaCoords.latitude.toFixed(6)}, {fotoEvidenciaCoords.longitude.toFixed(6)} (Margem: ±{fotoEvidenciaCoords.accuracy}m)</span>
+                            {fotoEvidenciaCoords.origem && (
+                              <span className="block text-[8.5px] font-bold text-emerald-700 dark:text-emerald-350 mt-0.5">
+                                {fotoEvidenciaCoords.origem === 'FOTO_EXIF' ? '📸 Origem: Metadados da Imagem (EXIF)' : '🛰️ Origem: GPS do Dispositivo (Automático)'}
+                              </span>
+                            )}
                           </div>
                         </div>
                       )}

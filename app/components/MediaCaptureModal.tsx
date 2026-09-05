@@ -43,17 +43,24 @@ export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
             latitude: exifGps.latitude,
             longitude: exifGps.longitude,
             accuracy: 5,
-            altitude: exifGps.altitude || null
+            altitude: exifGps.altitude || null,
+            origem: 'FOTO_EXIF'
           };
         }
       } catch {
         /* ignora falha de EXIF */
       }
 
-      // 2. Se a foto não possuir EXIF, recorrer à captura da antena do aparelho
+      // 2. Se a foto não possuir EXIF, recorrer automaticamente à captura da antena do aparelho
       if (!coords && autoCaptureGeo) {
         try {
-          coords = await capturePosition({ enableHighAccuracy: true, timeout: 8000 });
+          const deviceCoords = await capturePosition({ enableHighAccuracy: true, timeout: 8000 });
+          if (deviceCoords) {
+            coords = {
+              ...deviceCoords,
+              origem: 'GPS_DISPOSITIVO'
+            };
+          }
         } catch (err) {
           console.warn('[MediaCaptureModal] Não foi possível capturar GPS via antena:', err);
         }

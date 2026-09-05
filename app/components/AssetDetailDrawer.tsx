@@ -79,10 +79,12 @@ export default function AssetDetailDrawer() {
 
     setIsProcessingPhoto(true);
 
-    // Tentar extrair GPS diretamente dos metadados gravados na foto
+    // 1. Tentar extrair GPS diretamente dos metadados gravados na foto (EXIF)
+    let hasExtractedGps = false;
     try {
       const exifGps = await extractExifGpsFromImage(file);
       if (exifGps && exifGps.hasGps) {
+        hasExtractedGps = true;
         setFormData((prev: any) => ({
           ...prev,
           latitude: exifGps.latitude,
@@ -91,10 +93,36 @@ export default function AssetDetailDrawer() {
           origem_localizacao: 'FOTO_EXIF',
           data_ultima_localizacao: new Date().toISOString()
         }));
-        setGpsSuccess(`📍 Coordenadas extraídas da foto: ${exifGps.latitude.toFixed(6)}, ${exifGps.longitude.toFixed(6)}`);
+        setGpsSuccess(`📸 Metadados da Imagem (EXIF): Coordenadas extraídas da foto (${exifGps.latitude.toFixed(6)}, ${exifGps.longitude.toFixed(6)})`);
       }
     } catch {
       /* ignora erro de EXIF */
+    }
+
+    // 2. Fallback Automático: Se a foto não tiver coordenadas EXIF, busca via GPS do dispositivo em uso!
+    if (!hasExtractedGps) {
+      if (typeof window !== 'undefined' && navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            const accuracy = Math.round(pos.coords.accuracy || 10);
+            setFormData((prev: any) => ({
+              ...prev,
+              latitude: lat,
+              longitude: lng,
+              precisao_gps: accuracy,
+              origem_localizacao: 'GPS_DISPOSITIVO',
+              data_ultima_localizacao: new Date().toISOString()
+            }));
+            setGpsSuccess(`🛰️ Imagem sem GPS — Coordenadas obtidas via GPS deste dispositivo: ${lat.toFixed(6)}, ${lng.toFixed(6)} (±${accuracy}m)`);
+          },
+          (err) => {
+            console.warn('GPS do dispositivo não disponível para fallback:', err.message);
+          },
+          { enableHighAccuracy: true, timeout: 8000, maximumAge: 15000 }
+        );
+      }
     }
 
     const reader = new FileReader();
@@ -441,22 +469,46 @@ export default function AssetDetailDrawer() {
                       </div>
 
                       {formData.latitude && formData.longitude ? (
-                        <div className="bg-white border border-slate-200 rounded-lg p-2.5 grid grid-cols-2 gap-2 text-xs font-mono">
-                          <div>
-                            <span className="text-[9px] text-slate-400 block uppercase">Latitude</span>
-                            <span className="font-bold text-slate-800">{Number(formData.latitude).toFixed(6)}</span>
-                          </div>
-                          <div>
-                            <span className="text-[9px] text-slate-400 block uppercase">Longitude</span>
-                            <span className="font-bold text-slate-800">{Number(formData.longitude).toFixed(6)}</span>
-                          </div>
-                          {formData.precisao_gps && (
-                            <div className="col-span-2 text-[10px] text-slate-500 flex items-center gap-1 border-t border-slate-100 pt-1.5 mt-0.5">
-                              <span>🛰️ Precisão: ±{formData.precisao_gps}m</span>
-                              <span>•</span>
-                              <span>Origem: {formData.origem_localizacao || 'GPS'}</span>
+                        <div className="bg-white border border-slate-200 rounded-xl p-3 space-y-2.5 text-xs font-mono shadow-xs">
+                          <div className="grid grid-cols-2 gap-2">
+                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                              <span className="text-[9px] text-slate-400 block uppercase font-bold">Latitude</span>
+                              <span className="font-bold text-slate-800 text-xs">{Number(formData.latitude).toFixed(6)}</span>
                             </div>
-                          )}
+                            <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
+                              <span className="text-[9px] text-slate-400 block uppercase font-bold">Longitude</span>
+                              <span className="font-bold text-slate-800 text-xs">{Number(formData.longitude).toFixed(6)}</span>
+                            </div>
+                          </div>
+
+                          {/* Sinalização Visual Clara da Origem */}
+                          <div>
+                            {formData.origem_localizacao === 'FOTO_EXIF' ? (
+                              <div className="flex items-center gap-2 p-2 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 text-[10px]">
+                                <span className="text-sm">📸</span>
+                                <div className="leading-tight">
+                                  <span className="font-bold block text-sky-950">Origem: Metadados da Imagem (EXIF)</span>
+                                  <span className="text-[9px] text-sky-700">Coordenadas extraídas da foto gravada pela câmera.</span>
+                                </div>
+                              </div>
+                            ) : formData.origem_localizacao === 'GPS_DISPOSITIVO' ? (
+                              <div className="flex items-center gap-2 p-2 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10px]">
+                                <span className="text-sm">🛰️</span>
+                                <div className="leading-tight">
+                                  <span className="font-bold block text-emerald-950">Origem: GPS do Dispositivo (Automático)</span>
+                                  <span className="text-[9px] text-emerald-700">Precisão da antena: ±{formData.precisao_gps || 10}m</span>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 p-2 rounded-lg bg-slate-100 border border-slate-200 text-slate-700 text-[10px]">
+                                <span className="text-sm">📍</span>
+                                <div className="leading-tight">
+                                  <span className="font-bold block text-slate-900">Origem: {formData.origem_localizacao || 'Localização Fixada'}</span>
+                                  {formData.precisao_gps && <span className="text-[9px] text-slate-600">Precisão: ±{formData.precisao_gps}m</span>}
+                                </div>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       ) : (
                         <p className="text-[11px] text-slate-500">

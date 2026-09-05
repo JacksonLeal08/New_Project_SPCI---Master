@@ -13,25 +13,25 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.8.0',
+  version: 'v2.8.1',
   date: '05/09/2026',
-  title: 'SPCI Master v2.8.0 - GPS EXIF de Fotos, Rotas e Inspe IA Atualizada',
-  summary: 'Extração automática de GPS a partir de fotos (metadados EXIF), rotas via Waze/Google Maps, modo imersivo tela cheia no Mapa Operacional e novos tópicos temáticos no Inspe IA SPCI.',
+  title: 'SPCI Master v2.8.1 - Tela Cheia Nativa & Rastreamento Inteligente de Origem GPS',
+  summary: 'Modo imersivo total projetado para fora da página via Fullscreen API, cascata inteligente com fallback automático para o GPS do aparelho quando a foto não tiver EXIF e sinalização visual clara da origem das coordenadas.',
   changes: [
     {
-      category: 'IA',
-      title: 'Inspe IA SPCI Atualizado com Mapa e GPS',
-      description: 'Nova categoria de tópicos rápidos no assistente para guiar o operador sobre rotas, modo tela cheia, momentos de geocaptura e extração de GPS EXIF de fotos.'
+      category: 'UI/UX',
+      title: 'Projeção do Mapa em Tela Cheia Nativa',
+      description: 'Ao clicar em Maximizar, o mapa utiliza a Fullscreen API do navegador para expandir por 100% da tela do dispositivo, ocultando barras do navegador e integrando com a tecla ESC.'
     },
     {
       category: 'UI/UX',
-      title: 'Extração de GPS EXIF de Fotos Sem Conflito',
-      description: 'Ao anexar ou tirar foto do ativo com a câmera do celular, o sistema extrai automaticamente latitude e longitude dos metadados EXIF da imagem com fallback seguro para a antena do celular.'
+      title: 'Fallback Automático da Imagem para GPS do Aparelho',
+      description: 'Quando a imagem enviada não possui coordenadas EXIF gravadas, o sistema aciona de forma transparente e automática o GPS da antena do dispositivo sem travamentos.'
     },
     {
       category: 'UI/UX',
-      title: 'Mapa Operacional com Rotas e Modo Imersivo',
-      description: 'Popup com botão para traçar rotas via Waze ou Google Maps, visualizador de fotos com zoom e botão de maximizar/minimizar para visualização em tela cheia.'
+      title: 'Sinalização Visual de Origem (EXIF vs Dispositivo)',
+      description: 'Badges temáticos de alta visibilidade no mapa, formulário de edição e vistoria indicando se a coordenada veio da foto (EXIF) ou da antena do dispositivo.'
     }
   ]
 };
