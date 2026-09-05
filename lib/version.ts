@@ -13,25 +13,25 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.8.1',
+  version: 'v2.8.2',
   date: '05/09/2026',
-  title: 'SPCI Master v2.8.1 - Tela Cheia Nativa & Rastreamento Inteligente de Origem GPS',
-  summary: 'Modo imersivo total projetado para fora da página via Fullscreen API, cascata inteligente com fallback automático para o GPS do aparelho quando a foto não tiver EXIF e sinalização visual clara da origem das coordenadas.',
+  title: 'SPCI Master v2.8.2 - Upload Seguro de Fotos & Proteção VARCHAR(512)',
+  summary: 'Correção crítica no salvamento de fotos de extintores: envio automático para o Supabase Storage em nuvem, eliminando o estouro de limite de 512 caracteres no banco de dados com suporte a fila offline.',
   changes: [
     {
-      category: 'UI/UX',
-      title: 'Projeção do Mapa em Tela Cheia Nativa',
-      description: 'Ao clicar em Maximizar, o mapa utiliza a Fullscreen API do navegador para expandir por 100% da tela do dispositivo, ocultando barras do navegador e integrando com a tecla ESC.'
+      category: 'DESEMPENHO',
+      title: 'Upload Otimizado para Supabase Storage',
+      description: 'As fotos capturadas ou enviadas são salvas diretamente no bucket em nuvem (fotos_extintores), gerando URLs públicas compactas e leves.'
     },
     {
-      category: 'UI/UX',
-      title: 'Fallback Automático da Imagem para GPS do Aparelho',
-      description: 'Quando a imagem enviada não possui coordenadas EXIF gravadas, o sistema aciona de forma transparente e automática o GPS da antena do dispositivo sem travamentos.'
+      category: 'NBR',
+      title: 'Proteção Ativa contra Erro VARCHAR(512)',
+      description: 'Camada de segurança dupla no frontend e na camada de banco que impede que dados Base64 brutos ultrapassem o limite de 512 caracteres da tabela ativos_extintores.'
     },
     {
-      category: 'UI/UX',
-      title: 'Sinalização Visual de Origem (EXIF vs Dispositivo)',
-      description: 'Badges temáticos de alta visibilidade no mapa, formulário de edição e vistoria indicando se a coordenada veio da foto (EXIF) ou da antena do dispositivo.'
+      category: 'DESEMPENHO',
+      title: 'Fila de Mídia Offline (MediaQueue)',
+      description: 'Garante que mesmo sem internet momentânea a foto seja enfileirada localmente e o ativo seja atualizado com segurança.'
     }
   ]
 };

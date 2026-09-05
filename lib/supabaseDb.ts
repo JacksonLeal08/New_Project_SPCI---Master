@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import { InspecaoRealizada, normalizeTipoMovimentacao, TIPO_MOVIMENTACAO_MAP } from './types';
 import { getUsersListAction } from '@/app/actions/userActions';
+import { MediaQueue } from './mediaQueue';
 
 
 export interface UserProfile {
@@ -854,6 +855,39 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
       const tipoMov = normalizeTipoMovimentacao(asset.tipo_movimentacao || asset.status_estoque);
       const statusEstoque = asset.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
 
+      // Tratamento seguro de foto_url para evitar estouro de VARCHAR(512) no PostgreSQL
+      let resolvedFotoUrl = asset.fotoUrl || asset.foto_url || null;
+      if (resolvedFotoUrl && typeof resolvedFotoUrl === 'string' && resolvedFotoUrl.startsWith('data:image/')) {
+        try {
+          const blob = MediaQueue.base64ToBlob(resolvedFotoUrl, 'image/jpeg');
+          const cleanId = String(asset.idAtivo || asset.patrimonio || id).replace(/[^a-zA-Z0-9_-]/g, '_');
+          const fileName = `ext_${cleanId}_${Date.now()}.jpg`;
+          const { data: upData, error: upErr } = await supabase.storage
+            .from('fotos_extintores')
+            .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+
+          if (!upErr && upData?.path) {
+            const { data: { publicUrl } } = supabase.storage
+              .from('fotos_extintores')
+              .getPublicUrl(upData.path);
+            resolvedFotoUrl = publicUrl;
+          } else {
+            console.warn('[saveAssetToDb] Falha ao subir imagem Base64 no storage, enfileirando offline:', upErr);
+            await MediaQueue.enqueue(id, 'extintores', fileName, blob as any).catch(console.warn);
+            resolvedFotoUrl = null;
+          }
+        } catch (upCatch) {
+          console.warn('[saveAssetToDb] Erro ao processar upload Base64:', upCatch);
+          resolvedFotoUrl = null;
+        }
+      }
+
+      // Salvaguarda final contra estouro de VARCHAR(512) no PostgreSQL
+      if (resolvedFotoUrl && typeof resolvedFotoUrl === 'string' && resolvedFotoUrl.length > 512) {
+        console.warn(`[saveAssetToDb] foto_url excedeu 512 caracteres (${resolvedFotoUrl.length}). Truncando para evitar erro no banco.`);
+        resolvedFotoUrl = null;
+      }
+
       const payload: any = {
         local_id: localId,
         sub_local_id: subLocalId || null,
@@ -866,7 +900,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         meses_validade_recarga: parseInt(asset.validadeRecargaMeses || asset.meses_validade_recarga || '12', 10),
         ano_ultimo_teste_hidro: parseInt(asset.ultimoTesteHidro || asset.ano_ultimo_teste_hidro || new Date().getFullYear().toString(), 10),
         data_pesagem_co2: asset.data_pesagem_co2 ? normalizeToIsoDate(asset.data_pesagem_co2) : null,
-        foto_url: asset.fotoUrl || asset.foto_url || null,
+        foto_url: resolvedFotoUrl,
         updated_at: new Date().toISOString()
       };
 

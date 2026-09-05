@@ -28,6 +28,8 @@ import {
 import { TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
 import { processAssetLocationUpdateAction } from '@/app/actions/geoTrackingActions';
 import { extractExifGpsFromImage } from '@/lib/exifUtils';
+import { supabase } from '@/lib/supabaseClient';
+import { MediaQueue } from '@/lib/mediaQueue';
 
 type TabKey = 'dados' | 'inspecoes' | 'historico' | 'fotos';
 
@@ -128,9 +130,10 @@ export default function AssetDetailDrawer() {
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
-      img.onload = () => {
+      img.onload = async () => {
         try {
           const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
           const maxWidth = 1200;
           let { width, height } = img;
           if (width > maxWidth) {
@@ -139,16 +142,39 @@ export default function AssetDetailDrawer() {
           }
           canvas.width = width;
           canvas.height = height;
-          const ctx = canvas.getContext('2d');
+          let finalDataUrl = '';
           if (ctx) {
             ctx.drawImage(img, 0, 0, width, height);
-            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
-            handleFieldChange('fotoUrl', compressedDataUrl);
-            handleFieldChange('foto_url', compressedDataUrl);
+            finalDataUrl = canvas.toDataURL('image/jpeg', 0.82);
           } else {
-            const raw = event.target?.result as string;
-            handleFieldChange('fotoUrl', raw);
-            handleFieldChange('foto_url', raw);
+            finalDataUrl = event.target?.result as string;
+          }
+
+          // Atualiza visualização local imediata para o operador
+          handleFieldChange('fotoUrl', finalDataUrl);
+          handleFieldChange('foto_url', finalDataUrl);
+
+          // Upload assíncrono para o Supabase Storage (gerando URL < 512 caracteres)
+          try {
+            const blob = MediaQueue.base64ToBlob(finalDataUrl, 'image/jpeg');
+            const assetCode = asset?.idAtivo || asset?.numero_patrimonio || asset?.id || 'ext';
+            const cleanCode = String(assetCode).replace(/[^a-zA-Z0-9_-]/g, '_');
+            const fileName = `ext_${cleanCode}_${Date.now()}.jpg`;
+
+            const { data: uploadData, error: uploadErr } = await supabase.storage
+              .from('fotos_extintores')
+              .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+
+            if (!uploadErr && uploadData?.path) {
+              const { data: { publicUrl } } = supabase.storage
+                .from('fotos_extintores')
+                .getPublicUrl(uploadData.path);
+
+              handleFieldChange('fotoUrl', publicUrl);
+              handleFieldChange('foto_url', publicUrl);
+            }
+          } catch (uploadErr) {
+            console.warn('[AssetDetailDrawer] Upload direto ao Storage falhou, será retentado ao salvar:', uploadErr);
           }
         } catch {
           const raw = event.target?.result as string;
@@ -272,7 +298,43 @@ export default function AssetDetailDrawer() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      await updateExtintorAsset(formData);
+      const payloadToSave = { ...formData };
+
+      // Se a foto ainda estiver em Base64 (data:image/...), fazemos o upload antes de persistir no PostgreSQL
+      const currentPhoto = payloadToSave.fotoUrl || payloadToSave.foto_url;
+      if (currentPhoto && typeof currentPhoto === 'string' && currentPhoto.startsWith('data:image/')) {
+        try {
+          const blob = MediaQueue.base64ToBlob(currentPhoto, 'image/jpeg');
+          const assetCode = asset?.idAtivo || asset?.numero_patrimonio || asset?.id || 'ext';
+          const cleanCode = String(assetCode).replace(/[^a-zA-Z0-9_-]/g, '_');
+          const fileName = `ext_${cleanCode}_${Date.now()}.jpg`;
+
+          const { data: uploadData, error: uploadErr } = await supabase.storage
+            .from('fotos_extintores')
+            .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
+
+          if (!uploadErr && uploadData?.path) {
+            const { data: { publicUrl } } = supabase.storage
+              .from('fotos_extintores')
+              .getPublicUrl(uploadData.path);
+
+            payloadToSave.fotoUrl = publicUrl;
+            payloadToSave.foto_url = publicUrl;
+            setFormData((prev: any) => ({ ...prev, fotoUrl: publicUrl, foto_url: publicUrl }));
+          } else {
+            console.warn('[handleSave] Falha no upload para Storage, enfileirando offline:', uploadErr);
+            await MediaQueue.enqueue(asset?.id || 'ext', 'extintores', fileName, blob as any).catch(console.warn);
+            payloadToSave.fotoUrl = '';
+            payloadToSave.foto_url = '';
+          }
+        } catch (e) {
+          console.warn('[handleSave] Erro no upload:', e);
+          payloadToSave.fotoUrl = '';
+          payloadToSave.foto_url = '';
+        }
+      }
+
+      await updateExtintorAsset(payloadToSave);
     } catch { /* handled by context */ }
     finally { setIsSaving(false); }
   };
