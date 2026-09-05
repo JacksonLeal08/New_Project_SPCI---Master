@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
 import { processAssetLocationUpdateAction } from '@/app/actions/geoTrackingActions';
+import { extractExifGpsFromImage } from '@/lib/exifUtils';
 
 type TabKey = 'dados' | 'inspecoes' | 'historico' | 'fotos';
 
@@ -71,12 +72,30 @@ export default function AssetDetailDrawer() {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Manipulador de seleção ou captura de foto com compressão
-  const handleImageFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Manipulador de seleção ou captura de foto com compressão e leitura de GPS EXIF
+  const handleImageFileSelected = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setIsProcessingPhoto(true);
+
+    // Tentar extrair GPS diretamente dos metadados gravados na foto
+    try {
+      const exifGps = await extractExifGpsFromImage(file);
+      if (exifGps && exifGps.hasGps) {
+        setFormData((prev: any) => ({
+          ...prev,
+          latitude: exifGps.latitude,
+          longitude: exifGps.longitude,
+          precisao_gps: 5,
+          origem_localizacao: 'FOTO_EXIF',
+          data_ultima_localizacao: new Date().toISOString()
+        }));
+        setGpsSuccess(`📍 Coordenadas extraídas da foto: ${exifGps.latitude.toFixed(6)}, ${exifGps.longitude.toFixed(6)}`);
+      }
+    } catch {
+      /* ignora erro de EXIF */
+    }
 
     const reader = new FileReader();
     reader.onload = (event) => {

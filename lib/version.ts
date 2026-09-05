@@ -13,25 +13,25 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.7.1',
-  date: '29/07/2026',
-  title: 'SPCI Master v2.7.1 - Confirmação de Limpeza IA & FAB Responsivo',
-  summary: 'Nova atualização com modal de confirmação de limpeza ao fechar a IA e alinhamento responsivo lado a lado com o botão FAB de cadastro.',
+  version: 'v2.8.0',
+  date: '05/09/2026',
+  title: 'SPCI Master v2.8.0 - GPS EXIF de Fotos, Rotas e Inspe IA Atualizada',
+  summary: 'Extração automática de GPS a partir de fotos (metadados EXIF), rotas via Waze/Google Maps, modo imersivo tela cheia no Mapa Operacional e novos tópicos temáticos no Inspe IA SPCI.',
   changes: [
     {
       category: 'IA',
-      title: 'Aviso e Confirmação de Limpeza de Dados',
-      description: 'Ao fechar o assistente IA 24h, um modal de confirmação notifica o operador que os dados da consulta serão limpos para a próxima sessão.'
+      title: 'Inspe IA SPCI Atualizado com Mapa e GPS',
+      description: 'Nova categoria de tópicos rápidos no assistente para guiar o operador sobre rotas, modo tela cheia, momentos de geocaptura e extração de GPS EXIF de fotos.'
     },
     {
       category: 'UI/UX',
-      title: 'Alinhamento Lado a Lado do Botão IA & FAB',
-      description: 'O botão Inspe IA foi posicionado à esquerda do botão FAB (+), eliminando ícones no topo direito e mantendo layout limpo.'
+      title: 'Extração de GPS EXIF de Fotos Sem Conflito',
+      description: 'Ao anexar ou tirar foto do ativo com a câmera do celular, o sistema extrai automaticamente latitude e longitude dos metadados EXIF da imagem com fallback seguro para a antena do celular.'
     },
     {
       category: 'UI/UX',
-      title: 'Deslocamento Fluido do Botão FAB',
-      description: 'Ao abrir o painel lateral da IA, o botão FAB (+) se desloca de forma dinâmica e fluida para a extremidade esquerda do modal aberto.'
+      title: 'Mapa Operacional com Rotas e Modo Imersivo',
+      description: 'Popup com botão para traçar rotas via Waze ou Google Maps, visualizador de fotos com zoom e botão de maximizar/minimizar para visualização em tela cheia.'
     }
   ]
 };

@@ -5,7 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useSpci } from '@/app/context/SpciContext';
 import { 
   Bot, Send, X, Sparkles, Cpu, ShieldCheck, ChevronRight, ChevronDown, 
-  HelpCircle, Layers, Flame, Droplets, QrCode, AlertTriangle, Bell, Trash2, AlertCircle
+  HelpCircle, Layers, Flame, Droplets, QrCode, AlertTriangle, Bell, Trash2, AlertCircle,
+  MapPin, Navigation, Compass, Maximize2, Camera
 } from 'lucide-react';
 import WhatsNewModal from './WhatsNewModal';
 import { CURRENT_SYSTEM_VERSION } from '@/lib/version';
@@ -123,6 +124,32 @@ export default function SpciChatIa() {
       ]
     },
     {
+      category: 'MAPA OPERACIONAL & RASTREAMENTO GPS',
+      icon: MapPin,
+      topics: [
+        {
+          label: 'Como funciona o Mapa Operacional de Ativos?',
+          prompt: 'Como funciona o Mapa Operacional de Ativos com geolocalização dos extintores e hidrantes?'
+        },
+        {
+          label: 'Como traçar rota até o ativo e navegar no Google/Waze?',
+          prompt: 'Como traçar rota até o extintor no mapa e usar a navegação com Google Maps e Waze?'
+        },
+        {
+          label: 'Como capturar foto e extrair o GPS da imagem?',
+          prompt: 'Como funciona a captura de fotos pela câmera do celular e a extração automática de GPS dos dados EXIF da foto?'
+        },
+        {
+          label: 'Como usar o Modo Imersivo (Maximizar/Minimizar)?',
+          prompt: 'Como funciona o botão de maximizar e minimizar para tela cheia no Mapa Operacional?'
+        },
+        {
+          label: 'Quais são os 3 momentos de geocaptura de ativos?',
+          prompt: 'Quais são os 3 momentos operacionais em que o SPCI captura a geolocalização do extintor (Estoque, Ronda e Inspeção)?'
+        }
+      ]
+    },
+    {
       category: 'DESPACHO & ALERTAS DE INCONFORMIDADE',
       icon: AlertTriangle,
       topics: [
@@ -134,12 +161,32 @@ export default function SpciChatIa() {
     }
   ];
 
-  // Gerador de resposta inteligente local NBR (à prova de falhas)
+  // Gerador de resposta inteligente local NBR e Sistema SPCI (à prova de falhas)
   const getSmartLocalNbrAnswer = (promptText: string): string => {
     const p = promptText.toLowerCase();
 
+    if (p.includes('exif') || p.includes('foto') || p.includes('câmera') || p.includes('camera') || p.includes('extra')) {
+      return `📸 **Extração Automática de GPS por Fotos (EXIF):**\n\nAo tirar ou anexar uma foto de um extintor:\n\n1. **Detecção Instantânea:** O SPCI lê automaticamente os metadados EXIF gravados pelo sensor da câmera do smartphone no corpo do arquivo de imagem (JPEG/TIFF).\n2. **Coordenadas Precisas:** As tags de Latitude e Longitude são convertidas para graus decimais e salvas diretamente na ficha do ativo.\n3. **Sem Conflito:** Caso a foto não possua coordenadas (ex.: enviada com compressão pelo WhatsApp), o sistema aciona transparentemente o GPS da antena do celular ou mantém a posição anterior sem emitir erros.\n4. **Origem Rastreada:** O ativo recebe a tag 'FOTO_EXIF' indicando a auditoria de origem.`;
+    }
+
+    if (p.includes('rota') || p.includes('waze') || p.includes('navegar') || p.includes('google maps') || p.includes('caminho')) {
+      return `🧭 **Navegação e Rotas até o Ativo:**\n\nNo **Mapa Operacional**, ao tocar ou clicar no pin de qualquer extintor cadastrado:\n\n1. O popup exibe o botão **'Traçar Rota / Ir até o Ativo'**.\n2. É aberto um menu seletor permitindo escolher entre **Google Maps** e **Waze**.\n3. O aplicativo abre o trajeto passo a passo da sua localização atual exata até o extintor, facilitando a ronda dos brigadistas e técnicos em plantas industriais extensas.`;
+    }
+
+    if (p.includes('maximizar') || p.includes('minimizar') || p.includes('imersivo') || p.includes('tela cheia')) {
+      return `🖥️ **Modo Imersivo (Tela Cheia) do Mapa:**\n\nO Mapa Operacional conta com o botão **Maximizar/Minimizar (Tela Cheia)** no canto superior do painel:\n\n• **Maximizar:** Expande o mapa por toda a área visual do navegador, com visualização ampla dos pins de ativos, filtros dinâmicos e caminhos de vistoria.\n• **Minimizar:** Retorna à visualização integrada no dashboard sem perder o zoom, o foco ou os filtros selecionados.`;
+    }
+
+    if (p.includes('3 momentos') || p.includes('momentos de geocaptura') || p.includes('captura') || (p.includes('gps') && p.includes('ativo'))) {
+      return `📍 **Os 3 Momentos de Geocaptura no SPCI:**\n\nO sistema garante que nenhum ativo fique sem posição através de 3 camadas operacionais:\n\n1. **Estoque / Cadastro Inicial:** Ao receber novos lotes de extintores, o almoxarifado/técnico pode capturar a posição do lote ou inserir uma foto com GPS EXIF.\n2. **Ronda do Brigadista:** Durante a ronda de inspeção preventiva, a leitura do QR Code ou foto de conferência grava a coordenada atual do ativo.\n3. **Inspeção / Vistoria Formal:** No fechamento do checklist mensal NBR 12962, a geolocalização é revalidada e associada ao relatório de conformidade.`;
+    }
+
+    if (p.includes('mapa') || p.includes('operacional')) {
+      return `🗺️ **Mapa Operacional SPCI:**\n\nO Mapa Operacional consolida toda a segurança contra incêndio geograficamente:\n\n• **Plotagem em Tempo Real:** Extintores e hidrantes são plotados com ícones coloridos baseados no status (Verde = Conforme, Vermelho = Vencido/Crítico, Amarelo = Atenção).\n• **Visualização Noturna e Diurna:** Camadas satélite, terreno e híbrida com nomes claros de ruas e localidades.\n• **Fotos e Zoom:** Popup com visualizador de fotos do ativo e ferramenta de zoom para inspeção detalhada de avarias.\n• **Rotas Rápidas:** Link direto para navegação via Waze ou Google Maps.`;
+    }
+
     if (p.includes('capaz') || p.includes('apresente') || p.includes('sistema')) {
-      return `🚀 **O que o SPCI Master é capaz de fazer?**\n\nO SPCI Master é a plataforma definitiva de Engenharia de Segurança Contra Incêndios para plantas industriais e corporativas:\n\n• **Gestão de Inventário:** Controle unificado de Extintores, Hidrantes, Sinalização NBR, Iluminação de Emergência e Casa de Bombas.\n• **Vistoria por QR Code:** Leitura instantânea via celular no campo para checklist automatizado.\n• **Conformidade em Tempo Real:** Cálculo de índices, alertas de recarga vencida e testes hidrostáticos (NBR 12962 e NBR 13714).\n• **Assistente com IA 24h:** Esclarecimento de dúvidas normativas e emissão de orientações corretivas em campo.`;
+      return `🚀 **O que o SPCI Master é capaz de fazer?**\n\nO SPCI Master é a plataforma definitiva de Engenharia de Segurança Contra Incêndios para plantas industriais e corporativas:\n\n• **Gestão de Inventário:** Controle unificado de Extintores, Hidrantes, Sinalização NBR, Iluminação de Emergência e Casa de Bombas.\n• **Mapa Operacional & GPS:** Plotagem geoespacial de ativos, rotas via Waze/Google Maps, extração de GPS EXIF de fotos e modo imersivo.\n• **Vistoria por QR Code:** Leitura instantânea via celular no campo para checklist automatizado.\n• **Conformidade em Tempo Real:** Cálculo de índices, alertas de recarga vencida e testes hidrostáticos (NBR 12962 e NBR 13714).\n• **Assistente com IA 24h:** Esclarecimento de dúvidas normativas e emissão de orientações corretivas em campo.`;
     }
 
     if (p.includes('12962')) {
@@ -184,7 +231,7 @@ export default function SpciChatIa() {
           prompt: `Responda de forma sucinta como o Inspe IA SPCI.
           Planta SPCI atual: ${totalAssets} ativos monitorados, ${totalVencidos} vencidos, ${totalAtencao} em atenção. Índice Geral Conformidade: ${compliancePercentage}%.
           Mensagem do operador: ${textToQuery}`,
-          systemInstruction: "Você é o assistente virtual Inspe IA SPCI operando via motor DeepSeek-V3. Responda em português brasileiro, de forma breve, altamente precisa e técnica, baseando-se estritamente em engenharia de segurança contra incêndios (NBR 12693, NBR 12962, NBR 13434, NBR 13714, NBR 10897, NBR 15808, NBR 15809). Mantenha as respostas objetivas e formatadas em Markdown quando necessário."
+          systemInstruction: "Você é o assistente virtual Inspe IA SPCI operando via motor DeepSeek-V3. Responda em português brasileiro, de forma breve, altamente precisa e técnica, baseando-se estritamente em engenharia de segurança contra incêndios (NBR 12693, NBR 12962, NBR 13434, NBR 13714, NBR 10897, NBR 15808, NBR 15809) e nas funcionalidades do sistema SPCI Master (Mapa Operacional com geolocalização de ativos, rotas via Google Maps e Waze, modo imersivo tela cheia, captura de fotos com câmera do dispositivo e extração automática de GPS a partir dos metadados EXIF da imagem). Mantenha as respostas objetivas e formatadas em Markdown quando necessário."
         })
       });
 
@@ -204,7 +251,7 @@ export default function SpciChatIa() {
             prompt: `Responda de forma sucinta como o Inspe IA SPCI.
             Planta SPCI atual: ${totalAssets} ativos monitorados, ${totalVencidos} vencidos, ${totalAtencao} em atenção. Índice Geral Conformidade: ${compliancePercentage}%.
             Mensagem do operador: ${textToQuery}`,
-            systemInstruction: "Você é o assistente virtual Inspe IA SPCI. Responda em português brasileiro, de forma breve, muito precisa, baseando-se estritamente em engenharia de segurança contra incêndios."
+            systemInstruction: "Você é o assistente virtual Inspe IA SPCI. Responda em português brasileiro, de forma breve, muito precisa, baseando-se estritamente em engenharia de segurança contra incêndios e nas funcionalidades do sistema SPCI Master (Mapa Operacional, rotas Waze/Google Maps, fotos com extração de GPS EXIF e modo tela cheia)."
           })
         });
 

@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import { Camera, Image, X, MapPin, Loader2 } from 'lucide-react';
 import { useGeoCapture } from '@/hooks/useGeoCapture';
 import { GeoCoordinates } from '@/lib/geoUtils';
+import { extractExifGpsFromImage } from '@/lib/exifUtils';
 
 interface MediaCaptureModalProps {
   isOpen: boolean;
@@ -33,13 +34,28 @@ export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
     if (file) {
       setCapturingCoords(true);
 
-      // Captura GPS simultaneamente em alta precisão
+      // 1. Tentar extrair GPS diretamente da foto (EXIF)
       let coords: GeoCoordinates | null = null;
-      if (autoCaptureGeo) {
+      try {
+        const exifGps = await extractExifGpsFromImage(file);
+        if (exifGps && exifGps.hasGps) {
+          coords = {
+            latitude: exifGps.latitude,
+            longitude: exifGps.longitude,
+            accuracy: 5,
+            altitude: exifGps.altitude || null
+          };
+        }
+      } catch {
+        /* ignora falha de EXIF */
+      }
+
+      // 2. Se a foto não possuir EXIF, recorrer à captura da antena do aparelho
+      if (!coords && autoCaptureGeo) {
         try {
           coords = await capturePosition({ enableHighAccuracy: true, timeout: 8000 });
         } catch (err) {
-          console.warn('[MediaCaptureModal] Não foi possível capturar GPS:', err);
+          console.warn('[MediaCaptureModal] Não foi possível capturar GPS via antena:', err);
         }
       }
 
