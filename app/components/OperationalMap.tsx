@@ -15,7 +15,9 @@ import {
   Camera,
   ExternalLink,
   Route,
-  Car
+  Car,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import AssetImageZoomModal from './AssetImageZoomModal';
 import { calculateHaversineDistance, formatDistance } from '@/lib/geoUtils';
@@ -65,9 +67,30 @@ export default function OperationalMap({
   const [locatingUser, setLocatingUser] = useState(false);
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
 
-  // Estados para Rota Ativa e Modal de Zoom
+  // Estados para Rota Ativa, Modal de Zoom e Tela Cheia (Maximizar/Minimizar)
   const [activeRoute, setActiveRoute] = useState<{ asset: MapAssetItem; distanceMeters: number } | null>(null);
   const [zoomedAsset, setZoomedAsset] = useState<MapAssetItem | null>(null);
+  const [isMaximized, setIsMaximized] = useState<boolean>(false);
+
+  // Ajustar tamanho dos tiles do mapa ao maximizar ou minimizar
+  useEffect(() => {
+    if (!mapInstanceRef.current) return;
+    const timeout = setTimeout(() => {
+      mapInstanceRef.current.invalidateSize();
+    }, 250);
+    return () => clearTimeout(timeout);
+  }, [isMaximized]);
+
+  // Fechar tela cheia com ESC
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isMaximized) {
+        setIsMaximized(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isMaximized]);
 
   // Determinar cor do pino baseado no status e tipo de movimentação
   const getMarkerColor = (asset: MapAssetItem) => {
@@ -790,13 +813,27 @@ export default function OperationalMap({
   }, [assets, selectedAssetId, onSelectAssetForHistory, onUpdateAssetLocation, userCoords]);
 
   return (
-    <div className={`relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl ${className}`}>
+    <div
+      className={`relative transition-all duration-300 ${
+        isMaximized
+          ? 'fixed inset-0 z-[1000] w-screen h-screen rounded-none border-none shadow-none bg-slate-950'
+          : `rounded-2xl overflow-hidden border border-slate-800 shadow-2xl ${className}`
+      }`}
+    >
       {/* Contêiner Leaflet */}
       <div ref={mapContainerRef} className="w-full h-full z-10" />
 
+      {/* AVISO DISCRETO NO MODO IMERSIVO (TELA CHEIA) */}
+      {isMaximized && (
+        <div className="absolute top-4 left-4 z-20 hidden md:flex items-center gap-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-3.5 py-2 shadow-2xl text-xs font-mono text-slate-200 animate-in fade-in duration-300">
+          <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
+          <span>Modo Imersivo (Pressione <strong>ESC</strong> ou clique em Minimizar para sair)</span>
+        </div>
+      )}
+
       {/* BANNER FLUTUANTE DE ROTA ATIVA */}
       {activeRoute && (
-        <div className="absolute top-4 left-4 right-4 sm:right-auto sm:max-w-md z-30 bg-slate-900/95 backdrop-blur-xl border border-sky-500/60 rounded-2xl p-3.5 shadow-2xl font-mono text-white">
+        <div className="absolute top-16 md:top-4 left-4 right-4 sm:right-auto sm:max-w-md z-30 bg-slate-900/95 backdrop-blur-xl border border-sky-500/60 rounded-2xl p-3.5 shadow-2xl font-mono text-white">
           <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2 mb-2">
             <div className="flex items-center gap-2">
               <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
@@ -844,8 +881,28 @@ export default function OperationalMap({
         </div>
       )}
 
-      {/* Controles Flutuantes Superiores (Camadas + Botão Minha Localização) */}
+      {/* Controles Flutuantes Superiores (Maximizar/Minimizar + Camadas + Botão Minha Localização) */}
       <div className="absolute top-4 right-4 z-20 flex flex-wrap items-center gap-2">
+        {/* Botão de Maximizar / Minimizar Tela Cheia */}
+        <button
+          type="button"
+          onClick={() => setIsMaximized((prev) => !prev)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-white rounded-xl shadow-lg border border-slate-700/80 text-xs font-bold font-mono transition-all cursor-pointer active:scale-95"
+          title={isMaximized ? "Minimizar Mapa (ESC)" : "Maximizar Mapa para Tela Cheia"}
+        >
+          {isMaximized ? (
+            <>
+              <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden sm:inline">Minimizar</span>
+            </>
+          ) : (
+            <>
+              <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
+              <span className="hidden sm:inline">Maximizar</span>
+            </>
+          )}
+        </button>
+
         {/* Botão de Centralizar no Usuário */}
         <button
           type="button"

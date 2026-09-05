@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import { fetchInspecoesByAssetId } from '@/lib/supabaseDb';
@@ -21,7 +21,9 @@ import {
   Loader2,
   ArrowRightLeft,
   Crosshair,
-  Compass
+  Compass,
+  Upload,
+  Image as ImageIcon
 } from 'lucide-react';
 import { TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
 import { processAssetLocationUpdateAction } from '@/app/actions/geoTrackingActions';
@@ -63,6 +65,61 @@ export default function AssetDetailDrawer() {
   const [formData, setFormData] = useState<any>({});
   const [capturingGps, setCapturingGps] = useState(false);
   const [gpsSuccess, setGpsSuccess] = useState<string | null>(null);
+  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+
+  // Refs para inputs de câmera nativa e galeria/arquivos
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Manipulador de seleção ou captura de foto com compressão
+  const handleImageFileSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsProcessingPhoto(true);
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const maxWidth = 1200;
+          let { width, height } = img;
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.82);
+            handleFieldChange('fotoUrl', compressedDataUrl);
+            handleFieldChange('foto_url', compressedDataUrl);
+          } else {
+            const raw = event.target?.result as string;
+            handleFieldChange('fotoUrl', raw);
+            handleFieldChange('foto_url', raw);
+          }
+        } catch {
+          const raw = event.target?.result as string;
+          handleFieldChange('fotoUrl', raw);
+          handleFieldChange('foto_url', raw);
+        } finally {
+          setIsProcessingPhoto(false);
+        }
+      };
+      img.onerror = () => {
+        setIsProcessingPhoto(false);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.onerror = () => setIsProcessingPhoto(false);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
 
   const asset = selectedAssetForDetail;
   const isOpen = !!asset;
@@ -417,13 +474,108 @@ export default function AssetDetailDrawer() {
                       </button>
                     </div>
 
-                    <FieldInput label="URL da Foto" value={formData.fotoUrl || formData.foto_url || ''} onChange={(v) => handleFieldChange('fotoUrl', v)} fullWidth />
-
-                    {(formData.fotoUrl || formData.foto_url) && (
-                      <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 p-2">
-                        <img src={formData.fotoUrl || formData.foto_url} alt="Foto do ativo" className="w-full h-32 object-contain rounded-lg" />
+                    {/* Card de Foto do Ativo com Disparo de Câmera e Seleção de Arquivo */}
+                    <div className="bg-slate-50 border border-slate-200 rounded-xl p-3.5 space-y-3">
+                      <div className="flex items-center justify-between">
+                        <label className="text-[9px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5 font-mono">
+                          <Camera className="w-3.5 h-3.5 text-red-600" />
+                          Foto do Ativo (Evidência Visual)
+                        </label>
+                        {(formData.fotoUrl || formData.foto_url) && (
+                          <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            Foto Anexada
+                          </span>
+                        )}
                       </div>
-                    )}
+
+                      {(formData.fotoUrl || formData.foto_url) ? (
+                        <div className="space-y-2.5">
+                          <div className="relative border border-slate-200 rounded-xl overflow-hidden bg-slate-900 shadow-inner max-h-48 flex items-center justify-center group">
+                            <img
+                              src={formData.fotoUrl || formData.foto_url}
+                              alt="Foto do ativo"
+                              className="w-full h-44 object-contain"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                handleFieldChange('fotoUrl', '');
+                                handleFieldChange('foto_url', '');
+                              }}
+                              className="absolute top-2 right-2 px-2.5 py-1 rounded-lg bg-red-600/90 hover:bg-red-700 text-white text-[10px] font-bold flex items-center gap-1 shadow cursor-pointer transition-all active:scale-95"
+                              title="Remover foto do ativo"
+                            >
+                              <Trash2 className="w-3 h-3" />
+                              Remover
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => cameraInputRef.current?.click()}
+                              disabled={isProcessingPhoto}
+                              className="min-h-[44px] px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                            >
+                              {isProcessingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                              Tirar Nova Foto
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={isProcessingPhoto}
+                              className="min-h-[44px] px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                            >
+                              <Upload className="w-4 h-4 text-slate-500" />
+                              Trocar Arquivo
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="border-2 border-dashed border-slate-300 rounded-xl p-4 bg-white text-center space-y-3">
+                          <div className="w-10 h-10 rounded-full bg-red-50 text-red-600 mx-auto flex items-center justify-center">
+                            <Camera className="w-5 h-5" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-800">Nenhuma foto registrada</p>
+                            <p className="text-[10px] text-slate-500">Capture com a câmera do celular ou escolha da galeria/arquivos</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => cameraInputRef.current?.click()}
+                              disabled={isProcessingPhoto}
+                              className="min-h-[44px] px-3 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                            >
+                              {isProcessingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                              Tirar Foto
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => fileInputRef.current?.click()}
+                              disabled={isProcessingPhoto}
+                              className="min-h-[44px] px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                            >
+                              <Upload className="w-4 h-4 text-slate-600" />
+                              Do Dispositivo
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Campo opcional de URL externa */}
+                      <div className="pt-1 border-t border-slate-200/60">
+                        <FieldInput
+                          label="Ou informe URL da Foto (opcional)"
+                          value={formData.fotoUrl || formData.foto_url || ''}
+                          onChange={(v) => {
+                            handleFieldChange('fotoUrl', v);
+                            handleFieldChange('foto_url', v);
+                          }}
+                          fullWidth
+                        />
+                      </div>
+                    </div>
                   </motion.div>
                 )}
 
@@ -538,30 +690,104 @@ export default function AssetDetailDrawer() {
                     exit={{ opacity: 0, y: -8 }}
                     className="space-y-4"
                   >
-                    {(asset?.fotoUrl || asset?.foto_url) ? (
+                    {(formData.fotoUrl || formData.foto_url || asset?.fotoUrl || asset?.foto_url) ? (
                       <div className="space-y-3">
-                        <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50 shadow-inner">
+                        <div className="relative border border-slate-200 rounded-2xl overflow-hidden bg-slate-900 shadow-inner group">
                           <img
-                            src={asset.fotoUrl || asset.foto_url}
-                            alt={`Foto ${asset.idAtivo}`}
-                            className="w-full h-64 object-contain"
+                            src={formData.fotoUrl || formData.foto_url || asset?.fotoUrl || asset?.foto_url}
+                            alt={`Foto ${asset?.idAtivo}`}
+                            className="w-full h-72 object-contain"
                           />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleFieldChange('fotoUrl', '');
+                              handleFieldChange('foto_url', '');
+                            }}
+                            className="absolute top-3 right-3 px-3 py-1.5 rounded-xl bg-red-600/90 hover:bg-red-700 text-white text-xs font-bold flex items-center gap-1.5 shadow cursor-pointer transition-all active:scale-95"
+                            title="Remover foto do ativo"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            Remover
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => cameraInputRef.current?.click()}
+                            disabled={isProcessingPhoto}
+                            className="min-h-[44px] px-3 py-2 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                          >
+                            {isProcessingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                            Tirar Nova Foto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isProcessingPhoto}
+                            className="min-h-[44px] px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                          >
+                            <Upload className="w-4 h-4 text-slate-500" />
+                            Trocar do Dispositivo
+                          </button>
                         </div>
                         <p className="text-[10px] text-slate-400 text-center font-mono uppercase tracking-wider">
-                          📷 Foto principal do ativo {asset.idAtivo}
+                          📷 Foto principal do ativo {asset?.idAtivo} (Lembre-se de clicar em Salvar Alterações)
                         </p>
                       </div>
                     ) : (
-                      <div className="text-center py-16 text-slate-300">
-                        <Camera className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                        <p className="text-xs text-slate-400 font-medium">Nenhuma foto registrada para este ativo.</p>
-                        <p className="text-[10px] text-slate-400 mt-1">Use o campo &quot;URL da Foto&quot; na aba Dados para adicionar.</p>
+                      <div className="border-2 border-dashed border-slate-200 rounded-2xl p-8 bg-slate-50 text-center space-y-4">
+                        <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-600 mx-auto flex items-center justify-center">
+                          <Camera className="w-7 h-7" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-slate-800">Nenhuma foto registrada para este ativo</p>
+                          <p className="text-xs text-slate-500 mt-1">Capture uma evidência com a câmera do celular ou selecione da sua galeria.</p>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3 max-w-sm mx-auto pt-2">
+                          <button
+                            type="button"
+                            onClick={() => cameraInputRef.current?.click()}
+                            disabled={isProcessingPhoto}
+                            className="min-h-[44px] px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                          >
+                            {isProcessingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                            Tirar Foto
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={isProcessingPhoto}
+                            className="min-h-[44px] px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                          >
+                            <Upload className="w-4 h-4 text-slate-600" />
+                            Do Dispositivo
+                          </button>
+                        </div>
                       </div>
                     )}
                   </motion.div>
                 )}
               </AnimatePresence>
             </div>
+
+            {/* Inputs Ocultos para Disparo da Câmera e Upload de Arquivo */}
+            <input
+              ref={cameraInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              onChange={handleImageFileSelected}
+              className="hidden"
+            />
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageFileSelected}
+              className="hidden"
+            />
 
             {/* Footer Actions */}
             <div className="border-t border-slate-200 bg-slate-50/80 p-4 flex items-center justify-between gap-3 shrink-0">
@@ -582,7 +808,7 @@ export default function AssetDetailDrawer() {
                 >
                   Fechar
                 </button>
-                {activeTab === 'dados' && (
+                {(activeTab === 'dados' || activeTab === 'fotos') && (
                   <button
                     onClick={handleSave}
                     disabled={isSaving}
