@@ -2,7 +2,23 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import 'leaflet/dist/leaflet.css';
-import { MapPin, Layers, RefreshCw, ZoomIn, ZoomOut, Compass, Crosshair, Navigation } from 'lucide-react';
+import {
+  MapPin,
+  Layers,
+  RefreshCw,
+  ZoomIn,
+  ZoomOut,
+  Compass,
+  Crosshair,
+  Navigation,
+  X,
+  Camera,
+  ExternalLink,
+  Route,
+  Car
+} from 'lucide-react';
+import AssetImageZoomModal from './AssetImageZoomModal';
+import { calculateHaversineDistance, formatDistance } from '@/lib/geoUtils';
 
 export interface MapAssetItem {
   id: string;
@@ -42,10 +58,16 @@ export default function OperationalMap({
   const mapInstanceRef = useRef<any>(null);
   const markersLayerRef = useRef<any>(null);
   const userLocationLayerRef = useRef<any>(null);
+  const routeLayerRef = useRef<any>(null);
+
   const [mapReady, setMapReady] = useState(false);
   const [currentTileLayer, setCurrentTileLayer] = useState<'hybrid' | 'streets' | 'dark'>('hybrid');
   const [locatingUser, setLocatingUser] = useState(false);
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
+
+  // Estados para Rota Ativa e Modal de Zoom
+  const [activeRoute, setActiveRoute] = useState<{ asset: MapAssetItem; distanceMeters: number } | null>(null);
+  const [zoomedAsset, setZoomedAsset] = useState<MapAssetItem | null>(null);
 
   // Determinar cor do pino baseado no status e tipo de movimentação
   const getMarkerColor = (asset: MapAssetItem) => {
@@ -109,32 +131,32 @@ export default function OperationalMap({
           // Círculo de precisão semitransparente
           const circle = L.circle([lat, lng], {
             radius: Math.max(accuracy, 12),
-            color: '#3b82f6',
-            fillColor: '#60a5fa',
-            fillOpacity: 0.18,
+            color: '#38bdf8',
+            fillColor: '#38bdf8',
+            fillOpacity: 0.16,
             weight: 1.5,
             dashArray: '3, 4'
           });
 
-          // Marcador pulsante azul
+          // Marcador pulsante azul ciano
           const userPulseHtml = `
-            <div style="position: relative; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%);">
-              <div style="position: absolute; width: 32px; height: 32px; background: rgba(59, 130, 246, 0.4); border-radius: 50%; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-              <div style="width: 16px; height: 16px; background: #2563eb; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 8px rgba(0,0,0,0.5); position: relative; z-index: 10;"></div>
+            <div style="position: relative; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%);">
+              <div style="position: absolute; width: 34px; height: 34px; background: rgba(56, 189, 248, 0.45); border-radius: 50%; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
+              <div style="width: 16px; height: 16px; background: #0284c7; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.6); position: relative; z-index: 10;"></div>
             </div>
           `;
 
           const userIcon = L.divIcon({
             html: userPulseHtml,
             className: 'spci-user-location-marker',
-            iconSize: [24, 24],
-            iconAnchor: [12, 12]
+            iconSize: [26, 26],
+            iconAnchor: [13, 13]
           });
 
           const marker = L.marker([lat, lng], { icon: userIcon, zIndexOffset: 1000 });
           marker.bindPopup(`
             <div style="font-family: ui-monospace, monospace; padding: 4px; font-size: 11px; text-align: center; color: #0f172a;">
-              <span style="font-weight: 800; color: #2563eb; display: block; font-size: 12px;">📍 VOCÊ ESTÁ AQUI</span>
+              <span style="font-weight: 800; color: #0284c7; display: block; font-size: 12px;">📍 VOCÊ ESTÁ AQUI</span>
               <div style="font-size: 9.5px; color: #64748b; margin-top: 4px;">
                 Precisão do Dispositivo: ±${Math.round(accuracy)}m
               </div>
@@ -155,6 +177,79 @@ export default function OperationalMap({
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 20000 }
     );
+  };
+
+  // Traçar rota interna até o ativo no mapa
+  const traceRouteToAsset = (asset: MapAssetItem) => {
+    if (!mapInstanceRef.current) return;
+    const map = mapInstanceRef.current;
+
+    const executePlot = (userLat: number, userLng: number) => {
+      import('leaflet').then((module) => {
+        const L = module.default;
+        if (!routeLayerRef.current) {
+          routeLayerRef.current = L.layerGroup().addTo(map);
+        }
+        routeLayerRef.current.clearLayers();
+
+        const dist = calculateHaversineDistance(userLat, userLng, asset.latitude, asset.longitude);
+        setActiveRoute({ asset, distanceMeters: dist });
+
+        // Linha externa estilo Glow Neon Ciano
+        const glowLine = L.polyline([[userLat, userLng], [asset.latitude, asset.longitude]], {
+          color: '#38bdf8',
+          weight: 7,
+          opacity: 0.45,
+          lineCap: 'round',
+          lineJoin: 'round'
+        });
+
+        // Linha interna tracejada com contraste
+        const mainLine = L.polyline([[userLat, userLng], [asset.latitude, asset.longitude]], {
+          color: '#0284c7',
+          weight: 3.5,
+          opacity: 0.95,
+          dashArray: '8, 8',
+          lineCap: 'round'
+        });
+
+        routeLayerRef.current.addLayer(glowLine);
+        routeLayerRef.current.addLayer(mainLine);
+
+        const bounds = L.latLngBounds([[userLat, userLng], [asset.latitude, asset.longitude]]);
+        map.fitBounds(bounds, { padding: [80, 80], maxZoom: 18 });
+      });
+    };
+
+    if (userCoords) {
+      executePlot(userCoords.latitude, userCoords.longitude);
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const c = {
+            latitude: pos.coords.latitude,
+            longitude: pos.coords.longitude,
+            accuracy: pos.coords.accuracy || 10
+          };
+          setUserCoords(c);
+          executePlot(c.latitude, c.longitude);
+        },
+        (err) => {
+          alert('Ative a localização do seu aparelho para traçar a rota até o ativo: ' + err.message);
+        },
+        { enableHighAccuracy: true, timeout: 10000 }
+      );
+    } else {
+      alert('Geolocalização não suportada neste dispositivo.');
+    }
+  };
+
+  // Limpar rota desenhada
+  const clearRoute = () => {
+    if (routeLayerRef.current) {
+      routeLayerRef.current.clearLayers();
+    }
+    setActiveRoute(null);
   };
 
   // Inicialização do Mapa
@@ -211,12 +306,15 @@ export default function OperationalMap({
         className: initialConfig.className || ''
       }).addTo(map);
 
-      // LayerGroup para markers e para user location
+      // LayerGroups
       const markersGroup = L.layerGroup().addTo(map);
       markersLayerRef.current = markersGroup;
 
       const userLocGroup = L.layerGroup().addTo(map);
       userLocationLayerRef.current = userLocGroup;
+
+      const routeGroup = L.layerGroup().addTo(map);
+      routeLayerRef.current = routeGroup;
 
       mapInstanceRef.current = map;
 
@@ -321,7 +419,7 @@ export default function OperationalMap({
               height: 36px;
               border-radius: 50% 50% 50% 0;
               transform: rotate(-45deg);
-              box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+              box-shadow: 0 4px 12px rgba(0,0,0,0.5);
               display: flex;
               align-items: center;
               justify-content: center;
@@ -353,49 +451,182 @@ export default function OperationalMap({
 
         const marker = L.marker(coords, { icon: customIcon });
 
-        // Popup HTML formatado no estilo dark corporativo
+        // Popup HTML formatado no estilo LUXURY DARK com Glassmorphism
         const popupContent = document.createElement('div');
-        popupContent.className = 'spci-map-popup font-mono text-slate-900 dark:text-slate-100 p-1 select-none';
+        popupContent.className = 'spci-map-popup font-mono text-slate-100 select-none';
+        popupContent.style.cssText = 'min-width: 260px; max-width: 290px; padding: 12px 14px;';
+
+        const assetTitle = asset.idAtivo || asset.patrimonio || asset.id;
+
         popupContent.innerHTML = `
-          <div style="min-width: 230px; font-family: ui-monospace, monospace; color: #0f172a;">
-            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 8px;">
-              <span style="font-size: 11px; font-weight: 800; color: #dc2626; text-transform: uppercase;">
-                ${asset.idAtivo || asset.patrimonio || asset.id}
-              </span>
-              <span style="font-size: 9px; padding: 2px 6px; border-radius: 9999px; font-weight: 700; background: ${color.bg}; color: #ffffff;">
+          <div>
+            <!-- Cabeçalho do Card -->
+            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(51, 65, 85, 0.6); padding-bottom: 8px; margin-bottom: 10px;">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 15px;">${iconChar}</span>
+                <span style="font-size: 12px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px; text-transform: uppercase;">
+                  ${assetTitle}
+                </span>
+              </div>
+              <span style="font-size: 9.5px; padding: 3px 8px; border-radius: 9999px; font-weight: 800; background: ${color.bg}; color: #ffffff; box-shadow: 0 0 10px ${color.bg}80;">
                 ${asset.status || 'Ativo'}
               </span>
             </div>
 
-            <div style="font-size: 11px; font-weight: 700; margin-bottom: 4px; color: #1e293b;">
+            <!-- Modelo do Equipamento -->
+            <div style="font-size: 12px; font-weight: 800; margin-bottom: 6px; color: #ffffff; line-height: 1.3;">
               ${asset.model || 'Equipamento SPCI'}
             </div>
 
-            <div style="font-size: 9.5px; color: #64748b; margin-bottom: 6px; line-height: 1.3;">
-              📍 <strong>Local:</strong> ${asset.location} ${asset.subLocation ? ` - ${asset.subLocation}` : ''}
+            <!-- Localização -->
+            <div style="font-size: 10px; color: #94a3b8; margin-bottom: 8px; line-height: 1.4;">
+              📍 <strong style="color: #cbd5e1;">Local:</strong> ${asset.location} ${asset.subLocation ? ` - ${asset.subLocation}` : ''}
             </div>
 
+            <!-- Selo de Satélite e Precisão -->
             ${asset.precisao_gps ? `
-              <div style="font-size: 9px; color: #059669; margin-bottom: 6px;">
-                🛰️ <strong>Precisão:</strong> ±${asset.precisao_gps}m (${asset.origem_localizacao || 'GPS'})
+              <div style="font-size: 9.5px; color: #34d399; margin-bottom: 10px; display: flex; align-items: center; gap: 4px; background: rgba(6, 78, 59, 0.4); border: 1px solid rgba(16, 185, 129, 0.3); padding: 4px 8px; border-radius: 8px;">
+                🛰️ <span>GPS: ±${asset.precisao_gps}m (${asset.origem_localizacao || 'Satélite'})</span>
               </div>
             ` : ''}
 
+            <!-- Miniatura da Imagem com Chamada para Zoom -->
             ${asset.foto_url ? `
-              <div style="margin-bottom: 8px; border-radius: 6px; overflow: hidden; max-height: 90px; border: 1px solid #cbd5e1;">
-                <img src="${asset.foto_url}" style="width: 100%; height: 90px; object-fit: cover;" alt="Foto do ativo" />
+              <div id="btn-photo-${asset.id}" style="
+                position: relative;
+                margin-bottom: 10px;
+                border-radius: 12px;
+                overflow: hidden;
+                height: 110px;
+                border: 1px solid rgba(51, 65, 85, 0.8);
+                cursor: pointer;
+                background: #020617;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+              " title="Clique para abrir em tela cheia com efeito de zoom">
+                <img src="${asset.foto_url}" style="width: 100%; height: 100%; object-fit: cover;" alt="Foto do ativo" />
+                <div style="
+                  position: absolute;
+                  inset: 0;
+                  background: linear-gradient(to top, rgba(15,23,42,0.92) 0%, transparent 60%);
+                  display: flex;
+                  align-items: flex-end;
+                  justify-content: center;
+                  padding-bottom: 6px;
+                ">
+                  <span style="
+                    background: rgba(15,23,42,0.85);
+                    backdrop-filter: blur(8px);
+                    color: #38bdf8;
+                    border: 1px solid rgba(56,189,248,0.4);
+                    font-size: 10px;
+                    font-weight: 800;
+                    padding: 3px 9px;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    gap: 5px;
+                  ">
+                    🔍 Toque para Ampliar com Zoom
+                  </span>
+                </div>
               </div>
-            ` : ''}
+            ` : `
+              <div id="btn-photo-${asset.id}" style="
+                margin-bottom: 10px;
+                border-radius: 12px;
+                padding: 10px;
+                border: 1px dashed rgba(51, 65, 85, 0.8);
+                background: rgba(15, 23, 42, 0.4);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                color: #64748b;
+                font-size: 10px;
+                cursor: pointer;
+              ">
+                📷 Sem foto registrada (Clique para inspecionar)
+              </div>
+            `}
 
-            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+            <!-- Ações Ergonômicas (Touch Target >= 44px) -->
+            <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 6px;">
+              <!-- 1. Botão Principal: Traçar Rota no Mapa -->
+              <button id="btn-route-${asset.id}" style="
+                width: 100%;
+                min-height: 44px;
+                padding: 8px 12px;
+                background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+                color: #ffffff;
+                border: 1px solid #38bdf8;
+                border-radius: 10px;
+                font-size: 11px;
+                font-weight: 800;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+                cursor: pointer;
+                transition: all 0.2s;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
+              ">
+                🧭 Traçar Rota no Mapa
+              </button>
+
+              <!-- 2. Atalhos de Navegação Externa (Google Maps e Waze) -->
+              <div style="display: flex; gap: 6px;">
+                <button id="btn-gmaps-${asset.id}" style="
+                  flex: 1;
+                  min-height: 38px;
+                  padding: 6px 8px;
+                  background: #1e293b;
+                  color: #f1f5f9;
+                  border: 1px solid #475569;
+                  border-radius: 8px;
+                  font-size: 10px;
+                  font-weight: 700;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 4px;
+                  transition: all 0.2s;
+                ">
+                  📍 Google Maps
+                </button>
+                <button id="btn-waze-${asset.id}" style="
+                  flex: 1;
+                  min-height: 38px;
+                  padding: 6px 8px;
+                  background: #1e293b;
+                  color: #f1f5f9;
+                  border: 1px solid #475569;
+                  border-radius: 8px;
+                  font-size: 10px;
+                  font-weight: 700;
+                  cursor: pointer;
+                  display: flex;
+                  align-items: center;
+                  justify-content: center;
+                  gap: 4px;
+                  transition: all 0.2s;
+                ">
+                  🚗 Waze
+                </button>
+              </div>
+
+              <!-- 3. Botão Fixar Minha Posição Atual -->
               <button id="btn-update-gps-${asset.id}" style="
                 width: 100%;
-                padding: 7px 8px;
+                min-height: 40px;
+                padding: 7px 10px;
                 background: #2563eb;
                 color: #ffffff;
                 border: none;
                 border-radius: 8px;
-                font-size: 9.5px;
+                font-size: 10px;
                 font-weight: 800;
                 text-transform: uppercase;
                 cursor: pointer;
@@ -404,17 +635,19 @@ export default function OperationalMap({
                 align-items: center;
                 justify-content: center;
                 gap: 5px;
-                box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+                box-shadow: 0 2px 8px rgba(37, 99, 235, 0.3);
               ">
                 🎯 Fixar Minha Posição Neste Ativo
               </button>
 
+              <!-- 4. Botão Histórico de Deslocamento -->
               <button id="btn-history-${asset.id}" style="
                 width: 100%;
+                min-height: 36px;
                 padding: 6px 8px;
-                background: #0f172a;
-                color: #ffffff;
-                border: 1px solid #334155;
+                background: rgba(15, 23, 42, 0.85);
+                color: #94a3b8;
+                border: 1px solid rgba(51, 65, 85, 0.8);
                 border-radius: 8px;
                 font-size: 9.5px;
                 font-weight: 700;
@@ -431,6 +664,49 @@ export default function OperationalMap({
             </div>
           </div>
         `;
+
+        // Event listener para Zoom da Foto
+        const photoContainer = popupContent.querySelector(`#btn-photo-${asset.id}`);
+        if (photoContainer) {
+          photoContainer.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setZoomedAsset(asset);
+          });
+        }
+
+        // Event listener para Traçar Rota
+        const routeBtn = popupContent.querySelector(`#btn-route-${asset.id}`);
+        if (routeBtn) {
+          routeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            marker.closePopup();
+            traceRouteToAsset(asset);
+          });
+        }
+
+        // Event listener para Google Maps Externo
+        const gmapsBtn = popupContent.querySelector(`#btn-gmaps-${asset.id}`);
+        if (gmapsBtn) {
+          gmapsBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.open(
+              `https://www.google.com/maps/dir/?api=1&destination=${asset.latitude},${asset.longitude}&travelmode=walking`,
+              '_blank'
+            );
+          });
+        }
+
+        // Event listener para Waze Externo
+        const wazeBtn = popupContent.querySelector(`#btn-waze-${asset.id}`);
+        if (wazeBtn) {
+          wazeBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            window.open(
+              `https://waze.com/ul?ll=${asset.latitude},${asset.longitude}&navigate=yes`,
+              '_blank'
+            );
+          });
+        }
 
         // Event listener no botão de Histórico
         const historyBtn = popupContent.querySelector(`#btn-history-${asset.id}`);
@@ -494,7 +770,12 @@ export default function OperationalMap({
           });
         }
 
-        marker.bindPopup(popupContent, { maxWidth: 290 });
+        marker.bindPopup(popupContent, {
+          className: 'spci-custom-popup',
+          maxWidth: 300,
+          minWidth: 260
+        });
+
         markersGroup.addLayer(marker);
       });
 
@@ -512,6 +793,56 @@ export default function OperationalMap({
     <div className={`relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl ${className}`}>
       {/* Contêiner Leaflet */}
       <div ref={mapContainerRef} className="w-full h-full z-10" />
+
+      {/* BANNER FLUTUANTE DE ROTA ATIVA */}
+      {activeRoute && (
+        <div className="absolute top-4 left-4 right-4 sm:right-auto sm:max-w-md z-30 bg-slate-900/95 backdrop-blur-xl border border-sky-500/60 rounded-2xl p-3.5 shadow-2xl font-mono text-white">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2 mb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
+              <span className="text-xs font-black text-sky-400 uppercase tracking-wider">
+                Rota Ativa: {activeRoute.asset.idAtivo}
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={clearRoute}
+              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors"
+              title="Fechar Rota"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between text-xs text-slate-300 mb-3">
+            <span>Distância estimada:</span>
+            <span className="text-sm font-black text-emerald-400">
+              {formatDistance(activeRoute.distanceMeters)}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            <a
+              href={`https://www.google.com/maps/dir/?api=1&destination=${activeRoute.asset.latitude},${activeRoute.asset.longitude}&travelmode=walking`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 py-2 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer active:scale-95"
+            >
+              <Navigation className="w-3.5 h-3.5" />
+              <span>Google Maps</span>
+            </a>
+            <a
+              href={`https://waze.com/ul?ll=${activeRoute.asset.latitude},${activeRoute.asset.longitude}&navigate=yes`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1.5 py-2 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer active:scale-95"
+            >
+              <Car className="w-3.5 h-3.5" />
+              <span>Waze</span>
+            </a>
+          </div>
+        </div>
+      )}
 
       {/* Controles Flutuantes Superiores (Camadas + Botão Minha Localização) */}
       <div className="absolute top-4 right-4 z-20 flex flex-wrap items-center gap-2">
@@ -568,10 +899,41 @@ export default function OperationalMap({
         </div>
       </div>
 
-      {/* Estilos para renderização dos tiles no modo Noturno */}
+      {/* Estilos para renderização dos tiles no modo Noturno e Customização do Popup */}
       <style>{`
         .spci-dark-tiles {
           filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(115%) !important;
+        }
+
+        /* Estilização Luxury Glassmorphic do Popup Leaflet */
+        .spci-custom-popup .leaflet-popup-content-wrapper {
+          background: rgba(15, 23, 42, 0.96) !important;
+          backdrop-filter: blur(18px) !important;
+          -webkit-backdrop-filter: blur(18px) !important;
+          border: 1px solid rgba(51, 65, 85, 0.8) !important;
+          border-radius: 20px !important;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 20px rgba(56, 189, 248, 0.15) !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+        }
+        .spci-custom-popup .leaflet-popup-content {
+          margin: 0 !important;
+          line-height: normal !important;
+        }
+        .spci-custom-popup .leaflet-popup-tip {
+          background: rgba(15, 23, 42, 0.96) !important;
+          border: 1px solid rgba(51, 65, 85, 0.8) !important;
+        }
+        .spci-custom-popup a.leaflet-popup-close-button {
+          color: #94a3b8 !important;
+          top: 10px !important;
+          right: 12px !important;
+          padding: 4px !important;
+          font-size: 18px !important;
+          transition: color 0.2s !important;
+        }
+        .spci-custom-popup a.leaflet-popup-close-button:hover {
+          color: #ffffff !important;
         }
       `}</style>
 
@@ -603,6 +965,17 @@ export default function OperationalMap({
           <span>Manutenção</span>
         </div>
       </div>
+
+      {/* MODAL DE ZOOM DA IMAGEM DO ATIVO */}
+      <AssetImageZoomModal
+        isOpen={!!zoomedAsset}
+        onClose={() => setZoomedAsset(null)}
+        imageUrl={zoomedAsset?.foto_url}
+        title={zoomedAsset?.idAtivo || zoomedAsset?.patrimonio || 'Ativo SPCI'}
+        subtitle={zoomedAsset?.model}
+        location={zoomedAsset ? `${zoomedAsset.location}${zoomedAsset.subLocation ? ` - ${zoomedAsset.subLocation}` : ''}` : undefined}
+        date={zoomedAsset?.data_ultima_localizacao}
+      />
     </div>
   );
 }

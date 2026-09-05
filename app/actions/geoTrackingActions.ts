@@ -293,14 +293,34 @@ export async function getOperationalMapAssetsAction(): Promise<{
       console.error('[getOperationalMapAssetsAction] Erro ao buscar assets:', assetsErr);
     }
 
-    // 3. Contar inspeções que possuem GPS registrado
+    // 3. Contar inspeções que possuem GPS registrado e buscar fotos mais recentes
     let totalInspecoesComGps = 0;
+    const inspectionPhotoMap = new Map<string, string>();
     try {
       const { count } = await supabase
         .from('inspecoes_realizadas')
         .select('*', { count: 'exact', head: true })
         .not('details->geo_latitude', 'is', null);
       totalInspecoesComGps = count || 0;
+
+      // Buscar fotos recentes de inspeções
+      const { data: recentInspections } = await supabase
+        .from('inspecoes_realizadas')
+        .select('ativo_id, details, created_at')
+        .order('created_at', { ascending: false })
+        .limit(100);
+
+      if (recentInspections) {
+        for (const insp of recentInspections) {
+          const photoUrl = insp.details?.foto_evidencia_url || insp.details?.fotoUrl || insp.details?.foto_url;
+          if (photoUrl && insp.ativo_id) {
+            const pNorm = String(insp.ativo_id).replace(/\s+/g, '').toUpperCase();
+            if (!inspectionPhotoMap.has(pNorm)) {
+              inspectionPhotoMap.set(pNorm, photoUrl);
+            }
+          }
+        }
+      }
     } catch {
       totalInspecoesComGps = 0;
     }
@@ -336,7 +356,7 @@ export async function getOperationalMapAssetsAction(): Promise<{
         precisao_gps: item.details?.precisao_gps != null ? Number(item.details.precisao_gps) : null,
         data_ultima_localizacao: item.details?.data_ultima_localizacao || item.updated_at,
         origem_localizacao: item.details?.origem_localizacao || 'EDICAO_MANUAL',
-        foto_url: extMeta?.foto_url || item.details?.foto_url || null
+        foto_url: extMeta?.foto_url || item.details?.foto_url || inspectionPhotoMap.get(pNorm) || null
       });
     }
 
