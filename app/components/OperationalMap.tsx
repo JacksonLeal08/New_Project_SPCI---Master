@@ -208,19 +208,21 @@ export default function OperationalMap({
             userLocationLayerRef.current = L.layerGroup().addTo(map);
           }
 
-          // Círculo de precisão semitransparente
+          // Círculo de precisão semitransparente calibrado (NUNCA intercepta cliques nem bloqueia ativos próximos)
           const circle = L.circle([lat, lng], {
-            radius: Math.max(accuracy, 12),
+            radius: Math.min(Math.max(accuracy, 6), 22),
             color: '#38bdf8',
             fillColor: '#38bdf8',
-            fillOpacity: 0.16,
+            fillOpacity: 0.12,
             weight: 1.5,
-            dashArray: '3, 4'
+            dashArray: '3, 4',
+            interactive: false,
+            className: 'spci-user-accuracy-circle pointer-events-none'
           });
 
           // Marcador pulsante azul ciano
           const userPulseHtml = `
-            <div style="position: relative; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%);">
+            <div style="position: relative; width: 26px; height: 26px; display: flex; align-items: center; justify-content: center; transform: translate(-50%, -50%); pointer-events: none;">
               <div style="position: absolute; width: 34px; height: 34px; background: rgba(56, 189, 248, 0.45); border-radius: 50%; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
               <div style="width: 16px; height: 16px; background: #0284c7; border: 3px solid #ffffff; border-radius: 50%; box-shadow: 0 2px 10px rgba(0,0,0,0.6); position: relative; z-index: 10;"></div>
             </div>
@@ -233,7 +235,7 @@ export default function OperationalMap({
             iconAnchor: [13, 13]
           });
 
-          const marker = L.marker([lat, lng], { icon: userIcon, zIndexOffset: 1000 });
+          const marker = L.marker([lat, lng], { icon: userIcon, zIndexOffset: 800 });
           marker.bindPopup(`
             <div style="font-family: ui-monospace, monospace; padding: 4px; font-size: 11px; text-align: center; color: #0f172a;">
               <span style="font-weight: 800; color: #0284c7; display: block; font-size: 12px;">📍 VOCÊ ESTÁ AQUI</span>
@@ -529,26 +531,49 @@ export default function OperationalMap({
           iconAnchor: [18, 36]
         });
 
-        const marker = L.marker(coords, { icon: customIcon });
+        // Prioridade de clique sobre qualquer elemento de usuário (sempre no topo)
+        const marker = L.marker(coords, {
+          icon: customIcon,
+          zIndexOffset: isSelected ? 2500 : 1500
+        });
 
         // Popup HTML formatado no estilo LUXURY DARK com Glassmorphism
         const popupContent = document.createElement('div');
         popupContent.className = 'spci-map-popup font-mono text-slate-100 select-none';
-        popupContent.style.cssText = 'min-width: 260px; max-width: 290px; padding: 12px 14px;';
+        popupContent.style.cssText = 'min-width: 270px; max-width: 300px; padding: 12px 14px;';
 
         const assetTitle = asset.idAtivo || asset.patrimonio || asset.id;
 
         popupContent.innerHTML = `
           <div>
-            <!-- Cabeçalho do Card -->
-            <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid rgba(51, 65, 85, 0.6); padding-bottom: 8px; margin-bottom: 10px;">
-              <div style="display: flex; align-items: center; gap: 6px;">
-                <span style="font-size: 15px;">${iconChar}</span>
-                <span style="font-size: 12px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px; text-transform: uppercase;">
+            <!-- Cabeçalho do Card com Proteção Anti-Sobreposição do Botão Fechar -->
+            <div style="
+              display: flex;
+              align-items: center;
+              justify-content: space-between;
+              border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+              padding-bottom: 8px;
+              margin-bottom: 10px;
+              padding-right: 36px;
+              gap: 8px;
+            ">
+              <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
+                <span style="font-size: 15px; flex-shrink: 0;">${iconChar}</span>
+                <span style="font-size: 12px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                   ${assetTitle}
                 </span>
               </div>
-              <span style="font-size: 9.5px; padding: 3px 8px; border-radius: 9999px; font-weight: 800; background: ${color.bg}; color: #ffffff; box-shadow: 0 0 10px ${color.bg}80;">
+              <span style="
+                font-size: 9.5px;
+                padding: 3px 8px;
+                border-radius: 9999px;
+                font-weight: 800;
+                background: ${color.bg};
+                color: #ffffff;
+                box-shadow: 0 0 10px ${color.bg}80;
+                white-space: nowrap;
+                flex-shrink: 0;
+              ">
                 ${asset.status || 'Ativo'}
               </span>
             </div>
@@ -1088,14 +1113,32 @@ export default function OperationalMap({
         }
         .spci-custom-popup a.leaflet-popup-close-button {
           color: #94a3b8 !important;
-          top: 10px !important;
-          right: 12px !important;
-          padding: 4px !important;
-          font-size: 18px !important;
-          transition: color 0.2s !important;
+          top: 8px !important;
+          right: 10px !important;
+          width: 24px !important;
+          height: 24px !important;
+          display: flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          background: rgba(30, 41, 59, 0.9) !important;
+          border: 1px solid rgba(100, 116, 139, 0.45) !important;
+          border-radius: 50% !important;
+          font-size: 13px !important;
+          font-weight: 800 !important;
+          padding: 0 !important;
+          margin: 0 !important;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+          z-index: 50 !important;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5) !important;
         }
         .spci-custom-popup a.leaflet-popup-close-button:hover {
           color: #ffffff !important;
+          background: rgba(220, 38, 38, 0.95) !important;
+          border-color: #ef4444 !important;
+          transform: scale(1.1) !important;
+        }
+        .spci-user-accuracy-circle {
+          pointer-events: none !important;
         }
       `}</style>
 

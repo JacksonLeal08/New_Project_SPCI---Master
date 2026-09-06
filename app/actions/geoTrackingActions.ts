@@ -260,19 +260,21 @@ export async function getOperationalMapAssetsAction(): Promise<{
   try {
     const supabase = getSupabaseAdminClient();
 
-    // 1. Carregar metadados completos de extintores da view pública
-    let extList: any[] = [];
-    try {
-      const { data: viewData } = await supabase
-        .from('vw_extintores_publico')
-        .select('*');
-      if (viewData && viewData.length > 0) {
-        extList = viewData;
-      }
-    } catch {
-      extList = [];
-    }
+    // Executar consultas simultâneas no Supabase (Promise.all) para alta performance
+    const [
+      viewRes,
+      assetsRes,
+      countRes,
+      recentRes
+    ] = await Promise.all([
+      supabase.from('vw_extintores_publico').select('*'),
+      supabase.from('assets').select('*').not('latitude', 'is', null).not('longitude', 'is', null),
+      supabase.from('inspecoes_realizadas').select('*', { count: 'exact', head: true }).not('details->geo_latitude', 'is', null),
+      supabase.from('inspecoes_realizadas').select('ativo_id, details, created_at').order('created_at', { ascending: false }).limit(100)
+    ]);
 
+    // 1. Processar metadados de extintores
+    const extList: any[] = viewRes.data || [];
     const extMetaMap = new Map<string, any>();
     for (const ext of extList) {
       if (ext.id) extMetaMap.set(String(ext.id).toLowerCase(), ext);
@@ -282,47 +284,25 @@ export async function getOperationalMapAssetsAction(): Promise<{
       }
     }
 
-    // 2. Buscar TODOS os ativos com coordenadas salvas na tabela 'assets'
-    const { data: assetsData, error: assetsErr } = await supabase
-      .from('assets')
-      .select('*')
-      .not('latitude', 'is', null)
-      .not('longitude', 'is', null);
-
-    if (assetsErr) {
-      console.error('[getOperationalMapAssetsAction] Erro ao buscar assets:', assetsErr);
+    // 2. Processar ativos com GPS
+    const assetsData = assetsRes.data || [];
+    if (assetsRes.error) {
+      console.error('[getOperationalMapAssetsAction] Erro ao buscar assets:', assetsRes.error);
     }
 
-    // 3. Contar inspeções que possuem GPS registrado e buscar fotos mais recentes
-    let totalInspecoesComGps = 0;
+    // 3. Processar contagem e fotos recentes
+    const totalInspecoesComGps = countRes.count || 0;
     const inspectionPhotoMap = new Map<string, string>();
-    try {
-      const { count } = await supabase
-        .from('inspecoes_realizadas')
-        .select('*', { count: 'exact', head: true })
-        .not('details->geo_latitude', 'is', null);
-      totalInspecoesComGps = count || 0;
+    const recentInspections = recentRes.data || [];
 
-      // Buscar fotos recentes de inspeções
-      const { data: recentInspections } = await supabase
-        .from('inspecoes_realizadas')
-        .select('ativo_id, details, created_at')
-        .order('created_at', { ascending: false })
-        .limit(100);
-
-      if (recentInspections) {
-        for (const insp of recentInspections) {
-          const photoUrl = insp.details?.foto_evidencia_url || insp.details?.fotoUrl || insp.details?.foto_url;
-          if (photoUrl && insp.ativo_id) {
-            const pNorm = String(insp.ativo_id).replace(/\s+/g, '').toUpperCase();
-            if (!inspectionPhotoMap.has(pNorm)) {
-              inspectionPhotoMap.set(pNorm, photoUrl);
-            }
-          }
+    for (const insp of recentInspections) {
+      const photoUrl = insp.details?.foto_evidencia_url || insp.details?.fotoUrl || insp.details?.foto_url;
+      if (photoUrl && insp.ativo_id) {
+        const pNorm = String(insp.ativo_id).replace(/\s+/g, '').toUpperCase();
+        if (!inspectionPhotoMap.has(pNorm)) {
+          inspectionPhotoMap.set(pNorm, photoUrl);
         }
       }
-    } catch {
-      totalInspecoesComGps = 0;
     }
 
     // 4. Mapear e unir todos os ativos com coordenadas válidas

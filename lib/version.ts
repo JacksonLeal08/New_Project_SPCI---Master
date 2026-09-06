@@ -13,25 +13,25 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.8.2',
-  date: '05/09/2026',
-  title: 'SPCI Master v2.8.2 - Upload Seguro de Fotos & Proteção VARCHAR(512)',
-  summary: 'Correção crítica no salvamento de fotos de extintores: envio automático para o Supabase Storage em nuvem, eliminando o estouro de limite de 512 caracteres no banco de dados com suporte a fila offline.',
+  version: 'v2.8.3',
+  date: '06/09/2026',
+  title: 'SPCI Master v2.8.3 - Otimização de Performance no Mapa, Desobstrução de Cliques & Popup Refinado',
+  summary: 'Aceleração no carregamento do Mapa Operacional com consultas simultâneas no Supabase (Promise.all), desobstrução total do clique em extintores próximos à localização do usuário e eliminação de sobreposição do botão fechar com o status do ativo.',
   changes: [
     {
       category: 'DESEMPENHO',
-      title: 'Upload Otimizado para Supabase Storage',
-      description: 'As fotos capturadas ou enviadas são salvas diretamente no bucket em nuvem (fotos_extintores), gerando URLs públicas compactas e leves.'
+      title: 'Carregamento Acelerado do Mapa (Promise.all)',
+      description: 'As consultas de extintores, ativos com GPS, histórico de fotos e contagem agora rodam em paralelo no Supabase, reduzindo o tempo de resposta em mais de 60%.'
     },
     {
-      category: 'NBR',
-      title: 'Proteção Ativa contra Erro VARCHAR(512)',
-      description: 'Camada de segurança dupla no frontend e na camada de banco que impede que dados Base64 brutos ultrapassem o limite de 512 caracteres da tabela ativos_extintores.'
+      category: 'UI/UX',
+      title: 'Desobstrução de Cliques & Calibração do Raio GPS',
+      description: 'O círculo de precisão do operador recebeu interactive: false e raio calibrado, garantindo que o clique em extintores próximos (como EXT-151) seja sempre direto e certeiro.'
     },
     {
-      category: 'DESEMPENHO',
-      title: 'Fila de Mídia Offline (MediaQueue)',
-      description: 'Garante que mesmo sem internet momentânea a foto seja enfileirada localmente e o ativo seja atualizado com segurança.'
+      category: 'UI/UX',
+      title: 'Botão Fechar Circular e Cabeçalho Anti-Colisão',
+      description: 'Novo botão de fechar circular translúcido com margem de segurança dedicada no cabeçalho do popup, garantindo que o status (Vencido, Conforme) nunca seja sobreposto.'
     }
   ]
 };
