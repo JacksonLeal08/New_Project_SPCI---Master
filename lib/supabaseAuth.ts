@@ -24,6 +24,9 @@ export const initAuth = (
   // Listen for auth state changes
   const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
     if (session && session.user) {
+      if (typeof document !== 'undefined' && session.access_token) {
+        document.cookie = `spci_session_token=${session.access_token}; path=/; max-age=86400; SameSite=Lax`;
+      }
       if (onAuthSuccess) {
         onAuthSuccess(mapSupabaseUser(session.user));
       }
@@ -34,8 +37,13 @@ export const initAuth = (
 
   // Check current session immediately on startup
   supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session && session.user && onAuthSuccess) {
-      onAuthSuccess(mapSupabaseUser(session.user));
+    if (session && session.user) {
+      if (typeof document !== 'undefined' && session.access_token) {
+        document.cookie = `spci_session_token=${session.access_token}; path=/; max-age=86400; SameSite=Lax`;
+      }
+      if (onAuthSuccess) {
+        onAuthSuccess(mapSupabaseUser(session.user));
+      }
     }
   });
 

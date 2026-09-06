@@ -891,7 +891,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
       const payload: any = {
         local_id: localId,
         sub_local_id: subLocalId || null,
-        numero_patrimonio: asset.idAtivo || asset.patrimonio || id,
+        numero_patrimonio: String(asset.idAtivo || asset.patrimonio || id).trim().toUpperCase(),
         selo_inmetro: asset.seloInmetro || null,
         chassi: asset.chassi || asset.numero_serie || null,
         modelo_id: modeloId,
@@ -1083,25 +1083,42 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada): Pro
     if (error) throw error;
 
     const isExtintor = inspecao.asset_patrimonio.toUpperCase().startsWith('EXT-');
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(inspecao.asset_id);
+    const patClean = String(inspecao.asset_patrimonio).trim().toUpperCase();
+
     if (isExtintor) {
-      const { error: updateErr } = await supabase
+      let query = supabase
         .from('ativos_extintores')
         .update({
           updated_at: new Date().toISOString()
-        })
-        .eq('id', inspecao.asset_id);
+        });
+
+      if (isUuid) {
+        query = query.eq('id', inspecao.asset_id);
+      } else {
+        query = query.eq('numero_patrimonio', patClean);
+      }
+
+      const { error: updateErr } = await query;
 
       if (updateErr) {
         console.warn('Aviso: laudo de vistoria salvo, mas erro ao atualizar ativos_extintores:', updateErr);
       }
     } else {
-      const { error: updateErr } = await supabase
+      let query = supabase
         .from('assets')
         .update({
           status: inspecao.status,
           updated_at: new Date().toISOString()
-        })
-        .eq('id', inspecao.asset_id);
+        });
+
+      if (isUuid) {
+        query = query.eq('id', inspecao.asset_id);
+      } else {
+        query = query.or(`id_ativo.eq.${patClean},patrimonio.eq.${patClean}`);
+      }
+
+      const { error: updateErr } = await query;
 
       if (updateErr) {
         console.warn('Aviso: laudo de vistoria salvo, mas erro ao atualizar status principal do ativo:', updateErr);

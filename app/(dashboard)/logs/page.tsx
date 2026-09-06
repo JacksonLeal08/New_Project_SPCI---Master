@@ -19,15 +19,37 @@ import {
   ArrowUpDown,
   FileCheck,
   Lock,
-  ArrowLeft
+  ArrowLeft,
+  RefreshCw
 } from 'lucide-react';
 
 export default function LogsAuditoriaPage() {
   const router = useRouter();
-  const { auditLogs, triggerSuccessNotification, userProfile } = useSpci();
+  const { auditLogs, triggerSuccessNotification, userProfile, syncWithRealDatabase } = useSpci();
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // 1. RBAC - Acesso restrito ao cargo Desenvolvedor
   const isDesenvolvedor = userProfile?.role === 'Desenvolvedor';
+
+  // Buscar logs atualizados do banco ao abrir a página
+  React.useEffect(() => {
+    if (isDesenvolvedor && syncWithRealDatabase) {
+      syncWithRealDatabase().catch(console.warn);
+    }
+  }, [isDesenvolvedor, syncWithRealDatabase]);
+
+  const handleManualRefresh = async () => {
+    if (!syncWithRealDatabase) return;
+    setIsRefreshing(true);
+    try {
+      await syncWithRealDatabase();
+      triggerSuccessNotification('Logs Atualizados! 🔄', 'Histórico de auditoria sincronizado com o Supabase.');
+    } catch (e) {
+      console.warn('Erro ao sincronizar logs:', e);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   if (!isDesenvolvedor) {
     return (
@@ -375,6 +397,16 @@ export default function LogsAuditoriaPage() {
                 )}
               </AnimatePresence>
             </div>
+
+            <button
+              onClick={handleManualRefresh}
+              disabled={isRefreshing}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-755 border border-slate-200 font-bold text-xs uppercase rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer active:scale-95 shadow-xs disabled:opacity-60"
+              title="Recarregar Logs do Supabase"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-red-600' : ''}`} />
+              <span>{isRefreshing ? 'Sincronizando...' : 'Atualizar'}</span>
+            </button>
 
             <button
               onClick={handleShareLogs}

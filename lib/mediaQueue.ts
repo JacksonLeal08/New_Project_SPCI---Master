@@ -116,15 +116,45 @@ export class MediaQueue {
 
         // 3. Atualiza o registro correspondente
         const isExtintor = task.category.toLowerCase().includes('extintor');
+        const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(task.assetId);
+
         if (isExtintor) {
-          await supabase
+          let query = supabase
             .from('ativos_extintores')
-            .update({ foto_url: publicUrl, updated_at: new Date().toISOString() })
-            .eq('id', task.assetId);
+            .update({ foto_url: publicUrl, updated_at: new Date().toISOString() });
+
+          if (isUuid) {
+            query = query.eq('id', task.assetId);
+          } else {
+            query = query.eq('numero_patrimonio', task.assetId.trim().toUpperCase());
+          }
+          await query;
         } else {
+          // Merge seguro em details para não sobrescrever dados técnicos existentes
+          let existingDetails: Record<string, any> = {};
+          try {
+            const { data: existingAsset } = await supabase
+              .from('assets')
+              .select('details')
+              .eq('id', task.assetId)
+              .maybeSingle();
+
+            if (existingAsset?.details && typeof existingAsset.details === 'object') {
+              existingDetails = existingAsset.details;
+            }
+          } catch (e) {
+            console.warn('[MediaQueue] Aviso ao ler details existentes:', e);
+          }
+
           await supabase
             .from('assets')
-            .update({ details: { foto_url: publicUrl }, updated_at: new Date().toISOString() })
+            .update({
+              details: {
+                ...existingDetails,
+                foto_url: publicUrl
+              },
+              updated_at: new Date().toISOString()
+            })
             .eq('id', task.assetId);
         }
 

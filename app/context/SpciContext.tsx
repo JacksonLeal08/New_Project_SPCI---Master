@@ -1011,10 +1011,18 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     );
 
+    // Renovação automática do cookie de sessão no evento de TOKEN_REFRESHED ou SIGNED_IN
+    const { data: { subscription: refreshSub } } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') && session?.access_token) {
+        document.cookie = `spci_session_token=${session.access_token}; path=/; max-age=86400; SameSite=Lax`;
+      }
+    });
+
     return () => {
       if (typeof unsubscribe === 'function') {
         unsubscribe();
       }
+      refreshSub.unsubscribe();
     };
   }, [addConsoleLog]);
 
