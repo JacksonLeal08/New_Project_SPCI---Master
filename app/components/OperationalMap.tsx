@@ -17,9 +17,11 @@ import {
   Route,
   Car,
   Maximize2,
-  Minimize2
+  Minimize2,
+  HelpCircle
 } from 'lucide-react';
 import AssetImageZoomModal from './AssetImageZoomModal';
+import RegrasVencimentoModal from './RegrasVencimentoModal';
 import { calculateHaversineDistance, formatDistance } from '@/lib/geoUtils';
 import { useTheme } from '@/app/context/ThemeContext';
 
@@ -82,10 +84,36 @@ export default function OperationalMap({
     }
   }, [theme]);
 
-  // Estados para Rota Ativa, Modal de Zoom e Tela Cheia (Maximizar/Minimizar)
+  // Estados para Rota Ativa, Modal de Zoom, Tela Cheia (Maximizar/Minimizar), Filtro de Status e Regras
   const [activeRoute, setActiveRoute] = useState<{ asset: MapAssetItem; distanceMeters: number } | null>(null);
   const [zoomedAsset, setZoomedAsset] = useState<MapAssetItem | null>(null);
   const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [activeStatusFilter, setActiveStatusFilter] = useState<string | null>(null);
+  const [isRegrasModalOpen, setIsRegrasModalOpen] = useState<boolean>(false);
+
+  // Contadores dinâmicos para cada status de ativos mapeados com coordenadas válidas
+  const statusCounts = React.useMemo(() => {
+    const valid = assets.filter(
+      (a) => a.latitude != null && a.longitude != null && !isNaN(a.latitude) && !isNaN(a.longitude)
+    );
+    const counts: Record<string, number> = {
+      total: valid.length,
+      'Conforme': 0,
+      'A Vencer/Atenção': 0,
+      'Vencido/Crítico': 0,
+      'Estoque': 0,
+      'Manutenção': 0
+    };
+    valid.forEach((asset) => {
+      const color = getMarkerColor(asset);
+      if (counts[color.label] !== undefined) {
+        counts[color.label]++;
+      } else {
+        counts['Conforme']++;
+      }
+    });
+    return counts;
+  }, [assets]);
 
   // Alternar Modo Tela Cheia Real (Fullscreen API nativo do navegador)
   const toggleMaximize = async () => {
@@ -487,9 +515,13 @@ export default function OperationalMap({
 
       markersGroup.clearLayers();
 
-      const validAssets = assets.filter(
+      const allValidAssets = assets.filter(
         a => a.latitude != null && a.longitude != null && !isNaN(a.latitude) && !isNaN(a.longitude)
       );
+
+      const validAssets = activeStatusFilter
+        ? allValidAssets.filter((a) => getMarkerColor(a).label === activeStatusFilter)
+        : allValidAssets;
 
       if (validAssets.length === 0) return;
 
@@ -615,11 +647,37 @@ export default function OperationalMap({
         const color = getMarkerColor(asset);
         const iconChar = getCategoryIcon(asset.category);
         const isSelected = selectedAssetId === asset.id || selectedAssetId === asset.idAtivo;
+        const isVencido = color.label === 'Vencido/Crítico';
+        const isAVencer = color.label === 'A Vencer/Atenção';
 
-        // Custom Pin HTML com Tailwind e efeito pulsante no selecionado
+        // Custom Pin HTML com Tailwind e efeito pulsante neon para vencidos/a vencer
         const customHtml = `
           <div class="relative group cursor-pointer" style="transform: translate(-50%, -100%);">
             ${isSelected ? '<div class="absolute -inset-2 bg-white/40 rounded-full animate-ping pointer-events-none"></div>' : ''}
+            ${isVencido ? `
+              <!-- Radar Sonar Fluorescente Vermelho Neon -->
+              <div class="spci-radar-ring-red" style="
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                pointer-events: none;
+              "></div>
+            ` : ''}
+            ${isAVencer ? `
+              <!-- Radar Sonar Fluorescente Âmbar Neon -->
+              <div class="spci-radar-ring-amber" style="
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 36px;
+                height: 36px;
+                border-radius: 50%;
+                pointer-events: none;
+              "></div>
+            ` : ''}
             ${asset.isGrouped ? `
               <div style="
                 position: absolute;
@@ -642,7 +700,7 @@ export default function OperationalMap({
                 ${asset.groupIndex}
               </div>
             ` : ''}
-            <div style="
+            <div class="${isVencido ? 'spci-pin-pulse-red' : isAVencer ? 'spci-pin-pulse-amber' : ''}" style="
               background: ${color.bg};
               border: 2px solid ${color.border};
               color: ${color.text};
@@ -650,7 +708,7 @@ export default function OperationalMap({
               height: 36px;
               border-radius: 50% 50% 50% 0;
               transform: rotate(-45deg);
-              box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+              box-shadow: ${isVencido ? '0 0 16px rgba(239, 68, 68, 0.9), 0 4px 12px rgba(0,0,0,0.5)' : isAVencer ? '0 0 14px rgba(245, 158, 11, 0.85), 0 4px 12px rgba(0,0,0,0.5)' : '0 4px 12px rgba(0,0,0,0.5)'};
               display: flex;
               align-items: center;
               justify-content: center;
@@ -680,10 +738,10 @@ export default function OperationalMap({
           iconAnchor: [18, 36]
         });
 
-        // Prioridade de clique sobre qualquer elemento de usuário (sempre no topo)
+        // Prioridade de clique: Selecionado > Vencido > A Vencer > Padrão
         const marker = L.marker(coords, {
           icon: customIcon,
-          zIndexOffset: isSelected ? 2500 : 1500
+          zIndexOffset: isSelected ? 2500 : isVencido ? 2200 : isAVencer ? 1900 : 1500
         });
 
         // Popup HTML formatado com suporte dinâmico a Tema Claro e Escuro (App-Like UI)
@@ -1086,7 +1144,7 @@ export default function OperationalMap({
         });
       }
     });
-  }, [assets, selectedAssetId, onSelectAssetForHistory, onUpdateAssetLocation, userCoords]);
+  }, [assets, selectedAssetId, onSelectAssetForHistory, onUpdateAssetLocation, userCoords, activeStatusFilter]);
 
   return (
     <div
@@ -1392,39 +1450,163 @@ export default function OperationalMap({
           color: #ffffff !important;
         }
 
+        /* Animações de Radar e Efeito Neon Fluorescente nos Pinos de Atenção e Crítico */
+        @keyframes spciRadarPulseRed {
+          0% {
+            transform: scale(0.9);
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.85);
+            opacity: 1;
+          }
+          70% {
+            transform: scale(1.85);
+            box-shadow: 0 0 0 18px rgba(239, 68, 68, 0);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(2);
+            box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+            opacity: 0;
+          }
+        }
+        @keyframes spciRadarPulseAmber {
+          0% {
+            transform: scale(0.9);
+            box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.85);
+            opacity: 1;
+          }
+          70% {
+            transform: scale(1.75);
+            box-shadow: 0 0 0 16px rgba(245, 158, 11, 0);
+            opacity: 0;
+          }
+          100% {
+            transform: scale(1.9);
+            box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+            opacity: 0;
+          }
+        }
+        @keyframes spciPinGlowRed {
+          0%, 100% {
+            filter: drop-shadow(0 0 6px rgba(239, 68, 68, 0.9)) drop-shadow(0 0 14px rgba(220, 38, 38, 0.7));
+            transform: rotate(-45deg) scale(1);
+          }
+          50% {
+            filter: drop-shadow(0 0 16px rgba(239, 68, 68, 1)) drop-shadow(0 0 26px rgba(239, 68, 68, 0.95));
+            transform: rotate(-45deg) scale(1.08);
+          }
+        }
+        @keyframes spciPinGlowAmber {
+          0%, 100% {
+            filter: drop-shadow(0 0 5px rgba(245, 158, 11, 0.8)) drop-shadow(0 0 12px rgba(217, 119, 6, 0.6));
+            transform: rotate(-45deg) scale(1);
+          }
+          50% {
+            filter: drop-shadow(0 0 14px rgba(245, 158, 11, 1)) drop-shadow(0 0 22px rgba(245, 158, 11, 0.85));
+            transform: rotate(-45deg) scale(1.06);
+          }
+        }
+        .spci-radar-ring-red {
+          animation: spciRadarPulseRed 1.8s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite !important;
+        }
+        .spci-radar-ring-amber {
+          animation: spciRadarPulseAmber 2.2s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite !important;
+        }
+        .spci-pin-pulse-red {
+          animation: spciPinGlowRed 1.8s ease-in-out infinite !important;
+        }
+        .spci-pin-pulse-amber {
+          animation: spciPinGlowAmber 2.2s ease-in-out infinite !important;
+        }
+
         .spci-user-accuracy-circle {
           pointer-events: none !important;
         }
       `}</style>
 
-      {/* Legenda Flutuante (SPCI Pins + Usuário) */}
-      <div className="absolute bottom-4 left-4 z-20 hidden sm:flex items-center gap-3 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 shadow-lg text-[10px] font-mono text-slate-700 dark:text-slate-200">
-        <div className="flex items-center gap-1.5">
+      {/* Dock Interativo de Filtros de Status (Legenda Flutuante Inteligente com Filtro Dinâmico) */}
+      <div className="absolute bottom-4 left-4 z-20 flex flex-wrap items-center gap-1.5 sm:gap-2 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-2xl p-1.5 sm:p-2 shadow-2xl text-[10px] font-mono text-slate-700 dark:text-slate-200 max-w-[calc(100%-2rem)] sm:max-w-none overflow-x-auto">
+        {/* Dispositivo do Operador */}
+        <button
+          type="button"
+          onClick={() => locateUser(true)}
+          title="Centralizar na sua localização atual"
+          className="flex items-center gap-1.5 px-2 py-1 sm:py-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 transition-all border border-transparent hover:border-slate-300 dark:hover:border-slate-700 cursor-pointer active:scale-95"
+        >
           <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-blue-500/40 animate-pulse" />
           <span className="text-blue-600 dark:text-blue-400 font-bold">Você</span>
-        </div>
-        <div className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
-          <span>Conforme</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-amber-500 ring-2 ring-amber-500/20" />
-          <span>A Vencer</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-red-500/20" />
-          <span>Vencido</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-blue-500/20" />
-          <span>Estoque</span>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-full bg-orange-500 ring-2 ring-orange-500/20" />
-          <span>Manutenção</span>
-        </div>
+        </button>
+
+        <div className="hidden sm:block w-px h-3.5 bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+        {/* Botão "Ver Todos" exibido quando houver filtro ativo */}
+        {activeStatusFilter && (
+          <button
+            type="button"
+            onClick={() => setActiveStatusFilter(null)}
+            className="flex items-center gap-1 px-2.5 py-1 sm:py-1.5 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 transition-all cursor-pointer shadow-xs active:scale-95"
+            title="Limpar filtro e ver todos os ativos no mapa"
+          >
+            <X className="w-3 h-3" />
+            <span>Ver Todos ({statusCounts.total})</span>
+          </button>
+        )}
+
+        {/* Pílulas de Status Interativas */}
+        {[
+          { label: 'Conforme', colorBg: 'bg-emerald-500', ringBg: 'ring-emerald-500/30', activeStyle: 'border-emerald-500 text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/60 ring-2 ring-emerald-500/50' },
+          { label: 'A Vencer/Atenção', shortLabel: 'A Vencer', colorBg: 'bg-amber-500', ringBg: 'ring-amber-500/30', activeStyle: 'border-amber-500 text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/60 ring-2 ring-amber-500/50' },
+          { label: 'Vencido/Crítico', shortLabel: 'Vencido', colorBg: 'bg-red-500', ringBg: 'ring-red-500/30', activeStyle: 'border-red-500 text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-950/60 ring-2 ring-red-500/50' },
+          { label: 'Estoque', colorBg: 'bg-blue-500', ringBg: 'ring-blue-500/30', activeStyle: 'border-blue-500 text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-950/60 ring-2 ring-blue-500/50' },
+          { label: 'Manutenção', colorBg: 'bg-orange-500', ringBg: 'ring-orange-500/30', activeStyle: 'border-orange-500 text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-950/60 ring-2 ring-orange-500/50' },
+        ].map((item) => {
+          const count = statusCounts[item.label] || 0;
+          const isActive = activeStatusFilter === item.label;
+
+          return (
+            <button
+              key={item.label}
+              type="button"
+              onClick={() => {
+                setActiveStatusFilter(isActive ? null : item.label);
+              }}
+              title={isActive ? `Filtro ativo: ${item.label}. Clique para remover.` : `Filtrar mapa por ${item.label}`}
+              className={`flex items-center gap-1.5 px-2 sm:px-2.5 py-1 sm:py-1.5 rounded-lg border transition-all cursor-pointer select-none active:scale-95 ${
+                isActive
+                  ? `border ${item.activeStyle} shadow-md font-extrabold scale-105`
+                  : 'border-transparent hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 opacity-90 hover:opacity-100'
+              }`}
+            >
+              <span className={`w-2 h-2 sm:w-2.5 sm:h-2.5 rounded-full ${item.colorBg} ring-2 ${item.ringBg} ${
+                item.label.includes('Vencido') ? 'animate-pulse' : item.label.includes('Vencer') ? 'animate-pulse' : ''
+              }`} />
+              <span className="font-semibold">{item.shortLabel || item.label}</span>
+              <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
+                isActive
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900'
+                  : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300'
+              }`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+
+        {/* Botão (?) para abrir as Regras de Vencimento */}
+        <button
+          type="button"
+          onClick={() => setIsRegrasModalOpen(true)}
+          title="Ver Regras de Vencimento SPCI"
+          className="flex items-center justify-center w-7 h-7 rounded-lg bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 transition-all cursor-pointer active:scale-95 ml-auto sm:ml-0"
+        >
+          <HelpCircle className="w-3.5 h-3.5" />
+        </button>
       </div>
+
+      {/* MODAL DE REGRAS DE VENCIMENTO */}
+      <RegrasVencimentoModal
+        isOpen={isRegrasModalOpen}
+        onClose={() => setIsRegrasModalOpen(false)}
+      />
 
       {/* MODAL DE ZOOM DA IMAGEM DO ATIVO */}
       <AssetImageZoomModal
