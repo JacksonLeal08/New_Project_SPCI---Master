@@ -44,6 +44,37 @@ export interface MapAssetItem {
   foto_url?: string | null;
 }
 
+// Determinar cor do pino baseado no status e tipo de movimentação
+export const getMarkerColor = (asset: MapAssetItem) => {
+  const status = String(asset?.status || '').toLowerCase();
+  const tipoMov = String(asset?.tipo_movimentacao || '').toLowerCase();
+
+  if (tipoMov === 'estoque_aplicacao' || tipoMov.includes('estoque')) {
+    return { bg: '#2563eb', border: '#60a5fa', text: '#ffffff', label: 'Estoque' }; // Azul
+  }
+  if (status.includes('manuten') || tipoMov === 'em_manutencao') {
+    return { bg: '#ea580c', border: '#fb923c', text: '#ffffff', label: 'Manutenção' }; // Laranja
+  }
+  if (status.includes('vencid') || status.includes('não conforme') || status.includes('nao conforme') || status.includes('falha') || status.includes('condenad')) {
+    return { bg: '#dc2626', border: '#f87171', text: '#ffffff', label: 'Vencido/Crítico' }; // Vermelho
+  }
+  if (status.includes('atenção') || status.includes('atencao') || status.includes('a vencer') || status.includes('ag_manut')) {
+    return { bg: '#d97706', border: '#fbbf24', text: '#ffffff', label: 'A Vencer/Atenção' }; // Amarelo/Âmbar
+  }
+  return { bg: '#10b981', border: '#34d399', text: '#ffffff', label: 'Conforme' }; // Verde Padrão
+};
+
+// Ícones por categoria
+export const getCategoryIcon = (cat: string) => {
+  const c = String(cat || '').toLowerCase();
+  if (c.includes('extintor')) return '🧯';
+  if (c.includes('hidrante')) return '💧';
+  if (c.includes('sinaliza')) return '⚠️';
+  if (c.includes('ilumina')) return '💡';
+  if (c.includes('bomba')) return '🔧';
+  return '🛡️';
+};
+
 interface OperationalMapProps {
   assets: MapAssetItem[];
   selectedAssetId?: string | null;
@@ -53,7 +84,7 @@ interface OperationalMapProps {
 }
 
 export default function OperationalMap({
-  assets,
+  assets = [],
   selectedAssetId,
   onSelectAssetForHistory,
   onUpdateAssetLocation,
@@ -93,8 +124,8 @@ export default function OperationalMap({
 
   // Contadores dinâmicos para cada status de ativos mapeados com coordenadas válidas
   const statusCounts = React.useMemo(() => {
-    const valid = assets.filter(
-      (a) => a.latitude != null && a.longitude != null && !isNaN(a.latitude) && !isNaN(a.longitude)
+    const valid = (assets || []).filter(
+      (a) => a && a.latitude != null && a.longitude != null && !isNaN(a.latitude) && !isNaN(a.longitude)
     );
     const counts: Record<string, number> = {
       total: valid.length,
@@ -191,36 +222,7 @@ export default function OperationalMap({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isMaximized]);
 
-  // Determinar cor do pino baseado no status e tipo de movimentação
-  const getMarkerColor = (asset: MapAssetItem) => {
-    const status = String(asset.status || '').toLowerCase();
-    const tipoMov = String(asset.tipo_movimentacao || '').toLowerCase();
 
-    if (tipoMov === 'estoque_aplicacao' || tipoMov.includes('estoque')) {
-      return { bg: '#2563eb', border: '#60a5fa', text: '#ffffff', label: 'Estoque' }; // Azul
-    }
-    if (status.includes('manuten') || tipoMov === 'em_manutencao') {
-      return { bg: '#ea580c', border: '#fb923c', text: '#ffffff', label: 'Manutenção' }; // Laranja
-    }
-    if (status.includes('vencid') || status.includes('não conforme') || status.includes('nao conforme') || status.includes('falha') || status.includes('condenad')) {
-      return { bg: '#dc2626', border: '#f87171', text: '#ffffff', label: 'Vencido/Crítico' }; // Vermelho
-    }
-    if (status.includes('atenção') || status.includes('atencao') || status.includes('a vencer') || status.includes('ag_manut')) {
-      return { bg: '#d97706', border: '#fbbf24', text: '#ffffff', label: 'A Vencer/Atenção' }; // Amarelo/Âmbar
-    }
-    return { bg: '#10b981', border: '#34d399', text: '#ffffff', label: 'Conforme' }; // Verde Padrão
-  };
-
-  // Ícones por categoria
-  const getCategoryIcon = (cat: string) => {
-    const c = (cat || '').toLowerCase();
-    if (c.includes('extintor')) return '🧯';
-    if (c.includes('hidrante')) return '💧';
-    if (c.includes('sinaliza')) return '⚠️';
-    if (c.includes('ilumina')) return '💡';
-    if (c.includes('bomba')) return '🔧';
-    return '🛡️';
-  };
 
   // Localizar dispositivo do usuário
   const locateUser = (centerMap = true) => {

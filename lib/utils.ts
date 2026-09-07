@@ -130,3 +130,30 @@ export function copyToClipboard(text: string): Promise<void> {
     });
   }
 }
+
+/**
+ * Formata data ISO ou string para o padrão brasileiro DD/MM/AAAA ou DD/MM/AAAA às HH:mm.
+ */
+export function formatDateBr(dateStr: string | null | undefined, includeTime: boolean = false): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return String(dateStr);
+    if (includeTime) {
+      return d.toLocaleDateString('pt-BR', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    }
+    return d.toLocaleDateString('pt-BR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  } catch {
+    return String(dateStr);
+  }
+}

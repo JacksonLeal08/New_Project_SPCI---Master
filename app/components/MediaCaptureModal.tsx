@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { motion } from 'framer-motion';
+import { motion } from 'motion/react';
 import { Camera, Image, X, MapPin, Loader2 } from 'lucide-react';
 import { useGeoCapture } from '@/hooks/useGeoCapture';
 import { GeoCoordinates } from '@/lib/geoUtils';

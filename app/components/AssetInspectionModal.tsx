@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { AnyAsset } from '@/lib/types';
 import AppFooter from '@/app/components/AppFooter';
 import { useSpci } from '@/app/context/SpciContext';

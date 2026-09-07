@@ -22,14 +22,20 @@ import {
   Edit3, 
   Eye,
   Sun,
-  Moon
+  Moon,
+  History,
+  FileText,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { getAssetsList } from '@/lib/supabaseDb';
 import { SyncQueue } from '@/lib/syncQueue';
 import QrCameraScanner from '@/app/components/QrCameraScanner';
+import ReinspecaoJustificativaModal from '@/app/components/ReinspecaoJustificativaModal';
+import AssetInspectionHistoryModal from '@/app/components/AssetInspectionHistoryModal';
 import { idb } from '@/lib/indexedDb';
 import { useSync } from '@/hooks/useSync';
-import { extractIdOrHashFromUrl } from '@/lib/utils';
+import { extractIdOrHashFromUrl, formatDateBr } from '@/lib/utils';
 
 // Mapeamento de categorias de ativos
 interface Categoria {
@@ -50,6 +56,13 @@ export default function PortalTecnicoPage() {
   const [assets, setAssets] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Controle de Ciclo Mensal e Modais (Opção C)
+  const [filterCycleMode, setFilterCycleMode] = useState<'pendentes' | 'todos'>('pendentes');
+  const [selectedAssetForReinspecao, setSelectedAssetForReinspecao] = useState<any | null>(null);
+  const [isReinspecaoModalOpen, setIsReinspecaoModalOpen] = useState<boolean>(false);
+  const [selectedAssetForHistory, setSelectedAssetForHistory] = useState<any | null>(null);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
 
   // Hook unificado de sincronia e status de rede
   const { isOnline, pendingCount, syncing, triggerSync } = useSync();
@@ -169,15 +182,66 @@ export default function PortalTecnicoPage() {
     }
   };
 
-  // Filtra ativos conforme query de pesquisa
+  // Verifica se o ativo já foi inspecionado no ciclo do mês/ano atual
+  const isAssetInspecionadoNoMes = useCallback((asset: any) => {
+    if (asset.status_inspecao_mes === 'INSPECIONADO') return true;
+    const dataInsp = asset.data_ultima_inspecao || asset.lastInsp;
+    if (!dataInsp) return false;
+    try {
+      const d = new Date(dataInsp);
+      if (isNaN(d.getTime())) return false;
+      const now = new Date();
+      return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Contadores do Ciclo Mensal
+  const inspecionadosCount = assets.filter(isAssetInspecionadoNoMes).length;
+  const pendentesCount = Math.max(0, assets.length - inspecionadosCount);
+
+  // Filtra ativos conforme busca e ciclo de inspeção (Opção C)
   const filteredAssets = assets.filter(asset => {
+    const isAlreadyInspecionado = isAssetInspecionadoNoMes(asset);
     const query = searchQuery.toLowerCase().trim();
-    if (!query) return true;
-    const patrimonio = String(asset.idAtivo || asset.id_ativo || '').toLowerCase();
-    const modelo = String(asset.model || '').toLowerCase();
-    const local = String(asset.location || '').toLowerCase();
-    return patrimonio.includes(query) || modelo.includes(query) || local.includes(query);
+
+    if (query) {
+      // Busca ativa: pesquisa em todos os ativos (inclusive já inspecionados)
+      const patrimonio = String(asset.idAtivo || asset.id_ativo || asset.numero_patrimonio || '').toLowerCase();
+      const modelo = String(asset.model || '').toLowerCase();
+      const local = String(asset.location || '').toLowerCase();
+      return patrimonio.includes(query) || modelo.includes(query) || local.includes(query);
+    }
+
+    // Fila padrão de ronda sem busca: exibe apenas pendentes ou todos conforme toggle
+    if (filterCycleMode === 'pendentes') {
+      return !isAlreadyInspecionado;
+    }
+    return true;
   });
+
+  const handleInspecionarClick = (asset: any) => {
+    const alreadyDone = isAssetInspecionadoNoMes(asset);
+    if (alreadyDone) {
+      setSelectedAssetForReinspecao(asset);
+      setIsReinspecaoModalOpen(true);
+    } else {
+      router.push(`/inspecao/${asset.idAtivo || asset.id}`);
+    }
+  };
+
+  const handleConfirmReinspecao = (justificativa: string) => {
+    if (!selectedAssetForReinspecao) return;
+    const assetId = selectedAssetForReinspecao.idAtivo || selectedAssetForReinspecao.id;
+    setIsReinspecaoModalOpen(false);
+    router.push(`/inspecao/${assetId}?reinspecao=true&justificativa=${encodeURIComponent(justificativa)}`);
+  };
+
+  const handleOpenHistory = (asset: any) => {
+    setSelectedAssetForHistory(asset);
+    setIsHistoryModalOpen(true);
+  };
 
   // Definições de Estilos do Tema Claro/Escuro
   const isDark = theme === 'dark';
@@ -437,11 +501,55 @@ export default function PortalTecnicoPage() {
           </div>
         </section>
 
-        {/* 3. LISTAGEM DE ATIVOS */}
+        {/* 3. LISTAGEM DE ATIVOS & CICLO MENSAL */}
         <section className="space-y-4">
+          {/* Barra de Status do Ciclo Mensal */}
+          <div className={`p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+            isDark ? 'bg-slate-900/60 border-slate-850' : 'bg-white border-slate-200 shadow-sm'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-red-500">
+                Ciclo Mensal:
+              </span>
+              <span className="text-xs font-extrabold uppercase font-sans">
+                {new Date().toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2 text-[10px] font-mono">
+              <button
+                onClick={() => setFilterCycleMode('pendentes')}
+                className={`px-2.5 py-1 rounded-lg border font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                  filterCycleMode === 'pendentes' && !searchQuery
+                    ? 'bg-red-600 border-red-500 text-white shadow-xs'
+                    : isDark
+                      ? 'bg-slate-800/80 border-slate-750 text-slate-350 hover:text-white'
+                      : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
+                Pendentes: {pendentesCount}
+              </button>
+
+              <button
+                onClick={() => setFilterCycleMode('todos')}
+                className={`px-2.5 py-1 rounded-lg border font-bold uppercase transition-all cursor-pointer flex items-center gap-1.5 ${
+                  filterCycleMode === 'todos' || searchQuery
+                    ? 'bg-emerald-600 border-emerald-500 text-white shadow-xs'
+                    : isDark
+                      ? 'bg-slate-800/80 border-slate-750 text-slate-350 hover:text-white'
+                      : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                }`}
+              >
+                <span className="w-2 h-2 rounded-full bg-emerald-400" />
+                Concluídos: {inspecionadosCount} / {assets.length}
+              </button>
+            </div>
+          </div>
+
           <div className={`flex items-center justify-between border-b pb-2 ${borderBottomClass}`}>
             <h4 className={`text-[10px] ${labelMutedClass} uppercase tracking-widest font-bold font-mono`}>
-              Equipamentos SPCI ({filteredAssets.length})
+              {searchQuery ? `Resultados da busca (${filteredAssets.length})` : filterCycleMode === 'pendentes' ? `Fila de Ronda Pendente (${filteredAssets.length})` : `Todos da Categoria (${filteredAssets.length})`}
             </h4>
             <span className={`text-[8px] ${labelMutedClass} uppercase font-mono`}>
               Filtro: {selectedCategory}
@@ -472,8 +580,20 @@ export default function PortalTecnicoPage() {
                   isDark ? 'border-slate-880 text-slate-500' : 'border-slate-200 text-slate-400'
                 }`}
               >
-                <span className="text-2xl block mb-2">🔍</span>
-                <p className="text-[9px] uppercase font-mono tracking-wider">Nenhum ativo localizado nesta categoria.</p>
+                <span className="text-2xl block mb-2">🎉</span>
+                <p className="text-[10px] uppercase font-mono font-bold tracking-wider">
+                  {filterCycleMode === 'pendentes' && !searchQuery
+                    ? 'Excelente! Todos os equipamentos desta categoria já foram vistoriados no mês corrente.'
+                    : 'Nenhum ativo localizado com os filtros selecionados.'}
+                </p>
+                {filterCycleMode === 'pendentes' && !searchQuery && (
+                  <button
+                    onClick={() => setFilterCycleMode('todos')}
+                    className="mt-3 px-3 py-1.5 text-[9px] font-mono uppercase font-bold text-red-400 bg-red-950/30 border border-red-900/50 rounded-lg hover:bg-red-950/50 transition-colors"
+                  >
+                    Ver Todos os Ativos Inspecionados
+                  </button>
+                )}
               </motion.div>
             )}
 
@@ -486,7 +606,9 @@ export default function PortalTecnicoPage() {
                 className="space-y-4"
               >
                 {filteredAssets.map((asset) => {
-                  const hasInspecionado = asset.status === 'Conforme';
+                  const isAlreadyInspecionado = isAssetInspecionadoNoMes(asset);
+                  const dataUltima = asset.data_ultima_inspecao || asset.lastInsp;
+
                   return (
                     <div 
                       key={asset.id}
@@ -494,7 +616,7 @@ export default function PortalTecnicoPage() {
                     >
                       {/* Faixa lateral de status */}
                       <div className={`absolute top-0 left-0 bottom-0 w-1.5 ${
-                        hasInspecionado ? 'bg-emerald-500' : 'bg-red-500'
+                        isAlreadyInspecionado ? 'bg-emerald-500' : 'bg-red-500'
                       }`} />
 
                       <div className="pl-2 space-y-3.5">
@@ -503,7 +625,7 @@ export default function PortalTecnicoPage() {
                             <span className={`text-[8.5px] px-2 py-0.5 rounded font-mono font-bold uppercase select-none tracking-wider ${
                               isDark ? 'bg-slate-800 text-slate-450' : 'bg-slate-100 text-slate-550'
                             }`}>
-                              Patrimônio: {asset.idAtivo || asset.id_ativo || 'N/A'}
+                              Patrimônio: {asset.idAtivo || asset.id_ativo || asset.numero_patrimonio || 'N/A'}
                             </span>
                             <h4 className={`text-sm font-extrabold mt-1.5 uppercase leading-tight font-sans ${
                               isDark ? 'text-slate-100' : 'text-slate-800'
@@ -513,11 +635,11 @@ export default function PortalTecnicoPage() {
                           </div>
                           
                           <span className={`inline-block px-2.5 py-1 text-[8.5px] font-extrabold uppercase border rounded-md select-none ${
-                            hasInspecionado 
+                            isAlreadyInspecionado 
                               ? 'text-emerald-455 border-emerald-900 bg-emerald-950/20' 
                               : 'text-red-455 border-red-900 bg-red-950/20'
                           }`}>
-                            {asset.status || 'Ativo'}
+                            {asset.status || (isAlreadyInspecionado ? 'Conforme' : 'Pendente')}
                           </span>
                         </div>
 
@@ -534,36 +656,70 @@ export default function PortalTecnicoPage() {
                           <p>
                             <strong className={isDark ? 'text-slate-500' : 'text-slate-400'}>📌 Chassi:</strong> {asset.chassi || 'N/A'}
                           </p>
-                          <p className="col-span-2 flex items-center gap-1.5 mt-1 font-mono text-[9px]">
-                            <strong className={isDark ? 'text-slate-500' : 'text-slate-400'}>VISTORIA MÊS ATUAL:</strong>
-                            <span className={`font-black px-1.5 py-0.5 rounded text-[8px] uppercase tracking-wide ${
-                              hasInspecionado ? 'text-emerald-455 bg-emerald-950/20' : 'text-red-455 bg-red-950/20'
-                            }`}>
-                              {hasInspecionado ? 'OK / CONFORME' : 'NÃO INSPECTIONADO'}
-                            </span>
-                          </p>
+
+                          {/* STATUS DO CICLO MENSAL REFINADO */}
+                          <div className="col-span-2 flex flex-col gap-1 mt-1 font-mono text-[9px]">
+                            <div className="flex items-center gap-1.5">
+                              <strong className={isDark ? 'text-slate-500' : 'text-slate-400'}>VISTORIA MÊS ATUAL:</strong>
+                              <span className={`font-black px-2 py-0.5 rounded text-[8.5px] uppercase tracking-wide flex items-center gap-1 border ${
+                                isAlreadyInspecionado 
+                                  ? 'text-emerald-400 bg-emerald-950/40 border-emerald-800/60 shadow-xs' 
+                                  : 'text-red-400 bg-red-950/40 border-red-800/60'
+                              }`}>
+                                {isAlreadyInspecionado ? (
+                                  <>
+                                    <CheckCircle2 size={11} className="text-emerald-400" />
+                                    <span>INSPECIONADO EM {dataUltima ? formatDateBr(dataUltima) : 'MÊS ATUAL'}</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <AlertCircle size={11} className="text-red-400" />
+                                    <span>NÃO INSPECIONADO NO MÊS</span>
+                                  </>
+                                )}
+                              </span>
+                            </div>
+                            {asset.justificativa_reinspecao && (
+                              <p className="text-[8.5px] text-amber-400/90 font-sans italic">
+                                Obs: {asset.justificativa_reinspecao}
+                              </p>
+                            )}
+                          </div>
                         </div>
 
-                        {/* Botões de Ações */}
-                        <div className={`flex gap-2.5 pt-3 border-t ${
+                        {/* Botões de Ações (Editar, Histórico e Inspecionar) */}
+                        <div className={`grid grid-cols-3 gap-2 pt-3 border-t ${
                           isDark ? 'border-slate-850' : 'border-slate-100'
                         }`}>
                           <button 
                             onClick={() => router.push(`/inspecao/novo?id=${asset.idAtivo || asset.id}&category=${selectedCategory}`)}
-                            className={`flex-1 py-2 text-[9px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer rounded-lg border transition-colors ${buttonSecondaryClass}`}
+                            className={`py-2 text-[8.5px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer rounded-lg border transition-colors ${buttonSecondaryClass}`}
                             aria-label={`Editar ativo ${asset.idAtivo || asset.id}`}
                           >
                             <Edit3 size={11} />
-                            Editar Ativo
+                            <span>Editar</span>
+                          </button>
+
+                          <button 
+                            onClick={() => handleOpenHistory(asset)}
+                            className={`py-2 text-[8.5px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer rounded-lg border transition-colors ${buttonSecondaryClass}`}
+                            aria-label={`Visualizar histórico e laudo do ativo ${asset.idAtivo || asset.id}`}
+                          >
+                            <History size={11} className="text-cyan-400" />
+                            <span>Histórico</span>
                           </button>
                           
                           <button 
-                            onClick={() => router.push(`/inspecao/${asset.idAtivo || asset.id}`)}
-                            className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-[9px] font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 cursor-pointer rounded-lg border border-emerald-500 shadow-sm transition-colors"
+                            onClick={() => handleInspecionarClick(asset)}
+                            className={`py-2 text-white text-[8.5px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer rounded-lg border shadow-sm transition-colors ${
+                              isAlreadyInspecionado
+                                ? 'bg-amber-600 hover:bg-amber-500 border-amber-500'
+                                : 'bg-emerald-600 hover:bg-emerald-700 border-emerald-500'
+                            }`}
                             aria-label={`Realizar inspeção no ativo ${asset.idAtivo || asset.id}`}
                           >
                             <Eye size={11} />
-                            Inspecionar
+                            <span>{isAlreadyInspecionado ? 'Re-inspecionar' : 'Inspecionar'}</span>
                           </button>
                         </div>
 
@@ -739,6 +895,23 @@ export default function PortalTecnicoPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal de Justificativa de Re-inspeção Técnica */}
+      <ReinspecaoJustificativaModal
+        isOpen={isReinspecaoModalOpen}
+        onClose={() => setIsReinspecaoModalOpen(false)}
+        asset={selectedAssetForReinspecao}
+        onConfirm={handleConfirmReinspecao}
+        isDark={isDark}
+      />
+
+      {/* Modal de Histórico de Vistorias e Laudos Oficiais (PDF) */}
+      <AssetInspectionHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        asset={selectedAssetForHistory}
+        isDark={isDark}
+      />
 
     </div>
   );

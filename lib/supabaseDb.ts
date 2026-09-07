@@ -201,6 +201,21 @@ const serializeAsset = (category: string, id: string, asset: any) => {
   };
 };
 
+export const computeStatusInspecaoMes = (dataUltimaInspecao: string | null | undefined, rawStatus?: string): 'INSPECIONADO' | 'NAO_INSPECIONADO' => {
+  if (!dataUltimaInspecao) return 'NAO_INSPECIONADO';
+  try {
+    const d = new Date(dataUltimaInspecao);
+    if (isNaN(d.getTime())) return 'NAO_INSPECIONADO';
+    const now = new Date();
+    if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()) {
+      return 'INSPECIONADO';
+    }
+    return 'NAO_INSPECIONADO';
+  } catch {
+    return 'NAO_INSPECIONADO';
+  }
+};
+
 const deserializeAsset = (row: any) => {
   const lat = row.latitude != null ? Number(row.latitude) : (row.geolocation?.lat != null ? Number(row.geolocation.lat) : null);
   const lng = row.longitude != null ? Number(row.longitude) : (row.geolocation?.lng != null ? Number(row.geolocation.lng) : null);
@@ -208,6 +223,9 @@ const deserializeAsset = (row: any) => {
 
   const tipoMov = normalizeTipoMovimentacao(row.tipo_movimentacao || row.status_estoque || row.details?.tipo_movimentacao);
   const statusEstoque = row.status_estoque || row.details?.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
+  const dataUltimaInspecao = row.data_ultima_inspecao || row.details?.data_ultima_inspecao || null;
+  const statusInspecaoMes = computeStatusInspecaoMes(dataUltimaInspecao, row.status_inspecao_mes || row.details?.status_inspecao_mes);
+  const justificativaReinspecao = row.justificativa_reinspecao || row.details?.justificativa_reinspecao || null;
 
   return {
     id: row.id,
@@ -232,6 +250,9 @@ const deserializeAsset = (row: any) => {
     data_ultima_localizacao: row.details?.data_ultima_localizacao || row.data_ultima_localizacao || null,
     origem_localizacao: row.details?.origem_localizacao || row.origem_localizacao || null,
     geolocation,
+    data_ultima_inspecao: dataUltimaInspecao,
+    status_inspecao_mes: statusInspecaoMes,
+    justificativa_reinspecao: justificativaReinspecao,
     category: row.category || 'extintores',
     ...row.details
   };
@@ -245,6 +266,10 @@ const deserializeExtintor = (row: any) => {
 
   const tipoMov = normalizeTipoMovimentacao(row.tipo_movimentacao || row.status_estoque);
   const statusEstoque = row.status_estoque || TIPO_MOVIMENTACAO_MAP[tipoMov]?.label || 'NA ÁREA (APLICADO)';
+
+  const dataUltimaInspecao = row.data_ultima_inspecao || null;
+  const statusInspecaoMes = computeStatusInspecaoMes(dataUltimaInspecao, row.status_inspecao_mes);
+  const justificativaReinspecao = row.justificativa_reinspecao || null;
 
   return {
     id: row.id,
@@ -262,6 +287,9 @@ const deserializeExtintor = (row: any) => {
     data_ultima_localizacao: row.data_ultima_localizacao || null,
     origem_localizacao: row.origem_localizacao || null,
     geolocation,
+    data_ultima_inspecao: dataUltimaInspecao,
+    status_inspecao_mes: statusInspecaoMes,
+    justificativa_reinspecao: justificativaReinspecao,
     // Mapeamento específico de extintores
     fabricante: row.fabricante || '',
     model: row.modelo || row.model || '',
@@ -338,6 +366,10 @@ const deserializeNewExtintor = (row: any) => {
   const lng = row.longitude != null ? Number(row.longitude) : null;
   const geolocation = (lat !== null && lng !== null) ? { lat, lng } : null;
 
+  const dataUltimaInspecao = row.data_ultima_inspecao || null;
+  const statusInspecaoMes = computeStatusInspecaoMes(dataUltimaInspecao, row.status_inspecao_mes);
+  const justificativaReinspecao = row.justificativa_reinspecao || null;
+
   return {
     id: row.id,
     idAtivo: row.numero_patrimonio || row.id,
@@ -355,6 +387,9 @@ const deserializeNewExtintor = (row: any) => {
     data_ultima_localizacao: row.data_ultima_localizacao || null,
     origem_localizacao: row.origem_localizacao || null,
     geolocation,
+    data_ultima_inspecao: dataUltimaInspecao,
+    status_inspecao_mes: statusInspecaoMes,
+    justificativa_reinspecao: justificativaReinspecao,
     // specific fields
     model: row.modelo_tipo || row.modelo || row.model || '',
     peso: row.peso_capacidade || row.peso || '',
@@ -1064,16 +1099,35 @@ export async function fetchAtivoParaInspecao(idOrPatrimonio: string): Promise<an
 /**
  * Registra o laudo técnico da vistoria na tabela inspecoes_realizadas e atualiza o status do ativo no Supabase.
  */
-export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada): Promise<{ success: boolean; error?: string }> {
+export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada & { justificativa_reinspecao?: string | null; foto_evidencia_url?: string | null }): Promise<{ success: boolean; error?: string }> {
   try {
+    const lat = inspecao.latitude ?? (inspecao.details?.geo_latitude ? Number(inspecao.details.geo_latitude) : null);
+    const lng = inspecao.longitude ?? (inspecao.details?.geo_longitude ? Number(inspecao.details.geo_longitude) : null);
+    const precisao = inspecao.precisao_gps ?? (inspecao.details?.geo_precisao ? Number(inspecao.details.geo_precisao) : null);
+    const fotoUrl = inspecao.foto_evidencia_url ?? (inspecao.details?.foto_evidencia_url || null);
+    const justificativa = inspecao.justificativa_reinspecao ?? (inspecao.details?.justificativa_reinspecao || null);
+    const dataInsp = inspecao.data_inspecao || new Date().toISOString();
+
     const payload = {
       asset_id: inspecao.asset_id,
       asset_patrimonio: inspecao.asset_patrimonio,
       status: inspecao.status,
       observacoes: inspecao.observacoes || null,
       tecnico_nome: inspecao.tecnico_nome,
-      data_inspecao: inspecao.data_inspecao || new Date().toISOString(),
-      details: inspecao.details,
+      data_inspecao: dataInsp,
+      justificativa_reinspecao: justificativa,
+      latitude: lat,
+      longitude: lng,
+      precisao_gps: precisao,
+      foto_evidencia_url: fotoUrl,
+      details: {
+        ...inspecao.details,
+        justificativa_reinspecao: justificativa,
+        foto_evidencia_url: fotoUrl,
+        geo_latitude: lat,
+        geo_longitude: lng,
+        geo_precisao: precisao
+      },
     };
 
     const { error } = await supabase
@@ -1086,12 +1140,28 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada): Pro
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(inspecao.asset_id);
     const patClean = String(inspecao.asset_patrimonio).trim().toUpperCase();
 
+    const assetUpdatePayload: Record<string, any> = {
+      data_ultima_inspecao: dataInsp,
+      status_inspecao_mes: 'INSPECIONADO',
+      updated_at: new Date().toISOString()
+    };
+
+    if (justificativa) {
+      assetUpdatePayload.justificativa_reinspecao = justificativa;
+    }
+
+    if (lat != null && lng != null) {
+      assetUpdatePayload.latitude = lat;
+      assetUpdatePayload.longitude = lng;
+      assetUpdatePayload.precisao_gps = precisao;
+      assetUpdatePayload.origem_localizacao = 'INSPECAO_TECNICA';
+      assetUpdatePayload.data_ultima_localizacao = new Date().toISOString();
+    }
+
     if (isExtintor) {
       let query = supabase
         .from('ativos_extintores')
-        .update({
-          updated_at: new Date().toISOString()
-        });
+        .update(assetUpdatePayload);
 
       if (isUuid) {
         query = query.eq('id', inspecao.asset_id);
@@ -1105,12 +1175,11 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada): Pro
         console.warn('Aviso: laudo de vistoria salvo, mas erro ao atualizar ativos_extintores:', updateErr);
       }
     } else {
+      assetUpdatePayload.status = inspecao.status;
+
       let query = supabase
         .from('assets')
-        .update({
-          status: inspecao.status,
-          updated_at: new Date().toISOString()
-        });
+        .update(assetUpdatePayload);
 
       if (isUuid) {
         query = query.eq('id', inspecao.asset_id);
@@ -1181,17 +1250,18 @@ export async function deleteAssetFromDb(collectionName: string, id: string): Pro
 export async function fetchInspecoesByAssetId(assetIdOrPatrimonio: string): Promise<InspecaoRealizada[]> {
   try {
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(assetIdOrPatrimonio);
+    const patClean = String(assetIdOrPatrimonio).trim().toUpperCase();
 
     let query = supabase
       .from('inspecoes_realizadas')
       .select('*')
       .order('data_inspecao', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (isUuid) {
-      query = query.eq('asset_id', assetIdOrPatrimonio);
+      query = query.or(`asset_id.eq.${assetIdOrPatrimonio},asset_patrimonio.eq.${patClean}`);
     } else {
-      query = query.eq('asset_patrimonio', assetIdOrPatrimonio.toUpperCase());
+      query = query.or(`asset_id.eq.${assetIdOrPatrimonio},asset_patrimonio.eq.${patClean}`);
     }
 
     const { data, error } = await query;
@@ -1215,6 +1285,11 @@ export async function fetchInspecoesByAssetId(assetIdOrPatrimonio: string): Prom
       observacoes: row.observacoes,
       tecnico_nome: row.tecnico_nome,
       data_inspecao: row.data_inspecao,
+      justificativa_reinspecao: row.justificativa_reinspecao || row.details?.justificativa_reinspecao || null,
+      latitude: row.latitude != null ? Number(row.latitude) : (row.details?.geo_latitude ? Number(row.details.geo_latitude) : null),
+      longitude: row.longitude != null ? Number(row.longitude) : (row.details?.geo_longitude ? Number(row.details.geo_longitude) : null),
+      precisao_gps: row.precisao_gps || row.details?.geo_precisao || null,
+      foto_evidencia_url: row.foto_evidencia_url || row.details?.foto_evidencia_url || null,
       details: row.details || {},
       created_at: row.created_at
     }));

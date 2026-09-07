@@ -79,11 +79,21 @@ function InspecaoOuCadastroContent() {
   const isEdicao = searchParams.get('edit') === 'true' || searchParams.get('id') !== null;
   const targetCategory = (searchParams.get('category') || 'extintores') as AssetCategory;
   const editId = searchParams.get('id') || '';
+  const urlJustificativa = searchParams.get('justificativa') || '';
+  const isReinspecaoParam = searchParams.get('reinspecao') === 'true' || !!urlJustificativa;
 
   // Estados de Controle Geral
   const [loading, setLoading] = useState<boolean>(true);
   const [ativo, setAtivo] = useState<any | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Re-inspeção mensal e justificativa técnica
+  const [isReinspecao, setIsReinspecao] = useState<boolean>(isReinspecaoParam);
+  const [justificativaReinspecao, setJustificativaReinspecao] = useState<string>(urlJustificativa);
+
+  // Enriquecimento automático Zero-GPS Fallback
+  const [autoGpsCaptured, setAutoGpsCaptured] = useState<boolean>(false);
+  const [autoGpsInfo, setAutoGpsInfo] = useState<string | null>(null);
 
   // Alertas de duplicidade
   const [showDuplicityAlert, setShowDuplicityAlert] = useState<boolean>(false);
@@ -279,6 +289,31 @@ function InspecaoOuCadastroContent() {
 
     loadData();
   }, [rawId, editId]);
+
+  // Zero-GPS Fallback Automático: Se o ativo não tiver coordenadas, captura do dispositivo do técnico
+  useEffect(() => {
+    if (ativo && !isCadastro && (ativo.latitude == null || ativo.longitude == null) && !autoGpsCaptured) {
+      if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const coords: GeoCoordinates = {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude,
+              accuracy: pos.coords.accuracy
+            };
+            setFotoEvidenciaCoords(coords);
+            setAutoGpsCaptured(true);
+            const acc = coords.accuracy ?? 0;
+            setAutoGpsInfo(`GPS capturado automaticamente: Lat ${coords.latitude.toFixed(5)}, Lng ${coords.longitude.toFixed(5)} (±${Math.round(acc)}m)`);
+          },
+          (err) => {
+            console.warn('[Zero-GPS Fallback] Não foi possível capturar GPS automaticamente:', err.message);
+          },
+          { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
+        );
+      }
+    }
+  }, [ativo, isCadastro, autoGpsCaptured]);
 
   // Sincroniza checklist ativo de extintores customizado no SPCI
   useEffect(() => {
@@ -669,13 +704,20 @@ function InspecaoOuCadastroContent() {
       checklistDetails[item.key] = item.conforme || false;
     });
 
-    const inspecao: InspecaoRealizada & { latitude?: number | null; longitude?: number | null; precisao_gps?: number | null; foto_evidencia_url?: string | null } = {
+    const inspecao: InspecaoRealizada & { 
+      latitude?: number | null; 
+      longitude?: number | null; 
+      precisao_gps?: number | null; 
+      foto_evidencia_url?: string | null;
+      justificativa_reinspecao?: string | null;
+    } = {
       asset_id: ativo.id,
       asset_patrimonio: ativo.idAtivo || ativo.id_ativo || rawId,
       status: finalStatus,
       tecnico_nome: tecnicoNome.trim(),
       observacoes: observacoes.trim(),
       data_inspecao: new Date().toISOString(),
+      justificativa_reinspecao: justificativaReinspecao.trim() || null,
       latitude: fotoEvidenciaCoords?.latitude || null,
       longitude: fotoEvidenciaCoords?.longitude || null,
       precisao_gps: fotoEvidenciaCoords?.accuracy || null,
@@ -687,6 +729,7 @@ function InspecaoOuCadastroContent() {
         obstruido: checklistDetails.obstruido,
         sinalizado: checklistDetails.sinalizado,
         casco_pintura: checklistDetails.casco_pintura || false,
+        justificativa_reinspecao: justificativaReinspecao.trim() || null,
         foto_evidencia_url: fotoEvidenciaUrl || null,
         geo_latitude: fotoEvidenciaCoords?.latitude || null,
         geo_longitude: fotoEvidenciaCoords?.longitude || null,
@@ -697,11 +740,19 @@ function InspecaoOuCadastroContent() {
     setLoading(true);
 
     try {
-      // Atualiza o cache local do ativo com o novo status e data de inspeção
+      // Atualiza o cache local do ativo com o novo status, ciclo mensal e geolocalização enriquecida
+      const nowIso = new Date().toISOString();
       const updatedAsset = {
         ...ativo,
         status: finalStatus,
-        lastInsp: new Date().toISOString().split('T')[0]
+        lastInsp: nowIso.split('T')[0],
+        data_ultima_inspecao: nowIso,
+        status_inspecao_mes: 'INSPECIONADO',
+        justificativa_reinspecao: justificativaReinspecao.trim() || null,
+        latitude: fotoEvidenciaCoords?.latitude || ativo.latitude || null,
+        longitude: fotoEvidenciaCoords?.longitude || ativo.longitude || null,
+        precisao_gps: fotoEvidenciaCoords?.accuracy || ativo.precisao_gps || null,
+        origem_localizacao: fotoEvidenciaCoords ? 'INSPECAO_TECNICA' : (ativo.origem_localizacao || null)
       };
       await idb.set(ativo.category || 'extintores', ativo.idAtivo || ativo.id_ativo || rawId, updatedAsset);
 
@@ -1521,6 +1572,31 @@ function InspecaoOuCadastroContent() {
                   </div>
                 </div>
               </section>
+
+              {/* Banner de Re-inspeção Mensal (se aplicável) */}
+              {(isReinspecao || justificativaReinspecao) && (
+                <div className="p-3.5 rounded-xl border border-amber-500/40 bg-amber-950/20 text-xs text-amber-300 flex items-start gap-2.5 shadow-sm">
+                  <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400 block">
+                      Re-inspeção do Ciclo Mensal
+                    </span>
+                    <p className="text-[11px] leading-relaxed font-sans">
+                      <strong>Motivo Técnico:</strong> {justificativaReinspecao || 'Re-inspeção por avaria pós-evento'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Banner de Enriquecimento Zero-GPS Automático */}
+              {autoGpsCaptured && (
+                <div className="p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/20 text-xs text-emerald-300 flex items-center gap-2 shadow-sm font-mono">
+                  <MapPin size={16} className="text-emerald-400 shrink-0" />
+                  <span className="text-[10.5px]">
+                    📍 <strong>Zero-GPS:</strong> Coordenadas de campo capturadas e vinculadas automaticamente ao cadastro do ativo!
+                  </span>
+                </div>
+              )}
 
               {/* FORMULÁRIO */}
               <form onSubmit={handleInspecaoSubmit} className="space-y-6">

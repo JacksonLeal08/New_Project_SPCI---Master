@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { CURRENT_SYSTEM_VERSION } from '@/lib/version';
 import { Sparkles, X, CheckCircle2, Cpu, ShieldCheck, ArrowRight, Bell } from 'lucide-react';
 

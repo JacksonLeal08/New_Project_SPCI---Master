@@ -109,6 +109,14 @@ export interface BaseAsset {
   subLocation?: string;
   status: string;
   tipo_movimentacao?: TipoMovimentacaoType | string;
+  data_ultima_inspecao?: string | null;
+  status_inspecao_mes?: 'INSPECIONADO' | 'NAO_INSPECIONADO' | 'PENDENTE' | string;
+  justificativa_reinspecao?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  precisao_gps?: number | null;
+  data_primeira_localizacao?: string | null;
+  origem_localizacao?: string | null;
   createdAt?: string;
   updatedAt?: string;
   geolocation?: {
@@ -174,12 +182,19 @@ export interface InspecaoRealizada {
   observacoes?: string;
   tecnico_nome: string;
   data_inspecao: string;
-  details: {
-    lacre_presente: boolean;
-    pressao_adequada: boolean;
-    valido_inmetro: boolean;
-    obstruido: boolean;
-    sinalizado: boolean;
+  justificativa?: string | null;
+  justificativa_reinspecao?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  precisao_gps?: number | null;
+  foto_evidencia_url?: string | null;
+  details?: {
+    lacre_presente?: boolean;
+    pressao_adequada?: boolean;
+    valido_inmetro?: boolean;
+    obstruido?: boolean;
+    sinalizado?: boolean;
+    casco_pintura?: boolean;
     [key: string]: any;
   };
   created_at?: string;
