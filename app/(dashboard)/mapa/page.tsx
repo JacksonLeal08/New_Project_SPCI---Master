@@ -186,118 +186,118 @@ export default function MapaOperacionalPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 p-4 sm:p-6 lg:p-8 space-y-6">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 p-3 sm:p-6 lg:p-8 space-y-4 sm:space-y-6 transition-colors duration-200">
       {/* Header com Título e Status de Conexão GPS */}
-      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+      <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 pb-4 border-b border-slate-200 dark:border-slate-800">
         <div className="space-y-1">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-red-600/10 border border-red-500/20 rounded-xl text-red-500 shadow-sm">
+            <div className="p-2.5 bg-red-600/10 border border-red-500/20 rounded-xl text-red-600 dark:text-red-500 shadow-sm">
               <MapPin className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-white flex items-center gap-2.5">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
                 Mapa Operacional de Ativos
-                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+                <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping" />
                   Tempo Real
                 </span>
               </h1>
-              <p className="text-xs sm:text-sm text-slate-400">
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
                 Visualização geoespacial automática e auditoria de deslocamento de equipamentos contra incêndio.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Botão de Atualização */}
+        {/* Botão de Atualização (Touch-friendly para mobile) */}
         <div className="flex items-center gap-3 w-full md:w-auto">
           <button
             onClick={() => loadMapData(true)}
             disabled={refreshing}
-            className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 border border-slate-800 hover:border-slate-700 hover:bg-slate-850 text-slate-300 hover:text-white transition-all text-xs font-semibold shadow-sm cursor-pointer disabled:opacity-50"
+            className="flex items-center justify-center gap-2 px-4 py-2.5 min-h-[44px] rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white transition-all text-xs font-semibold shadow-sm cursor-pointer active:scale-95 disabled:opacity-50 w-full md:w-auto"
             title="Recarregar coordenadas"
           >
-            <RefreshCw className={`w-4 h-4 text-slate-400 ${refreshing ? 'animate-spin text-red-500' : ''}`} />
+            <RefreshCw className={`w-4 h-4 text-slate-500 dark:text-slate-400 ${refreshing ? 'animate-spin text-red-500' : ''}`} />
             {refreshing ? 'Atualizando...' : 'Atualizar Dados'}
           </button>
         </div>
       </div>
 
-      {/* Bento Grid de Métricas Operacionais */}
+      {/* Bento Grid de Métricas Operacionais (Mobile-First) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {/* Total com GPS */}
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
+        <div className="bg-white/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur flex flex-col justify-between transition-all duration-200 hover:shadow-md">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-medium uppercase tracking-wider">Ativos Mapeados</span>
-            <MapPin className="w-4 h-4 text-emerald-400" />
+            <MapPin className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            <span className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
               {stats.total}
             </span>
-            <p className="text-[11px] text-slate-500 mt-0.5">Com coordenadas ativas</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Com coordenadas ativas</p>
           </div>
         </div>
 
         {/* Extintores */}
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
+        <div className="bg-white/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur flex flex-col justify-between transition-all duration-200 hover:shadow-md">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-medium uppercase tracking-wider">Extintores</span>
-            <Flame className="w-4 h-4 text-red-400" />
+            <Flame className="w-4 h-4 text-red-600 dark:text-red-400" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            <span className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
               {stats.extintores}
             </span>
-            <p className="text-[11px] text-slate-500 mt-0.5">Plotados no mapa</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Plotados no mapa</p>
           </div>
         </div>
 
         {/* Hidrantes */}
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
+        <div className="bg-white/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur flex flex-col justify-between transition-all duration-200 hover:shadow-md">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-medium uppercase tracking-wider">Hidrantes / Abrigos</span>
-            <Droplet className="w-4 h-4 text-sky-400" />
+            <Droplet className="w-4 h-4 text-sky-600 dark:text-sky-400" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            <span className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
               {stats.hidrantes}
             </span>
-            <p className="text-[11px] text-slate-500 mt-0.5">Pontos de hidrante</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Pontos de hidrante</p>
           </div>
         </div>
 
         {/* Estoque / Almoxarifado */}
-        <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
+        <div className="bg-white/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur flex flex-col justify-between transition-all duration-200 hover:shadow-md">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-medium uppercase tracking-wider">Em Estoque</span>
-            <Boxes className="w-4 h-4 text-blue-400" />
+            <Boxes className="w-4 h-4 text-blue-600 dark:text-blue-400" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            <span className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
               {stats.estoque}
             </span>
-            <p className="text-[11px] text-slate-500 mt-0.5">Depósito / Aplicação</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Depósito / Aplicação</p>
           </div>
         </div>
 
         {/* Rondas & Inspeções GPS */}
-        <div className="col-span-2 sm:col-span-1 bg-slate-900/80 border border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur flex flex-col justify-between">
-          <div className="flex items-center justify-between text-slate-400">
+        <div className="col-span-2 sm:col-span-1 bg-white/90 dark:bg-slate-900/80 border border-slate-200/90 dark:border-slate-800/80 rounded-2xl p-4 shadow-sm backdrop-blur flex flex-col justify-between transition-all duration-200 hover:shadow-md">
+          <div className="flex items-center justify-between text-slate-500 dark:text-slate-400">
             <span className="text-xs font-medium uppercase tracking-wider">Inspeções GPS</span>
-            <ShieldCheck className="w-4 h-4 text-amber-400" />
+            <ShieldCheck className="w-4 h-4 text-amber-600 dark:text-amber-400" />
           </div>
           <div className="mt-3">
-            <span className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+            <span className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-white tracking-tight">
               {totalInspectionsWithGps}
             </span>
-            <p className="text-[11px] text-slate-500 mt-0.5">Check-ins auditados</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Check-ins auditados</p>
           </div>
         </div>
       </div>
 
-      {/* Barra de Filtros e Busca */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-4 space-y-4 shadow-sm">
+      {/* Barra de Filtros e Busca (Mobile-First / App-Like UI) */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-3 sm:p-4 space-y-3 sm:space-y-4 shadow-sm">
         <div className="flex flex-col md:flex-row items-center justify-between gap-3">
           {/* Campo de Busca */}
           <div className="relative w-full md:w-96">
@@ -307,12 +307,12 @@ export default function MapaOperacionalPage() {
               placeholder="Buscar por ID, modelo, setor ou localização..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 focus:border-red-500 rounded-xl pl-10 pr-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors"
+              className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 focus:border-red-500 rounded-xl pl-10 pr-12 py-2.5 min-h-[44px] text-xs text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none transition-colors"
             />
             {searchTerm && (
               <button
                 onClick={() => setSearchTerm('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 text-xs"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 text-xs px-2 py-1 cursor-pointer"
               >
                 Limpar
               </button>
@@ -325,7 +325,7 @@ export default function MapaOperacionalPage() {
             <select
               value={selectedStatus}
               onChange={(e) => setSelectedStatus(e.target.value)}
-              className="bg-slate-950 border border-slate-800 text-slate-200 text-xs rounded-xl px-3 py-2.5 focus:outline-none focus:border-red-500 cursor-pointer w-full md:w-auto"
+              className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs rounded-xl px-3 py-2.5 min-h-[44px] focus:outline-none focus:border-red-500 cursor-pointer w-full md:w-auto font-medium"
             >
               <option value="todos">Todos os Status</option>
               <option value="conforme">Conformes</option>
@@ -337,24 +337,24 @@ export default function MapaOperacionalPage() {
           </div>
         </div>
 
-        {/* Pílulas de Categoria */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+        {/* Pílulas de Categoria (Thumb Zone: Scroll horizontal touch suave) */}
+        <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none touch-pan-x">
           <button
             onClick={() => setSelectedCategory('todos')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer ${
+            className={`px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer active:scale-95 ${
               selectedCategory === 'todos'
                 ? 'bg-red-600 text-white shadow-md'
-                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
             }`}
           >
             Todos ({assets.length})
           </button>
           <button
             onClick={() => setSelectedCategory('extintores')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
               selectedCategory === 'extintores'
                 ? 'bg-red-600 text-white shadow-md'
-                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
             }`}
           >
             <Flame className="w-3.5 h-3.5" />
@@ -362,10 +362,10 @@ export default function MapaOperacionalPage() {
           </button>
           <button
             onClick={() => setSelectedCategory('hidrantes')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
               selectedCategory === 'hidrantes'
                 ? 'bg-sky-600 text-white shadow-md'
-                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
             }`}
           >
             <Droplet className="w-3.5 h-3.5" />
@@ -373,10 +373,10 @@ export default function MapaOperacionalPage() {
           </button>
           <button
             onClick={() => setSelectedCategory('sinalizacao')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
               selectedCategory === 'sinalizacao'
                 ? 'bg-amber-600 text-white shadow-md'
-                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
             }`}
           >
             <AlertTriangle className="w-3.5 h-3.5" />
@@ -384,10 +384,10 @@ export default function MapaOperacionalPage() {
           </button>
           <button
             onClick={() => setSelectedCategory('iluminacao')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
               selectedCategory === 'iluminacao'
                 ? 'bg-emerald-600 text-white shadow-md'
-                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
             }`}
           >
             <Lightbulb className="w-3.5 h-3.5" />
@@ -395,10 +395,10 @@ export default function MapaOperacionalPage() {
           </button>
           <button
             onClick={() => setSelectedCategory('bombas')}
-            className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 min-h-[38px] rounded-xl text-xs font-semibold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 active:scale-95 ${
               selectedCategory === 'bombas'
                 ? 'bg-indigo-600 text-white shadow-md'
-                : 'bg-slate-950 text-slate-400 hover:text-white border border-slate-800'
+                : 'bg-slate-100 dark:bg-slate-950 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border border-slate-200 dark:border-slate-800'
             }`}
           >
             <Sliders className="w-3.5 h-3.5" />
@@ -407,16 +407,16 @@ export default function MapaOperacionalPage() {
         </div>
       </div>
 
-      {/* Painel do Mapa */}
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-2 sm:p-4 shadow-xl relative overflow-hidden">
+      {/* Painel do Mapa (App-Like Card Luxury) */}
+      <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-2 sm:p-4 shadow-xl relative overflow-hidden transition-colors duration-200">
         {/* Legenda dos Marcadores */}
-        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 px-2 border-b border-slate-800/80 text-xs">
-          <div className="flex items-center gap-2 text-slate-400 font-medium">
-            <Radio className="w-4 h-4 text-emerald-400" />
+        <div className="flex flex-wrap items-center justify-between gap-3 pb-3 px-2 border-b border-slate-200/90 dark:border-slate-800/80 text-xs">
+          <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400 font-medium">
+            <Radio className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
             <span>Exibindo <strong>{filteredAssets.length}</strong> de {assets.length} ativos com coordenadas</span>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 font-medium">
+          <div className="flex flex-wrap items-center gap-3 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
             <span className="flex items-center gap-1.5">
               <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm" /> Conforme
             </span>

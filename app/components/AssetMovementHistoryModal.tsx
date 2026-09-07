@@ -96,10 +96,10 @@ export default function AssetMovementHistoryModal({
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-100"
+        className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900 dark:text-slate-100"
       >
         {/* CABEÇALHO */}
-        <div className="bg-gradient-to-r from-red-800 to-slate-900 px-6 py-4 border-b border-red-700/40 flex items-center justify-between">
+        <div className="bg-gradient-to-r from-red-750 to-slate-900 px-6 py-4 border-b border-red-700/40 flex items-center justify-between text-white">
           <div className="flex items-center gap-3">
             <div className="p-2.5 rounded-xl bg-red-600/20 text-red-400 border border-red-500/30">
               <Navigation size={18} />
@@ -109,7 +109,7 @@ export default function AssetMovementHistoryModal({
                 <span className="text-xs font-black uppercase text-white font-sans tracking-wide">
                   Histórico de Deslocamento & Timeline GPS
                 </span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10 text-red-200 text-[10px] font-bold">
+                <span className="px-2 py-0.5 rounded-full bg-white/15 text-red-100 text-[10px] font-bold">
                   {assetCode}
                 </span>
               </div>
@@ -121,25 +121,25 @@ export default function AssetMovementHistoryModal({
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white transition-colors cursor-pointer border border-white/10"
+            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/10"
           >
             <X size={18} />
           </button>
         </div>
 
         {/* MÉTRICAS SUPERIORES (BENTO MINI) */}
-        <div className="grid grid-cols-3 gap-3 p-4 bg-slate-950/60 border-b border-slate-800 text-center">
-          <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
-            <span className="text-[9px] text-slate-400 uppercase font-bold block">Leituras GPS</span>
-            <span className="text-lg font-black text-white">{totalDeslocamentos}</span>
+        <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-center">
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Leituras GPS</span>
+            <span className="text-lg font-black text-slate-900 dark:text-white">{totalDeslocamentos}</span>
           </div>
-          <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
-            <span className="text-[9px] text-slate-400 uppercase font-bold block">Deslocamento Acumulado</span>
-            <span className="text-lg font-black text-emerald-400">{formatDistance(totalMetrosDeslocados)}</span>
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Deslocamento Acumulado</span>
+            <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">{formatDistance(totalMetrosDeslocados)}</span>
           </div>
-          <div className="p-2.5 rounded-xl bg-slate-900/80 border border-slate-800">
-            <span className="text-[9px] text-slate-400 uppercase font-bold block">Maior Desvio (Delta)</span>
-            <span className="text-lg font-black text-amber-400">{formatDistance(maiorDeslocamento)}</span>
+          <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 shadow-sm">
+            <span className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-bold block">Maior Desvio (Delta)</span>
+            <span className="text-lg font-black text-amber-600 dark:text-amber-400">{formatDistance(maiorDeslocamento)}</span>
           </div>
         </div>
 
@@ -148,15 +148,15 @@ export default function AssetMovementHistoryModal({
           {loading ? (
             <div className="py-12 text-center space-y-3">
               <div className="w-8 h-8 border-2 border-red-500 border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-xs text-slate-400 uppercase">Consultando auditoria geoespacial...</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 uppercase">Consultando auditoria geoespacial...</p>
             </div>
           ) : history.length === 0 ? (
-            <div className="py-12 text-center border border-dashed border-slate-800 rounded-xl space-y-2">
-              <MapPin size={32} className="text-slate-600 mx-auto" />
-              <p className="text-xs text-slate-400 font-sans">
+            <div className="py-12 text-center border border-dashed border-slate-300 dark:border-slate-800 rounded-xl space-y-2">
+              <MapPin size={32} className="text-slate-400 dark:text-slate-600 mx-auto" />
+              <p className="text-xs text-slate-600 dark:text-slate-400 font-sans">
                 Nenhum registro de deslocamento gravado ainda para este ativo.
               </p>
-              <p className="text-[10px] text-slate-500 font-sans">
+              <p className="text-[10px] text-slate-400 dark:text-slate-500 font-sans">
                 Novas leituras durante vistorias, rondas ou movimentação de estoque aparecerão aqui.
               </p>
             </div>
@@ -172,13 +172,13 @@ export default function AssetMovementHistoryModal({
                     <div className={`absolute -left-[9px] top-1.5 w-4 h-4 rounded-full border-2 ${
                       isFirst 
                         ? 'bg-red-500 border-white ring-4 ring-red-500/20' 
-                        : 'bg-slate-900 border-slate-600'
+                        : 'bg-slate-300 dark:bg-slate-900 border-slate-400 dark:border-slate-600'
                     }`} />
 
                     <div className={`p-4 rounded-xl border transition-all ${
                       isFirst 
-                        ? 'bg-slate-850/90 border-red-500/40 shadow-lg' 
-                        : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
+                        ? 'bg-red-50/50 dark:bg-slate-850/90 border-red-300 dark:border-red-500/40 shadow-md' 
+                        : 'bg-slate-50/80 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                     }`}>
                       {/* Topo do Evento */}
                       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -194,7 +194,7 @@ export default function AssetMovementHistoryModal({
                           )}
                         </div>
 
-                        <div className="flex items-center gap-1 text-[9px] text-slate-400">
+                        <div className="flex items-center gap-1 text-[9px] text-slate-500 dark:text-slate-400">
                           <Clock size={10} />
                           <span>
                             {item.created_at ? new Date(item.created_at).toLocaleString('pt-BR') : 'Data não informada'}
@@ -205,21 +205,21 @@ export default function AssetMovementHistoryModal({
                       {/* Coordenadas e Delta Haversine */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3 text-xs">
                         <div className="space-y-0.5">
-                          <span className="text-[9px] text-slate-400 uppercase font-bold">Coordenadas GPS</span>
-                          <p className="font-mono text-slate-200">
+                          <span className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-bold">Coordenadas GPS</span>
+                          <p className="font-mono text-slate-800 dark:text-slate-200">
                             {item.latitude.toFixed(6)}, {item.longitude.toFixed(6)}
                             {item.precisao != null && (
-                              <span className="text-[9px] text-slate-400 ml-1.5">(±{item.precisao}m)</span>
+                              <span className="text-[9px] text-slate-500 dark:text-slate-400 ml-1.5">(±{item.precisao}m)</span>
                             )}
                           </p>
                         </div>
 
                         <div className="space-y-0.5">
-                          <span className="text-[9px] text-slate-400 uppercase font-bold">Deslocamento Detectado</span>
+                          <span className="text-[9px] text-slate-500 dark:text-slate-400 uppercase font-bold">Deslocamento Detectado</span>
                           <p className={`font-mono font-bold ${
                             item.distancia_deslocada_metros >= 5 
-                              ? 'text-amber-400' 
-                              : 'text-emerald-400'
+                              ? 'text-amber-600 dark:text-amber-400' 
+                              : 'text-emerald-600 dark:text-emerald-400'
                           }`}>
                             {item.distancia_deslocada_metros > 0 
                               ? `Δ ${formatDistance(item.distancia_deslocada_metros)}` 
@@ -229,7 +229,7 @@ export default function AssetMovementHistoryModal({
                       </div>
 
                       {/* Responsável e Evidência Fotográfica */}
-                      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-800 text-[10px] text-slate-400">
+                      <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200 dark:border-slate-800 text-[10px] text-slate-500 dark:text-slate-400">
                         <div className="flex items-center gap-1.5">
                           <User size={12} className="text-slate-500" />
                           <span>{item.usuario_nome || 'Operador SPCI'}</span>
@@ -239,7 +239,7 @@ export default function AssetMovementHistoryModal({
                           <button
                             type="button"
                             onClick={() => setSelectedPhoto(item.foto_evidencia_url!)}
-                            className="flex items-center gap-1.5 text-red-400 hover:text-red-300 font-bold transition-colors cursor-pointer"
+                            className="flex items-center gap-1.5 text-red-600 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300 font-bold transition-colors cursor-pointer"
                           >
                             <Camera size={12} />
                             <span>Ver Foto de Evidência</span>

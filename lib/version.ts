@@ -13,25 +13,25 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.8.4',
+  version: 'v2.8.5',
   date: '06/09/2026',
-  title: 'SPCI Master v2.8.4 - Resiliência em Sincronizações, Sessões e Logs de Auditoria',
-  summary: 'Implementação das melhorias prioritárias de arquitetura: suporte híbrido UUID/Patrimônio ao atualizar extintores, merge seguro de metadados na fila de mídia, renovação automática de cookies de sessão no refresh de token e recarregamento sob demanda dos logs de auditoria.',
+  title: 'SPCI Master v2.8.5 - Tema Adaptativo Claro/Escuro, App-Like UI & Dispersão Geoespacial',
+  summary: 'Aprimoramento completo do Mapa Operacional: responsividade visual nos temas claro e escuro (Bento Grid, filtros e Leaflet), sincronização dinâmica de camadas (Google Ruas no claro), Mobile App Shell PWA e motor de dispersão geoespacial (Smart Offset) para ativos com coordenadas coincidentes.',
   changes: [
     {
-      category: 'NBR',
-      title: 'Atualização Resiliente de Laudos (UUID / Patrimônio)',
-      description: 'Eliminada falha de tipagem no Supabase ao atualizar extintores após vistoria técnica, permitindo localizar o ativo tanto pelo UUID quanto pelo código de patrimônio limpo.'
-    },
-    {
-      category: 'DESEMPENHO',
-      title: 'Preservação de Metadados JSONB (MediaQueue)',
-      description: 'O envio de fotos pela fila de sincronização offline agora mescla os dados existentes em vez de sobrescrever o objeto details, preservando informações técnicas do ativo.'
+      category: 'UI/UX',
+      title: 'Tema Adaptativo Claro/Escuro no Mapa Operacional',
+      description: 'Estruturação completa com design tokens e classes Tailwind dark: no Bento Grid, barra de filtros, cards e controles flutuantes, garantindo legibilidade perfeita no tema claro e cinematográfica no tema escuro.'
     },
     {
       category: 'UI/UX',
-      title: 'Renovação de Sessão & Atualização de Logs',
-      description: 'Cookie spci_session_token é renovado de forma transparente a cada atualização de token JWT pelo Supabase, e a tela de logs agora conta com carga histórica e botão de sincronização manual.'
+      title: 'Dispersão Geoespacial Inteligente (Smart Offset)',
+      description: 'Resolução definitiva da sobreposição de equipamentos (ex: EXT-151 e EXT-650): detecção de coordenadas coincidentes e distribuição em leque circular com linha de ancoragem, badges e identificação compartilhada no popup.'
+    },
+    {
+      category: 'DESEMPENHO',
+      title: 'PWA Mobile App Shell & Sincronia de Camadas',
+      description: 'Botão de tela cheia Standalone touch-friendly (>=44px), scroll horizontal suave nas categorias e carregamento automático da camada Google Ruas em tema claro e Satélite/Noturno no escuro.'
     }
   ]
 };

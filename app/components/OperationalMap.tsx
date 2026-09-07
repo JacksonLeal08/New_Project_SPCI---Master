@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import AssetImageZoomModal from './AssetImageZoomModal';
 import { calculateHaversineDistance, formatDistance } from '@/lib/geoUtils';
+import { useTheme } from '@/app/context/ThemeContext';
 
 export interface MapAssetItem {
   id: string;
@@ -56,6 +57,8 @@ export default function OperationalMap({
   onUpdateAssetLocation,
   className = 'h-[600px] w-full'
 }: OperationalMapProps) {
+  const { theme } = useTheme();
+
   const mapRootRef = useRef<HTMLDivElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -64,9 +67,20 @@ export default function OperationalMap({
   const routeLayerRef = useRef<any>(null);
 
   const [mapReady, setMapReady] = useState(false);
-  const [currentTileLayer, setCurrentTileLayer] = useState<'hybrid' | 'streets' | 'dark'>('hybrid');
+  const [currentTileLayer, setCurrentTileLayer] = useState<'hybrid' | 'streets' | 'dark'>(() => {
+    return theme === 'light' ? 'streets' : 'hybrid';
+  });
   const [locatingUser, setLocatingUser] = useState(false);
   const [userCoords, setUserCoords] = useState<{ latitude: number; longitude: number; accuracy: number } | null>(null);
+
+  // Sincronizar camada recomendada com alternância de tema global
+  useEffect(() => {
+    if (theme === 'light') {
+      setCurrentTileLayer((prev) => (prev === 'dark' || prev === 'hybrid' ? 'streets' : prev));
+    } else {
+      setCurrentTileLayer((prev) => (prev === 'streets' ? 'hybrid' : prev));
+    }
+  }, [theme]);
 
   // Estados para Rota Ativa, Modal de Zoom e Tela Cheia (Maximizar/Minimizar)
   const [activeRoute, setActiveRoute] = useState<{ asset: MapAssetItem; distanceMeters: number } | null>(null);
@@ -481,9 +495,122 @@ export default function OperationalMap({
 
       const bounds = L.latLngBounds([]);
 
-      validAssets.forEach((asset) => {
-        const coords: [number, number] = [asset.latitude, asset.longitude];
-        bounds.extend(coords);
+      // 1. Agrupar ativos por proximidade geográfica (detecção de coordenadas coincidentes / sobrepostas)
+      interface DispersedAsset extends MapAssetItem {
+        displayLat: number;
+        displayLng: number;
+        isGrouped: boolean;
+        groupIndex: number;
+        groupTotal: number;
+        groupSiblings: string[];
+      }
+
+      const groups: MapAssetItem[][] = [];
+      const visited = new Set<string>();
+
+      validAssets.forEach((asset, idx) => {
+        const idKey = asset.id || asset.idAtivo || `item_${idx}`;
+        if (visited.has(idKey)) return;
+
+        const currentGroup: MapAssetItem[] = [asset];
+        visited.add(idKey);
+
+        validAssets.forEach((other, otherIdx) => {
+          const otherIdKey = other.id || other.idAtivo || `other_${otherIdx}`;
+          if (visited.has(otherIdKey)) return;
+
+          const dist = calculateHaversineDistance(
+            asset.latitude,
+            asset.longitude,
+            other.latitude,
+            other.longitude
+          );
+
+          // Se estiverem no mesmo ponto (delta < 3.5 metros)
+          if (dist < 3.5) {
+            currentGroup.push(other);
+            visited.add(otherIdKey);
+          }
+        });
+
+        groups.push(currentGroup);
+      });
+
+      const processedAssets: DispersedAsset[] = [];
+
+      groups.forEach((group) => {
+        const total = group.length;
+        if (total === 1) {
+          processedAssets.push({
+            ...group[0],
+            displayLat: group[0].latitude,
+            displayLng: group[0].longitude,
+            isGrouped: false,
+            groupIndex: 1,
+            groupTotal: 1,
+            groupSiblings: []
+          });
+        } else {
+          const baseLat = group[0].latitude;
+          const baseLng = group[0].longitude;
+
+          // Indicador visual no centro físico compartilhado
+          const centerMarker = L.circleMarker([baseLat, baseLng], {
+            radius: 5,
+            color: '#f59e0b',
+            fillColor: '#fbbf24',
+            fillOpacity: 0.9,
+            weight: 2
+          });
+          centerMarker.bindTooltip(`📍 Ponto Compartilhado (${total} equipamentos)`, {
+            direction: 'top',
+            offset: [0, -6],
+            className: 'spci-shared-tooltip font-mono text-xs'
+          });
+          markersGroup.addLayer(centerMarker);
+
+          // Dispersão em leque circular (raio de 3.5 metros para visualização clara de cada pino)
+          const radiusMeters = 3.5;
+          const latOffset = radiusMeters / 111320;
+          const lngOffset = radiusMeters / (111320 * Math.cos((baseLat * Math.PI) / 180));
+          const allCodes = group.map((g) => g.idAtivo || g.patrimonio || g.id);
+
+          group.forEach((item, itemIdx) => {
+            const angle = (2 * Math.PI * itemIdx) / total - Math.PI / 2;
+            const displayLat = baseLat + latOffset * Math.sin(angle);
+            const displayLng = baseLng + lngOffset * Math.cos(angle);
+
+            // Linha pontilhada de ancoragem
+            const linkLine = L.polyline(
+              [
+                [baseLat, baseLng],
+                [displayLat, displayLng]
+              ],
+              {
+                color: '#f59e0b',
+                weight: 1.5,
+                dashArray: '3, 4',
+                opacity: 0.75
+              }
+            );
+            markersGroup.addLayer(linkLine);
+
+            processedAssets.push({
+              ...item,
+              displayLat,
+              displayLng,
+              isGrouped: true,
+              groupIndex: itemIdx + 1,
+              groupTotal: total,
+              groupSiblings: allCodes.filter((c) => c !== (item.idAtivo || item.patrimonio || item.id))
+            });
+          });
+        }
+      });
+
+      processedAssets.forEach((asset) => {
+        const coords: [number, number] = [asset.displayLat, asset.displayLng];
+        bounds.extend([asset.latitude, asset.longitude]);
 
         const color = getMarkerColor(asset);
         const iconChar = getCategoryIcon(asset.category);
@@ -493,6 +620,28 @@ export default function OperationalMap({
         const customHtml = `
           <div class="relative group cursor-pointer" style="transform: translate(-50%, -100%);">
             ${isSelected ? '<div class="absolute -inset-2 bg-white/40 rounded-full animate-ping pointer-events-none"></div>' : ''}
+            ${asset.isGrouped ? `
+              <div style="
+                position: absolute;
+                top: -6px;
+                right: -6px;
+                background: #f59e0b;
+                color: #ffffff;
+                font-size: 9px;
+                font-weight: 800;
+                width: 18px;
+                height: 18px;
+                border-radius: 9999px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border: 2px solid #ffffff;
+                box-shadow: 0 2px 5px rgba(0,0,0,0.4);
+                z-index: 10;
+              " title="Equipamento ${asset.groupIndex} de ${asset.groupTotal} agrupados neste ponto">
+                ${asset.groupIndex}
+              </div>
+            ` : ''}
             <div style="
               background: ${color.bg};
               border: 2px solid ${color.border};
@@ -537,29 +686,29 @@ export default function OperationalMap({
           zIndexOffset: isSelected ? 2500 : 1500
         });
 
-        // Popup HTML formatado no estilo LUXURY DARK com Glassmorphism
+        // Popup HTML formatado com suporte dinâmico a Tema Claro e Escuro (App-Like UI)
         const popupContent = document.createElement('div');
-        popupContent.className = 'spci-map-popup font-mono text-slate-100 select-none';
-        popupContent.style.cssText = 'min-width: 270px; max-width: 300px; padding: 12px 14px;';
+        popupContent.className = 'spci-map-popup font-mono select-none';
+        popupContent.style.cssText = 'min-width: 270px; max-width: 305px; padding: 12px 14px;';
 
         const assetTitle = asset.idAtivo || asset.patrimonio || asset.id;
 
         popupContent.innerHTML = `
           <div>
             <!-- Cabeçalho do Card com Proteção Anti-Sobreposição do Botão Fechar -->
-            <div style="
+            <div class="popup-header" style="
               display: flex;
               align-items: center;
               justify-content: space-between;
-              border-bottom: 1px solid rgba(51, 65, 85, 0.6);
+              border-bottom: 1px solid rgba(148, 163, 184, 0.3);
               padding-bottom: 8px;
-              margin-bottom: 10px;
+              margin-bottom: 8px;
               padding-right: 36px;
               gap: 8px;
             ">
               <div style="display: flex; align-items: center; gap: 6px; min-width: 0;">
                 <span style="font-size: 15px; flex-shrink: 0;">${iconChar}</span>
-                <span style="font-size: 12px; font-weight: 800; color: #f8fafc; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                <span class="popup-title" style="font-size: 12px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
                   ${assetTitle}
                 </span>
               </div>
@@ -578,35 +727,56 @@ export default function OperationalMap({
               </span>
             </div>
 
+            ${asset.isGrouped ? `
+              <!-- Alerta de Ponto Compartilhado com múltiplos ativos próximos -->
+              <div style="
+                background: rgba(245, 158, 11, 0.15);
+                border: 1px solid rgba(245, 158, 11, 0.45);
+                border-radius: 8px;
+                padding: 6px 9px;
+                margin-bottom: 8px;
+                font-size: 10px;
+                color: #d97706;
+              ">
+                <div style="display: flex; justify-content: space-between; align-items: center; font-weight: 800; margin-bottom: 2px;">
+                  <span>📍 Ponto Compartilhado</span>
+                  <span style="background: #f59e0b; color: #ffffff; padding: 1px 6px; border-radius: 9999px; font-size: 9px; font-weight: 900;">
+                    Ativo ${asset.groupIndex} de ${asset.groupTotal}
+                  </span>
+                </div>
+                <div style="font-size: 9px; opacity: 0.95; line-height: 1.3;">
+                  Outro(s) equipamento(s) no mesmo local: <strong style="color: #b45309;">${asset.groupSiblings.join(', ')}</strong>
+                </div>
+              </div>
+            ` : ''}
+
             <!-- Modelo do Equipamento -->
-            <div style="font-size: 12px; font-weight: 800; margin-bottom: 6px; color: #ffffff; line-height: 1.3;">
+            <div class="popup-model" style="font-size: 12px; font-weight: 800; margin-bottom: 6px; line-height: 1.3;">
               ${asset.model || 'Equipamento SPCI'}
             </div>
 
             <!-- Localização -->
-            <div style="font-size: 10px; color: #94a3b8; margin-bottom: 8px; line-height: 1.4;">
-              📍 <strong style="color: #cbd5e1;">Local:</strong> ${asset.location} ${asset.subLocation ? ` - ${asset.subLocation}` : ''}
+            <div class="popup-location" style="font-size: 10px; margin-bottom: 8px; line-height: 1.4; opacity: 0.85;">
+              📍 <strong>Local:</strong> ${asset.location} ${asset.subLocation ? ` - ${asset.subLocation}` : ''}
             </div>
 
             <!-- Coordenadas Geográficas e Origem da Captura -->
-            <div style="
-              background: rgba(15, 23, 42, 0.7);
-              border: 1px solid rgba(51, 65, 85, 0.8);
+            <div class="popup-geo-box" style="
               border-radius: 8px;
               padding: 6px 8px;
               margin-bottom: 8px;
               font-family: ui-monospace, monospace;
               font-size: 9.5px;
             ">
-              <div style="display: flex; justify-content: space-between; color: #94a3b8; margin-bottom: 4px;">
-                <span>LAT: <strong style="color: #f1f5f9;">${Number(asset.latitude).toFixed(6)}</strong></span>
-                <span>LONG: <strong style="color: #f1f5f9;">${Number(asset.longitude).toFixed(6)}</strong></span>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <span class="popup-geo-text">LAT: <strong class="popup-geo-val">${Number(asset.latitude).toFixed(6)}</strong></span>
+                <span class="popup-geo-text">LONG: <strong class="popup-geo-val">${Number(asset.longitude).toFixed(6)}</strong></span>
               </div>
               ${(() => {
                 const orig = String(asset.origem_localizacao || '').toUpperCase();
                 if (orig === 'FOTO_EXIF') {
                   return `
-                    <div style="display: flex; align-items: center; gap: 4px; color: #38bdf8; font-weight: 700; border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 4px; padding-top: 3px;">
+                    <div style="display: flex; align-items: center; gap: 4px; color: #0284c7; font-weight: 700; border-top: 1px solid rgba(148, 163, 184, 0.25); margin-top: 4px; padding-top: 3px;">
                       <span>📸</span>
                       <span>Origem: Metadados da Imagem (EXIF)</span>
                     </div>
@@ -614,14 +784,14 @@ export default function OperationalMap({
                 }
                 if (orig === 'GPS_DISPOSITIVO' || orig === 'DISPOSITIVO') {
                   return `
-                    <div style="display: flex; align-items: center; gap: 4px; color: #34d399; font-weight: 700; border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 4px; padding-top: 3px;">
+                    <div style="display: flex; align-items: center; gap: 4px; color: #059669; font-weight: 700; border-top: 1px solid rgba(148, 163, 184, 0.25); margin-top: 4px; padding-top: 3px;">
                       <span>🛰️</span>
                       <span>Origem: GPS do Dispositivo (±${asset.precisao_gps || 10}m)</span>
                     </div>
                   `;
                 }
                 return `
-                  <div style="display: flex; align-items: center; gap: 4px; color: #cbd5e1; font-weight: 700; border-top: 1px solid rgba(51, 65, 85, 0.6); margin-top: 4px; padding-top: 3px;">
+                  <div style="display: flex; align-items: center; gap: 4px; color: #64748b; font-weight: 700; border-top: 1px solid rgba(148, 163, 184, 0.25); margin-top: 4px; padding-top: 3px;">
                     <span>📍</span>
                     <span>Origem: ${asset.origem_localizacao || 'Localização Fixada'}</span>
                   </div>
@@ -637,16 +807,16 @@ export default function OperationalMap({
                 border-radius: 12px;
                 overflow: hidden;
                 height: 110px;
-                border: 1px solid rgba(51, 65, 85, 0.8);
+                border: 1px solid rgba(148, 163, 184, 0.4);
                 cursor: pointer;
                 background: #020617;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.25);
               " title="Clique para abrir em tela cheia com efeito de zoom">
                 <img src="${asset.foto_url}" style="width: 100%; height: 100%; object-fit: cover;" alt="Foto do ativo" />
                 <div style="
                   position: absolute;
                   inset: 0;
-                  background: linear-gradient(to top, rgba(15,23,42,0.92) 0%, transparent 60%);
+                  background: linear-gradient(to top, rgba(15,23,42,0.9) 0%, transparent 60%);
                   display: flex;
                   align-items: flex-end;
                   justify-content: center;
@@ -674,8 +844,7 @@ export default function OperationalMap({
                 margin-bottom: 10px;
                 border-radius: 12px;
                 padding: 10px;
-                border: 1px dashed rgba(51, 65, 85, 0.8);
-                background: rgba(15, 23, 42, 0.4);
+                border: 1px dashed rgba(148, 163, 184, 0.5);
                 display: flex;
                 align-items: center;
                 justify-content: center;
@@ -688,7 +857,7 @@ export default function OperationalMap({
               </div>
             `}
 
-            <!-- Ações Ergonômicas (Touch Target >= 44px) -->
+            <!-- Ações Ergonômicas (Touch Target >= 44px - Mobile App Shell) -->
             <div style="display: flex; flex-direction: column; gap: 7px; margin-top: 6px;">
               <!-- 1. Botão Principal: Traçar Rota no Mapa -->
               <button id="btn-route-${asset.id}" style="
@@ -716,13 +885,10 @@ export default function OperationalMap({
 
               <!-- 2. Atalhos de Navegação Externa (Google Maps e Waze) -->
               <div style="display: flex; gap: 6px;">
-                <button id="btn-gmaps-${asset.id}" style="
+                <button id="btn-gmaps-${asset.id}" class="popup-btn-outline" style="
                   flex: 1;
-                  min-height: 38px;
+                  min-height: 40px;
                   padding: 6px 8px;
-                  background: #1e293b;
-                  color: #f1f5f9;
-                  border: 1px solid #475569;
                   border-radius: 8px;
                   font-size: 10px;
                   font-weight: 700;
@@ -735,13 +901,10 @@ export default function OperationalMap({
                 ">
                   📍 Google Maps
                 </button>
-                <button id="btn-waze-${asset.id}" style="
+                <button id="btn-waze-${asset.id}" class="popup-btn-outline" style="
                   flex: 1;
-                  min-height: 38px;
+                  min-height: 40px;
                   padding: 6px 8px;
-                  background: #1e293b;
-                  color: #f1f5f9;
-                  border: 1px solid #475569;
                   border-radius: 8px;
                   font-size: 10px;
                   font-weight: 700;
@@ -759,13 +922,13 @@ export default function OperationalMap({
               <!-- 3. Botão Fixar Minha Posição Atual -->
               <button id="btn-update-gps-${asset.id}" style="
                 width: 100%;
-                min-height: 40px;
+                min-height: 44px;
                 padding: 7px 10px;
                 background: #2563eb;
                 color: #ffffff;
                 border: none;
                 border-radius: 8px;
-                font-size: 10px;
+                font-size: 10.5px;
                 font-weight: 800;
                 text-transform: uppercase;
                 cursor: pointer;
@@ -780,13 +943,10 @@ export default function OperationalMap({
               </button>
 
               <!-- 4. Botão Histórico de Deslocamento -->
-              <button id="btn-history-${asset.id}" style="
+              <button id="btn-history-${asset.id}" class="popup-btn-outline" style="
                 width: 100%;
-                min-height: 36px;
+                min-height: 38px;
                 padding: 6px 8px;
-                background: rgba(15, 23, 42, 0.85);
-                color: #94a3b8;
-                border: 1px solid rgba(51, 65, 85, 0.8);
                 border-radius: 8px;
                 font-size: 9.5px;
                 font-weight: 700;
@@ -947,43 +1107,43 @@ export default function OperationalMap({
       className={`transition-all duration-300 ${
         isMaximized
           ? 'fixed inset-0 z-[999999] w-screen h-screen max-w-none max-h-none m-0 p-0 rounded-none border-none shadow-none bg-slate-950 flex flex-col'
-          : `relative rounded-2xl overflow-hidden border border-slate-800 shadow-2xl ${className}`
+          : `relative rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 shadow-2xl bg-white dark:bg-slate-950 ${className}`
       }`}
     >
       {/* Contêiner Leaflet */}
       <div ref={mapContainerRef} className="w-full h-full z-10" />
 
-      {/* AVISO DISCRETO NO MODO IMERSIVO (TELA CHEIA) */}
+      {/* AVISO DISCRETO NO MODO IMERSIVO STANDALONE (PWA) */}
       {isMaximized && (
-        <div className="absolute top-4 left-4 z-20 hidden md:flex items-center gap-2 bg-slate-900/90 backdrop-blur-md border border-slate-700/80 rounded-xl px-3.5 py-2 shadow-2xl text-xs font-mono text-slate-200 animate-in fade-in duration-300">
-          <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
-          <span>Modo Imersivo (Pressione <strong>ESC</strong> ou clique em Minimizar para sair)</span>
+        <div className="absolute top-4 left-4 z-20 hidden md:flex items-center gap-2 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-700/80 rounded-xl px-3.5 py-2 shadow-2xl text-xs font-mono text-slate-800 dark:text-slate-200 animate-in fade-in duration-300">
+          <span className="w-2 h-2 rounded-full bg-sky-500 animate-ping" />
+          <span>Modo Imersivo Standalone (Pressione <strong>ESC</strong> ou toque em Minimizar para sair)</span>
         </div>
       )}
 
       {/* BANNER FLUTUANTE DE ROTA ATIVA */}
       {activeRoute && (
-        <div className="absolute top-16 md:top-4 left-4 right-4 sm:right-auto sm:max-w-md z-30 bg-slate-900/95 backdrop-blur-xl border border-sky-500/60 rounded-2xl p-3.5 shadow-2xl font-mono text-white">
-          <div className="flex items-center justify-between gap-2 border-b border-slate-800 pb-2 mb-2">
+        <div className="absolute top-16 md:top-4 left-4 right-4 sm:right-auto sm:max-w-md z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border border-sky-500/60 rounded-2xl p-3.5 shadow-2xl font-mono text-slate-900 dark:text-white">
+          <div className="flex items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2 mb-2">
             <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
-              <span className="text-xs font-black text-sky-400 uppercase tracking-wider">
+              <span className="w-2.5 h-2.5 rounded-full bg-sky-500 animate-ping" />
+              <span className="text-xs font-black text-sky-600 dark:text-sky-400 uppercase tracking-wider">
                 Rota Ativa: {activeRoute.asset.idAtivo}
               </span>
             </div>
             <button
               type="button"
               onClick={clearRoute}
-              className="text-slate-400 hover:text-white p-1 rounded-lg hover:bg-slate-800 cursor-pointer transition-colors"
+              className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 cursor-pointer transition-colors"
               title="Fechar Rota"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
 
-          <div className="flex items-center justify-between text-xs text-slate-300 mb-3">
+          <div className="flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 mb-3">
             <span>Distância estimada:</span>
-            <span className="text-sm font-black text-emerald-400">
+            <span className="text-sm font-black text-emerald-600 dark:text-emerald-400">
               {formatDistance(activeRoute.distanceMeters)}
             </span>
           </div>
@@ -993,7 +1153,7 @@ export default function OperationalMap({
               href={`https://www.google.com/maps/dir/?api=1&destination=${activeRoute.asset.latitude},${activeRoute.asset.longitude}&travelmode=walking`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 py-2 px-3 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer active:scale-95"
+              className="flex items-center justify-center gap-1.5 py-2.5 px-3 min-h-[44px] bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer active:scale-95"
             >
               <Navigation className="w-3.5 h-3.5" />
               <span>Google Maps</span>
@@ -1002,7 +1162,7 @@ export default function OperationalMap({
               href={`https://waze.com/ul?ll=${activeRoute.asset.latitude},${activeRoute.asset.longitude}&navigate=yes`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-center gap-1.5 py-2 px-3 bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer active:scale-95"
+              className="flex items-center justify-center gap-1.5 py-2.5 px-3 min-h-[44px] bg-sky-600 hover:bg-sky-500 text-white rounded-xl text-xs font-bold shadow transition-all cursor-pointer active:scale-95"
             >
               <Car className="w-3.5 h-3.5" />
               <span>Waze</span>
@@ -1011,23 +1171,23 @@ export default function OperationalMap({
         </div>
       )}
 
-      {/* Controles Flutuantes Superiores (Maximizar/Minimizar + Camadas + Botão Minha Localização) */}
+      {/* Controles Flutuantes Superiores (Maximizar/Minimizar + Camadas + Botão Minha Localização - Touch Friendly) */}
       <div className="absolute top-4 right-4 z-20 flex flex-wrap items-center gap-2">
-        {/* Botão de Maximizar / Minimizar Tela Cheia */}
+        {/* Botão de Maximizar / Minimizar Tela Cheia (PWA Standalone) */}
         <button
           type="button"
           onClick={toggleMaximize}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-white rounded-xl shadow-lg border border-slate-700/80 text-xs font-bold font-mono transition-all cursor-pointer active:scale-95"
-          title={isMaximized ? "Minimizar Mapa (ESC)" : "Projetar Mapa em Tela Cheia (Modo Imersivo)"}
+          className="flex items-center gap-1.5 px-3 py-2 min-h-[44px] bg-white/95 dark:bg-slate-900/90 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-800 dark:text-white rounded-xl shadow-lg border border-slate-200 dark:border-slate-700/80 text-xs font-bold font-mono transition-all cursor-pointer active:scale-95"
+          title={isMaximized ? "Minimizar Mapa (ESC)" : "Projetar Mapa em Tela Cheia (Modo Imersivo Standalone)"}
         >
           {isMaximized ? (
             <>
-              <Minimize2 className="w-3.5 h-3.5 text-sky-400" />
+              <Minimize2 className="w-4 h-4 text-sky-500 dark:text-sky-400" />
               <span className="hidden sm:inline">Minimizar</span>
             </>
           ) : (
             <>
-              <Maximize2 className="w-3.5 h-3.5 text-sky-400" />
+              <Maximize2 className="w-4 h-4 text-sky-500 dark:text-sky-400" />
               <span className="hidden sm:inline">Maximizar</span>
             </>
           )}
@@ -1038,46 +1198,46 @@ export default function OperationalMap({
           type="button"
           onClick={() => locateUser(true)}
           disabled={locatingUser}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg border border-blue-400/30 text-xs font-bold font-mono transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+          className="flex items-center gap-1.5 px-3.5 py-2 min-h-[44px] bg-blue-600 hover:bg-blue-500 text-white rounded-xl shadow-lg border border-blue-400/30 text-xs font-bold font-mono transition-all cursor-pointer active:scale-95 disabled:opacity-50"
           title="Centralizar na Minha Localização Atual"
         >
-          <Crosshair className={`w-3.5 h-3.5 ${locatingUser ? 'animate-spin' : ''}`} />
+          <Crosshair className={`w-4 h-4 ${locatingUser ? 'animate-spin' : ''}`} />
           <span>{locatingUser ? 'Localizando...' : 'Minha Posição'}</span>
         </button>
 
         {/* Seletor de Camadas (Google Satélite / Google Ruas / Noturno) */}
-        <div className="flex items-center bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-xl p-1 shadow-lg text-xs font-mono">
+        <div className="flex items-center bg-white/95 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl p-1 shadow-lg text-xs font-mono">
           <button
             type="button"
             onClick={() => setCurrentTileLayer('hybrid')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+            className={`px-3 py-2 min-h-[38px] rounded-lg font-bold transition-all cursor-pointer ${
               currentTileLayer === 'hybrid'
                 ? 'bg-red-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
             title="Google Maps Satélite com nomes de ruas e localidades"
           >
-            Satélite (Google)
+            Satélite
           </button>
           <button
             type="button"
             onClick={() => setCurrentTileLayer('streets')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+            className={`px-3 py-2 min-h-[38px] rounded-lg font-bold transition-all cursor-pointer ${
               currentTileLayer === 'streets'
                 ? 'bg-red-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
             title="Google Maps Ruas"
           >
-            Google Ruas
+            Ruas
           </button>
           <button
             type="button"
             onClick={() => setCurrentTileLayer('dark')}
-            className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+            className={`px-3 py-2 min-h-[38px] rounded-lg font-bold transition-all cursor-pointer ${
               currentTileLayer === 'dark'
                 ? 'bg-red-600 text-white shadow'
-                : 'text-slate-400 hover:text-white'
+                : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
             }`}
             title="Modo Noturno sem marcas d'água"
           >
@@ -1086,13 +1246,13 @@ export default function OperationalMap({
         </div>
       </div>
 
-      {/* Estilos para renderização dos tiles no modo Noturno e Customização do Popup */}
+      {/* Estilos para renderização dos tiles no modo Noturno e Customização do Popup nos Temas Claro e Escuro */}
       <style>{`
         .spci-dark-tiles {
           filter: invert(100%) hue-rotate(180deg) brightness(88%) contrast(115%) !important;
         }
 
-        /* Estilização Luxury Glassmorphic do Popup Leaflet */
+        /* Estilização Luxury Glassmorphic do Popup Leaflet no Modo Escuro (Padrão) */
         .spci-custom-popup .leaflet-popup-content-wrapper {
           background: rgba(15, 23, 42, 0.96) !important;
           backdrop-filter: blur(18px) !important;
@@ -1115,8 +1275,8 @@ export default function OperationalMap({
           color: #94a3b8 !important;
           top: 8px !important;
           right: 10px !important;
-          width: 24px !important;
-          height: 24px !important;
+          width: 26px !important;
+          height: 26px !important;
           display: flex !important;
           align-items: center !important;
           justify-content: center !important;
@@ -1137,18 +1297,113 @@ export default function OperationalMap({
           border-color: #ef4444 !important;
           transform: scale(1.1) !important;
         }
+
+        /* Estilização Luxury Glassmorphic do Popup Leaflet no Modo Claro */
+        html.light .spci-custom-popup .leaflet-popup-content-wrapper {
+          background: rgba(255, 255, 255, 0.98) !important;
+          border: 1px solid rgba(226, 232, 240, 0.9) !important;
+          box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.15), 0 0 15px rgba(0, 0, 0, 0.05) !important;
+          color: #0f172a !important;
+        }
+        html.light .spci-custom-popup .leaflet-popup-tip {
+          background: rgba(255, 255, 255, 0.98) !important;
+          border: 1px solid rgba(226, 232, 240, 0.9) !important;
+        }
+        html.light .spci-custom-popup a.leaflet-popup-close-button {
+          background: rgba(241, 245, 249, 0.95) !important;
+          border: 1px solid rgba(203, 213, 225, 0.8) !important;
+          color: #64748b !important;
+          box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1) !important;
+        }
+        html.light .spci-custom-popup a.leaflet-popup-close-button:hover {
+          color: #ffffff !important;
+          background: rgba(220, 38, 38, 0.95) !important;
+          border-color: #ef4444 !important;
+        }
+
+        /* Classes Adaptativas nos Elementos do Popup */
+        html.light .spci-map-popup {
+          color: #0f172a !important;
+        }
+        html.light .spci-map-popup .popup-header {
+          border-bottom-color: rgba(203, 213, 225, 0.8) !important;
+        }
+        html.light .spci-map-popup .popup-title {
+          color: #0f172a !important;
+        }
+        html.light .spci-map-popup .popup-model {
+          color: #1e293b !important;
+        }
+        html.light .spci-map-popup .popup-location {
+          color: #475569 !important;
+        }
+        html.light .spci-map-popup .popup-geo-box {
+          background: rgba(241, 245, 249, 0.95) !important;
+          border: 1px solid rgba(203, 213, 225, 0.8) !important;
+        }
+        html.light .spci-map-popup .popup-geo-text {
+          color: #64748b !important;
+        }
+        html.light .spci-map-popup .popup-geo-val {
+          color: #0f172a !important;
+        }
+        html.light .spci-map-popup .popup-btn-outline {
+          background: #f8fafc !important;
+          border: 1px solid #cbd5e1 !important;
+          color: #334155 !important;
+        }
+        html.light .spci-map-popup .popup-btn-outline:hover {
+          background: #e2e8f0 !important;
+          color: #0f172a !important;
+        }
+
+        html.dark .spci-map-popup {
+          color: #f8fafc !important;
+        }
+        html.dark .spci-map-popup .popup-header {
+          border-bottom-color: rgba(51, 65, 85, 0.6) !important;
+        }
+        html.dark .spci-map-popup .popup-title {
+          color: #f8fafc !important;
+        }
+        html.dark .spci-map-popup .popup-model {
+          color: #ffffff !important;
+        }
+        html.dark .spci-map-popup .popup-location {
+          color: #94a3b8 !important;
+        }
+        html.dark .spci-map-popup .popup-geo-box {
+          background: rgba(15, 23, 42, 0.7) !important;
+          border: 1px solid rgba(51, 65, 85, 0.8) !important;
+        }
+        html.dark .spci-map-popup .popup-geo-text {
+          color: #94a3b8 !important;
+        }
+        html.dark .spci-map-popup .popup-geo-val {
+          color: #f1f5f9 !important;
+        }
+        html.dark .spci-map-popup .popup-btn-outline {
+          background: #1e293b !important;
+          border: 1px solid #475569 !important;
+          color: #f1f5f9 !important;
+        }
+        html.dark .spci-map-popup .popup-btn-outline:hover {
+          background: #334155 !important;
+          color: #ffffff !important;
+        }
+
         .spci-user-accuracy-circle {
           pointer-events: none !important;
         }
       `}</style>
 
       {/* Legenda Flutuante (SPCI Pins + Usuário) */}
-      <div className="absolute bottom-4 left-4 z-20 hidden sm:flex items-center gap-3 bg-slate-900/90 backdrop-blur-md border border-slate-800 rounded-xl px-3 py-2 shadow-lg text-[10px] font-mono text-slate-200">
+      <div className="absolute bottom-4 left-4 z-20 hidden sm:flex items-center gap-3 bg-white/95 dark:bg-slate-900/90 backdrop-blur-md border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 shadow-lg text-[10px] font-mono text-slate-700 dark:text-slate-200">
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-blue-500 ring-2 ring-blue-500/40 animate-pulse" />
-          <span className="text-blue-400 font-bold">Você</span>
+          <span className="text-blue-600 dark:text-blue-400 font-bold">Você</span>
         </div>
-        <div className="w-px h-3 bg-slate-700" />
+        <div className="w-px h-3 bg-slate-200 dark:bg-slate-700" />
         <div className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20" />
           <span>Conforme</span>
