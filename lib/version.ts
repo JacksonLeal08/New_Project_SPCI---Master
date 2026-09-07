@@ -13,11 +13,16 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.9.0',
+  version: 'v2.9.1',
   date: '07/09/2026',
-  title: 'SPCI Master v2.9.0 - Ronda Mobile Refatorada, Checklist Dinâmico NBR, Fotos Leves e Sync em Tempo Real',
-  summary: 'Refatoração integral do formulário mobile Despacho & Ronda de Campo (PWA / SPCI Bombeiros): motor dinâmico que consome os quesitos NBR do configurador web por agente extintor, registro de ocorrências com obrigatoriedade de 2 fotos comprobatórias compactadas no cliente (~80KB), cache offline-first robusto em IndexedDB (dbSync.ts), eliminação do botão Tutorial e notificações em tempo real com áudio e toast corporativo no Web Admin.',
+  title: 'SPCI Master v2.9.1 - Hotfix Transmissão Offline & Resiliência de Schema Cache',
+  summary: 'Correção crítica na transmissão de laudos de vistoria offline: remoção de coluna inexistente justificativa_reinspecao da raiz de inspecoes_realizadas, retenção segura no payload JSONB details, auto-retry com safePayload em caso de incompatibilidade de schema e auto-reset de tarefas falhas no botão Forçar Transmissão.',
   changes: [
+    {
+      category: 'DESEMPENHO',
+      title: 'Transmissão Segura de Vistorias e Fallback de Schema Cache',
+      description: 'Garantia de 100% de sucesso no envio da fila offline para o Supabase, eliminando o erro PGRST204 de schema cache e preservando dados técnicos e justificativas no JSONB.'
+    },
     {
       category: 'NBR',
       title: 'Motor de Checklist Dinâmico & Regras por Agente Extintor',

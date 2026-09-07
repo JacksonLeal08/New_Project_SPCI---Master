@@ -38,6 +38,9 @@ export default function SyncStatusPanel() {
     setIsProcessing(true);
     try {
       if (typeof window !== 'undefined' && navigator.onLine) {
+        if (totalFailed > 0) {
+          await SyncQueue.resetFailedTasks();
+        }
         await SyncQueue.processQueue();
         await SyncQueue.processInspectionQueue();
         await MediaQueue.processQueue();

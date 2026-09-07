@@ -1108,14 +1108,13 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada & { j
     const justificativa = inspecao.justificativa_reinspecao ?? (inspecao.details?.justificativa_reinspecao || null);
     const dataInsp = inspecao.data_inspecao || new Date().toISOString();
 
-    const payload = {
+    const payload: Record<string, any> = {
       asset_id: inspecao.asset_id,
       asset_patrimonio: inspecao.asset_patrimonio,
       status: inspecao.status,
       observacoes: inspecao.observacoes || null,
       tecnico_nome: inspecao.tecnico_nome,
       data_inspecao: dataInsp,
-      justificativa_reinspecao: justificativa,
       latitude: lat,
       longitude: lng,
       precisao_gps: precisao,
@@ -1130,9 +1129,27 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada & { j
       },
     };
 
-    const { error } = await supabase
+    let { error } = await supabase
       .from('inspecoes_realizadas')
       .insert([payload]);
+
+    // Fallback de resiliência: se o schema cache do Supabase acusar coluna inexistente
+    if (error && (error.code === 'PGRST204' || error.message?.includes('schema cache') || error.message?.includes('column'))) {
+      console.warn('Detectada incompatibilidade de colunas na tabela inspecoes_realizadas. Aplicando payload base seguro com metadados em details:', error.message);
+      const safePayload = {
+        asset_id: inspecao.asset_id,
+        asset_patrimonio: inspecao.asset_patrimonio,
+        status: inspecao.status,
+        observacoes: inspecao.observacoes || null,
+        tecnico_nome: inspecao.tecnico_nome,
+        data_inspecao: dataInsp,
+        details: payload.details
+      };
+      const retryResult = await supabase
+        .from('inspecoes_realizadas')
+        .insert([safePayload]);
+      error = retryResult.error;
+    }
 
     if (error) throw error;
 
