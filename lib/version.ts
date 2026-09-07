@@ -13,30 +13,30 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.8.7',
-  date: '06/09/2026',
-  title: 'SPCI Master v2.8.7 - Ciclo Mensal Inteligente, Modal de Justificativa, Laudos Técnicos em PDF e Zero-GPS',
-  summary: 'Implementação da Opção C do Ciclo Mensal de Inspeções: fila padrão de ronda apenas com ativos pendentes no mês, busca ativa com identificação de já inspecionados, modal de justificativa técnica para re-inspeção, histórico completo com emissão de laudo técnico oficial em PDF (foto do equipamento em tamanho médio lado a lado com itens do checklist) e enriquecimento automático de geolocalização Zero-GPS.',
+  version: 'v2.9.0',
+  date: '07/09/2026',
+  title: 'SPCI Master v2.9.0 - Ronda Mobile Refatorada, Checklist Dinâmico NBR, Fotos Leves e Sync em Tempo Real',
+  summary: 'Refatoração integral do formulário mobile Despacho & Ronda de Campo (PWA / SPCI Bombeiros): motor dinâmico que consome os quesitos NBR do configurador web por agente extintor, registro de ocorrências com obrigatoriedade de 2 fotos comprobatórias compactadas no cliente (~80KB), cache offline-first robusto em IndexedDB (dbSync.ts), eliminação do botão Tutorial e notificações em tempo real com áudio e toast corporativo no Web Admin.',
   changes: [
     {
       category: 'NBR',
-      title: 'Ciclo Mensal de Inspeção & Fila Inteligente (Opção C)',
-      description: 'Fila padrão de campo exibe exclusivamente ativos pendentes no mês corrente. Ativos inspecionados somem da lista padrão e, na busca ativa, exibem badge com data/hora da vistoria e exigem justificativa técnica para nova rodada.'
+      title: 'Motor de Checklist Dinâmico & Regras por Agente Extintor',
+      description: 'Quesitos da vistoria são renderizados dinamicamente a partir dos templates do admin (NBR 12962 / NBR 15808), adaptando-se a extintores de Água, PQS ABC/BC, CO2 e porte (Portátil vs Carreta).'
     },
     {
       category: 'UI/UX',
-      title: 'Modal de Justificativa Técnica de Re-inspeção',
-      description: 'Ao reinspecionar ativos no mesmo ciclo, modal dinâmico solicita o motivo operacional com atalhos rápidos (avaria pós-evento, auditoria de conformidade, violação de lacre, etc.) e gravação no histórico.'
-    },
-    {
-      category: 'UI/UX',
-      title: 'Histórico Completo & Emissão de Laudos Técnicos em PDF',
-      description: 'Linha do tempo cronológica com emissão de relatório oficial pronto para impressão ou PDF, com foto do equipamento em tamanho médio posicionada ao lado do checklist de conformidade NBR 12962.'
+      title: 'Não Conformidades com 2 Fotos e Layout Bento Mobile',
+      description: 'Lógica idêntica ao Web Admin: seleção de falha/ocorrência com obrigatoriedade de 2 fotos comprobatórias por item reprovado. Remoção de poluição visual (botão Tutorial excluído), card de ativo em Bento Grid e botão fixo na zona do polegar (48px).'
     },
     {
       category: 'DESEMPENHO',
-      title: 'Enriquecimento Zero-GPS Fallback Automático',
-      description: 'Ativos sem coordenadas prévias capturam automaticamente a geolocalização de alta precisão do dispositivo do inspetor durante a ronda, vinculando as coordenadas ao ativo e atualizando o mapa.'
+      title: 'Compressão Client-Side & Cache Offline-First (dbSync.ts)',
+      description: 'Compressão automática de imagens via Canvas no navegador (JPEG ~80KB), pré-carregamento de ativos e regras no IndexedDB para operação em subsolos industriais sem rede celular.'
+    },
+    {
+      category: 'DESEMPENHO',
+      title: 'Sincronização em Tempo Real com Áudio e Toast no Web Admin',
+      description: 'Transmissão instantânea via Supabase Broadcast para alertar o painel Web Admin em menos de 50ms, incrementando o contador do sino, exibindo toast animado e tocando aviso sonoro sutil.'
     }
   ]
 };

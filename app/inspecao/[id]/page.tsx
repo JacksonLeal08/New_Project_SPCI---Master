@@ -41,6 +41,9 @@ import QrCameraScanner from '@/app/components/QrCameraScanner';
 import { MediaCaptureModal } from '@/app/components/MediaCaptureModal';
 import { processAssetLocationUpdateAction } from '@/app/actions/geoTrackingActions';
 import { GeoCoordinates } from '@/lib/geoUtils';
+import { DynamicChecklistRenderer, ItemInspectionState } from '@/app/components/DynamicChecklistRenderer';
+import { submitInspectionWithSync, getCachedChecklistItems } from '@/lib/dbSync';
+import { ChecklistItemData } from '@/app/components/ChecklistEditModal';
 
 // Tipagem de categorias
 interface CategoriaOpcao {
@@ -49,23 +52,6 @@ interface CategoriaOpcao {
   subLabel: string;
   icon: React.ReactNode;
 }
-
-// Checklist inicial padrão para extintores
-interface ChecklistItem {
-  key: string;
-  label: string;
-  conforme: boolean | null;
-  isImpeditivo?: boolean;
-}
-
-const DEFAULT_CHECKLIST: ChecklistItem[] = [
-  { key: 'lacre_presente', label: 'Lacre de Segurança Preservado e Íntegro', conforme: null, isImpeditivo: true },
-  { key: 'pressao_adequada', label: 'Manômetro com Pressão na Faixa Verde (OK)', conforme: null, isImpeditivo: false },
-  { key: 'valido_inmetro', label: 'Selo do Inmetro Válido e Legível', conforme: null, isImpeditivo: false },
-  { key: 'obstruido', label: 'Acesso Livre e Desobstruído', conforme: null, isImpeditivo: false },
-  { key: 'sinalizado', label: 'Sinalização Visual Adequada (Parede e Piso)', conforme: null, isImpeditivo: false },
-  { key: 'casco_pintura', label: 'Estado do Casco e Pintura sem Corrosão', conforme: null, isImpeditivo: true },
-];
 
 function InspecaoOuCadastroContent() {
   const { logSystemAction, complianceLogs, extintorChecklist } = useSpci();
@@ -145,8 +131,28 @@ function InspecaoOuCadastroContent() {
   const [fabricanteOptions, setFabricanteOptions] = useState<string[]>(['CHAMATEX', 'KIDDE', 'RESIL', 'MOCELIN', 'BUCKA']);
   const [modeloOptions, setModeloOptions] = useState<string[]>(['PQS ABC - 8KG', 'PQS ABC - 4KG', 'Dióxido de Carbono CO2 - 6KG', 'Água Pressurizada AP - 10L', 'Espuma Mecânica - 9L']);
 
-  // --- ESTADOS DO FORMULÁRIO DE INSPEÇÃO ---
-  const [checklist, setChecklist] = useState<ChecklistItem[]>(DEFAULT_CHECKLIST);
+  // --- ESTADOS DO FORMULÁRIO DE INSPEÇÃO & CHECKLIST DINÂMICO ---
+  const [checklistTemplates, setChecklistTemplates] = useState<ChecklistItemData[]>([]);
+  const [dynamicChecklistResult, setDynamicChecklistResult] = useState<{
+    itemStates: Record<string, ItemInspectionState>;
+    isAllChecked: boolean;
+    hasNonConformity: boolean;
+    impeditivoReprovado: boolean;
+    nonConformityCount: number;
+    checkedCount: number;
+    totalCount: number;
+    allEvidencesFilled: boolean;
+  }>({
+    itemStates: {},
+    isAllChecked: false,
+    hasNonConformity: false,
+    impeditivoReprovado: false,
+    nonConformityCount: 0,
+    checkedCount: 0,
+    totalCount: 0,
+    allEvidencesFilled: true
+  });
+
   const [tecnicoNome, setTecnicoNome] = useState<string>('');
   const [observacoes, setObservacoes] = useState<string>('');
   const [formSubmitted, setFormSubmitted] = useState<boolean>(false);
@@ -160,7 +166,19 @@ function InspecaoOuCadastroContent() {
 
   // Estados Visuais
   const [copied, setCopied] = useState<boolean>(false);
-  const [showTutorial, setShowTutorial] = useState<boolean>(false);
+
+  // Carrega templates de checklist do contexto ou do cache local offline
+  useEffect(() => {
+    if (extintorChecklist && extintorChecklist.length > 0) {
+      setChecklistTemplates(extintorChecklist);
+    } else {
+      getCachedChecklistItems().then(items => {
+        if (items && items.length > 0) {
+          setChecklistTemplates(items);
+        }
+      });
+    }
+  }, [extintorChecklist]);
 
   // Alerta de Sessão Temporária Compartilhada
   const [isSharedSession] = useState<boolean>(() => {
@@ -315,20 +333,7 @@ function InspecaoOuCadastroContent() {
     }
   }, [ativo, isCadastro, autoGpsCaptured]);
 
-  // Sincroniza checklist ativo de extintores customizado no SPCI
-  useEffect(() => {
-    if (extintorChecklist && extintorChecklist.length > 0 && targetCategory === 'extintores') {
-      const active = extintorChecklist.filter((c: any) => c.status === 'Ativado');
-      if (active.length > 0) {
-        setChecklist(active.map((c: any) => ({
-          key: c.id || c.item,
-          label: c.item,
-          conforme: null,
-          isImpeditivo: !!(c.is_impeditivo ?? c.isImpeditivo)
-        })));
-      }
-    }
-  }, [extintorChecklist, targetCategory]);
+
 
   // Efeito para detecção de vistorias duplicadas no mesmo dia
   useEffect(() => {
@@ -673,14 +678,7 @@ function InspecaoOuCadastroContent() {
     }
   };
 
-  // Trata cliques nos botões de Checklist
-  const handleChecklistChange = (key: string, val: boolean) => {
-    setChecklist(prev => 
-      prev.map(item => item.key === key ? { ...item, conforme: val } : item)
-    );
-  };
-
-  // Submissão da Inspeção de Conformidade (Formulário)
+  // Submissão da Inspeção de Conformidade Dinâmica & Offline-First
   const handleInspecaoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -690,18 +688,24 @@ function InspecaoOuCadastroContent() {
       return;
     }
 
-    const unchecked = checklist.filter(item => item.conforme === null);
-    if (unchecked.length > 0) {
-      alert('Responda a todos os itens do checklist de conformidade.');
+    if (!dynamicChecklistResult.isAllChecked) {
+      alert('Responda a todos os itens do checklist de conformidade antes de finalizar.');
       return;
     }
 
-    const isAllConforme = checklist.every(item => item.conforme === true);
-    const finalStatus = isAllConforme ? 'Conforme' : 'Não Conforme';
+    if (dynamicChecklistResult.hasNonConformity && !dynamicChecklistResult.allEvidencesFilled) {
+      alert('Para cada item Não Conforme, é obrigatório descrever a ocorrência e anexar 2 fotos comprobatórias.');
+      return;
+    }
 
-    const checklistDetails: Record<string, boolean> = {};
-    checklist.forEach(item => {
-      checklistDetails[item.key] = item.conforme || false;
+    const finalStatus = dynamicChecklistResult.hasNonConformity ? 'Não Conforme' : 'Conforme';
+
+    // Captura a primeira foto de evidência disponível para o laudo consolidado
+    let primeiraFotoEvidencia: string | null = null;
+    Object.values(dynamicChecklistResult.itemStates).forEach(st => {
+      if (!primeiraFotoEvidencia && (st.fotoEvidencia1 || st.fotoEvidencia2)) {
+        primeiraFotoEvidencia = st.fotoEvidencia1 || st.fotoEvidencia2;
+      }
     });
 
     const inspecao: InspecaoRealizada & { 
@@ -721,19 +725,19 @@ function InspecaoOuCadastroContent() {
       latitude: fotoEvidenciaCoords?.latitude || null,
       longitude: fotoEvidenciaCoords?.longitude || null,
       precisao_gps: fotoEvidenciaCoords?.accuracy || null,
-      foto_evidencia_url: fotoEvidenciaUrl || null,
+      foto_evidencia_url: fotoEvidenciaUrl || primeiraFotoEvidencia || null,
       details: {
-        lacre_presente: checklistDetails.lacre_presente,
-        pressao_adequada: checklistDetails.pressao_adequada,
-        valido_inmetro: checklistDetails.valido_inmetro,
-        obstruido: checklistDetails.obstruido,
-        sinalizado: checklistDetails.sinalizado,
-        casco_pintura: checklistDetails.casco_pintura || false,
+        dynamicChecklistResults: dynamicChecklistResult.itemStates,
+        hasNonConformity: dynamicChecklistResult.hasNonConformity,
+        impeditivoReprovado: dynamicChecklistResult.impeditivoReprovado,
+        nonConformityCount: dynamicChecklistResult.nonConformityCount,
         justificativa_reinspecao: justificativaReinspecao.trim() || null,
-        foto_evidencia_url: fotoEvidenciaUrl || null,
+        foto_evidencia_url: fotoEvidenciaUrl || primeiraFotoEvidencia || null,
         geo_latitude: fotoEvidenciaCoords?.latitude || null,
         geo_longitude: fotoEvidenciaCoords?.longitude || null,
-        geo_precisao: fotoEvidenciaCoords?.accuracy || null
+        geo_precisao: fotoEvidenciaCoords?.accuracy || null,
+        location: ativo.location || '',
+        subLocation: ativo.subLocation || ''
       }
     };
 
@@ -756,16 +760,11 @@ function InspecaoOuCadastroContent() {
       };
       await idb.set(ativo.category || 'extintores', ativo.idAtivo || ativo.id_ativo || rawId, updatedAsset);
 
-      if (isOnline) {
-        const res = await salvarInspecaoNoSupabase(inspecao);
-        if (res.success) {
-          setSubmissionStatus('success_online');
-        } else {
-          await SyncQueue.enqueueInspection(inspecao);
-          setSubmissionStatus('success_offline');
-        }
+      // Submissão com estratégia inteligente (Online direto com broadcast ou fila offline)
+      const syncResult = await submitInspectionWithSync(inspecao);
+      if (syncResult.mode === 'online') {
+        setSubmissionStatus('success_online');
       } else {
-        await SyncQueue.enqueueInspection(inspecao);
         setSubmissionStatus('success_offline');
       }
 
@@ -778,38 +777,25 @@ function InspecaoOuCadastroContent() {
 
       if (coordsToUse) {
         try {
-          const geoRes = await processAssetLocationUpdateAction({
+          await processAssetLocationUpdateAction({
             assetId: ativo.idAtivo || ativo.id_ativo || ativo.id || rawId,
             category: ativo.category || 'extintores',
             latitude: coordsToUse.latitude,
             longitude: coordsToUse.longitude,
             accuracy: coordsToUse.accuracy,
             tipoEvento: 'INSPECAO',
-            fotoEvidenciaUrl: fotoEvidenciaUrl,
+            fotoEvidenciaUrl: fotoEvidenciaUrl || primeiraFotoEvidencia,
             usuario: { nome: tecnicoNome.trim() }
           });
-          if (geoRes?.reason) {
-            setGeoDisplacementInfo(geoRes.reason);
-          }
         } catch (geoErr) {
-          console.warn('[Inspeção] Erro no processamento geoespacial:', geoErr);
+          console.warn('[Ronda Descoberta] Aviso ao registrar histórico GPS:', geoErr);
         }
       }
 
-      // Registrar log de auditoria no cliente (tanto online quanto offline)
-      await logSystemAction(
-        'INSPECAO',
-        ativo.category || 'extintores',
-        ativo.idAtivo || ativo.id_ativo || rawId,
-        `Vistoria registrada. Técnico: ${inspecao.tecnico_nome}, Status: ${inspecao.status}`
-      ).catch(console.error);
-
       setFormSubmitted(true);
-      await updatePendingCount();
     } catch (err) {
-      console.error('Erro ao salvar vistoria:', err);
-      setSubmissionStatus('error');
-      setFormSubmitted(true);
+      console.error('Erro ao registrar vistoria:', err);
+      alert('Falha ao processar inspeção de campo.');
     } finally {
       setLoading(false);
     }
@@ -954,22 +940,12 @@ function InspecaoOuCadastroContent() {
           )}
         </AnimatePresence>
 
-        {/* Tutorial & Compartilhar Row */}
+        {/* Compartilhar Link do Ativo */}
         <div className="flex items-center gap-3">
           <button 
             type="button"
-            onClick={() => setShowTutorial(true)}
-            className="flex-1 flex items-center justify-center gap-2 py-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.98] text-[10px] font-bold uppercase tracking-wider text-white cursor-pointer border-none rounded-xl"
-            aria-label="Exibir tutorial de instruções"
-          >
-            <Play size={12} fill="currentColor" />
-            Tutorial
-          </button>
-          
-          <button 
-            type="button"
             onClick={copyLink}
-            className={`flex-1 flex items-center justify-center gap-2 py-3 border transition-all active:scale-[0.98] text-[10px] font-bold uppercase tracking-wider cursor-pointer rounded-xl ${
+            className={`w-full flex items-center justify-center gap-2 py-3 border transition-all active:scale-[0.98] text-[10px] font-bold uppercase tracking-wider cursor-pointer rounded-xl ${
               copied 
                 ? 'bg-emerald-600/10 text-emerald-400 border-emerald-500/30' 
                 : isDark
@@ -1509,66 +1485,87 @@ function InspecaoOuCadastroContent() {
               exit={{ opacity: 0 }}
               className="space-y-6"
             >
-              {/* CARD DETALHES DO ATIVO */}
+              {/* CARD DETALHES DO ATIVO (BENTO GRID MODERNO) */}
               <section className={`${cardClass} p-5 space-y-4 relative overflow-hidden rounded-2xl`}>
-                <div className={`absolute top-1.5 right-3 text-[7px] font-mono tracking-widest uppercase ${labelMutedClass}`}>
-                  Identificador: {ativo.id}
-                </div>
-
-                <div className={`flex items-start justify-between border-b pb-3 ${borderBottomClass}`}>
-                  <div>
-                    <span className={`text-[8px] px-2 py-0.5 font-semibold uppercase select-none tracking-wider rounded ${
-                      isDark ? 'bg-slate-800 text-slate-400' : 'bg-slate-150 text-slate-650'
-                    }`}>
-                      {ativo.category || 'EXTINTOR'}
-                    </span>
-                    <h3 className={`text-sm font-extrabold uppercase tracking-wider mt-1.5 font-sans ${
-                      isDark ? 'text-slate-100' : 'text-slate-850'
-                    }`}>
+                {/* Header com Categoria, Modelo e Badge de Status */}
+                <div className={`flex items-start justify-between border-b pb-3.5 ${borderBottomClass}`}>
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="px-2 py-0.5 rounded-md bg-red-600/15 border border-red-500/30 text-red-500 font-mono text-[9px] font-bold uppercase tracking-wider">
+                        {ativo.category || 'EXTINTOR'}
+                      </span>
+                      <span className="text-[9px] font-mono text-slate-400">
+                        ID: {ativo.id}
+                      </span>
+                    </div>
+                    <h3 className={`text-base font-extrabold uppercase tracking-tight font-sans ${isDark ? 'text-white' : 'text-slate-900'}`}>
                       {ativo.model || 'PQS ABC - 8KG'}
                     </h3>
                   </div>
-                  <div className={`text-[9px] font-bold uppercase px-2.5 py-1 border select-none rounded-md ${
+
+                  <div className={`text-[10px] font-bold uppercase px-3 py-1.5 border rounded-xl select-none flex items-center gap-1.5 ${
                     ativo.status === 'Conforme' 
-                      ? 'text-emerald-455 border-emerald-900 bg-emerald-950/20' 
-                      : 'text-red-455 border-red-900 bg-red-950/20'
+                      ? 'text-emerald-400 border-emerald-500/40 bg-emerald-950/30' 
+                      : 'text-red-455 border-red-500/40 bg-red-950/30'
                   }`}>
-                    {ativo.status || 'Ativo'}
+                    <span className={`w-2 h-2 rounded-full ${ativo.status === 'Conforme' ? 'bg-emerald-400' : 'bg-red-500'}`} />
+                    {ativo.status || 'Pendente'}
                   </div>
                 </div>
 
-                {/* Grid de Informações */}
-                <div className="grid grid-cols-2 gap-x-4 gap-y-3.5 text-xs">
-                  <div className="space-y-1">
-                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider`}>Patrimônio</span>
-                    <p className={`font-semibold font-mono ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{ativo.idAtivo || ativo.id_ativo || 'N/A'}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider`}>Selo Inmetro</span>
-                    <p className={`font-semibold font-mono ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{ativo.seloInmetro || ativo.inmetro || 'N/A'}</p>
-                  </div>
-                  <div className="space-y-1 col-span-2">
-                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider flex items-center gap-1`}>
-                      <MapPin size={8} className="text-red-500" />
-                      Setor / Sub-Local
+                {/* Bento Grid 4 Cards */}
+                <div className="grid grid-cols-2 gap-2.5 text-xs font-mono">
+                  {/* Card 1: Patrimônio */}
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider block mb-1 font-sans font-bold`}>
+                      Patrimônio
                     </span>
-                    <p className={`font-semibold leading-tight ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>
-                      {ativo.location} {ativo.subLocation ? ` - ${ativo.subLocation}` : ''}
+                    <p className="font-bold text-sm text-red-500 tracking-tight">
+                      {ativo.idAtivo || ativo.id_ativo || rawId}
                     </p>
                   </div>
-                  <div className="space-y-1">
-                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider flex items-center gap-1`}>
-                      <Clock size={8} />
-                      Última Recarga
+
+                  {/* Card 2: Selo Inmetro */}
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider block mb-1 font-sans font-bold`}>
+                      Selo Inmetro
                     </span>
-                    <p className={`font-semibold font-mono ${isDark ? 'text-slate-200' : 'text-slate-800'}`}>{ativo.lastRecarga || 'N/A'}</p>
+                    <p className="font-bold text-xs text-slate-200 truncate">
+                      {ativo.seloInmetro || ativo.inmetro || 'NÃO INFORMADO'}
+                    </p>
                   </div>
-                  <div className="space-y-1">
-                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider flex items-center gap-1`}>
-                      <Clock size={8} />
-                      Próxima Recarga
+
+                  {/* Card 3: Setor / Sub-local */}
+                  <div className={`p-3 rounded-xl border col-span-2 ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider block mb-1 font-sans font-bold flex items-center gap-1`}>
+                      <MapPin size={10} className="text-red-500" />
+                      Setor & Posição de Instalação
                     </span>
-                    <p className="font-semibold text-red-500 font-mono">{ativo.validadeRecarga || 'N/A'}</p>
+                    <p className="font-semibold text-xs leading-relaxed text-slate-200 font-sans">
+                      {ativo.location || 'Sem Setor'} {ativo.subLocation ? ` • ${ativo.subLocation}` : ''}
+                    </p>
+                  </div>
+
+                  {/* Card 4: Validade da Recarga */}
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider block mb-1 font-sans font-bold flex items-center gap-1`}>
+                      <Clock size={10} className="text-amber-400" />
+                      Validade Recarga
+                    </span>
+                    <p className="font-bold text-xs text-amber-400">
+                      {ativo.validadeRecarga || 'N/A'}
+                    </p>
+                  </div>
+
+                  {/* Card 5: Teste Hidrostático */}
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
+                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider block mb-1 font-sans font-bold flex items-center gap-1`}>
+                      <Clock size={10} className="text-blue-400" />
+                      Teste Hidrostático
+                    </span>
+                    <p className="font-bold text-xs text-blue-400">
+                      {ativo.validadeTesteHidro || (ativo.ultimoTesteHidro ? `${parseInt(ativo.ultimoTesteHidro, 10) + 5}` : '5 Anos')}
+                    </p>
                   </div>
                 </div>
               </section>
@@ -1624,62 +1621,13 @@ function InspecaoOuCadastroContent() {
                   </div>
                 </section>
 
-                {/* Checklist */}
-                <section className={`${cardClass} p-5 space-y-4 rounded-2xl`}>
-                  <div className={`flex items-center justify-between border-b pb-2 ${borderBottomClass}`}>
-                    <h3 className={`text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 ${isDark ? 'text-slate-350' : 'text-slate-700'}`}>
-                      <FileText size={12} className="text-red-500" />
-                      Checklist de Conformidade NBR
-                    </h3>
-                    <span className={`text-[8px] ${labelMutedClass} uppercase`}>Todos Obrigatórios</span>
-                  </div>
-
-                  <div className="space-y-3.5 pt-1">
-                    {checklist.map((item) => (
-                      <div key={item.key} className={`space-y-2 border-b pb-3 last:border-0 last:pb-0 ${isDark ? 'border-slate-900/60' : 'border-slate-100'}`}>
-                        <p className={`text-[11px] font-sans leading-tight ${isDark ? 'text-slate-300' : 'text-slate-705'}`}>
-                          {item.label}
-                        </p>
-                        
-                        <div className="flex items-center gap-2" role="group" aria-label={`Avaliação de: ${item.label}`}>
-                          <button 
-                            type="button"
-                            onClick={() => handleChecklistChange(item.key, true)}
-                            aria-pressed={item.conforme === true}
-                            aria-label={`Marcar ${item.label} como conforme`}
-                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5 cursor-pointer rounded-lg ${
-                              item.conforme === true
-                                ? 'bg-emerald-600 border-emerald-500 text-white shadow'
-                                : isDark 
-                                ? 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-750'
-                                : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 shadow-sm'
-                            }`}
-                          >
-                            <Check size={11} />
-                            OK
-                          </button>
-                          
-                          <button 
-                            type="button"
-                            onClick={() => handleChecklistChange(item.key, false)}
-                            aria-pressed={item.conforme === false}
-                            aria-label={`Marcar ${item.label} como não conforme`}
-                            className={`flex-1 py-2 text-[10px] font-bold uppercase tracking-wider transition-all border flex items-center justify-center gap-1.5 cursor-pointer rounded-lg ${
-                              item.conforme === false
-                                ? 'bg-red-650 border-red-500 text-white shadow'
-                                : isDark 
-                                ? 'bg-slate-950 border-slate-800 text-slate-400 hover:border-slate-750'
-                                : 'bg-slate-50 border-slate-200 text-slate-650 hover:bg-slate-100 shadow-sm'
-                            }`}
-                          >
-                            <X size={11} />
-                            Não Conforme
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
+                {/* RENDERIZADOR DINÂMICO DE CHECKLIST NBR */}
+                <DynamicChecklistRenderer 
+                  asset={ativo}
+                  checklistTemplates={checklistTemplates}
+                  isDark={isDark}
+                  onChange={setDynamicChecklistResult}
+                />
 
                 {/* Evidência Fotográfica Obrigatória com Geocaptura (Momento 3: Inspeção Periódica) */}
                 <section className={`${cardClass} p-5 space-y-3 rounded-2xl`}>
@@ -1797,23 +1745,39 @@ function InspecaoOuCadastroContent() {
                   />
                 </section>
 
-                {/* Botão de Enviar */}
-                <div className="flex gap-4">
-                  <button 
-                    type="button"
-                    onClick={() => router.push('/inspecao')}
-                    className={`flex-1 py-4 text-xs font-bold uppercase tracking-widest transition-all cursor-pointer rounded-xl ${buttonSecondaryClass}`}
-                  >
-                    CANCELAR
-                  </button>
-                  <button 
-                    type="submit"
-                    disabled={loading}
-                    className="flex-1 py-4 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold uppercase tracking-widest transition-all active:scale-[0.99] flex items-center justify-center gap-2 cursor-pointer shadow-lg rounded-xl"
-                  >
-                    {loading ? <RefreshCw size={14} className="animate-spin" /> : null}
-                    Gravar / Enviar
-                  </button>
+                {/* Barra Inferior Fixa na Thumb Zone (48px) com Indicador de Rede */}
+                <div className="sticky bottom-4 z-20 pt-2">
+                  <div className="flex gap-3">
+                    <button 
+                      type="button"
+                      onClick={() => router.push('/inspecao')}
+                      className={`py-3.5 px-4 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer rounded-xl min-h-[48px] ${buttonSecondaryClass}`}
+                    >
+                      Cancelar
+                    </button>
+                    <button 
+                      type="submit"
+                      disabled={loading || !dynamicChecklistResult.isAllChecked || (dynamicChecklistResult.hasNonConformity && !dynamicChecklistResult.allEvidencesFilled)}
+                      className={`flex-1 min-h-[48px] py-3.5 px-4 text-xs font-bold uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-xl rounded-xl border ${
+                        !dynamicChecklistResult.isAllChecked || (dynamicChecklistResult.hasNonConformity && !dynamicChecklistResult.allEvidencesFilled)
+                          ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed opacity-60'
+                          : isOnline
+                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500 shadow-emerald-950/50'
+                          : 'bg-amber-600 hover:bg-amber-700 text-white border-amber-500 shadow-amber-950/50'
+                      }`}
+                    >
+                      {loading ? (
+                        <RefreshCw size={16} className="animate-spin" />
+                      ) : isOnline ? (
+                        <Wifi size={16} className="text-emerald-200" />
+                      ) : (
+                        <WifiOff size={16} className="text-amber-200" />
+                      )}
+                      <span>
+                        {isOnline ? 'Gravar & Transmitir Inspeção (Online)' : 'Salvar no Dispositivo (Fila Offline)'}
+                      </span>
+                    </button>
+                  </div>
                 </div>
 
               </form>
@@ -1879,7 +1843,16 @@ function InspecaoOuCadastroContent() {
               <div className="flex flex-col sm:flex-row gap-3">
                 <button 
                   onClick={() => {
-                    setChecklist(DEFAULT_CHECKLIST);
+                    setDynamicChecklistResult({
+                      itemStates: {},
+                      isAllChecked: false,
+                      hasNonConformity: false,
+                      impeditivoReprovado: false,
+                      nonConformityCount: 0,
+                      checkedCount: 0,
+                      totalCount: 0,
+                      allEvidencesFilled: true
+                    });
                     setObservacoes('');
                     setFormSubmitted(false);
                   }}
@@ -1909,63 +1882,7 @@ function InspecaoOuCadastroContent() {
         <p className="text-[7px] mt-1 font-sans">Desenvolvido em conformidade com as normas ABNT e NBR brasileiras.</p>
       </footer>
 
-      {/* TUTORIAL MODAL POPUP */}
-      <AnimatePresence>
-        {showTutorial && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 animate-fade-in"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              className="bg-slate-900 border border-slate-800 max-w-sm w-full p-6 space-y-4 text-left font-sans shadow-2xl"
-            >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-slate-200">
-                  {isCadastro ? 'Instruções de Cadastro' : 'Como Inspecionar'}
-                </h3>
-                <button 
-                  onClick={() => setShowTutorial(false)}
-                  className="text-slate-500 hover:text-slate-200 p-1"
-                  aria-label="Fechar tutorial"
-                >
-                  <X size={16} />
-                </button>
-              </div>
 
-              <div className="space-y-3 text-xs text-slate-450 leading-relaxed">
-                {isCadastro ? (
-                  <>
-                    <p>1. **Categoria:** Identifique e confirme a categoria do ativo (Extintores, Hidrantes, etc.).</p>
-                    <p>2. **Patrimônio:** Insira apenas a numeração física. O prefixo (ex: EXT-) é gerado automaticamente pelo SPCI.</p>
-                    <p>3. **Setor / Sub-Local:** Escolha o Setor da Planta e selecione ou adicione a posição física em Sub-Local.</p>
-                    <p>4. **Vencimentos:** O sistema agendará a próxima vistoria no mês corrente do cadastro de forma automática.</p>
-                  </>
-                ) : (
-                  <>
-                    <p>1. **Identificação:** Confirme se o patrimônio e selo Inmetro batem com o extintor físico à sua frente.</p>
-                    <p>2. **Lacre e Pressão:** Cheque se o manômetro está na faixa verde e o lacre plástico está intacto no gatilho.</p>
-                    <p>3. **Acesso:** Garanta que não há caixas ou móveis obstruindo o acesso rápido.</p>
-                    <p>4. **Sinalização:** Verifique se há placa identificadora e marcação física.</p>
-                  </>
-                )}
-              </div>
-
-              <button 
-                onClick={() => setShowTutorial(false)}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold font-mono uppercase tracking-widest cursor-pointer"
-                aria-label="Entendido, fechar tutorial"
-              >
-                ENTENDIDO
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* DUPLICITY ALERT MODAL */}
       <AnimatePresence>

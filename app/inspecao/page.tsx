@@ -36,6 +36,7 @@ import AssetInspectionHistoryModal from '@/app/components/AssetInspectionHistory
 import { idb } from '@/lib/indexedDb';
 import { useSync } from '@/hooks/useSync';
 import { extractIdOrHashFromUrl, formatDateBr } from '@/lib/utils';
+import { prefetchAndHydrateOfflineData } from '@/lib/dbSync';
 
 // Mapeamento de categorias de ativos
 interface Categoria {
@@ -67,9 +68,8 @@ export default function PortalTecnicoPage() {
   // Hook unificado de sincronia e status de rede
   const { isOnline, pendingCount, syncing, triggerSync } = useSync();
 
-  // Modal Scanner Câmera e Tutorial
+  // Modal Scanner Câmera
   const [isScannerOpen, setIsScannerOpen] = useState<boolean>(false);
-  const [showTutorial, setShowTutorial] = useState<boolean>(false);
 
   // Alerta de Sessão Temporária Compartilhada
   const [isSharedSession] = useState<boolean>(() => {
@@ -152,7 +152,7 @@ export default function PortalTecnicoPage() {
     }
   }, [selectedCategory]);
 
-  // Sincroniza o tema preferido do usuário após a hidratação no cliente
+  // Sincroniza o tema e pré-carrega cache offline do IndexedDB
   useEffect(() => {
     const savedTheme = localStorage.getItem('spci_portal_theme') as 'light' | 'dark';
     const timer = setTimeout(() => {
@@ -160,6 +160,10 @@ export default function PortalTecnicoPage() {
       if (savedTheme) {
         setTheme(savedTheme);
       }
+      // Pré-carga em segundo plano para operação offline garantida
+      prefetchAndHydrateOfflineData().catch(err => {
+        console.warn('[PortalTecnico] Falha ao pré-carregar dados offline:', err);
+      });
     }, 0);
     return () => clearTimeout(timer);
   }, []);
@@ -444,37 +448,27 @@ export default function PortalTecnicoPage() {
           </div>
         </section>
 
-        {/* 2. BARRA DE PESQUISA & AÇÕES DE CAMPO */}
+        {/* 2. BARRA DE PESQUISA & AÇÕES DE CAMPO (Layout Otimizado 2 Colunas) */}
         <section className="space-y-4">
-          <div className="grid grid-cols-3 gap-2.5">
+          <div className="grid grid-cols-2 gap-3">
             {/* Novo Ativo */}
             <button 
               onClick={() => router.push(`/inspecao/novo?category=${selectedCategory}`)}
-              className="flex flex-col items-center justify-center p-3.5 bg-emerald-600/10 hover:bg-emerald-600/15 border border-emerald-500/30 text-emerald-450 transition-all font-mono text-[9px] uppercase font-bold tracking-wider gap-1.5 cursor-pointer rounded-xl active:scale-[0.97]"
+              className="flex items-center justify-center p-3.5 bg-emerald-600/10 hover:bg-emerald-600/15 border border-emerald-500/30 text-emerald-450 transition-all font-mono text-xs uppercase font-bold tracking-wider gap-2 cursor-pointer rounded-xl active:scale-[0.97] min-h-[48px]"
               aria-label={`Cadastrar novo ativo da categoria ${selectedCategory}`}
             >
-              <Plus size={16} />
+              <Plus size={18} />
               Novo Ativo
             </button>
 
             {/* QR Code Scanner */}
             <button 
               onClick={() => setIsScannerOpen(true)}
-              className="flex flex-col items-center justify-center p-3.5 bg-red-655/10 hover:bg-red-655/15 border border-red-500/30 text-red-450 transition-all font-mono text-[9px] uppercase font-bold tracking-wider gap-1.5 cursor-pointer rounded-xl active:scale-[0.97]"
+              className="flex items-center justify-center p-3.5 bg-red-655/10 hover:bg-red-655/15 border border-red-500/30 text-red-450 transition-all font-mono text-xs uppercase font-bold tracking-wider gap-2 cursor-pointer rounded-xl active:scale-[0.97] min-h-[48px]"
               aria-label="Ler QR Code utilizando a câmera do dispositivo"
             >
-              <QrCode size={16} />
+              <QrCode size={18} />
               Ler QR Code
-            </button>
-
-            {/* Tutorial */}
-            <button 
-              onClick={() => setShowTutorial(true)}
-              className="flex flex-col items-center justify-center p-3.5 bg-blue-600/10 hover:bg-blue-600/15 border border-blue-500/30 text-blue-400 transition-all font-mono text-[9px] uppercase font-bold tracking-wider gap-1.5 cursor-pointer rounded-xl active:scale-[0.97]"
-              aria-label="Exibir tutorial de ronda e inspeção"
-            >
-              <Play size={16} fill="currentColor" />
-              Tutorial
             </button>
           </div>
 
@@ -748,61 +742,6 @@ export default function PortalTecnicoPage() {
         onClose={() => setIsScannerOpen(false)}
         onScanSuccess={handleScanSuccess}
       />
-
-      {/* TUTORIAL MODAL POPUP */}
-      <AnimatePresence>
-        {showTutorial && (
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/85 flex items-center justify-center p-4 z-50 animate-fade-in"
-          >
-            <motion.div 
-              initial={{ scale: 0.95, y: 15 }}
-              animate={{ scale: 1, y: 0 }}
-              exit={{ scale: 0.95, y: 15 }}
-              className="bg-slate-900 border border-slate-800 max-w-sm w-full p-6 space-y-4 text-left font-sans shadow-2xl"
-            >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                <h3 className="text-xs font-bold font-mono uppercase tracking-widest text-slate-200">
-                  Instruções da Ronda
-                </h3>
-                <button 
-                  onClick={() => setShowTutorial(false)}
-                  className="text-slate-500 hover:text-slate-250 p-1"
-                  aria-label="Fechar tutorial"
-                >
-                  <X size={16} />
-                </button>
-              </div>
-
-              <div className="space-y-3 text-xs text-slate-450 leading-relaxed">
-                <p>
-                  1. **Selecione a Categoria:** Escolha o tipo de equipamento (Extintor, Hidrante, etc.) para visualizar os itens cadastrados.
-                </p>
-                <p>
-                  2. **Leitura Física:** Clique em &quot;Ler QR Code&quot; e aponte a câmera para o selo laminado QR SPCI do equipamento para carregar a vistoria imediatamente.
-                </p>
-                <p>
-                  3. **Novo Equipamento:** Caso o ativo seja novo e não possua QR Code ainda, clique em &quot;Novo Ativo&quot; para imputar as características e salvá-lo na base central.
-                </p>
-                <p>
-                  4. **Fila Offline:** Suas ações de campo são gravadas mesmo sem internet e enviadas automaticamente na aba &quot;Sincronia&quot; quando você voltar à rede.
-                </p>
-              </div>
-
-              <button 
-                onClick={() => setShowTutorial(false)}
-                className="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold font-mono uppercase tracking-widest cursor-pointer border-none"
-                aria-label="Entendido e fechar tutorial"
-              >
-                FECHAR TUTORIAL
-              </button>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       {/* Bottom Sheet - Regras de Acesso e Expiração */}
       <AnimatePresence>

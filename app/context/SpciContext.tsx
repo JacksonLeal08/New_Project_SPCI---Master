@@ -688,9 +688,44 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     if (!currentUser) return;
 
-    // Assina atualizações em tempo real das tabelas do banco de dados
+    // Assina atualizações em tempo real das tabelas e eventos de broadcast da ronda
     const channel = supabase
       .channel('spci_realtime_sync')
+      .on(
+        'broadcast',
+        { event: 'nova_inspecao' },
+        (eventData: any) => {
+          console.log('[Realtime Broadcast] Nova inspeção recebida via Broadcast:', eventData);
+          const data = eventData.payload || eventData;
+          playTelemetryPingSound();
+          triggerSuccessNotification(
+            "Nova Inspeção Recebida! 📋",
+            `Extintor ${data.asset_patrimonio || 'Ativo'} no setor ${data.location || 'Planta'} por ${data.tecnico_nome || 'Técnico'}. Status: ${data.status || 'Conforme'}`
+          );
+
+          const newNotif: NotificationItem = {
+            id: data.id || generateUUID(),
+            title: "Nova Inspeção Recebida! 📋",
+            message: `Extintor ${data.asset_patrimonio} no setor ${data.location || 'Planta'} vistoriado por ${data.tecnico_nome}. Status: ${data.status}.`,
+            type: 'inspecao',
+            category: 'extintores',
+            patrimonio: data.asset_patrimonio,
+            read: false,
+            created_at: data.data_inspecao || new Date().toISOString()
+          };
+
+          setNotifications(prev => {
+            if (prev.some(n => n.id === newNotif.id || (n.patrimonio === newNotif.patrimonio && Math.abs(new Date(n.created_at).getTime() - new Date(newNotif.created_at).getTime()) < 5000))) {
+              return prev;
+            }
+            const next = [newNotif, ...prev];
+            idb.setAll('notificacoes', next).catch(console.error);
+            return next;
+          });
+
+          syncWithRealDatabase();
+        }
+      )
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'inspecoes_realizadas' },
