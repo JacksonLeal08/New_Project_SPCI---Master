@@ -39,7 +39,11 @@ export default function LaudoInspecaoPage() {
 
   // Tratamento seguro do inspecaoId de params
   const rawId = params?.inspecaoId;
-  const inspecaoId = Array.isArray(rawId) ? rawId[0] : rawId ? String(rawId) : '';
+  const inspecaoId = Array.isArray(rawId)
+    ? decodeURIComponent(rawId[0]).trim()
+    : rawId
+    ? decodeURIComponent(String(rawId)).trim()
+    : '';
 
   const [inspecao, setInspecao] = useState<InspecaoRealizada | null>(null);
   const [loading, setLoading] = useState(true);
@@ -195,7 +199,10 @@ export default function LaudoInspecaoPage() {
     }
   ];
 
-  const laudoCodigo = String(inspecao.id || '').slice(0, 8).toUpperCase() || 'PENDENTE';
+  const numId = Number(inspecao.id);
+  const laudoCodigo = !isNaN(numId)
+    ? String(numId).padStart(4, '0')
+    : (String(inspecao.id || '').slice(0, 8).toUpperCase() || 'PENDENTE');
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 py-4 sm:py-8 px-2 sm:px-6 print:bg-white print:p-0">

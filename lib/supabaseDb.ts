@@ -1499,26 +1499,38 @@ export async function fetchAllInspecoes(options?: { site?: string; search?: stri
 }
 
 /**
- * Busca inspeção detalhada por ID ou Patrimônio, enriquecendo com dados cadastrais do ativo caso existam.
+ * Busca inspeção detalhada por ID numérico, UUID ou Patrimônio, enriquecendo com dados cadastrais do ativo caso existam.
  */
-export async function fetchInspecaoById(idOrPatrimonio: string): Promise<InspecaoRealizada | null> {
+export async function fetchInspecaoById(idOrPatrimonio: string | number): Promise<InspecaoRealizada | null> {
   try {
     if (!idOrPatrimonio) return null;
     const cleanParam = String(idOrPatrimonio).trim();
+    const isNum = !isNaN(Number(cleanParam));
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanParam);
 
     let data: any = null;
 
-    if (isUuid) {
+    if (isNum) {
+      // 1. Busca por ID numérico (chave primária serial da tabela)
       const { data: singleRow, error } = await supabase
         .from('inspecoes_realizadas')
         .select('*')
-        .eq('id', cleanParam)
+        .eq('id', Number(cleanParam))
         .maybeSingle();
       if (error) throw error;
       data = singleRow;
+    } else if (isUuid) {
+      // 2. Busca por UUID
+      const { data: singleRow, error } = await supabase
+        .from('inspecoes_realizadas')
+        .select('*')
+        .or(`id.eq.${cleanParam},asset_id.eq.${cleanParam}`)
+        .order('data_inspecao', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      data = Array.isArray(singleRow) ? singleRow[0] : singleRow;
     } else {
-      // Se não for UUID (ex: patrimônio EXT-337), busca a inspeção mais recente desse ativo
+      // 3. Busca por Patrimônio (ex: EXT-100)
       const { data: rows, error } = await supabase
         .from('inspecoes_realizadas')
         .select('*')
@@ -1558,7 +1570,7 @@ export async function fetchInspecaoById(idOrPatrimonio: string): Promise<Inspeca
     }
 
     return {
-      id: data.id,
+      id: String(data.id),
       asset_id: data.asset_id,
       asset_patrimonio: data.asset_patrimonio,
       status: data.status,
@@ -1584,13 +1596,16 @@ export async function fetchInspecaoById(idOrPatrimonio: string): Promise<Inspeca
 /**
  * Atualiza anotações técnicas de uma inspeção existente, mantendo log de auditoria.
  */
-export async function updateInspecaoNotes(id: string, notes: string, userNome: string = 'Sistema'): Promise<boolean> {
+export async function updateInspecaoNotes(id: string | number, notes: string, userNome: string = 'Sistema'): Promise<boolean> {
   try {
+    const isNum = !isNaN(Number(id));
+    const queryId: any = isNum ? Number(id) : id;
+
     // Busca registro atual para auditar
     const { data: current } = await supabase
       .from('inspecoes_realizadas')
       .select('details, observacoes')
-      .eq('id', id)
+      .eq('id', queryId)
       .maybeSingle();
 
     const currentDetails = current?.details || {};
@@ -1614,7 +1629,7 @@ export async function updateInspecaoNotes(id: string, notes: string, userNome: s
         observacoes: notes,
         details: updatedDetails
       })
-      .eq('id', id);
+      .eq('id', queryId);
 
     if (error) throw error;
     return true;
@@ -1627,12 +1642,15 @@ export async function updateInspecaoNotes(id: string, notes: string, userNome: s
 /**
  * Cancela uma inspeção (Soft-Delete auditado) com justificativa obrigatória.
  */
-export async function cancelarInspecao(id: string, justificativa: string, userNome: string = 'Sistema'): Promise<boolean> {
+export async function cancelarInspecao(id: string | number, justificativa: string, userNome: string = 'Sistema'): Promise<boolean> {
   try {
+    const isNum = !isNaN(Number(id));
+    const queryId: any = isNum ? Number(id) : id;
+
     const { data: current } = await supabase
       .from('inspecoes_realizadas')
       .select('details, status')
-      .eq('id', id)
+      .eq('id', queryId)
       .maybeSingle();
 
     const currentDetails = current?.details || {};
@@ -1661,7 +1679,7 @@ export async function cancelarInspecao(id: string, justificativa: string, userNo
         justificativa_reinspecao: justificativa,
         details: updatedDetails
       })
-      .eq('id', id);
+      .eq('id', queryId);
 
     if (error) throw error;
     return true;

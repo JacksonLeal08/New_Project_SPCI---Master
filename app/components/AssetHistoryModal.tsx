@@ -499,7 +499,7 @@ ${historyText || '- Nenhum evento crítico registrado.'}
 
                       <div className="mt-3 flex justify-between items-center border-t border-slate-100 pt-2.5 text-[10px] text-slate-500 font-mono">
                         <span>👤 Responsável: <strong className="text-slate-800 font-bold">{event.author || 'Técnico Autorizado'}</strong></span>
-                        <span className="font-mono text-slate-400 font-bold">#SPCI-{event.id?.slice(-4) || 'AUTO'}</span>
+                        <span className="font-mono text-slate-400 font-bold">#SPCI-{String(event.id || '').slice(-4) || 'AUTO'}</span>
                       </div>
                     </div>
                   </div>

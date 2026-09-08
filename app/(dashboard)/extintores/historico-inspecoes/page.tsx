@@ -717,7 +717,7 @@ function HistoricoInspecoesContent() {
                   Retificar Anotações Técnicas
                 </h3>
                 <span className="text-[11px] text-slate-500 font-mono">
-                  Ativo {editModalItem.asset_patrimonio} &bull; Laudo #{editModalItem.id?.slice(0, 8)}
+                  Ativo {editModalItem.asset_patrimonio} &bull; Laudo #{String(editModalItem.id || '').padStart(4, '0')}
                 </span>
               </div>
               <button
@@ -783,7 +783,7 @@ function HistoricoInspecoesContent() {
                   Cancelar Registro de Vistoria
                 </h3>
                 <span className="text-[11px] text-slate-500 font-mono">
-                  Ativo {cancelModalItem.asset_patrimonio}
+                  Ativo {cancelModalItem.asset_patrimonio} &bull; Laudo #{String(cancelModalItem.id || '').padStart(4, '0')}
                 </span>
               </div>
               <button
