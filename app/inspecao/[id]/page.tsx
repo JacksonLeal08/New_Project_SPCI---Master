@@ -917,7 +917,7 @@ function InspecaoOuCadastroContent() {
       </header>
 
       {/* CONTEÚDO */}
-      <main className="flex-grow w-full max-w-lg mx-auto px-4 py-8 z-10 space-y-6">
+      <main className="flex-grow w-full max-w-lg mx-auto px-4 py-8 pb-28 z-10 space-y-6">
 
         {/* ALERTA DE SESSÃO TEMPORÁRIA COMPARTILHADA */}
         <AnimatePresence>
@@ -1530,54 +1530,54 @@ function InspecaoOuCadastroContent() {
                 {/* Bento Grid 4 Cards */}
                 <div className="grid grid-cols-2 gap-2.5 text-xs font-mono">
                   {/* Card 1: Patrimônio */}
-                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider block mb-1 font-sans font-bold`}>
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100/70 border-slate-250 shadow-2xs'}`}>
+                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-extrabold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                       Patrimônio
                     </span>
-                    <p className="font-bold text-sm text-red-500 tracking-tight">
+                    <p className="font-extrabold text-sm text-red-600 tracking-tight">
                       {ativo.idAtivo || ativo.id_ativo || rawId}
                     </p>
                   </div>
 
                   {/* Card 2: Selo Inmetro */}
-                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider block mb-1 font-sans font-bold`}>
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100/70 border-slate-250 shadow-2xs'}`}>
+                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-extrabold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
                       Selo Inmetro
                     </span>
-                    <p className="font-bold text-xs text-slate-200 truncate">
+                    <p className={`font-black text-xs truncate ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                       {ativo.seloInmetro || ativo.inmetro || 'NÃO INFORMADO'}
                     </p>
                   </div>
 
                   {/* Card 3: Setor / Sub-local */}
-                  <div className={`p-3 rounded-xl border col-span-2 ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider block mb-1 font-sans font-bold flex items-center gap-1`}>
-                      <MapPin size={10} className="text-red-500" />
+                  <div className={`p-3 rounded-xl border col-span-2 ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100/70 border-slate-250 shadow-2xs'}`}>
+                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-extrabold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      <MapPin size={11} className="text-red-600" />
                       Setor & Posição de Instalação
                     </span>
-                    <p className="font-semibold text-xs leading-relaxed text-slate-200 font-sans">
+                    <p className={`font-bold text-xs leading-relaxed font-sans ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                       {ativo.location || 'Sem Setor'} {ativo.subLocation ? ` • ${ativo.subLocation}` : ''}
                     </p>
                   </div>
 
                   {/* Card 4: Validade da Recarga */}
-                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider block mb-1 font-sans font-bold flex items-center gap-1`}>
-                      <Clock size={10} className="text-amber-400" />
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100/70 border-slate-250 shadow-2xs'}`}>
+                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-extrabold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      <Clock size={11} className={isDark ? 'text-amber-400' : 'text-amber-600'} />
                       Validade Recarga
                     </span>
-                    <p className="font-bold text-xs text-amber-400">
+                    <p className={`font-black text-xs ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                       {ativo.validadeRecarga || 'N/A'}
                     </p>
                   </div>
 
                   {/* Card 5: Teste Hidrostático */}
-                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-50 border-slate-200'}`}>
-                    <span className={`text-[8px] ${textMutedClass} uppercase tracking-wider block mb-1 font-sans font-bold flex items-center gap-1`}>
-                      <Clock size={10} className="text-blue-400" />
+                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100/70 border-slate-250 shadow-2xs'}`}>
+                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-extrabold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                      <Clock size={11} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
                       Teste Hidrostático
                     </span>
-                    <p className="font-bold text-xs text-blue-400">
+                    <p className={`font-black text-xs ${isDark ? 'text-blue-400' : 'text-blue-800'}`}>
                       {ativo.validadeTesteHidro || (ativo.ultimoTesteHidro ? `${parseInt(ativo.ultimoTesteHidro, 10) + 5}` : '5 Anos')}
                     </p>
                   </div>
@@ -1586,14 +1586,20 @@ function InspecaoOuCadastroContent() {
 
               {/* Banner de Re-inspeção Mensal (se aplicável) */}
               {(isReinspecao || justificativaReinspecao) && (
-                <div className="p-3.5 rounded-xl border border-amber-500/40 bg-amber-950/20 text-xs text-amber-300 flex items-start gap-2.5 shadow-sm">
-                  <AlertTriangle size={18} className="text-amber-500 shrink-0 mt-0.5" />
+                <div className={`p-3.5 rounded-xl border text-xs flex items-start gap-2.5 shadow-sm ${
+                  isDark 
+                    ? 'border-amber-500/40 bg-amber-950/20 text-amber-300' 
+                    : 'border-amber-300 bg-amber-50 text-amber-950'
+                }`}>
+                  <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
                   <div className="space-y-1">
-                    <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-amber-400 block">
+                    <span className={`text-[10px] font-mono font-bold uppercase tracking-wider block ${
+                      isDark ? 'text-amber-400' : 'text-amber-900'
+                    }`}>
                       Re-inspeção do Ciclo Mensal
                     </span>
                     <p className="text-[11px] leading-relaxed font-sans">
-                      <strong>Motivo Técnico:</strong> {justificativaReinspecao || 'Re-inspeção por avaria pós-evento'}
+                      <strong className={isDark ? 'text-amber-300' : 'text-amber-950'}>Motivo Técnico:</strong> {justificativaReinspecao || 'Re-inspeção por avaria pós-evento'}
                     </p>
                   </div>
                 </div>
@@ -1601,10 +1607,14 @@ function InspecaoOuCadastroContent() {
 
               {/* Banner de Enriquecimento Zero-GPS Automático */}
               {autoGpsCaptured && (
-                <div className="p-3 rounded-xl border border-emerald-500/40 bg-emerald-950/20 text-xs text-emerald-300 flex items-center gap-2 shadow-sm font-mono">
-                  <MapPin size={16} className="text-emerald-400 shrink-0" />
-                  <span className="text-[10.5px]">
-                    📍 <strong>Zero-GPS:</strong> Coordenadas de campo capturadas e vinculadas automaticamente ao cadastro do ativo!
+                <div className={`p-3 rounded-xl border text-xs flex items-center gap-2 shadow-sm font-mono ${
+                  isDark 
+                    ? 'border-emerald-500/40 bg-emerald-950/20 text-emerald-300' 
+                    : 'border-emerald-300 bg-emerald-50 text-emerald-950'
+                }`}>
+                  <MapPin size={16} className="text-emerald-600 shrink-0" />
+                  <span className="text-[11px] font-sans font-medium">
+                    📍 <strong className="font-bold">Zero-GPS:</strong> Coordenadas de campo capturadas e vinculadas automaticamente ao cadastro do ativo!
                   </span>
                 </div>
               )}
@@ -1759,8 +1769,10 @@ function InspecaoOuCadastroContent() {
                   />
                 </section>
 
-                {/* Barra Inferior Fixa na Thumb Zone (48px) com Indicador de Rede */}
-                <div className="sticky bottom-4 z-20 pt-2">
+                {/* Barra Inferior Fixa na Thumb Zone (48px) com Fundo Sólido / Backdrop */}
+                <div className={`sticky bottom-3 z-30 p-2.5 rounded-2xl border shadow-2xl backdrop-blur-md ${
+                  isDark ? 'bg-slate-900/95 border-slate-800 shadow-black/60' : 'bg-white/95 border-slate-200 shadow-slate-400/30'
+                }`}>
                   <div className="flex gap-3">
                     <button 
                       type="button"

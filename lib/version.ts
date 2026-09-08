@@ -13,15 +13,20 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.10.0',
+  version: 'v2.10.1',
   date: '08/09/2026',
-  title: 'SPCI Master v2.10.0 - Segregação Multi-Tenant, Perfil Gestor, Gestão de Contratos e FAB com Nova Inspeção',
-  summary: 'Arquitetura de isolamento Zero Trust por Contrato/Planta (Salobo vs Onça Puma), novo perfil RBAC Gestor, gerenciamento exclusivo de contratos para Desenvolvedores e Gestores, saneamento de localidades, identificação fidedigna de logins e auditoria, botão FAB com Speed Dial duplo (Nova Inspeção + Novo Ativo) e fechamento universal de modais via tecla Esc.',
+  title: 'SPCI Master v2.10.1 - Dashboard Otimizado (Opção C) e Alto Contraste Mobile',
+  summary: 'Remoção de elementos redundantes no Dashboard (banner intermediário e mapa de calor), modernização do banner de Ronda com arte integrada em degradê, tabela de ativos com recolhimento inteligente e Gaveta Lateral (Drawer - Opção C), e correção de alto contraste nas fontes dos dados do ativo e quesitos NBR no formulário mobile.',
   changes: [
     {
-      category: 'DESEMPENHO',
-      title: 'Segregação Estrita Multi-Tenant / Multi-Site',
-      description: 'Isolamento completo de ativos e vistorias por contrato (Salobo e Onça Puma) em APIs, mapa operacional, sincronização offline no IndexedDB e formulário de campo, garantindo sigilo corporativo absoluto.'
+      category: 'UI/UX',
+      title: 'Otimização do Dashboard & Gaveta Lateral (Opção C)',
+      description: 'Remoção do banner de extintores e do mapa de calor. A tabela de ativos inicia recolhida por padrão em Todos os Setores, expande automaticamente ao filtrar um setor e ganha Gaveta Lateral deslizante dedicada.'
+    },
+    {
+      category: 'UI/UX',
+      title: 'Alto Contraste e Legibilidade no Formulário Mobile',
+      description: 'Ajuste de tipografia com cores de alto contraste WCAG para Selo Inmetro, Setor de Instalação, Validade da Recarga, Teste Hidrostático e enunciados de quesitos NBR no tema claro sob luz solar.'
     },
     {
       category: 'UI/UX',

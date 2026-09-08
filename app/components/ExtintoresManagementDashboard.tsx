@@ -21,6 +21,10 @@ import {
   TrendingUp,
   SlidersHorizontal,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  PanelRightOpen,
+  X,
   Eye,
   Edit3,
   FileSpreadsheet
@@ -39,6 +43,20 @@ export default function ExtintoresManagementDashboard() {
   const [sectorFilter, setSectorFilter] = useState('TODOS');
   const [showAddModal, setShowAddModal] = useState(false);
   const [hoveredMonthIndex, setHoveredMonthIndex] = useState<number | null>(null);
+
+  // Estados de Recolhimento e Gaveta Lateral (Opção C)
+  const [isTableExpanded, setIsTableExpanded] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+
+  // Handler de mudança de setor com expansão inteligente
+  const handleSectorChange = (newSector: string) => {
+    setSectorFilter(newSector);
+    if (newSector !== 'TODOS') {
+      setIsTableExpanded(true);
+    } else {
+      setIsTableExpanded(false);
+    }
+  };
 
   // --- 1. MATRIZ DE KPIS EXECUTIVOS (spci-kpi-analytics) ---
   const kpis = useMemo(() => {
@@ -256,37 +274,6 @@ export default function ExtintoresManagementDashboard() {
 
   return (
     <div className="space-y-6 font-sans">
-      
-      {/* ═══ CABEÇALHO DO MÓDULO DE EXTINTORES ═══ */}
-      <div className="bg-gradient-to-r from-slate-900 via-slate-850 to-indigo-950 text-white p-5 rounded-2xl border border-slate-800 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center shadow-inner">
-            <Flame className="w-6 h-6 text-red-500 animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 bg-red-500/20 text-red-400 text-[9px] font-mono font-bold rounded uppercase tracking-wider border border-red-500/30">
-                Módulo Executivo ABNT
-              </span>
-              <span className="text-[10px] text-slate-400 font-mono">NBR 12962 / NBR 13434</span>
-            </div>
-            <h2 className="text-lg font-black font-['Hanken_Grotesk'] tracking-wide text-white uppercase mt-0.5">
-              Gestão & Dashboard de Extintores de Incêndio
-            </h2>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="w-full sm:w-auto px-4 py-2.5 bg-red-650 hover:bg-red-700 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer border-none active:scale-95"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Novo Extintor</span>
-          </button>
-        </div>
-      </div>
-
       {/* ═══ 1. CARDS DE KPI EXECUTIVOS (RESUMO EXECUTIVO COM CORES SEMÂNTICAS) ═══ */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         
@@ -493,71 +480,173 @@ export default function ExtintoresManagementDashboard() {
         </div>
       </div>
 
-      {/* ═══ 3. GESTÃO OPERACIONAL E TABELA DE ATIVOS (CRUD COMPLETO) ═══ */}
-      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden space-y-4">
+      {/* ═══ 3. GESTÃO OPERACIONAL E INVENTÁRIO DE ATIVOS (RECOLHIMENTO INTELIGENTE & DRAWER) ═══ */}
+      <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden space-y-3">
         
-        {/* Barra de Filtros e Busca da Tabela */}
-        <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
-          
-          {/* Busca Textual */}
-          <div className="relative w-full md:w-80">
-            <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Buscar por Patrimônio, Série, Modelo, Local..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-50 border border-slate-300 pl-9 pr-3 py-2 rounded-xl text-xs font-sans text-slate-900 font-bold focus:outline-none focus:border-red-600 shadow-xs"
-            />
+        {/* Cabeçalho Interativo com Controle de Recolhimento e Gaveta Lateral */}
+        <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 bg-slate-50/70">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-red-600/10 border border-red-500/30 flex items-center justify-center text-red-600 shrink-0">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="font-['Hanken_Grotesk'] font-extrabold text-base text-slate-900 tracking-tight">
+                  Inventário & Monitoramento de Ativos
+                </h3>
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-200 text-slate-700">
+                  {filteredExtintores.length} de {extintores.length} extintores
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 font-sans mt-0.5">
+                {sectorFilter === 'TODOS' 
+                  ? 'Visão geral compactada por padrão · Selecione um setor para focar' 
+                  : `Setor focado: ${sectorFilter}`}
+              </p>
+            </div>
           </div>
 
-          {/* Filtro por Setor */}
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <span className="text-[10px] font-mono font-bold text-slate-500 uppercase flex items-center gap-1">
-              <MapPin className="w-3.5 h-3.5 text-slate-400" /> Setor:
-            </span>
-            <select
-              value={sectorFilter}
-              onChange={(e) => setSectorFilter(e.target.value)}
-              className="bg-slate-50 border border-slate-300 px-2.5 py-1.5 rounded-xl font-mono text-xs font-bold text-slate-800 focus:outline-none focus:border-red-600"
-            >
-              <option value="TODOS">Todos os Setores ({extintores.length})</option>
-              {availableSectors.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
+          {/* Controles: Seletor de Setor + Ações Rápidas */}
+          <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+            {/* Seletor de Setor com Expansão Automática */}
+            <div className="flex items-center gap-1.5 bg-white border border-slate-300 px-3 py-1.5 rounded-xl shadow-2xs">
+              <MapPin className="w-3.5 h-3.5 text-red-500" />
+              <select
+                value={sectorFilter}
+                onChange={(e) => handleSectorChange(e.target.value)}
+                className="bg-transparent font-mono text-xs font-bold text-slate-800 focus:outline-none cursor-pointer border-none"
+              >
+                <option value="TODOS">Todos os Setores ({extintores.length})</option>
+                {availableSectors.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-        {/* Pills de Filtragem de Integridade e Status Operacional */}
-        <div className="px-4 pb-2 flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono scrollbar-thin">
-          <span className="font-bold text-slate-500 pr-1 flex items-center gap-1">
-            <Filter className="w-3 h-3 text-slate-400" /> Filtros Rápidos:
-          </span>
-          {[
-            { id: 'TODOS', label: `Todos (${extintores.length})` },
-            { id: 'OPERACIONAIS', label: `🟢 100% Operacionais (${kpis.operacionaisCount})` },
-            { id: 'VENCIDOS', label: `🔴 Vencidos (${kpis.vencidosCount})` },
-            { id: 'A_VENCER', label: `🟡 A Vencer 30d (${kpis.aVencer30dCount})` },
-            { id: 'MANUTENCAO', label: `🔵 Manutenção Externa (${kpis.manutencaoExternaCount})` },
-            { id: 'OBSTRUIDOS', label: `⚠️ Obstruídos (${kpis.obstruidosCount})` },
-            { id: 'MANOMETRO_FALHA', label: `🔴 Manômetro Fora da Faixa (${kpis.manometroFalhaCount})` }
-          ].map((pill) => (
+            {/* Botão Gaveta Lateral (Opção C) */}
             <button
-              key={pill.id}
-              onClick={() => setStatusFilter(pill.id as any)}
-              className={`px-2.5 py-1 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer ${
-                statusFilter === pill.id
-                  ? 'bg-slate-900 text-white shadow-xs'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              type="button"
+              onClick={() => setIsDrawerOpen(true)}
+              className="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-['Hanken_Grotesk'] font-bold text-xs rounded-xl transition-all shadow-xs flex items-center gap-1.5 cursor-pointer border-none active:scale-95"
+              title="Abrir Tabela Completa em Painel Lateral Deslizante"
+            >
+              <PanelRightOpen className="w-3.5 h-3.5 text-rose-400" />
+              <span>Painel Lateral</span>
+            </button>
+
+            {/* Botão Expandir / Recolher na Tela */}
+            <button
+              type="button"
+              onClick={() => setIsTableExpanded(!isTableExpanded)}
+              className={`px-3 py-1.5 rounded-xl font-['Hanken_Grotesk'] font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer border active:scale-95 ${
+                isTableExpanded
+                  ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 border-slate-300'
+                  : 'bg-red-50 hover:bg-red-100 text-red-700 border-red-200 shadow-2xs'
               }`}
             >
-              {pill.label}
+              {isTableExpanded ? (
+                <>
+                  <ChevronUp className="w-3.5 h-3.5 text-slate-600" />
+                  <span>Recolher</span>
+                </>
+              ) : (
+                <>
+                  <ChevronDown className="w-3.5 h-3.5 text-red-600" />
+                  <span>Expandir na Página</span>
+                </>
+              )}
             </button>
-          ))}
+          </div>
         </div>
+
+        {/* Resumo quando a tabela está recolhida */}
+        {!isTableExpanded && (
+          <div className="p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 bg-slate-50/40 text-slate-600 text-xs">
+            <div className="flex items-center gap-3">
+              <span className="text-xl">📂</span>
+              <div>
+                <p className="font-semibold text-slate-800">
+                  {sectorFilter === 'TODOS'
+                    ? 'A listagem está compactada para evitar rolagem excessiva no Dashboard.'
+                    : `Exibição do setor "${sectorFilter}" compactada.`}
+                </p>
+                <p className="text-[11px] text-slate-500 font-sans mt-0.5">
+                  Selecione um setor específico para expandir automaticamente ou abra o <strong>Painel Lateral</strong>.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setIsTableExpanded(true)}
+                className="px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-800 font-mono font-bold text-xs rounded-xl border border-slate-300 shadow-2xs cursor-pointer transition-all"
+              >
+                Expandir ({filteredExtintores.length})
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(true)}
+                className="px-3.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-mono font-bold text-xs rounded-xl shadow-2xs cursor-pointer transition-all flex items-center gap-1.5"
+              >
+                <PanelRightOpen className="w-3.5 h-3.5 text-red-400" />
+                Abrir Lateral
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Bloco de Busca, Filtros Rápidos e Tabela quando expandido na página */}
+        {isTableExpanded && (
+          <>
+            {/* Barra de Filtros e Busca da Tabela */}
+            <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row items-center justify-between gap-3 text-xs">
+              {/* Busca Textual */}
+              <div className="relative w-full md:w-80">
+                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por Patrimônio, Série, Modelo, Local..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-300 pl-9 pr-3 py-2 rounded-xl text-xs font-sans text-slate-900 font-bold focus:outline-none focus:border-red-600 shadow-xs"
+                />
+              </div>
+
+              {/* Contador de Filtro Rápido Ativo */}
+              <div className="text-slate-500 font-mono text-[11px]">
+                Filtro ativo: <strong className="text-slate-800">{statusFilter}</strong> · Setor: <strong className="text-slate-800">{sectorFilter}</strong>
+              </div>
+            </div>
+
+            {/* Pills de Filtragem de Integridade e Status Operacional */}
+            <div className="px-4 pb-2 flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono scrollbar-thin">
+              <span className="font-bold text-slate-500 pr-1 flex items-center gap-1">
+                <Filter className="w-3 h-3 text-slate-400" /> Filtros Rápidos:
+              </span>
+              {[
+                { id: 'TODOS', label: `Todos (${extintores.length})` },
+                { id: 'OPERACIONAIS', label: `🟢 100% Operacionais (${kpis.operacionaisCount})` },
+                { id: 'VENCIDOS', label: `🔴 Vencidos (${kpis.vencidosCount})` },
+                { id: 'A_VENCER', label: `🟡 A Vencer 30d (${kpis.aVencer30dCount})` },
+                { id: 'MANUTENCAO', label: `🔵 Manutenção Externa (${kpis.manutencaoExternaCount})` },
+                { id: 'OBSTRUIDOS', label: `⚠️ Obstruídos (${kpis.obstruidosCount})` },
+                { id: 'MANOMETRO_FALHA', label: `🔴 Manômetro Fora da Faixa (${kpis.manometroFalhaCount})` }
+              ].map((pill) => (
+                <button
+                  key={pill.id}
+                  onClick={() => setStatusFilter(pill.id as any)}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer ${
+                    statusFilter === pill.id
+                      ? 'bg-slate-900 text-white shadow-xs'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  }`}
+                >
+                  {pill.label}
+                </button>
+              ))}
+            </div>
 
         {/* Tabela de Extintores */}
         <div className="overflow-x-auto scrollbar-thin">
@@ -713,12 +802,262 @@ export default function ExtintoresManagementDashboard() {
           </table>
         </div>
 
-        {/* Rodapé da Tabela */}
-        <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] font-mono text-slate-600">
-          <span>Exibindo {filteredExtintores.length} de {extintores.length} extintores monitorados</span>
-          <span className="font-bold">Conformidade ABNT NBR 12962 / SPCI Master</span>
-        </div>
+            {/* Rodapé da Tabela */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[11px] font-mono text-slate-600">
+              <span>Exibindo {filteredExtintores.length} de {extintores.length} extintores monitorados</span>
+              <span className="font-bold">Conformidade ABNT NBR 12962 / SPCI Master</span>
+            </div>
+          </>
+        )}
       </div>
+
+      {/* ═══ GAVETA LATERAL / DRAWER DE ATIVOS (OPÇÃO C) ═══ */}
+      <AnimatePresence>
+        {isDrawerOpen && (
+          <div className="fixed inset-0 z-50 flex justify-end">
+            {/* Backdrop escuro com desfoque */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setIsDrawerOpen(false)}
+              className="absolute inset-0 bg-slate-950/60 backdrop-blur-xs cursor-pointer"
+            />
+
+            {/* Painel Deslizante Lateral */}
+            <motion.div
+              initial={{ x: '100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '100%' }}
+              transition={{ type: 'spring', damping: 28, stiffness: 220 }}
+              className="relative w-full max-w-5xl h-full bg-white shadow-2xl flex flex-col z-10 border-l border-slate-200 font-sans"
+            >
+              {/* Header do Drawer */}
+              <div className="p-4 sm:p-5 border-b border-slate-200 flex items-center justify-between bg-slate-900 text-white shrink-0">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-600/20 border border-red-500/40 flex items-center justify-center text-red-400">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-['Hanken_Grotesk'] font-bold text-base text-white">
+                      Painel Completo de Extintores (Opção C)
+                    </h3>
+                    <p className="text-[11px] text-slate-400 font-mono">
+                      Navegação lateral · {filteredExtintores.length} extintores filtrados
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setShowAddModal(true)}
+                    className="px-3.5 py-1.5 bg-red-600 hover:bg-red-700 text-white font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer border-none active:scale-95"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Novo Extintor</span>
+                  </button>
+                  <button
+                    onClick={() => setIsDrawerOpen(false)}
+                    className="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition-all cursor-pointer border-none"
+                    title="Fechar Painel (Esc)"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Corpo com Scroll do Drawer */}
+              <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
+                {/* Controles de Busca e Setor no Drawer */}
+                <div className="flex flex-col md:flex-row items-center justify-between gap-3 text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
+                  <div className="relative w-full md:w-80">
+                    <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar patrimônio, série, modelo, local..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="w-full bg-white border border-slate-300 pl-9 pr-3 py-2 rounded-xl text-xs font-sans text-slate-900 font-bold focus:outline-none focus:border-red-600 shadow-2xs"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2 w-full md:w-auto">
+                    <span className="text-[10px] font-mono font-bold text-slate-500 uppercase flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-slate-400" /> Setor:
+                    </span>
+                    <select
+                      value={sectorFilter}
+                      onChange={(e) => setSectorFilter(e.target.value)}
+                      className="bg-white border border-slate-300 px-3 py-1.5 rounded-xl font-mono text-xs font-bold text-slate-800 focus:outline-none focus:border-red-600 shadow-2xs cursor-pointer"
+                    >
+                      <option value="TODOS">Todos os Setores ({extintores.length})</option>
+                      {availableSectors.map((s) => (
+                        <option key={s} value={s}>{s}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Filtros Rápidos no Drawer */}
+                <div className="flex items-center gap-1.5 overflow-x-auto text-[10px] font-mono pb-1 scrollbar-thin">
+                  {[
+                    { id: 'TODOS', label: `Todos (${extintores.length})` },
+                    { id: 'OPERACIONAIS', label: `🟢 100% Operacionais (${kpis.operacionaisCount})` },
+                    { id: 'VENCIDOS', label: `🔴 Vencidos (${kpis.vencidosCount})` },
+                    { id: 'A_VENCER', label: `🟡 A Vencer 30d (${kpis.aVencer30dCount})` },
+                    { id: 'MANUTENCAO', label: `🔵 Manutenção Externa (${kpis.manutencaoExternaCount})` },
+                    { id: 'OBSTRUIDOS', label: `⚠️ Obstruídos (${kpis.obstruidosCount})` },
+                    { id: 'MANOMETRO_FALHA', label: `🔴 Manômetro Fora da Faixa (${kpis.manometroFalhaCount})` }
+                  ].map((pill) => (
+                    <button
+                      key={pill.id}
+                      onClick={() => setStatusFilter(pill.id as any)}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition-all whitespace-nowrap cursor-pointer ${
+                        statusFilter === pill.id
+                          ? 'bg-slate-900 text-white shadow-xs'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {pill.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Tabela de Extintores dentro do Drawer */}
+                <div className="overflow-x-auto rounded-xl border border-slate-200 scrollbar-thin">
+                  <table className="w-full text-left font-mono text-xs border-collapse min-w-[950px]">
+                    <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] tracking-wider font-bold border-b border-slate-200">
+                      <tr>
+                        <th className="py-3 px-4">Identificação / Patrimônio</th>
+                        <th className="py-3 px-4">Localização Setorial</th>
+                        <th className="py-3 px-4">Tipo & Carga</th>
+                        <th className="py-3 px-4 text-center">Manômetro (Pressão)</th>
+                        <th className="py-3 px-4">Validade Carga</th>
+                        <th className="py-3 px-4">Teste Hidrostático</th>
+                        <th className="py-3 px-4 text-center">Acessibilidade</th>
+                        <th className="py-3 px-4 text-center">Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 font-sans text-xs text-slate-800">
+                      {filteredExtintores.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} className="py-12 text-center text-slate-500 font-mono">
+                            Nenhum extintor encontrado com os filtros selecionados.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredExtintores.map((ext: any) => {
+                          const days = calculateDaysRemaining(ext.validadeRecarga || ext.data_vencimento_teste || ext.lastRecarga);
+                          const isExpiredRecarga = days !== null && days <= 0;
+                          const currentYear = new Date().getFullYear();
+                          const anoTeste = parseInt(ext.ano_ultimo_teste_hidro || ext.ultimoTesteHidro || currentYear, 10);
+                          const isExpiredHidro = (currentYear - anoTeste) >= 5;
+                          const isCo2 = (ext.model || '').toUpperCase().includes('CO2') || (ext.model || '').toUpperCase().includes('CO²');
+                          const isObstructed = ext.acessibilidade === 'Obstruído' || ext.status === 'Obstruído';
+                          const isManometroIrregular = !isCo2 && (ext.pressao_manometro === 'Fora da Faixa' || ext.status === 'Pressão Irregular');
+
+                          return (
+                            <tr key={`drawer-${ext.id || ext.idAtivo}`} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="py-3 px-4 font-mono">
+                                <div className="font-black text-slate-900">{ext.idAtivo || ext.patrimonio || 'EXT-SEM-ID'}</div>
+                                <span className="text-[10px] text-slate-500 font-normal block">
+                                  Chassi: {ext.chassi || ext.numero_serie || 'N/A'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="font-bold text-slate-900">{ext.location || ext.area || 'Setor Geral'}</div>
+                                <span className="text-[10px] text-slate-500 font-sans block">
+                                  {ext.subLocation || 'Posição Padrão'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 font-mono">
+                                <div className="font-bold text-slate-900 flex items-center gap-1">
+                                  <span>🧯 {ext.model || 'PQS ABC'}</span>
+                                </div>
+                                <span className="text-[10px] text-slate-500 block">
+                                  {ext.peso_capacidade || ext.peso || '6KG'} | Fab: {ext.fabricante || 'Kidde'}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                {isCo2 ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                                    N/A (CO2)
+                                  </span>
+                                ) : isManometroIrregular ? (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-red-100 text-red-800 border border-red-300 animate-pulse">
+                                    🔴 Fora da Faixa
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    🟢 OK
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 font-mono">
+                                <div className="font-bold text-slate-900">
+                                  {ext.validadeRecarga || ext.data_vencimento_teste || 'N/D'}
+                                </div>
+                                {days === null ? (
+                                  <span className="text-slate-400 text-[10px]">Indefinido</span>
+                                ) : isExpiredRecarga ? (
+                                  <span className="text-[10px] font-black text-red-600 block">🚨 Vencido</span>
+                                ) : days <= 30 ? (
+                                  <span className="text-[10px] font-black text-amber-700 block">⚠️ {days}d</span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-emerald-700 block">+{days}d</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 font-mono">
+                                <div className="font-bold text-slate-900">Ano: {anoTeste}</div>
+                                {isExpiredHidro ? (
+                                  <span className="text-[10px] font-black text-red-600 block">🚨 Vencido</span>
+                                ) : (
+                                  <span className="text-[10px] font-bold text-emerald-700 block">Até {anoTeste + 5}</span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                {isObstructed ? (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                    ⚠️ Obstruído
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                    🟢 Desobstruído
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4 text-center">
+                                <button
+                                  onClick={() => setSelectedAssetForHistory({ ...ext, category: 'Extintor' })}
+                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all cursor-pointer border border-slate-200"
+                                  title="Ver Histórico de Auditoria"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Rodapé do Drawer */}
+              <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-between text-xs font-mono text-slate-600 shrink-0">
+                <span>Exibindo {filteredExtintores.length} de {extintores.length} extintores monitorados</span>
+                <button
+                  onClick={() => setIsDrawerOpen(false)}
+                  className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold rounded-xl transition-all cursor-pointer border-none"
+                >
+                  Fechar Painel
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal de Cadastro de Extintor */}
       <ExtintorAddModal

@@ -286,17 +286,27 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
             >
               {/* Título do Quesito & Tag Impeditivo */}
               <div className="flex items-start justify-between gap-2.5 mb-3">
-                <div className="flex items-start gap-2 min-w-0">
-                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-slate-800 text-slate-300 font-mono text-[9px] font-bold flex items-center justify-center mt-0.5 border border-slate-700">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <span className={`flex-shrink-0 w-5 h-5 rounded-full font-mono text-[9px] font-black flex items-center justify-center mt-0.5 border ${
+                    isDark ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-slate-200 text-slate-900 border-slate-350'
+                  }`}>
                     {idx + 1}
                   </span>
-                  <p className="text-xs font-sans font-bold leading-snug text-slate-100">
+                  <p className={`text-xs font-sans font-bold leading-snug ${
+                    isReprovado 
+                      ? isDark ? 'text-red-200' : 'text-red-950'
+                      : isConforme 
+                      ? isDark ? 'text-emerald-200' : 'text-emerald-950'
+                      : isDark ? 'text-slate-100' : 'text-slate-900 font-extrabold'
+                  }`}>
                     {item.item}
                   </p>
                 </div>
 
                 {item.isImpeditivo && (
-                  <span className="flex-shrink-0 px-2 py-0.5 rounded-md bg-red-500/20 border border-red-500/40 text-red-450 text-[8px] font-mono font-bold uppercase tracking-widest flex items-center gap-1">
+                  <span className={`flex-shrink-0 px-2 py-0.5 rounded-md border text-[8px] font-mono font-black uppercase tracking-widest flex items-center gap-1 ${
+                    isDark ? 'bg-red-500/20 border-red-500/40 text-red-400' : 'bg-red-100 border-red-300 text-red-700'
+                  }`}>
                     <ShieldAlert size={10} />
                     Impeditivo
                   </span>
@@ -314,7 +324,7 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                       ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-900/30'
                       : isDark
                       ? 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-800'
-                      : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                      : 'bg-slate-100 border-slate-250 text-slate-800 hover:bg-slate-200 shadow-2xs'
                   }`}
                 >
                   <CheckCircle2 size={16} />
@@ -330,7 +340,7 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                       ? 'bg-red-600 text-white border-red-500 shadow-md shadow-red-900/30'
                       : isDark
                       ? 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-800'
-                      : 'bg-slate-100 border-slate-200 text-slate-700 hover:bg-slate-200'
+                      : 'bg-slate-100 border-slate-250 text-slate-800 hover:bg-slate-200 shadow-2xs'
                   }`}
                 >
                   <XCircle size={16} />
@@ -346,7 +356,7 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                       ? 'bg-slate-600 text-white border-slate-500'
                       : isDark
                       ? 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:bg-slate-800'
-                      : 'bg-slate-100 border-slate-200 text-slate-500 hover:bg-slate-200'
+                      : 'bg-slate-100 border-slate-250 text-slate-700 hover:bg-slate-200 shadow-2xs'
                   }`}
                 >
                   <MinusCircle size={16} />
@@ -363,20 +373,22 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                     exit={{ opacity: 0, height: 0 }}
                     className="mt-4 pt-3 border-t border-red-500/30 space-y-3 font-sans overflow-hidden"
                   >
-                    <div className="flex items-center gap-1.5 text-red-400 text-[10px] font-mono font-bold uppercase tracking-wider">
+                    <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-mono font-bold uppercase tracking-wider">
                       <AlertTriangle size={13} className="shrink-0 animate-pulse" />
                       Registro Obrigatório de Ocorrência & Evidências
                     </div>
 
                     {/* Seleção rápida de falha ou texto livre */}
                     <div className="space-y-1.5">
-                      <label className="text-[10px] font-mono text-slate-400 uppercase tracking-wider block">
+                      <label className={`text-[10px] font-mono uppercase tracking-wider block ${isDark ? 'text-slate-400' : 'text-slate-600 font-bold'}`}>
                         Motivo da Inconformidade:
                       </label>
                       <select
                         value={state.ocorrencia}
                         onChange={(e) => updateItem(item.id, { ocorrencia: e.target.value })}
-                        className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-750 text-slate-200 text-xs focus:outline-none focus:border-red-500 transition-colors"
+                        className={`w-full p-2.5 rounded-xl text-xs focus:outline-none focus:border-red-500 transition-colors ${
+                          isDark ? 'bg-slate-900 border border-slate-750 text-slate-200' : 'bg-white border border-slate-300 text-slate-900 shadow-2xs'
+                        }`}
                       >
                         <option value="">-- Selecione uma ocorrência padrão --</option>
                         {SUGESTOES_OCORRENCIAS.map((sug, sIdx) => (
@@ -389,7 +401,9 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                         placeholder="Ou digite a descrição detalhada da falha..."
                         value={state.ocorrencia}
                         onChange={(e) => updateItem(item.id, { ocorrencia: e.target.value })}
-                        className="w-full p-2.5 rounded-xl bg-slate-900 border border-slate-750 text-slate-100 text-xs placeholder:text-slate-500 focus:outline-none focus:border-red-500 transition-colors"
+                        className={`w-full p-2.5 rounded-xl text-xs focus:outline-none focus:border-red-500 transition-colors ${
+                          isDark ? 'bg-slate-900 border border-slate-750 text-slate-100 placeholder:text-slate-500' : 'bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 shadow-2xs'
+                        }`}
                       />
                     </div>
 

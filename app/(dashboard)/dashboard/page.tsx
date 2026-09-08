@@ -4,7 +4,6 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
-import { D3SectorHeatmap } from '@/app/components/D3Heatmap';
 import { copyToClipboard } from '@/lib/utils';
 import ExtintoresManagementDashboard from '@/app/components/ExtintoresManagementDashboard';
 
@@ -167,20 +166,33 @@ export default function DashboardPage() {
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-8">
       {/* Banner de Boas-Vindas */}
-      <div className="bg-gradient-to-r from-[#1e293b] via-[#232f34] to-[#0f172a] text-white p-6 md:p-8 rounded-3xl relative overflow-hidden shadow-2xl border border-white/5">
-        <div className="absolute -right-12 -top-12 w-64 h-64 bg-red-700/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true"></div>
-        <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="bg-gradient-to-r from-[#1e293b] via-[#232f34] to-[#0f172a] text-white p-6 md:p-8 rounded-3xl relative overflow-hidden shadow-2xl border border-white/5 min-h-[140px] flex items-center">
+        {/* Glow de fundo */}
+        <div className="absolute -right-12 -top-12 w-64 h-64 bg-red-700/10 rounded-full blur-3xl pointer-events-none" aria-hidden="true" />
+        
+        {/* Imagem de Fundo Integrada ao Canto Direito (Arte SPCI em Degradê e Meia Opaca) */}
+        <div 
+          className="absolute right-0 top-0 bottom-0 w-2/5 md:w-1/3 pointer-events-none bg-cover bg-right bg-no-repeat opacity-35 mix-blend-luminosity"
+          style={{ 
+            backgroundImage: "url('/login-bg.png')",
+            maskImage: 'linear-gradient(to left, rgba(0,0,0,1) 20%, rgba(0,0,0,0) 100%)',
+            WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,1) 20%, rgba(0,0,0,0) 100%)'
+          }}
+          aria-hidden="true"
+        />
+
+        <div className="relative z-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 w-full">
           <div>
-            <span className="bg-[#af101a] text-white text-[10px] font-bold py-1 px-3 rounded-full uppercase tracking-wider shadow-sm font-mono">Unidade Industrial 01</span>
-            <h2 className="font-['Hanken_Grotesk'] font-extrabold text-3xl md:text-4xl text-white tracking-tight mt-3">Ronda & Monitoramento SPCI</h2>
-            <p className="text-slate-300 text-sm mt-1">Inspeções registradas e em conformidade periódica com as normas técnicas.</p>
+            <span className="bg-[#af101a] text-white text-[10px] font-bold py-1 px-3 rounded-full uppercase tracking-wider shadow-sm font-mono">
+              Unidade Industrial 01
+            </span>
+            <h2 className="font-['Hanken_Grotesk'] font-extrabold text-3xl md:text-4xl text-white tracking-tight mt-3">
+              Ronda & Monitoramento SPCI
+            </h2>
+            <p className="text-slate-300 text-sm mt-1 max-w-xl">
+              Inspeções registradas e em conformidade periódica com as normas técnicas.
+            </p>
           </div>
-          <button 
-            onClick={() => setScanModal(true)}
-            className="px-6 py-3 bg-gradient-to-r from-red-600 via-rose-500 to-red-700 text-white font-['Hanken_Grotesk'] font-bold text-xs uppercase tracking-widest rounded-xl transition-all duration-300 shadow-xl shadow-red-950/30 transform hover:scale-105 active:scale-95 cursor-pointer border-none"
-          >
-            📷 APONTAR SCAN CÂMERA
-          </button>
         </div>
       </div>
 
@@ -362,13 +374,6 @@ export default function DashboardPage() {
 
       {/* ═══ MÓDULO EXECUTIVO & OPERACIONAL DE EXTINTORES SPCI ═══ */}
       <ExtintoresManagementDashboard />
-
-      {/* Mapa Térmico D3 de Zonas de Risco */}
-      <D3SectorHeatmap 
-        data={sectorStats} 
-        selectedCategory={selectedHeatmapCategory}
-        onSelectCategory={setSelectedHeatmapCategory}
-      />
 
       {/* Estatísticas por Setor e Logs Recentes */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
