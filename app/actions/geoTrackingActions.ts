@@ -319,9 +319,10 @@ function normalizePhotoPublicUrl(photoUrl: string | null | undefined, supabaseCl
 }
 
 /**
- * Retorna todos os ativos que possuem coordenadas geográficas válidas para o Mapa Operacional
+ * Retorna todos os ativos que possuem coordenadas geográficas válidas para o Mapa Operacional,
+ * aplicando segregação estrita por Contrato / Site (Multi-Tenant).
  */
-export async function getOperationalMapAssetsAction(): Promise<{
+export async function getOperationalMapAssetsAction(userSite?: string): Promise<{
   success: boolean;
   assets: any[];
   totalPlotados: number;
@@ -330,6 +331,21 @@ export async function getOperationalMapAssetsAction(): Promise<{
 }> {
   try {
     const supabase = getSupabaseAdminClient();
+    const isGlobal = !userSite || userSite.toUpperCase().startsWith('TODOS');
+    const targetSite = isGlobal ? null : userSite.trim().toUpperCase();
+
+    // Consultas filtradas por contrato/site quando aplicável
+    let extQuery = supabase.from('vw_extintores_publico').select('*');
+    let assetsQuery = supabase.from('assets').select('*').not('latitude', 'is', null).not('longitude', 'is', null);
+    let countQuery = supabase.from('inspecoes_realizadas').select('*', { count: 'exact', head: true }).not('details->geo_latitude', 'is', null);
+    let recentQuery = supabase.from('inspecoes_realizadas').select('asset_id, asset_patrimonio, foto_evidencia_url, details, created_at, site').order('created_at', { ascending: false }).limit(200);
+
+    if (targetSite) {
+      extQuery = extQuery.eq('site', targetSite);
+      assetsQuery = assetsQuery.eq('site', targetSite);
+      countQuery = countQuery.eq('site', targetSite);
+      recentQuery = recentQuery.eq('site', targetSite);
+    }
 
     // Executar consultas simultâneas no Supabase (Promise.all) para alta performance
     const [
@@ -338,10 +354,10 @@ export async function getOperationalMapAssetsAction(): Promise<{
       countRes,
       recentRes
     ] = await Promise.all([
-      supabase.from('vw_extintores_publico').select('*'),
-      supabase.from('assets').select('*').not('latitude', 'is', null).not('longitude', 'is', null),
-      supabase.from('inspecoes_realizadas').select('*', { count: 'exact', head: true }).not('details->geo_latitude', 'is', null),
-      supabase.from('inspecoes_realizadas').select('asset_id, asset_patrimonio, foto_evidencia_url, details, created_at').order('created_at', { ascending: false }).limit(200)
+      extQuery,
+      assetsQuery,
+      countQuery,
+      recentQuery
     ]);
 
     // 1. Processar metadados de extintores

@@ -51,18 +51,16 @@ export async function dispatchRealtimeInspectionEvent(inspecao: InspecaoRealizad
  * 2. Templates mais recentes de checklist ativos configurados no admin
  * 3. Metadados de setores e locais
  */
-export async function prefetchAndHydrateOfflineData(): Promise<{ success: boolean; totalAssets: number }> {
+export async function prefetchAndHydrateOfflineData(userSite?: string): Promise<{ success: boolean; totalAssets: number }> {
   if (typeof window === 'undefined') return { success: false, totalAssets: 0 };
 
   try {
-    console.log('[dbSync] Iniciando prefetch e hidratação de dados offline...');
+    console.log(`[dbSync] Iniciando prefetch e hidratação de dados offline para contrato: ${userSite || 'GLOBAL'}...`);
 
-    // 1. Pré-carga dos ativos de extintores
-    const assets = await getAssetsList('extintores');
-    if (assets && assets.length > 0) {
-      await idb.setAll('extintores', assets);
-      console.log(`[dbSync] ${assets.length} ativos salvos no cache IndexedDB.`);
-    }
+    // 1. Pré-carga dos ativos de extintores filtrados pelo contrato do usuário
+    const assets = await getAssetsList('extintores', userSite);
+    await idb.setAll('extintores', assets || []);
+    console.log(`[dbSync] ${assets?.length || 0} ativos salvos no cache IndexedDB para [${userSite || 'GLOBAL'}].`);
 
     // 2. Pré-carga dos templates de checklist ativos
     try {

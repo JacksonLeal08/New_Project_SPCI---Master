@@ -14,12 +14,19 @@ import {
   Copy
 } from 'lucide-react';
 import { copyToClipboard } from '@/lib/utils';
-import { createSiteAction, fetchSitesAction, deleteSiteAction } from '@/app/actions/userActions';
+import { 
+  fetchSitesAction, 
+  fetchContratosAction, 
+  createContratoAction, 
+  deleteContratoAction 
+} from '@/app/actions/userActions';
 import SuppliersManagementBento from '@/app/components/SuppliersManagementBento';
 
 
 const DEFAULT_SITES = [
-  'TODOS OS SITES (Acesso Global)'
+  'TODOS OS SITES (Acesso Global)',
+  'SALOBO',
+  'ONÇA PUMA'
 ];
 
 export default function ConfiguracoesPage() {
@@ -45,57 +52,85 @@ export default function ConfiguracoesPage() {
   } = useSpci();
 
   // Navigation tab state
-  const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'suppliers'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'suppliers' | 'contratos'>('profile');
 
-  // Guard: exclusive for admin/dev and credential login (google users blocked)
-  const isAdmin = userProfile?.role === 'Administrador' || userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'admin';
+  // Guard: exclusive for admin/dev/gestor and credential login (google users blocked)
+  const isAdmin = userProfile?.role === 'Administrador' || userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Gestor' || userProfile?.role === 'admin';
+  const canManageContratos = userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Gestor';
 
   // --- TAB 1: MEU PERFIL STATES ---
   const [profileNameInput, setProfileNameInput] = useState('');
   const [profileLogoUrlInput, setProfileLogoUrlInput] = useState('');
   const [updatingProfile, setUpdatingProfile] = useState(false);
 
-  // --- SITES DINÂMICOS STATES ---
+  // --- SITES & CONTRATOS STATES ---
   const [sitesList, setSitesList] = useState<string[]>(DEFAULT_SITES);
+  const [contratosList, setContratosList] = useState<any[]>([]);
+  const [loadingContratos, setLoadingContratos] = useState<boolean>(false);
+  const [newContratoNome, setNewContratoNome] = useState<string>('');
+  const [newContratoDesc, setNewContratoDesc] = useState<string>('');
+  const [creatingContrato, setCreatingContrato] = useState<boolean>(false);
+
   const [newInviteSiteInput, setNewInviteSiteInput] = useState<string>('');
   const [showNewInviteSiteInput, setShowNewInviteSiteInput] = useState<boolean>(false);
 
   const [newEditSiteInput, setNewEditSiteInput] = useState<string>('');
   const [showNewEditSiteInput, setShowNewEditSiteInput] = useState<boolean>(false);
 
-  // Sync sites with localStorage, public.locais table & existing userList sites on load
+  // ESC key handler for modals
   useEffect(() => {
-    let isMounted = true;
-    const syncAllSites = async () => {
-      try {
-        const stored = localStorage.getItem('spci_custom_sites');
-        let customSites: string[] = stored ? JSON.parse(stored) : [];
-        const userSites = userList.map(u => u.site).filter(Boolean);
-
-        const dbRes = await fetchSitesAction();
-        const dbSites = dbRes.sites || [];
-
-        if (isMounted) {
-          const combined = Array.from(new Set([...DEFAULT_SITES, ...customSites, ...userSites, ...dbSites]));
-          setSitesList(combined);
-        }
-      } catch (e) {
-        console.warn('Erro ao carregar lista de sites:', e);
-      }
+    const handleEsc = () => {
+      setShowInviteModal(false);
+      setEditingUser(null);
+      setUserToDelete(null);
+      setSharingUser(null);
+      setCreatedCredentials(null);
+      setShowNewInviteSiteInput(false);
+      setShowNewEditSiteInput(false);
     };
+    window.addEventListener('spci-close-modals', handleEsc);
+    return () => window.removeEventListener('spci-close-modals', handleEsc);
+  }, []);
 
-    syncAllSites();
-    return () => { isMounted = false; };
-  }, [userList]);
+  // Sync contratos e sites oficiais
+  const syncAllContratos = async () => {
+    setLoadingContratos(true);
+    try {
+      const res = await fetchContratosAction();
+      if (res.success && res.contratos) {
+        setContratosList(res.contratos);
+        const dbNomes = res.contratos.map((c: any) => c.nome);
+        const combined = Array.from(new Set([...DEFAULT_SITES, ...dbNomes]));
+        setSitesList(combined);
+      } else {
+        const sitesRes = await fetchSitesAction();
+        const combined = Array.from(new Set([...DEFAULT_SITES, ...(sitesRes.sites || [])]));
+        setSitesList(combined);
+      }
+    } catch (e) {
+      console.warn('Erro ao carregar contratos/sites:', e);
+    } finally {
+      setLoadingContratos(false);
+    }
+  };
+
+  useEffect(() => {
+    syncAllContratos();
+  }, []);
 
   const handleAddNewSite = async (newSiteName: string, targetModal: 'invite' | 'edit') => {
     const trimmed = newSiteName.trim().toUpperCase();
     if (!trimmed) return;
 
+    if (!canManageContratos) {
+      showAlertModal('Acesso Restrito 🔒', 'Somente usuários com perfil Desenvolvedor ou Gestor têm permissão para cadastrar novos contratos/sites.', 'warning');
+      return;
+    }
+
     // Check duplicate (case-insensitive)
     const existing = sitesList.find(s => s.toLowerCase() === trimmed.toLowerCase());
     if (existing) {
-      showAlertModal('Site Já Cadastrado 🏢', `O site "${existing}" já está registrado e disponível no sistema!`, 'warning');
+      showAlertModal('Contrato Já Cadastrado 🏢', `O contrato/site "${existing}" já está registrado e disponível no sistema!`, 'warning');
       if (targetModal === 'invite') {
         setInviteSite(existing);
         setShowNewInviteSiteInput(false);
@@ -108,21 +143,22 @@ export default function ConfiguracoesPage() {
       return;
     }
 
-    const updatedSites = [...sitesList, trimmed];
-    setSitesList(updatedSites);
+    // Persiste no banco Supabase na tabela public.contratos
     try {
-      const customOnly = updatedSites.filter(s => !DEFAULT_SITES.includes(s));
-      localStorage.setItem('spci_custom_sites', JSON.stringify(customOnly));
-    } catch (e) {
-      console.warn('Erro salvando novos sites:', e);
+      const res = await createContratoAction({
+        nome: trimmed,
+        codigo: trimmed.replace(/\s+/g, '_')
+      });
+      if (!res.success) {
+        throw new Error(res.error || 'Falha ao salvar contrato no banco.');
+      }
+    } catch (dbErr: any) {
+      showAlertModal('Erro ao Cadastrar Contrato ❌', dbErr.message || 'Falha ao salvar no banco.', 'error');
+      return;
     }
 
-    // Persiste no banco Supabase (tabela public.locais)
-    try {
-      await createSiteAction(trimmed);
-    } catch (dbErr: any) {
-      console.warn('Aviso ao persistir site no banco:', dbErr);
-    }
+    const updatedSites = [...sitesList, trimmed];
+    setSitesList(updatedSites);
 
     if (targetModal === 'invite') {
       setInviteSite(trimmed);
@@ -134,39 +170,35 @@ export default function ConfiguracoesPage() {
       setNewEditSiteInput('');
     }
 
-    triggerSuccessNotification('Novo Site Cadastrado! 🏢', `O site "${trimmed}" foi registrado e salvo no Supabase (tabela locais).`);
+    await syncAllContratos();
+    triggerSuccessNotification('Novo Contrato Cadastrado! 🏢', `O contrato/site "${trimmed}" foi registrado e homologado no Supabase.`);
   };
 
   const handleDeleteSite = async (siteName: string) => {
-    // Protege o site default — não pode ser excluído
-    if (DEFAULT_SITES.includes(siteName)) {
-      showAlertModal('Ação Bloqueada 🔒', 'O site "TODOS OS SITES (Acesso Global)" é padrão do sistema e não pode ser removido.', 'warning');
+    if (!canManageContratos) {
+      showAlertModal('Acesso Restrito 🔒', 'Somente usuários com perfil Desenvolvedor ou Gestor podem remover contratos.', 'warning');
+      return;
+    }
+
+    // Protege os contratos default — não podem ser excluídos
+    if (['TODOS OS SITES (Acesso Global)', 'SALOBO', 'ONÇA PUMA'].includes(siteName.toUpperCase())) {
+      showAlertModal('Ação Bloqueada 🔒', `O contrato "${siteName}" é estrutural do sistema e não pode ser removido.`, 'warning');
       return;
     }
 
     try {
-      // Remove do Supabase (tabela locais)
-      const res = await deleteSiteAction(siteName);
+      // Procura o contrato correspondente
+      const targetContrato = contratosList.find(c => c.nome.toUpperCase() === siteName.toUpperCase());
+      const res = await deleteContratoAction(targetContrato ? targetContrato.id : siteName);
       if (!res.success) {
-        showAlertModal('Erro ao Excluir Site ❌', res.error || 'Falha ao remover o site do banco de dados.', 'error');
+        showAlertModal('Erro ao Excluir Contrato ❌', res.error || 'Falha ao remover o contrato do banco de dados.', 'error');
         return;
       }
 
-      // Remove do estado local
-      const updatedSites = sitesList.filter(s => s.toUpperCase() !== siteName.toUpperCase());
-      setSitesList(updatedSites);
-
-      // Limpa do localStorage
-      try {
-        const customOnly = updatedSites.filter(s => !DEFAULT_SITES.includes(s));
-        localStorage.setItem('spci_custom_sites', JSON.stringify(customOnly));
-      } catch (e) {
-        console.warn('Erro limpando localStorage:', e);
-      }
-
-      triggerSuccessNotification('Site Removido! 🗑️', `O site "${siteName}" foi excluído do sistema e do Supabase.`);
+      await syncAllContratos();
+      triggerSuccessNotification('Contrato Removido! 🗑️', `O contrato "${siteName}" foi desativado do sistema.`);
     } catch (err: any) {
-      showAlertModal('Erro ao Excluir Site ❌', err?.message || 'Falha inesperada.', 'error');
+      showAlertModal('Erro ao Excluir Contrato ❌', err?.message || 'Falha inesperada.', 'error');
     }
   };
 
@@ -186,7 +218,7 @@ export default function ConfiguracoesPage() {
   const [inviteUsername, setInviteUsername] = useState('');
   const [inviteName, setInviteName] = useState('');
   const [invitePhone, setInvitePhone] = useState('');
-  const [inviteRole, setInviteRole] = useState<'Desenvolvedor' | 'Administrador' | 'Usuário'>('Usuário');
+  const [inviteRole, setInviteRole] = useState<'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário'>('Usuário');
   const [inviteSite, setInviteSite] = useState<string>('TODOS OS SITES (Acesso Global)');
   const [inviteExpiresAt, setInviteExpiresAt] = useState('');
   const [invitePassword, setInvitePassword] = useState('');
@@ -207,7 +239,7 @@ export default function ConfiguracoesPage() {
   const [editUsername, setEditUsername] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [editPhone, setEditPhone] = useState('');
-  const [editRole, setEditRole] = useState<'Desenvolvedor' | 'Administrador' | 'Usuário'>('Usuário');
+  const [editRole, setEditRole] = useState<'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário'>('Usuário');
   const [editSite, setEditSite] = useState<string>('TODOS OS SITES (Acesso Global)');
   const [editStatus, setEditStatus] = useState<'Ativo' | 'Pendente' | 'Inativo/Suspenso'>('Ativo');
   const [editExpiresAt, setEditExpiresAt] = useState('');
@@ -358,6 +390,18 @@ export default function ConfiguracoesPage() {
         >
           <span>🏢</span> Fornecedores & Prestadores
         </button>
+        {canManageContratos && (
+          <button 
+            onClick={() => setActiveTab('contratos')}
+            className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-t-xl flex items-center gap-2 ${
+              activeTab === 'contratos' 
+                ? 'bg-white border-t-2 border-t-red-600 border-x border-x-slate-200 text-red-600 font-extrabold shadow-xs' 
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'
+            }`}
+          >
+            <span>📋</span> Gestão de Contratos (Sites)
+          </button>
+        )}
       </div>
 
       {/* TAB CONTENT PANELS */}
@@ -705,6 +749,7 @@ export default function ConfiguracoesPage() {
                                 {(userProfile?.role === 'Desenvolvedor' || u.role === 'Desenvolvedor') && (
                                   <option value="Desenvolvedor">💻 Desenvolvedor</option>
                                 )}
+                                <option value="Gestor">👔 Gestor</option>
                                 <option value="Administrador">🛡️ Administrador</option>
                                 <option value="Usuário">👷 Técnico de Campo</option>
                               </select>
@@ -773,6 +818,210 @@ export default function ConfiguracoesPage() {
             className="space-y-6"
           >
             <SuppliersManagementBento />
+          </motion.div>
+        )}
+
+        {/* TAB 4: GESTÃO DE CONTRATOS & SITES (EXCLUSIVO DESENVOLVEDOR E GESTOR) */}
+        {activeTab === 'contratos' && canManageContratos && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-6"
+          >
+            {/* Header & New Contract Form Card */}
+            <div className="bg-white border border-slate-200 p-6 shadow-sm relative space-y-5 rounded-2xl">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-red-600 rounded-t-2xl" />
+              
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-2 font-mono">
+                    <span>🏢</span> Gerenciamento de Contratos & Plantas Oficiais
+                  </h3>
+                  <p className="text-[11px] text-slate-500 font-sans mt-0.5">
+                    Contratos definem as unidades de segregação multi-tenant do sistema SPCI. Os ativos e inspeções são isolados estritamente por contrato.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="px-3 py-1 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 font-mono">
+                    Total: {sitesList.filter(s => !s.startsWith('TODOS')).length} Contratos
+                  </span>
+                  <button
+                    onClick={syncAllContratos}
+                    disabled={loadingContratos}
+                    className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl border border-slate-200 transition-all cursor-pointer"
+                    title="Atualizar lista de contratos"
+                  >
+                    <RefreshCw className={`w-4 h-4 ${loadingContratos ? 'animate-spin text-red-600' : ''}`} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Formulário de Cadastro de Novo Contrato */}
+              <form 
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const trimmed = newContratoNome.trim().toUpperCase();
+                  if (!trimmed) return;
+                  setCreatingContrato(true);
+                  try {
+                    const res = await createContratoAction({
+                      nome: trimmed,
+                      codigo: trimmed.replace(/\s+/g, '_'),
+                      descricao: newContratoDesc.trim() || undefined
+                    });
+                    if (!res.success) {
+                      throw new Error(res.error || 'Falha ao cadastrar contrato.');
+                    }
+                    setNewContratoNome('');
+                    setNewContratoDesc('');
+                    await syncAllContratos();
+                    triggerSuccessNotification('Contrato Registrado! 🏢', `O contrato "${trimmed}" foi criado e já está disponível para vinculação de usuários e ativos.`);
+                  } catch (err: any) {
+                    showAlertModal('Erro ao Cadastrar ❌', err.message || 'Falha ao cadastrar contrato.', 'error');
+                  } finally {
+                    setCreatingContrato(false);
+                  }
+                }}
+                className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1"
+              >
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Nome do Contrato / Site *</label>
+                  <input
+                    type="text"
+                    required
+                    value={newContratoNome}
+                    onChange={(e) => setNewContratoNome(e.target.value.toUpperCase())}
+                    placeholder="Ex: PROJETO SOSSEGO"
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none shadow-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[9px] font-bold uppercase text-slate-500">Descrição / Cidade / UF</label>
+                  <input
+                    type="text"
+                    value={newContratoDesc}
+                    onChange={(e) => setNewContratoDesc(e.target.value)}
+                    placeholder="Ex: Unidade Canaã dos Carajás - PA"
+                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none shadow-xs"
+                  />
+                </div>
+
+                <div className="flex items-end">
+                  <button
+                    type="submit"
+                    disabled={creatingContrato || !newContratoNome.trim()}
+                    className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer border-none shadow-md disabled:opacity-40 flex items-center justify-center gap-2 active:scale-98"
+                  >
+                    {creatingContrato ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full inline-block"></span>
+                        CADASTRANDO...
+                      </>
+                    ) : (
+                      <>
+                        <span>➕</span> Cadastrar Novo Contrato
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Tabela de Contratos Cadastrados */}
+            <div className="bg-white border border-slate-200 shadow-sm relative overflow-hidden rounded-2xl">
+              <div className="p-4 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase text-slate-700 tracking-wider font-mono">
+                  Lista de Contratos e Plantas Reconhecidas
+                </span>
+                <span className="text-[9px] text-slate-500 font-sans">
+                  Segregação por RLS e Localidade Ativa
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 text-[9px] uppercase tracking-wider text-slate-400 bg-slate-50/50">
+                      <th className="p-4 font-bold">Contrato / Site</th>
+                      <th className="p-4 font-bold">Identificador / Código</th>
+                      <th className="p-4 font-bold">Status</th>
+                      <th className="p-4 font-bold text-center">Governança</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {/* Linhas de Contratos Base */}
+                    {['SALOBO', 'ONÇA PUMA'].map((baseName) => (
+                      <tr key={baseName} className="hover:bg-slate-50/70 transition-all text-slate-700">
+                        <td className="p-4 font-black text-slate-900 flex items-center gap-2">
+                          <span className="text-base">🏭</span>
+                          <div>
+                            <p className="font-extrabold text-slate-900">{baseName}</p>
+                            <span className="text-[9px] text-slate-400 font-sans">Planta Operacional SPCI</span>
+                          </div>
+                        </td>
+                        <td className="p-4 font-mono text-[10px] text-slate-600 font-bold">
+                          SITE_{baseName.replace(/\s+/g, '_')}
+                        </td>
+                        <td className="p-4">
+                          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[9px] font-extrabold uppercase">
+                            🟢 Ativo (Homologado)
+                          </span>
+                        </td>
+                        <td className="p-4 text-center">
+                          <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[9px] font-bold uppercase inline-flex items-center gap-1">
+                            <span>🔒</span> Contrato Base Protegido
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+
+                    {/* Outros Contratos Cadastrados */}
+                    {contratosList
+                      .filter(c => !['SALOBO', 'ONÇA PUMA'].includes(c.nome.toUpperCase()))
+                      .map((contrato) => (
+                        <tr key={contrato.id || contrato.nome} className="hover:bg-slate-50/70 transition-all text-slate-700">
+                          <td className="p-4 font-black text-slate-900 flex items-center gap-2">
+                            <span className="text-base">🏢</span>
+                            <div>
+                              <p className="font-extrabold text-slate-900">{contrato.nome}</p>
+                              {contrato.descricao && (
+                                <span className="text-[9px] text-slate-400 font-sans">{contrato.descricao}</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-4 font-mono text-[10px] text-slate-600 font-bold">
+                            {contrato.codigo || `SITE_${contrato.nome.replace(/\s+/g, '_')}`}
+                          </td>
+                          <td className="p-4">
+                            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[9px] font-extrabold uppercase">
+                              🟢 Ativo
+                            </span>
+                          </td>
+                          <td className="p-4 text-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                showConfirmModal({
+                                  title: 'Excluir Contrato 🗑️',
+                                  message: `Deseja realmente desativar e excluir o contrato "${contrato.nome}"? Usuários vinculados a ele perderão o acesso a essa planta.`,
+                                  type: 'error',
+                                  confirmText: 'EXCLUIR CONTRATO',
+                                  cancelText: 'CANCELAR',
+                                  onConfirm: () => handleDeleteSite(contrato.nome)
+                                });
+                              }}
+                              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer"
+                            >
+                              Excluir
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </motion.div>
         )}
 
@@ -988,6 +1237,7 @@ export default function ConfiguracoesPage() {
                       className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
                     >
                       {userProfile?.role === 'Desenvolvedor' && <option value="Desenvolvedor">💻 Desenvolvedor</option>}
+                      <option value="Gestor">👔 Gestor</option>
                       <option value="Administrador">🛡️ Administrador</option>
                       <option value="Usuário">👷 Técnico de Campo</option>
                     </select>
@@ -1613,6 +1863,7 @@ export default function ConfiguracoesPage() {
                     className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
                   >
                     {userProfile?.role === 'Desenvolvedor' && <option value="Desenvolvedor">💻 Desenvolvedor</option>}
+                    <option value="Gestor">👔 Gestor</option>
                     <option value="Administrador">🛡️ Administrador</option>
                     <option value="Usuário">👷 Técnico de Campo</option>
                   </select>

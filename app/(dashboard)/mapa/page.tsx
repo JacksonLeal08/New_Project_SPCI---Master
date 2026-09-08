@@ -60,10 +60,13 @@ export default function MapaOperacionalPage() {
     else setLoading(true);
 
     try {
-      const res = await getOperationalMapAssetsAction();
+      const res = await getOperationalMapAssetsAction(userProfile?.site);
       if (res.success && res.assets) {
         setAssets(res.assets);
         setTotalInspectionsWithGps(res.totalInspecoesComGps || 0);
+      } else {
+        setAssets([]);
+        setTotalInspectionsWithGps(0);
       }
     } catch (err) {
       console.error('Erro ao carregar dados geoespaciais do mapa:', err);
@@ -75,7 +78,7 @@ export default function MapaOperacionalPage() {
 
   useEffect(() => {
     loadMapData();
-  }, []);
+  }, [userProfile?.site]);
 
   // Filtragem reativa
   const filteredAssets = useMemo(() => {
@@ -195,11 +198,14 @@ export default function MapaOperacionalPage() {
               <MapPin className="w-6 h-6" />
             </div>
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex items-center gap-2.5">
+              <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white flex flex-wrap items-center gap-2.5">
                 Mapa Operacional de Ativos
                 <span className="text-xs font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-ping" />
                   Tempo Real
+                </span>
+                <span className="text-xs font-mono font-bold px-2.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 flex items-center gap-1 uppercase">
+                  📍 {userProfile?.site || 'TODOS OS SITES'}
                 </span>
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">

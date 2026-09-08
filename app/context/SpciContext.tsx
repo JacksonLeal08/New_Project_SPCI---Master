@@ -149,10 +149,10 @@ interface SpciContextType {
   addConsoleLog: (msg: string, type?: 'ERRO' | 'SUCESSO' | 'INFO') => void;
   handleSystemLogout: () => Promise<void>;
   handleUpdateLogoAndProfile: (logoUrl: string, name: string) => Promise<void>;
-  handleAdminRoleStatusChange: (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => Promise<void>;
+  handleAdminRoleStatusChange: (uid: string, newRole: 'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário', newStatus: string) => Promise<void>;
   handleAdminDeleteUser: (uid: string) => Promise<void>;
-  handleUpdateUserFull: (uid: string, payload: { name: string; username: string; email: string; phone: string; role: 'Desenvolvedor' | 'Administrador' | 'Usuário'; status: 'Ativo' | 'Pendente' | 'Inativo/Suspenso'; expiresAt: string | null; password?: string; allowedModules?: string[] | null; site?: string | null; }) => Promise<any>;
-  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Administrador' | 'Usuário', password: string, phone: string, expiresAt?: string | null, allowedModules?: string[] | null, site?: string | null) => Promise<any>;
+  handleUpdateUserFull: (uid: string, payload: { name: string; username: string; email: string; phone: string; role: 'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário'; status: 'Ativo' | 'Pendente' | 'Inativo/Suspenso'; expiresAt: string | null; password?: string; allowedModules?: string[] | null; site?: string | null; }) => Promise<any>;
+  handleInviteUser: (email: string, username: string, name: string, role: 'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário', password: string, phone: string, expiresAt?: string | null, allowedModules?: string[] | null, site?: string | null) => Promise<any>;
   handleCredentialsLogin: (identifier: string, pass: string) => Promise<boolean>;
   isGoogleUser: boolean;
   fetchUsers: () => Promise<void>;
@@ -169,7 +169,7 @@ interface SpciContextType {
   requestAssetDeletion: (asset: any, assetType: string, onConfirm: () => Promise<void> | void) => void;
   lastSyncTime: Date | null;
   auditLogs: any[];
-  logSystemAction: (action: string, tipoAtivo?: string, patrimonio?: string, detalhes?: string) => Promise<void>;
+  logSystemAction: (action: string, tipoAtivo?: string, patrimonio?: string, detalhes?: string, userOverride?: { id?: string | null; name?: string; email?: string; role?: string }) => Promise<void>;
 
   // Notificações
   notifications: NotificationItem[];
@@ -207,6 +207,26 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Auth
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<any | null>(null);
+  const userProfileRef = React.useRef<any>(null);
+  useEffect(() => {
+    userProfileRef.current = userProfile;
+  }, [userProfile]);
+
+  // Global ESC key listener to dismiss open modals/drawers
+  useEffect(() => {
+    const handleGlobalKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('spci-close-modals'));
+        }
+        setChatOpened(false);
+        setDeleteConfirmation(null);
+        setAlertModalState(prev => prev.isOpen ? { ...prev, isOpen: false } : prev);
+      }
+    };
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, []);
   const [isGoogleUser, setIsGoogleUser] = useState<boolean>(false);
   const [authChecking, setAuthChecking] = useState<boolean>(true);
   const [userList, setUserList] = useState<any[]>([]);
@@ -392,15 +412,25 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   }, []);
 
-  const logSystemAction = useCallback(async (action: string, tipoAtivo?: string, patrimonio?: string, detalhes?: string) => {
+  const logSystemAction = useCallback(async (
+    action: string, 
+    tipoAtivo?: string, 
+    patrimonio?: string, 
+    detalhes?: string,
+    userOverride?: { id?: string | null; name?: string; email?: string; role?: string }
+  ) => {
     try {
-      const activeUser = userProfile || currentUser;
-      const userName = activeUser?.name || activeUser?.displayName || (activeUser?.email ? activeUser.email.split('@')[0] : 'Sistema/Técnico');
-      const userEmail = activeUser?.email || 'N/A';
+      const activeProfile = userOverride || userProfileRef.current || userProfile;
+      const activeUser = activeProfile || currentUser;
+      const rawName = activeProfile?.name || activeUser?.name || activeUser?.displayName || (activeUser?.email ? activeUser.email.split('@')[0] : 'Sistema/Técnico');
+      const rawRole = activeProfile?.role ? String(activeProfile.role).toUpperCase() : '';
+      const userName = rawRole ? `${rawName} [${rawRole}]` : rawName;
+      const userEmail = activeProfile?.email || activeUser?.email || 'N/A';
+      const userId = activeProfile?.uid || activeProfile?.id || activeUser?.uid || null;
 
       const newLog = {
         id: generateUUID(),
-        usuario_id: activeUser?.uid || null,
+        usuario_id: userId,
         usuario_nome: userName,
         usuario_email: userEmail,
         acao: action,
@@ -988,8 +1018,13 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (sessionStorage.getItem('spci_login_pending') === 'true') {
             sessionStorage.removeItem('spci_login_pending');
             setTimeout(() => {
-              logSystemAction('LOGIN', undefined, undefined, `Login efetuado com sucesso via autenticação Google.`);
-            }, 1000);
+              logSystemAction('LOGIN', undefined, undefined, `Login efetuado com sucesso via autenticação Google.`, {
+                id: profile.uid,
+                name: profile.name,
+                email: profile.email,
+                role: profile.role
+              });
+            }, 500);
           }
 
           if (profile.dataExpiracao) {
@@ -1367,7 +1402,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     await deleteAsset('extintores', assetId);
   }, [deleteAsset]);
 
-  const handleAdminRoleStatusChange = useCallback(async (uid: string, newRole: 'Desenvolvedor' | 'Administrador' | 'Usuário', newStatus: string) => {
+  const handleAdminRoleStatusChange = useCallback(async (uid: string, newRole: 'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário', newStatus: string) => {
     try {
       const dbStatus = (newStatus === 'active' || newStatus === 'Ativo') ? 'Ativo' : (newStatus === 'pending' || newStatus === 'Pendente') ? 'Pendente' : 'Inativo/Suspenso';
       const res = await updateUserStatusAction(uid, { role: newRole, status: dbStatus as any });
@@ -1389,7 +1424,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       username: string;
       email: string;
       phone: string;
-      role: 'Desenvolvedor' | 'Administrador' | 'Usuário';
+      role: 'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário';
       status: 'Ativo' | 'Pendente' | 'Inativo/Suspenso';
       expiresAt: string | null;
       password?: string;
@@ -1469,7 +1504,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     email: string, 
     username: string, 
     name: string, 
-    role: 'Desenvolvedor' | 'Administrador' | 'Usuário', 
+    role: 'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário', 
     password: string,
     phone: string,
     expiresAt: string | null = null,
@@ -1525,7 +1560,13 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // --- SYSTEM LOGOUT & SESSION REVOCATION ---
   const handleSystemLogout = useCallback(async () => {
     try {
-      await logSystemAction('LOGOUT', undefined, undefined, 'Sessão encerrada pelo usuário.');
+      const activeProf = userProfileRef.current || userProfile;
+      await logSystemAction('LOGOUT', undefined, undefined, 'Sessão encerrada pelo usuário.', activeProf ? {
+        id: activeProf.uid,
+        name: activeProf.name,
+        email: activeProf.email,
+        role: activeProf.role
+      } : undefined);
       
       // Revogar sessões compartilhadas ativas criadas por este usuário ao deslogar
       if (currentUser) {
@@ -1554,7 +1595,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err: any) {
       console.error(err);
     }
-  }, [currentUser, triggerSuccessNotification, addConsoleLog, logSystemAction]);
+  }, [currentUser, userProfile, triggerSuccessNotification, addConsoleLog, logSystemAction]);
 
   const handleCredentialsLogin = useCallback(async (identifier: string, pass: string) => {
     setAuthChecking(true);
@@ -1597,9 +1638,12 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         addConsoleLog(`[Autenticação] Login com sucesso de ${profile.name} (${profile.role})`, 'SUCESSO');
         triggerSuccessNotification("Login Realizado! 🟢", `Bem-vindo de volta, ${profile.name}!`);
         
-        setTimeout(() => {
-          logSystemAction('LOGIN', undefined, undefined, `Login efetuado com sucesso via credenciais.`);
-        }, 500);
+        logSystemAction('LOGIN', undefined, undefined, `Login efetuado com sucesso via credenciais.`, {
+          id: profile.uid,
+          name: profile.name,
+          email: profile.email,
+          role: profile.role
+        });
 
         return true;
       }

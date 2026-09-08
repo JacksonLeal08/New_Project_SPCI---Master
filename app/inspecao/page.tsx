@@ -37,6 +37,7 @@ import { idb } from '@/lib/indexedDb';
 import { useSync } from '@/hooks/useSync';
 import { extractIdOrHashFromUrl, formatDateBr } from '@/lib/utils';
 import { prefetchAndHydrateOfflineData } from '@/lib/dbSync';
+import { useSpci } from '@/app/context/SpciContext';
 
 // Mapeamento de categorias de ativos
 interface Categoria {
@@ -49,6 +50,7 @@ interface Categoria {
 
 export default function PortalTecnicoPage() {
   const router = useRouter();
+  const { userProfile } = useSpci();
 
   // Estados de Controle Geral e Tema
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
@@ -133,7 +135,8 @@ export default function PortalTecnicoPage() {
   const loadCategoryAssets = useCallback(async () => {
     try {
       setLoading(true);
-      const list = await getAssetsList(selectedCategory);
+      const userSite = userProfile?.site;
+      const list = await getAssetsList(selectedCategory, userSite);
       setAssets(list || []);
 
       if (list && list.length > 0) {
@@ -143,16 +146,21 @@ export default function PortalTecnicoPage() {
       console.warn('Buscando cache offline do IndexedDB...', err);
       try {
         const localList = await idb.getAll(selectedCategory);
-        setAssets(localList || []);
+        const userSite = userProfile?.site;
+        const isGlobal = !userSite || userSite.toUpperCase().startsWith('TODOS');
+        const filtered = isGlobal 
+          ? localList 
+          : (localList || []).filter((item: any) => (item.site || item.contrato || '').toUpperCase() === userSite.toUpperCase());
+        setAssets(filtered || []);
       } catch (dbErr) {
         console.error('Erro ao ler cache local do IndexedDB:', dbErr);
       }
     } finally {
       setLoading(false);
     }
-  }, [selectedCategory]);
+  }, [selectedCategory, userProfile?.site]);
 
-  // Sincroniza o tema e pré-carrega cache offline do IndexedDB
+  // Sincroniza o tema e pré-carrega cache offline do IndexedDB filtrado pelo contrato do usuário
   useEffect(() => {
     const savedTheme = localStorage.getItem('spci_portal_theme') as 'light' | 'dark';
     const timer = setTimeout(() => {
@@ -160,15 +168,15 @@ export default function PortalTecnicoPage() {
       if (savedTheme) {
         setTheme(savedTheme);
       }
-      // Pré-carga em segundo plano para operação offline garantida
-      prefetchAndHydrateOfflineData().catch(err => {
+      // Pré-carga em segundo plano para operação offline com segregação de contrato
+      prefetchAndHydrateOfflineData(userProfile?.site).catch(err => {
         console.warn('[PortalTecnico] Falha ao pré-carregar dados offline:', err);
       });
     }, 0);
     return () => clearTimeout(timer);
-  }, []);
+  }, [userProfile?.site]);
 
-  // Recarrega lista de ativos ao trocar de categoria
+  // Recarrega lista de ativos ao trocar de categoria ou mudar de contrato
   useEffect(() => {
     const timer = setTimeout(() => {
       loadCategoryAssets();

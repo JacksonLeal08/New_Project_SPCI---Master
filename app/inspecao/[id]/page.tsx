@@ -54,7 +54,7 @@ interface CategoriaOpcao {
 }
 
 function InspecaoOuCadastroContent() {
-  const { logSystemAction, complianceLogs, extintorChecklist } = useSpci();
+  const { logSystemAction, complianceLogs, extintorChecklist, userProfile } = useSpci();
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -222,8 +222,8 @@ function InspecaoOuCadastroContent() {
         setLoading(true);
         setError(null);
 
-        // Busca do Supabase
-        const data = await fetchAtivoParaInspecao(idToFetch);
+        // Busca do Supabase respeitando o escopo do contrato do usuário
+        const data = await fetchAtivoParaInspecao(idToFetch, userProfile?.site);
         
         if (data) {
           setAtivo(data);
@@ -257,9 +257,16 @@ function InspecaoOuCadastroContent() {
           // Atualiza cache local
           await idb.set(data.category || 'extintores', data.id_ativo || data.id, data);
         } else {
-          // Fallback IndexedDB
+          // Fallback IndexedDB com validação estrita de contrato
           const localData = await idb.get(targetCategory, idToFetch.toUpperCase());
           if (localData) {
+            const userSite = userProfile?.site;
+            const isGlobal = !userSite || userSite.toUpperCase().startsWith('TODOS');
+            const localSite = (localData.site || localData.contrato || '').toUpperCase();
+            if (!isGlobal && localSite && localSite !== userSite.toUpperCase()) {
+              throw new Error(`Acesso Restrito: O equipamento [${idToFetch}] pertence ao contrato ${localSite}. Seu perfil está autorizado apenas para ${userSite}.`);
+            }
+
             setAtivo(localData);
             if (isCadastro || isEdicao) {
               setCadastroCategoria(localData.category as AssetCategory);
@@ -287,16 +294,21 @@ function InspecaoOuCadastroContent() {
               }
             }
           } else {
-            throw new Error(`Equipamento [${idToFetch}] não localizado.`);
+            throw new Error(`Equipamento [${idToFetch}] não localizado para o contrato ${userProfile?.site || 'autorizado'}.`);
           }
         }
       } catch (err: any) {
         if (!navigator.onLine) {
           const localData = await idb.get(targetCategory, idToFetch.toUpperCase());
           if (localData) {
-            setAtivo(localData);
-            setLoading(false);
-            return;
+            const userSite = userProfile?.site;
+            const isGlobal = !userSite || userSite.toUpperCase().startsWith('TODOS');
+            const localSite = (localData.site || localData.contrato || '').toUpperCase();
+            if (isGlobal || !localSite || localSite === userSite.toUpperCase()) {
+              setAtivo(localData);
+              setLoading(false);
+              return;
+            }
           }
         }
         setError(err.message || 'Erro ao carregar dados do equipamento.');
@@ -604,6 +616,8 @@ function InspecaoOuCadastroContent() {
         id: patrimonioCompleto, // ID principal
         idAtivo: patrimonioCompleto,
         category: cadastroCategoria,
+        site: userProfile?.site || 'SALOBO',
+        contrato: userProfile?.site || 'SALOBO',
         location: finalLocalName,
         subLocation: finalSubLocalName.trim() || 'GERAL',
         status: 'Conforme', // inicia em conformidade no cadastro
@@ -665,7 +679,7 @@ function InspecaoOuCadastroContent() {
           accuracy: fotoEvidenciaCoords.accuracy,
           tipoEvento: 'RONDA_CAMPO',
           fotoEvidenciaUrl: fotoEvidenciaUrl,
-          usuario: { nome: 'Técnico Ronda' }
+          usuario: { nome: userProfile?.name || 'Técnico Ronda' }
         }).catch(err => console.warn('[Ronda Descoberta] Aviso ao registrar histórico GPS:', err));
       }
 

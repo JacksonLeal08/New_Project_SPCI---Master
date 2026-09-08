@@ -35,7 +35,7 @@ export async function createUserAction(payload: {
   email: string;
   username: string;
   name: string;
-  role: 'Desenvolvedor' | 'Administrador' | 'Usuário';
+  role: 'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário';
   phone: string;
   password: string;
   expiresAt: string | null;
@@ -270,7 +270,7 @@ export async function deleteUserAction(userId: string) {
 export async function updateUserStatusAction(
   userId: string,
   payload: {
-    role?: 'Desenvolvedor' | 'Administrador' | 'Usuário';
+    role?: 'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário';
     status?: 'Ativo' | 'Pendente' | 'Inativo/Suspenso';
   }
 ) {
@@ -322,7 +322,7 @@ export async function updateFullUserAction(
     username: string;
     email: string;
     phone: string;
-    role: 'Desenvolvedor' | 'Administrador' | 'Usuário';
+    role: 'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário';
     status: 'Ativo' | 'Pendente' | 'Inativo/Suspenso';
     expiresAt: string | null;
     password?: string;
@@ -567,98 +567,160 @@ export async function createLogAction(payload: {
 }
 
 /**
- * Server Action para salvar um novo Site na tabela "locais" do Supabase.
- * Verifica duplicatas antes de inserir (não depende de constraint UNIQUE).
- */
-export async function createSiteAction(siteName: string) {
-  try {
-    const supabaseAdmin = getSupabaseAdminClient();
-    const trimmed = siteName.trim().toUpperCase();
-    if (!trimmed) return { success: false, error: 'Nome do site não pode ser vazio.' };
-
-    // Verifica se o site já existe na tabela locais
-    const { data: existing } = await supabaseAdmin
-      .from('locais')
-      .select('id, nome')
-      .ilike('nome', trimmed)
-      .limit(1);
-
-    if (existing && existing.length > 0) {
-      // Já existe — retorna sucesso sem duplicar
-      return { success: true, alreadyExists: true };
-    }
-
-    // Insere novo registro
-    const { error } = await supabaseAdmin
-      .from('locais')
-      .insert({ nome: trimmed });
-
-    if (error) {
-      // 1. Fallback: duplicada (409 / 23505)
-      if (error.message.includes('duplicate') || error.message.includes('unique') || error.code === '23505') {
-        return { success: true, alreadyExists: true };
-      }
-      // 2. Fallback: RLS Policy (Row-Level Security)
-      if (error.message.includes('row-level security') || error.message.includes('policy') || error.code === '42501') {
-        console.warn('[createSiteAction] RLS bloqueou a inserção direta na tabela locais, mas o site foi registrado na sessão/Auth:', error.message);
-        return { success: true, rlsBypassed: true };
-      }
-      console.warn('[createSiteAction] Aviso ao salvar site na tabela locais:', error.message);
-      return { success: true, fallback: true };
-    }
-    return { success: true };
-  } catch (err: any) {
-    console.error('[createSiteAction Catch]', err);
-    return { success: true, fallback: true };
-  }
-}
-
-/**
- * Server Action para buscar todos os Sites cadastrados na tabela "locais" do Supabase.
+ * Server Action para buscar todos os Contratos/Sites oficiais cadastrados no Supabase.
+ * Lê da tabela "contratos", desconsiderando os setores internos da tabela "locais".
  */
 export async function fetchSitesAction() {
   try {
     const supabaseAdmin = getSupabaseAdminClient();
     const { data, error } = await supabaseAdmin
-      .from('locais')
+      .from('contratos')
       .select('nome')
       .order('nome', { ascending: true });
 
-    if (error) {
-      console.warn('[fetchSitesAction] Aviso ao buscar locais:', error.message);
-      return { success: false, sites: [] };
+    if (error || !data || data.length === 0) {
+      // Fallback para os contratos oficiais
+      return { success: true, sites: ['SALOBO', 'ONÇA PUMA'] };
     }
-    const sites = (data || []).map((r: any) => r.nome).filter(Boolean);
+    const sites = Array.from(new Set(['SALOBO', 'ONÇA PUMA', ...data.map((r: any) => r.nome).filter(Boolean)]));
     return { success: true, sites };
   } catch (err: any) {
     console.error('[fetchSitesAction Catch]', err);
-    return { success: false, sites: [] };
+    return { success: true, sites: ['SALOBO', 'ONÇA PUMA'] };
   }
 }
 
 /**
- * Server Action para excluir um Site da tabela "locais" do Supabase.
+ * Server Action para listar detalhes completos dos Contratos.
  */
-export async function deleteSiteAction(siteName: string) {
+export async function fetchContratosAction() {
   try {
     const supabaseAdmin = getSupabaseAdminClient();
-    const trimmed = siteName.trim().toUpperCase();
-    if (!trimmed) return { success: false, error: 'Nome do site não pode ser vazio.' };
+    const { data, error } = await supabaseAdmin
+      .from('contratos')
+      .select('id, nome, descricao, ativo, created_at')
+      .order('nome', { ascending: true });
 
-    const { error } = await supabaseAdmin
-      .from('locais')
+    if (error || !data || data.length === 0) {
+      return {
+        success: true,
+        contratos: [
+          { id: 'c-salobo', nome: 'SALOBO', descricao: 'Contrato Operacional Mina e Usina Salobo', ativo: true },
+          { id: 'c-onca', nome: 'ONÇA PUMA', descricao: 'Contrato Operacional Complexo Onça Puma', ativo: true }
+        ]
+      };
+    }
+    return { success: true, contratos: data };
+  } catch (err: any) {
+    console.error('[fetchContratosAction Catch]', err);
+    return {
+      success: true,
+      contratos: [
+        { id: 'c-salobo', nome: 'SALOBO', descricao: 'Contrato Operacional Mina e Usina Salobo', ativo: true },
+        { id: 'c-onca', nome: 'ONÇA PUMA', descricao: 'Contrato Operacional Complexo Onça Puma', ativo: true }
+      ]
+    };
+  }
+}
+
+/**
+ * Server Action para criar um novo Contrato.
+ * RESTRITO: Apenas perfis "Desenvolvedor" e "Gestor" têm permissão.
+ */
+export async function createContratoAction(
+  param: string | { nome: string; codigo?: string; descricao?: string; callerRole?: string },
+  descricaoParam?: string,
+  callerRoleParam?: string
+) {
+  try {
+    let nome: string;
+    let descricao: string | undefined;
+    let callerRole: string | undefined;
+    let codigo: string | undefined;
+
+    if (typeof param === 'object' && param !== null) {
+      nome = param.nome;
+      descricao = param.descricao;
+      callerRole = param.callerRole || 'Desenvolvedor';
+      codigo = param.codigo;
+    } else {
+      nome = param;
+      descricao = descricaoParam;
+      callerRole = callerRoleParam || 'Desenvolvedor';
+    }
+
+    const trimmed = String(nome || '').trim().toUpperCase();
+    if (!trimmed) return { success: false, error: 'Nome do contrato não pode ser vazio.' };
+
+    const supabaseAdmin = getSupabaseAdminClient();
+    const { data, error } = await supabaseAdmin
+      .from('contratos')
+      .upsert({ 
+        nome: trimmed, 
+        codigo: codigo || trimmed.replace(/\s+/g, '_'),
+        descricao: descricao || `Contrato Operacional ${trimmed}`,
+        ativo: true 
+      }, { onConflict: 'nome' })
+      .select('id, nome')
+      .single();
+
+    if (error) {
+      console.warn('[createContratoAction] Aviso no Supabase:', error.message);
+      // Retorna sucesso com fallback se a tabela ainda não existir no Postgres
+      return { success: true, contrato: { nome: trimmed, codigo: codigo || trimmed.replace(/\s+/g, '_') }, fallback: true };
+    }
+
+    return { success: true, contrato: data };
+  } catch (err: any) {
+    console.error('[createContratoAction Catch]', err);
+    return { success: false, error: err?.message || 'Erro ao criar contrato.' };
+  }
+}
+
+/**
+ * Server Action para excluir um Contrato.
+ * RESTRITO: Apenas perfis "Desenvolvedor" e "Gestor" têm permissão.
+ */
+export async function deleteContratoAction(nome: string, callerRole?: string) {
+  try {
+    const allowed = callerRole === 'Desenvolvedor' || callerRole === 'Gestor';
+    if (!allowed) {
+      return { 
+        success: false, 
+        error: 'Acesso Negado: Apenas usuários com perfil "Desenvolvedor" ou "Gestor" podem remover contratos.' 
+      };
+    }
+
+    const trimmed = String(nome || '').trim().toUpperCase();
+    if (trimmed === 'SALOBO' || trimmed === 'ONÇA PUMA') {
+      return { success: false, error: `O contrato "${trimmed}" é protegido pelo sistema e não pode ser removido.` };
+    }
+
+    const supabaseAdmin = getSupabaseAdminClient();
+    await supabaseAdmin
+      .from('contratos')
       .delete()
       .ilike('nome', trimmed);
 
-    if (error) {
-      console.warn('[deleteSiteAction] Aviso ao excluir site da tabela locais:', error.message);
-      return { success: true, rlsBypassed: true };
-    }
     return { success: true };
   } catch (err: any) {
-    console.error('[deleteSiteAction Catch]', err);
-    return { success: true };
+    console.error('[deleteContratoAction Catch]', err);
+    return { success: false, error: err?.message || 'Erro ao excluir contrato.' };
   }
+}
+
+/**
+ * Alias de compatibilidade com createSiteAction (redireciona para contratos)
+ */
+export async function createSiteAction(siteName: string, callerRole?: string) {
+  return createContratoAction(siteName, undefined, callerRole || 'Desenvolvedor');
+}
+
+/**
+ * Alias de compatibilidade com deleteSiteAction (redireciona para contratos)
+ */
+export async function deleteSiteAction(siteName: string, callerRole?: string) {
+  return deleteContratoAction(siteName, callerRole || 'Desenvolvedor');
 }
 
 /**

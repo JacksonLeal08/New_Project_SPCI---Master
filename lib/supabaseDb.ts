@@ -12,7 +12,7 @@ export interface UserProfile {
   userName: string;
   photoURL: string;
   logoUrl: string;
-  role: 'Desenvolvedor' | 'Administrador' | 'Usuário';
+  role: 'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário';
   status: string;
   site?: string;
   telefoneWhatsapp: string;
@@ -40,9 +40,9 @@ const serializeProfile = (profile: UserProfile) => {
 };
 
 const deserializeProfile = (data: any): UserProfile => {
-  const mappedRole = (data.perfil_acesso === 'Desenvolvedor' || data.perfil_acesso === 'Administrador' || data.perfil_acesso === 'Usuário')
+  const mappedRole = (data.perfil_acesso === 'Desenvolvedor' || data.perfil_acesso === 'Gestor' || data.perfil_acesso === 'Administrador' || data.perfil_acesso === 'Usuário')
     ? data.perfil_acesso
-    : 'Usuário';
+    : (data.perfil_acesso === 'admin' ? 'Administrador' : 'Usuário');
 
   const mappedStatus = (data.status_conta === 'active' || data.status_conta === 'Ativo')
     ? 'Ativo'
@@ -255,6 +255,7 @@ const deserializeAsset = (row: any) => {
     status_inspecao_mes: statusInspecaoMes,
     justificativa_reinspecao: justificativaReinspecao,
     category: row.category || 'extintores',
+    site: row.site || row.details?.site || row.details?.projeto || 'ONÇA PUMA',
     ...row.details
   };
 };
@@ -282,6 +283,7 @@ const deserializeExtintor = (row: any) => {
     status: row.status || 'Conforme',
     tipo_movimentacao: tipoMov,
     status_estoque: statusEstoque,
+    site: row.site || row.details?.site || row.details?.projeto || 'ONÇA PUMA',
     latitude: row.latitude != null ? Number(row.latitude) : null,
     longitude: row.longitude != null ? Number(row.longitude) : null,
     precisao_gps: row.precisao_gps || null,
@@ -407,7 +409,8 @@ const deserializeNewExtintor = (row: any) => {
     validadeTesteHidro: row.data_limite_hidro || '',
     statusConformidade: row.status_conformidade,
     validadeRecargaMeses: getMonthsDiff(recargaDate, limiteRecargaDate),
-    anoFabricacao: row.ano_fabricacao || row.ano_ultimo_teste_hidro || new Date().getFullYear()
+    anoFabricacao: row.ano_fabricacao || row.ano_ultimo_teste_hidro || new Date().getFullYear(),
+    site: row.site || row.details?.site || row.details?.projeto || 'ONÇA PUMA'
   };
 };
 
@@ -692,7 +695,7 @@ export async function getUserPermissions(uid: string): Promise<string[]> {
 /**
  * Generic Asset operations for Extintores, Hidrantes, etc
  */
-export async function getAssetsList(collectionName: string): Promise<any[]> {
+export async function getAssetsList(collectionName: string, userSite?: string): Promise<any[]> {
   try {
     const category = getNormalizedCategory(collectionName);
     
@@ -747,6 +750,19 @@ export async function getAssetsList(collectionName: string): Promise<any[]> {
         console.warn('[getAssetsList] Aviso ao enriquecer coordenadas de extintores:', gErr);
       }
 
+      // Segregação estrita por contrato/site
+      if (userSite && !userSite.startsWith('TODOS') && userSite !== 'GLOBAL') {
+        const siteNorm = userSite.trim().toUpperCase();
+        extintoresList = extintoresList.filter(item => {
+          const itemSite = String(item.site || item.details?.site || item.details?.projeto || item.projeto || '').trim().toUpperCase();
+          if (itemSite) {
+            return itemSite === siteNorm || itemSite.includes(siteNorm) || siteNorm.includes(itemSite);
+          }
+          // Extintor sem site explícito pertence à base legada de ONÇA PUMA
+          return 'ONÇA PUMA' === siteNorm;
+        });
+      }
+
       return extintoresList;
     }
 
@@ -756,14 +772,27 @@ export async function getAssetsList(collectionName: string): Promise<any[]> {
       .eq('category', category);
 
     if (error) throw error;
-    return (data || []).map(deserializeAsset);
+    let list = (data || []).map(deserializeAsset);
+
+    if (userSite && !userSite.startsWith('TODOS') && userSite !== 'GLOBAL') {
+      const siteNorm = userSite.trim().toUpperCase();
+      list = list.filter(item => {
+        const itemSite = String(item.site || item.details?.site || item.details?.projeto || item.location || '').trim().toUpperCase();
+        if (itemSite) {
+          return itemSite === siteNorm || itemSite.includes(siteNorm) || siteNorm.includes(itemSite);
+        }
+        return 'ONÇA PUMA' === siteNorm;
+      });
+    }
+
+    return list;
   } catch (error: any) {
     console.warn(`Could not get ${collectionName} from Supabase.`, error);
     return [];
   }
 }
 
-export async function saveAssetToDb(collectionName: string, id: string, asset: any, silent?: boolean): Promise<void> {
+export async function saveAssetToDb(collectionName: string, id: string, asset: any, silent?: boolean, userProfile?: any): Promise<void> {
   try {
     if (collectionName === 'audit_logs') {
       const { error } = await supabase
@@ -784,6 +813,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
     }
 
     const category = getNormalizedCategory(collectionName);
+    const assignedSite = String(asset.site || userProfile?.site || 'ONÇA PUMA').trim().toUpperCase();
 
     if (category === 'extintores') {
       let localId = asset.local_id;
@@ -804,7 +834,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
           // Insere ou obtém o local se não existir (upsert seguro contra concorrência paralela)
           const { data: newLoc, error: locErr } = await supabase
             .from('locais')
-            .upsert({ nome: asset.location.toUpperCase() }, { onConflict: 'nome' })
+            .upsert({ nome: asset.location.toUpperCase(), site: assignedSite }, { onConflict: 'nome' })
             .select('id')
             .single();
           if (locErr) {
@@ -932,6 +962,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         ano_ultimo_teste_hidro: parseInt(asset.ultimoTesteHidro || asset.ano_ultimo_teste_hidro || new Date().getFullYear().toString(), 10),
         data_pesagem_co2: asset.data_pesagem_co2 ? normalizeToIsoDate(asset.data_pesagem_co2) : null,
         foto_url: resolvedFotoUrl,
+        site: assignedSite,
         updated_at: new Date().toISOString()
       };
 
@@ -940,11 +971,28 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         payload.id = id;
       }
 
-      const { data: extSaved, error: extErr } = await supabase
+      let extSaved = null;
+      let extErr = null;
+      const res = await supabase
         .from('ativos_extintores')
         .upsert(payload, { onConflict: 'numero_patrimonio' })
         .select('id, numero_patrimonio')
         .maybeSingle();
+
+      if (res.error && res.error.message?.includes("'site'")) {
+        // Fallback defensivo se coluna site ainda não foi aplicada no schema cache
+        const { site: _omittedSite, ...safePayload } = payload;
+        const retryRes = await supabase
+          .from('ativos_extintores')
+          .upsert(safePayload, { onConflict: 'numero_patrimonio' })
+          .select('id, numero_patrimonio')
+          .maybeSingle();
+        extSaved = retryRes.data;
+        extErr = retryRes.error;
+      } else {
+        extSaved = res.data;
+        extErr = res.error;
+      }
 
       if (extErr) throw extErr;
 
@@ -966,7 +1014,12 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
           ...asset,
           id: assetTargetId,
           tipo_movimentacao: tipoMov,
-          status_estoque: statusEstoque
+          status_estoque: statusEstoque,
+          site: assignedSite,
+          details: {
+            ...(asset.details || {}),
+            site: assignedSite
+          }
         });
         const { error: aErr } = await supabase.from('assets').upsert(serialized, { onConflict: 'id' });
         if (aErr) {
@@ -982,7 +1035,14 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
       return;
     }
 
-    const serialized = serializeAsset(category, id, asset);
+    const serialized = serializeAsset(category, id, {
+      ...asset,
+      site: assignedSite,
+      details: {
+        ...(asset.details || {}),
+        site: assignedSite
+      }
+    });
     
     const { error } = await supabase
       .from('assets')
@@ -1001,7 +1061,7 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
 /**
  * Busca os dados de um Ativo específico pelo ID (UUID) ou Patrimônio (id_ativo) no Supabase.
  */
-export async function fetchAtivoParaInspecao(idOrPatrimonio: string): Promise<any | null> {
+export async function fetchAtivoParaInspecao(idOrPatrimonio: string, userSite?: string): Promise<any | null> {
   try {
     const idUpper = idOrPatrimonio.toUpperCase().trim();
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(idUpper);
@@ -1033,6 +1093,15 @@ export async function fetchAtivoParaInspecao(idOrPatrimonio: string): Promise<an
       else if (oldData) resolvedExt = deserializeExtintor(oldData);
 
       if (resolvedExt) {
+        // Validação estrita de contrato
+        if (userSite && !userSite.startsWith('TODOS') && userSite !== 'GLOBAL') {
+          const siteNorm = userSite.trim().toUpperCase();
+          const assetSite = String(resolvedExt.site || resolvedExt.details?.site || 'ONÇA PUMA').trim().toUpperCase();
+          if (assetSite !== siteNorm && !assetSite.includes(siteNorm) && !siteNorm.includes(assetSite)) {
+            throw new Error(`Acesso Restrito: O ativo ${resolvedExt.numero_patrimonio} pertence ao contrato "${assetSite}", que difere do seu contrato autorizado ("${siteNorm}").`);
+          }
+        }
+
         // Enriquecer com dados de geolocalização da tabela assets
         try {
           const { data: assetGeo } = await supabase
