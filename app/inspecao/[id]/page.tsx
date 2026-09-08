@@ -27,7 +27,8 @@ import {
   Moon,
   QrCode,
   Camera,
-  Crosshair
+  Crosshair,
+  Eye
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fetchAtivoParaInspecao, salvarInspecaoNoSupabase, saveAssetToDb } from '@/lib/supabaseDb';
@@ -92,6 +93,7 @@ function InspecaoOuCadastroContent() {
   // Estado de Tema
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [mounted, setMounted] = useState<boolean>(false);
+  const [zoomPhotoUrl, setZoomPhotoUrl] = useState<string | null>(null);
 
   // Alterna o tema de forma fluida (Telegram Style)
   const toggleTheme = () => {
@@ -844,7 +846,7 @@ function InspecaoOuCadastroContent() {
       
       {/* Grade técnica industrial de fundo */}
       <div className={`absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none transition-opacity duration-300 ${
-        isDark ? 'opacity-30 bg-slate-950' : 'opacity-10 bg-slate-50'
+        isDark ? 'opacity-30 bg-slate-950' : 'opacity-0 bg-slate-50'
       }`} />
 
       {/* TOP HEADER: Curved SPCI Bombeiros Wave */}
@@ -1501,23 +1503,50 @@ function InspecaoOuCadastroContent() {
             >
               {/* CARD DETALHES DO ATIVO (BENTO GRID MODERNO) */}
               <section className={`${cardClass} p-5 space-y-4 relative overflow-hidden rounded-2xl`}>
-                {/* Header com Categoria, Modelo e Badge de Status */}
-                <div className={`flex items-start justify-between border-b pb-3.5 ${borderBottomClass}`}>
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="px-2 py-0.5 rounded-md bg-red-600/15 border border-red-500/30 text-red-500 font-mono text-[9px] font-bold uppercase tracking-wider">
-                        {ativo.category || 'EXTINTOR'}
-                      </span>
-                      <span className="text-[9px] font-mono text-slate-400">
-                        ID: {ativo.id}
-                      </span>
+                {/* Header com Categoria, Modelo, Foto do Ativo e Badge de Status */}
+                <div className={`flex items-start justify-between gap-3 border-b pb-4 ${borderBottomClass}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    {/* Imagem do Ativo com Zoom */}
+                    {(ativo.foto_url || ativo.fotoUrl || ativo.details?.foto_url) ? (
+                      <div 
+                        onClick={() => setZoomPhotoUrl(ativo.foto_url || ativo.fotoUrl || ativo.details?.foto_url)}
+                        className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 border-red-500/40 shadow-sm shrink-0 cursor-pointer group hover:scale-105 transition-transform"
+                        title="Toque para ampliar foto do ativo"
+                      >
+                        <img 
+                          src={ativo.foto_url || ativo.fotoUrl || ativo.details?.foto_url} 
+                          alt={ativo.idAtivo || 'Foto do Ativo'} 
+                          className="w-full h-full object-cover" 
+                        />
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                          <Eye size={16} />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl border flex flex-col items-center justify-center shrink-0 ${
+                        isDark ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-red-50 border-red-200 text-red-600'
+                      }`}>
+                        <Flame size={20} className="mb-0.5" />
+                        <span className="text-[7px] font-mono font-bold uppercase tracking-tight">Sem Foto</span>
+                      </div>
+                    )}
+
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-md bg-red-600/15 border border-red-500/30 text-red-500 font-mono text-[9px] font-bold uppercase tracking-wider">
+                          {ativo.category || 'EXTINTOR'}
+                        </span>
+                        <span className="text-[9px] font-mono text-slate-400">
+                          ID: {ativo.id}
+                        </span>
+                      </div>
+                      <h3 className={`text-base font-extrabold uppercase tracking-tight font-sans truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                        {ativo.model || 'PQS ABC - 8KG'}
+                      </h3>
                     </div>
-                    <h3 className={`text-base font-extrabold uppercase tracking-tight font-sans ${isDark ? 'text-white' : 'text-slate-900'}`}>
-                      {ativo.model || 'PQS ABC - 8KG'}
-                    </h3>
                   </div>
 
-                  <div className={`text-[10px] font-bold uppercase px-3 py-1.5 border rounded-xl select-none flex items-center gap-1.5 ${
+                  <div className={`text-[10px] font-bold uppercase px-3 py-1.5 border rounded-xl select-none flex items-center gap-1.5 shrink-0 ${
                     ativo.status === 'Conforme' 
                       ? 'text-emerald-400 border-emerald-500/40 bg-emerald-950/30' 
                       : 'text-red-455 border-red-500/40 bg-red-950/30'
@@ -1527,31 +1556,71 @@ function InspecaoOuCadastroContent() {
                   </div>
                 </div>
 
-                {/* Bento Grid 4 Cards */}
-                <div className="grid grid-cols-2 gap-2.5 text-xs font-mono">
-                  {/* Card 1: Patrimônio */}
-                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100/70 border-slate-250 shadow-2xs'}`}>
-                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-extrabold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                      Patrimônio
-                    </span>
-                    <p className="font-extrabold text-sm text-red-600 tracking-tight">
-                      {ativo.idAtivo || ativo.id_ativo || rawId}
-                    </p>
+                {/* Bento Grid 5 Cards (Patrimônio & Chassi Juntos, Capacidade & Selo Inmetro Juntos) */}
+                <div className="grid grid-cols-2 gap-2.5 text-xs">
+                  {/* Card 1: Patrimônio & Chassi JUNTOS */}
+                  <div className={`p-3 rounded-xl border flex flex-col justify-between ${
+                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                  }`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[8.5px] uppercase tracking-wider font-sans font-black ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
+                          Patrimônio
+                        </span>
+                        <span className="text-[7.5px] font-mono px-1.5 py-0.5 rounded bg-red-600/10 text-red-600 font-bold border border-red-500/20">
+                          TAG SPCI
+                        </span>
+                      </div>
+                      <p className="font-extrabold text-base text-red-600 tracking-tight font-mono">
+                        {ativo.idAtivo || ativo.id_ativo || rawId}
+                      </p>
+                    </div>
+                    
+                    {/* Campo do Chassi junto do Patrimônio */}
+                    <div className={`mt-2 pt-2 border-t flex items-center justify-between ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
+                      <span className={`text-[8px] uppercase tracking-wider font-sans font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Nº Chassi:
+                      </span>
+                      <span className={`font-mono font-black text-xs ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                        {ativo.chassi || ativo.numero_serie || 'NÃO GRAVADO'}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Card 2: Selo Inmetro */}
-                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100/70 border-slate-250 shadow-2xs'}`}>
-                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-extrabold ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
-                      Selo Inmetro
-                    </span>
-                    <p className={`font-black text-xs truncate ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
-                      {ativo.seloInmetro || ativo.inmetro || 'NÃO INFORMADO'}
-                    </p>
+                  {/* Card 2: Capacidade Extintora & Selo Inmetro */}
+                  <div className={`p-3 rounded-xl border flex flex-col justify-between ${
+                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                  }`}>
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[8.5px] uppercase tracking-wider font-sans font-black ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
+                          Capacidade
+                        </span>
+                        <span className="text-[7.5px] font-mono px-1.5 py-0.5 rounded bg-blue-600/10 text-blue-600 font-bold border border-blue-500/20">
+                          CARGA
+                        </span>
+                      </div>
+                      <p className={`font-extrabold text-base tracking-tight font-mono ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
+                        {ativo.capacidadeExtintora || ativo.peso_capacidade || ativo.peso || 'PÓ 6 KG'}
+                      </p>
+                    </div>
+                    
+                    {/* Selo Inmetro */}
+                    <div className={`mt-2 pt-2 border-t flex items-center justify-between ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
+                      <span className={`text-[8px] uppercase tracking-wider font-sans font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
+                        Selo Inmetro:
+                      </span>
+                      <span className={`font-mono font-black text-xs truncate max-w-[95px] ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                        {ativo.seloInmetro || ativo.inmetro || 'NÃO INFORMADO'}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Card 3: Setor / Sub-local */}
-                  <div className={`p-3 rounded-xl border col-span-2 ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100/70 border-slate-250 shadow-2xs'}`}>
-                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-extrabold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  {/* Card 3: Setor & Posição de Instalação */}
+                  <div className={`p-3 rounded-xl border col-span-2 ${
+                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                  }`}>
+                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-black flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                       <MapPin size={11} className="text-red-600" />
                       Setor & Posição de Instalação
                     </span>
@@ -1561,23 +1630,27 @@ function InspecaoOuCadastroContent() {
                   </div>
 
                   {/* Card 4: Validade da Recarga */}
-                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100/70 border-slate-250 shadow-2xs'}`}>
-                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-extrabold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  <div className={`p-3 rounded-xl border ${
+                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                  }`}>
+                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-black flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                       <Clock size={11} className={isDark ? 'text-amber-400' : 'text-amber-600'} />
                       Validade Recarga
                     </span>
-                    <p className={`font-black text-xs ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
+                    <p className={`font-black text-xs font-mono ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
                       {ativo.validadeRecarga || 'N/A'}
                     </p>
                   </div>
 
                   {/* Card 5: Teste Hidrostático */}
-                  <div className={`p-3 rounded-xl border ${isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-slate-100/70 border-slate-250 shadow-2xs'}`}>
-                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-extrabold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                  <div className={`p-3 rounded-xl border ${
+                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                  }`}>
+                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-black flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
                       <Clock size={11} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
                       Teste Hidrostático
                     </span>
-                    <p className={`font-black text-xs ${isDark ? 'text-blue-400' : 'text-blue-800'}`}>
+                    <p className={`font-black text-xs font-mono ${isDark ? 'text-blue-400' : 'text-blue-800'}`}>
                       {ativo.validadeTesteHidro || (ativo.ultimoTesteHidro ? `${parseInt(ativo.ultimoTesteHidro, 10) + 5}` : '5 Anos')}
                     </p>
                   </div>
@@ -2102,6 +2175,50 @@ function InspecaoOuCadastroContent() {
           if (coords) setFotoEvidenciaCoords(coords);
         }}
       />
+
+      {/* MODAL DE ZOOM DA FOTO DO ATIVO */}
+      <AnimatePresence>
+        {zoomPhotoUrl && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={() => setZoomPhotoUrl(null)}
+            className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 cursor-pointer"
+          >
+            <div 
+              onClick={(e) => e.stopPropagation()} 
+              className={`relative max-w-lg w-full rounded-2xl overflow-hidden border shadow-2xl p-3 ${
+                isDark ? 'bg-slate-900 border-slate-700' : 'bg-white border-slate-300'
+              }`}
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-700/50 mb-3">
+                <span className={`text-xs font-mono font-bold uppercase flex items-center gap-1.5 ${
+                  isDark ? 'text-white' : 'text-slate-900'
+                }`}>
+                  <Flame size={15} className="text-red-600" />
+                  Foto do Equipamento ({ativo?.idAtivo || 'Ativo SPCI'})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setZoomPhotoUrl(null)}
+                  className="p-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border-none cursor-pointer transition-colors"
+                  title="Fechar visualização"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+              <div className="rounded-xl overflow-hidden bg-black flex items-center justify-center max-h-[75vh]">
+                <img 
+                  src={zoomPhotoUrl} 
+                  alt={ativo?.idAtivo || 'Foto do Ativo'} 
+                  className="w-full h-full max-h-[75vh] object-contain"
+                />
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

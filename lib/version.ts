@@ -13,11 +13,26 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.10.1',
+  version: 'v2.10.2',
   date: '08/09/2026',
-  title: 'SPCI Master v2.10.1 - Dashboard Otimizado (Opção C) e Alto Contraste Mobile',
-  summary: 'Remoção de elementos redundantes no Dashboard (banner intermediário e mapa de calor), modernização do banner de Ronda com arte integrada em degradê, tabela de ativos com recolhimento inteligente e Gaveta Lateral (Drawer - Opção C), e correção de alto contraste nas fontes dos dados do ativo e quesitos NBR no formulário mobile.',
+  title: 'SPCI Master v2.10.2 - Formulário Mobile Alto Contraste & Bento Card com Foto, Chassi e Capacidade (Opção B)',
+  summary: 'Aprimoramento completo de contraste visual e legibilidade no tema claro do formulário de campo mobile: eliminação de semitransparências nos blocos de Não Conforme, slots de fotos nítidos com fundo sólido, alertas legíveis, além do Bento Grid enriquecido com miniatura da foto do ativo e zoom, número do Chassi agrupado ao Patrimônio e novo campo de Capacidade Extintora.',
   changes: [
+    {
+      category: 'UI/UX',
+      title: 'Bento Card com Foto do Ativo, Chassi e Capacidade',
+      description: 'Exibição da imagem cadastrada do equipamento com modal de ampliação (Zoom Lightbox), agrupamento do número do Chassi junto do Patrimônio/Tag SPCI e inclusão do campo Capacidade Extintora junto ao Selo Inmetro.'
+    },
+    {
+      category: 'UI/UX',
+      title: 'Alto Contraste Mobile no Tema Claro (Opção B)',
+      description: 'Substituição de fundos translúcidos por containers 100% sólidos e opacos no registro de Não Conformidade, tipografia em preto/vermelho escuro de alta nitidez sob luz solar e aviso de pendência destacado.'
+    },
+    {
+      category: 'UI/UX',
+      title: 'Otimização do Fundo Industrial no Tema Claro',
+      description: 'Eliminação da sobreposição da grade técnica no tema claro para garantir leitura limpa sem ruído visual de linhas por trás dos cards de inspeção.'
+    },
     {
       category: 'UI/UX',
       title: 'Otimização do Dashboard & Gaveta Lateral (Opção C)',

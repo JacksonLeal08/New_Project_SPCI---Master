@@ -229,13 +229,15 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
               <CheckSquare size={13} />
               Quesitos NBR 12962 / 15808
             </span>
-            <span className={`text-xs font-black font-mono ${progressPercent === 100 ? 'text-emerald-500' : 'text-slate-400'}`}>
+            <span className={`text-xs font-black font-mono ${progressPercent === 100 ? 'text-emerald-500' : isDark ? 'text-slate-400' : 'text-slate-700'}`}>
               {checkedCount} de {applicableItems.length} ({progressPercent}%)
             </span>
           </div>
 
           {/* Barra de Progresso Animada */}
-          <div className="w-full h-2 rounded-full bg-slate-800/40 overflow-hidden border border-slate-700/30">
+          <div className={`w-full h-2 rounded-full overflow-hidden border ${
+            isDark ? 'bg-slate-800/40 border-slate-700/30' : 'bg-slate-200 border-slate-300'
+          }`}>
             <div 
               className={`h-full transition-all duration-300 rounded-full ${
                 progressPercent === 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-red-600 to-amber-500'
@@ -250,7 +252,11 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
           <button
             type="button"
             onClick={handleMarkAllConforme}
-            className="flex items-center justify-center gap-1.5 px-3 py-2 bg-emerald-600/15 hover:bg-emerald-600/25 border border-emerald-500/30 text-emerald-450 rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer active:scale-95 shrink-0"
+            className={`flex items-center justify-center gap-1.5 px-3 py-2 border rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer active:scale-95 shrink-0 ${
+              isDark 
+                ? 'bg-emerald-600/15 hover:bg-emerald-600/25 border-emerald-500/30 text-emerald-450' 
+                : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800 font-black shadow-xs'
+            }`}
           >
             <Sparkles size={13} />
             Marcar Restantes Conforme
@@ -276,9 +282,13 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
               key={item.id}
               className={`p-4 rounded-2xl border transition-all ${
                 isReprovado 
-                  ? 'border-red-500/60 bg-red-950/20' 
+                  ? isDark 
+                    ? 'border-red-500/60 bg-red-950/25' 
+                    : 'border-2 border-red-400 bg-white shadow-md' 
                   : isConforme 
-                  ? 'border-emerald-500/40 bg-emerald-950/10' 
+                  ? isDark 
+                    ? 'border-emerald-500/40 bg-emerald-950/10' 
+                    : 'border-emerald-400/80 bg-emerald-50/40 shadow-xs'
                   : isDark 
                   ? 'border-slate-800/80 bg-slate-900/60' 
                   : 'border-slate-200 bg-white shadow-xs'
@@ -288,15 +298,15 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
               <div className="flex items-start justify-between gap-2.5 mb-3">
                 <div className="flex items-start gap-2.5 min-w-0">
                   <span className={`flex-shrink-0 w-5 h-5 rounded-full font-mono text-[9px] font-black flex items-center justify-center mt-0.5 border ${
-                    isDark ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-slate-200 text-slate-900 border-slate-350'
+                    isDark ? 'bg-slate-800 text-slate-200 border-slate-700' : 'bg-slate-100 text-slate-900 border-slate-300 font-black'
                   }`}>
                     {idx + 1}
                   </span>
                   <p className={`text-xs font-sans font-bold leading-snug ${
                     isReprovado 
-                      ? isDark ? 'text-red-200' : 'text-red-950'
+                      ? isDark ? 'text-red-200' : 'text-red-950 font-black'
                       : isConforme 
-                      ? isDark ? 'text-emerald-200' : 'text-emerald-950'
+                      ? isDark ? 'text-emerald-200' : 'text-emerald-950 font-extrabold'
                       : isDark ? 'text-slate-100' : 'text-slate-900 font-extrabold'
                   }`}>
                     {item.item}
@@ -321,10 +331,10 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                   onClick={() => updateItem(item.id, { status: 'Conforme' })}
                   className={`min-h-[48px] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all border cursor-pointer active:scale-95 ${
                     isConforme
-                      ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-900/30'
+                      ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-900/30 font-black'
                       : isDark
                       ? 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-800'
-                      : 'bg-slate-100 border-slate-250 text-slate-800 hover:bg-slate-200 shadow-2xs'
+                      : 'bg-slate-100 border-slate-250 text-slate-800 hover:bg-slate-200 shadow-2xs font-bold'
                   }`}
                 >
                   <CheckCircle2 size={16} />
@@ -337,10 +347,10 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                   onClick={() => updateItem(item.id, { status: 'Não Conforme' })}
                   className={`min-h-[48px] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all border cursor-pointer active:scale-95 ${
                     isReprovado
-                      ? 'bg-red-600 text-white border-red-500 shadow-md shadow-red-900/30'
+                      ? 'bg-red-600 text-white border-red-500 shadow-md shadow-red-900/30 font-black'
                       : isDark
                       ? 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-800'
-                      : 'bg-slate-100 border-slate-250 text-slate-800 hover:bg-slate-200 shadow-2xs'
+                      : 'bg-slate-100 border-slate-250 text-slate-800 hover:bg-slate-200 shadow-2xs font-bold'
                   }`}
                 >
                   <XCircle size={16} />
@@ -353,10 +363,10 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                   onClick={() => updateItem(item.id, { status: 'NA' })}
                   className={`min-h-[48px] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all border cursor-pointer active:scale-95 ${
                     isNA
-                      ? 'bg-slate-600 text-white border-slate-500'
+                      ? 'bg-slate-600 text-white border-slate-500 font-bold'
                       : isDark
                       ? 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:bg-slate-800'
-                      : 'bg-slate-100 border-slate-250 text-slate-700 hover:bg-slate-200 shadow-2xs'
+                      : 'bg-slate-100 border-slate-250 text-slate-700 hover:bg-slate-200 shadow-2xs font-bold'
                   }`}
                 >
                   <MinusCircle size={16} />
@@ -364,30 +374,38 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                 </button>
               </div>
 
-              {/* BLOCO DE NÃO CONFORMIDADE (Idêntico ao Web Admin com 2 Fotos Obrigatórias) */}
+              {/* BLOCO DE NÃO CONFORMIDADE (Alto Contraste Mobile e 2 Fotos Obrigatórias) */}
               <AnimatePresence>
                 {isReprovado && (
                   <motion.div
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="mt-4 pt-3 border-t border-red-500/30 space-y-3 font-sans overflow-hidden"
+                    className={`mt-4 pt-3.5 border-t space-y-3 font-sans overflow-hidden ${
+                      isDark ? 'border-red-500/30' : 'border-red-300'
+                    }`}
                   >
-                    <div className="flex items-center gap-1.5 text-red-500 text-[10px] font-mono font-bold uppercase tracking-wider">
+                    <div className={`flex items-center gap-1.5 text-[10px] font-mono font-black uppercase tracking-wider ${
+                      isDark ? 'text-red-400' : 'text-red-700'
+                    }`}>
                       <AlertTriangle size={13} className="shrink-0 animate-pulse" />
                       Registro Obrigatório de Ocorrência & Evidências
                     </div>
 
                     {/* Seleção rápida de falha ou texto livre */}
                     <div className="space-y-1.5">
-                      <label className={`text-[10px] font-mono uppercase tracking-wider block ${isDark ? 'text-slate-400' : 'text-slate-600 font-bold'}`}>
+                      <label className={`text-[10px] font-sans font-black uppercase tracking-wider block ${
+                        isDark ? 'text-slate-300' : 'text-slate-900'
+                      }`}>
                         Motivo da Inconformidade:
                       </label>
                       <select
                         value={state.ocorrencia}
                         onChange={(e) => updateItem(item.id, { ocorrencia: e.target.value })}
-                        className={`w-full p-2.5 rounded-xl text-xs focus:outline-none focus:border-red-500 transition-colors ${
-                          isDark ? 'bg-slate-900 border border-slate-750 text-slate-200' : 'bg-white border border-slate-300 text-slate-900 shadow-2xs'
+                        className={`w-full p-2.5 rounded-xl text-xs focus:outline-none focus:border-red-500 transition-colors font-medium ${
+                          isDark 
+                            ? 'bg-slate-900 border border-slate-750 text-slate-200' 
+                            : 'bg-white border-2 border-slate-300 text-slate-900 shadow-xs'
                         }`}
                       >
                         <option value="">-- Selecione uma ocorrência padrão --</option>
@@ -401,20 +419,28 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                         placeholder="Ou digite a descrição detalhada da falha..."
                         value={state.ocorrencia}
                         onChange={(e) => updateItem(item.id, { ocorrencia: e.target.value })}
-                        className={`w-full p-2.5 rounded-xl text-xs focus:outline-none focus:border-red-500 transition-colors ${
-                          isDark ? 'bg-slate-900 border border-slate-750 text-slate-100 placeholder:text-slate-500' : 'bg-white border border-slate-300 text-slate-900 placeholder:text-slate-400 shadow-2xs'
+                        className={`w-full p-2.5 rounded-xl text-xs focus:outline-none focus:border-red-500 transition-colors font-medium ${
+                          isDark 
+                            ? 'bg-slate-900 border border-slate-750 text-slate-100 placeholder:text-slate-500' 
+                            : 'bg-white border-2 border-slate-300 text-slate-900 placeholder:text-slate-400 shadow-xs'
                         }`}
                       />
                     </div>
 
                     {/* REGISTRO FOTOGRÁFICO: 2 IMAGENS OBRIGATÓRIAS */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-[10px] font-mono">
-                        <span className="text-slate-300 font-bold uppercase flex items-center gap-1">
-                          <Camera size={12} className="text-red-400" />
+                    <div className="space-y-2.5">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className={`font-sans font-black uppercase flex items-center gap-1.5 ${
+                          isDark ? 'text-slate-300' : 'text-slate-900'
+                        }`}>
+                          <Camera size={13} className={isDark ? 'text-red-400' : 'text-red-600'} />
                           2 Fotos Comprobatórias (Obrigatórias):
                         </span>
-                        <span className={`font-bold ${state.fotoEvidencia1 && state.fotoEvidencia2 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                        <span className={`font-mono font-bold px-2 py-0.5 rounded-md text-[9px] ${
+                          state.fotoEvidencia1 && state.fotoEvidencia2
+                            ? isDark ? 'bg-emerald-500/20 text-emerald-350' : 'bg-emerald-100 text-emerald-900 border border-emerald-300 font-black'
+                            : isDark ? 'bg-amber-500/20 text-amber-350' : 'bg-amber-100 text-amber-950 border border-amber-300 font-black'
+                        }`}>
                           {state.fotoEvidencia1 && state.fotoEvidencia2 ? '✓ 2 fotos anexadas' : 'Pendente de fotos'}
                         </span>
                       </div>
@@ -423,7 +449,7 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                         {/* Slot Foto 1 */}
                         <div className="relative">
                           {state.fotoEvidencia1 ? (
-                            <div className="relative rounded-xl overflow-hidden border border-emerald-500/40 aspect-video bg-black flex items-center justify-center group">
+                            <div className="relative rounded-xl overflow-hidden border-2 border-emerald-500/60 aspect-video bg-black flex items-center justify-center group shadow-xs">
                               <img src={state.fotoEvidencia1} alt="Evidência 1" className="w-full h-full object-cover" />
                               <button
                                 type="button"
@@ -433,7 +459,7 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                               >
                                 <Trash2 size={12} />
                               </button>
-                              <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-[8px] font-mono text-emerald-350">
+                              <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/75 text-[8px] font-mono text-emerald-300 font-bold">
                                 Foto 1 OK
                               </span>
                             </div>
@@ -442,13 +468,17 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                               type="button"
                               onClick={() => triggerUpload(item.id, 1)}
                               disabled={compressingSlot === `${item.id}-1`}
-                              className="w-full aspect-video rounded-xl border-2 border-dashed border-red-500/40 hover:border-red-500 bg-red-950/20 hover:bg-red-950/30 flex flex-col items-center justify-center gap-1 text-red-400 font-mono text-[9px] uppercase font-bold tracking-wider transition-all cursor-pointer p-2 active:scale-95"
+                              className={`w-full aspect-video rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 font-sans text-[9.5px] uppercase font-black tracking-wider transition-all cursor-pointer p-2 active:scale-95 ${
+                                isDark 
+                                  ? 'border-red-500/40 hover:border-red-500 bg-red-950/20 hover:bg-red-950/30 text-red-400' 
+                                  : 'border-red-400 hover:border-red-600 bg-white hover:bg-red-50/60 text-red-700 shadow-2xs'
+                              }`}
                             >
                               {compressingSlot === `${item.id}-1` ? (
-                                <div className="w-4 h-4 border-2 border-red-400 border-t-transparent animate-spin rounded-full" />
+                                <div className="w-4 h-4 border-2 border-red-500 border-t-transparent animate-spin rounded-full" />
                               ) : (
                                 <>
-                                  <Camera size={16} />
+                                  <Camera size={16} className={isDark ? 'text-red-400' : 'text-red-600'} />
                                   <span>Tirar Foto 1</span>
                                 </>
                               )}
@@ -459,7 +489,7 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                         {/* Slot Foto 2 */}
                         <div className="relative">
                           {state.fotoEvidencia2 ? (
-                            <div className="relative rounded-xl overflow-hidden border border-emerald-500/40 aspect-video bg-black flex items-center justify-center group">
+                            <div className="relative rounded-xl overflow-hidden border-2 border-emerald-500/60 aspect-video bg-black flex items-center justify-center group shadow-xs">
                               <img src={state.fotoEvidencia2} alt="Evidência 2" className="w-full h-full object-cover" />
                               <button
                                 type="button"
@@ -469,7 +499,7 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                               >
                                 <Trash2 size={12} />
                               </button>
-                              <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/70 text-[8px] font-mono text-emerald-350">
+                              <span className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded bg-black/75 text-[8px] font-mono text-emerald-300 font-bold">
                                 Foto 2 OK
                               </span>
                             </div>
@@ -478,13 +508,17 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                               type="button"
                               onClick={() => triggerUpload(item.id, 2)}
                               disabled={compressingSlot === `${item.id}-2`}
-                              className="w-full aspect-video rounded-xl border-2 border-dashed border-red-500/40 hover:border-red-500 bg-red-950/20 hover:bg-red-950/30 flex flex-col items-center justify-center gap-1 text-red-400 font-mono text-[9px] uppercase font-bold tracking-wider transition-all cursor-pointer p-2 active:scale-95"
+                              className={`w-full aspect-video rounded-xl border-2 border-dashed flex flex-col items-center justify-center gap-1 font-sans text-[9.5px] uppercase font-black tracking-wider transition-all cursor-pointer p-2 active:scale-95 ${
+                                isDark 
+                                  ? 'border-red-500/40 hover:border-red-500 bg-red-950/20 hover:bg-red-950/30 text-red-400' 
+                                  : 'border-red-400 hover:border-red-600 bg-white hover:bg-red-50/60 text-red-700 shadow-2xs'
+                              }`}
                             >
                               {compressingSlot === `${item.id}-2` ? (
-                                <div className="w-4 h-4 border-2 border-red-400 border-t-transparent animate-spin rounded-full" />
+                                <div className="w-4 h-4 border-2 border-red-500 border-t-transparent animate-spin rounded-full" />
                               ) : (
                                 <>
-                                  <Camera size={16} />
+                                  <Camera size={16} className={isDark ? 'text-red-400' : 'text-red-600'} />
                                   <span>Tirar Foto 2</span>
                                 </>
                               )}
@@ -494,9 +528,14 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                       </div>
 
                       {(!state.fotoEvidencia1 || !state.fotoEvidencia2 || !state.ocorrencia.trim()) && (
-                        <p className="text-[9px] text-amber-400 font-mono leading-tight">
-                          ⚠️ Para registrar Não Conforme, descreva o motivo e anexe as 2 fotos comprobatórias.
-                        </p>
+                        <div className={`p-2.5 rounded-xl border text-[10.5px] font-sans font-bold flex items-center gap-2 ${
+                          isDark 
+                            ? 'bg-amber-950/30 border-amber-500/40 text-amber-300' 
+                            : 'bg-amber-50 border-amber-300 text-amber-950 shadow-2xs'
+                        }`}>
+                          <AlertTriangle size={15} className={`shrink-0 ${isDark ? 'text-amber-400' : 'text-amber-600'}`} />
+                          <span>Para registrar Não Conforme, descreva o motivo e anexe as 2 fotos comprobatórias.</span>
+                        </div>
                       )}
                     </div>
                   </motion.div>
