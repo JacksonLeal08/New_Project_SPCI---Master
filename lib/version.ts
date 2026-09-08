@@ -13,11 +13,16 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.9.1',
+  version: 'v2.9.2',
   date: '07/09/2026',
-  title: 'SPCI Master v2.9.1 - Hotfix Transmissão Offline & Resiliência de Schema Cache',
-  summary: 'Correção crítica na transmissão de laudos de vistoria offline: remoção de coluna inexistente justificativa_reinspecao da raiz de inspecoes_realizadas, retenção segura no payload JSONB details, auto-retry com safePayload em caso de incompatibilidade de schema e auto-reset de tarefas falhas no botão Forçar Transmissão.',
+  title: 'SPCI Master v2.9.2 - Gravação e Exibição de Fotos dos Extintores no Mapa',
+  summary: 'Resolução completa do fluxo de upload e associação de fotos aos extintores: upload server-side com service_role evitando bloqueios de RLS no Storage, persistência da URL pública em ativos_extintores e assets, propagação da foto da vistoria para o cadastro do extintor e normalização de URLs no popup operacional.',
   changes: [
+    {
+      category: 'UI/UX',
+      title: 'Fotos dos Extintores Gravadas e Exibidas no Mapa Operacional',
+      description: 'Upload de fotos através de Server Action blindada contra restrições de RLS do Storage, propagação automática da foto da vistoria para o cadastro do extintor e normalização de URLs no popup do mapa.'
+    },
     {
       category: 'DESEMPENHO',
       title: 'Transmissão Segura de Vistorias e Fallback de Schema Cache',

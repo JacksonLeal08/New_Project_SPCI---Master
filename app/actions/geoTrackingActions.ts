@@ -248,6 +248,77 @@ export async function getAssetLocationHistoryAction(assetId: string): Promise<{
 }
 
 /**
+ * Realiza upload seguro de fotos de ativos (Base64 ou URL) no Supabase Storage
+ * através do Service Role Admin, contornando bloqueios de RLS do cliente.
+ */
+export async function uploadAssetPhotoAction(
+  assetCode: string,
+  base64Data: string,
+  contentType: string = 'image/jpeg'
+): Promise<{ success: boolean; publicUrl?: string; error?: string }> {
+  try {
+    if (!base64Data) {
+      return { success: false, error: 'Dado de imagem não fornecido.' };
+    }
+
+    // Se já for uma URL HTTP válida, retorna diretamente
+    if (base64Data.startsWith('http://') || base64Data.startsWith('https://')) {
+      return { success: true, publicUrl: base64Data };
+    }
+
+    const supabase = getSupabaseAdminClient();
+    const cleanCode = String(assetCode || 'ativo').replace(/[^a-zA-Z0-9_-]/g, '_');
+    
+    // Extrai o conteúdo real do data URL caso contenha header
+    let rawBase64 = base64Data;
+    let mime = contentType;
+    if (base64Data.includes(';base64,')) {
+      const parts = base64Data.split(';base64,');
+      mime = parts[0].replace('data:', '');
+      rawBase64 = parts[1];
+    }
+
+    const buffer = Buffer.from(rawBase64, 'base64');
+    const ext = mime.includes('png') ? 'png' : 'jpg';
+    const fileName = `ext_${cleanCode}_${Date.now()}.${ext}`;
+
+    const { data: uploadData, error: uploadErr } = await supabase.storage
+      .from('fotos_extintores')
+      .upload(fileName, buffer, {
+        contentType: mime,
+        upsert: true
+      });
+
+    if (uploadErr) {
+      console.error('[uploadAssetPhotoAction] Erro no upload:', uploadErr);
+      return { success: false, error: uploadErr.message };
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('fotos_extintores')
+      .getPublicUrl(uploadData.path);
+
+    return { success: true, publicUrl };
+  } catch (err: any) {
+    console.error('[uploadAssetPhotoAction] Exceção:', err);
+    return { success: false, error: err?.message || String(err) };
+  }
+}
+
+/**
+ * Normaliza qualquer caminho ou referência de foto para a URL pública do Supabase Storage
+ */
+function normalizePhotoPublicUrl(photoUrl: string | null | undefined, supabaseClient: any): string | null {
+  if (!photoUrl) return null;
+  const p = String(photoUrl).trim();
+  if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:image/')) {
+    return p;
+  }
+  const { data } = supabaseClient.storage.from('fotos_extintores').getPublicUrl(p);
+  return data?.publicUrl || p;
+}
+
+/**
  * Retorna todos os ativos que possuem coordenadas geográficas válidas para o Mapa Operacional
  */
 export async function getOperationalMapAssetsAction(): Promise<{
@@ -270,7 +341,7 @@ export async function getOperationalMapAssetsAction(): Promise<{
       supabase.from('vw_extintores_publico').select('*'),
       supabase.from('assets').select('*').not('latitude', 'is', null).not('longitude', 'is', null),
       supabase.from('inspecoes_realizadas').select('*', { count: 'exact', head: true }).not('details->geo_latitude', 'is', null),
-      supabase.from('inspecoes_realizadas').select('ativo_id, details, created_at').order('created_at', { ascending: false }).limit(100)
+      supabase.from('inspecoes_realizadas').select('asset_id, asset_patrimonio, foto_evidencia_url, details, created_at').order('created_at', { ascending: false }).limit(200)
     ]);
 
     // 1. Processar metadados de extintores
@@ -284,31 +355,74 @@ export async function getOperationalMapAssetsAction(): Promise<{
       }
     }
 
-    // 2. Processar ativos com GPS
-    const assetsData = assetsRes.data || [];
-    if (assetsRes.error) {
-      console.error('[getOperationalMapAssetsAction] Erro ao buscar assets:', assetsRes.error);
-    }
-
-    // 3. Processar contagem e fotos recentes
+    // 2. Processar contagem e fotos recentes de inspeção
     const totalInspecoesComGps = countRes.count || 0;
     const inspectionPhotoMap = new Map<string, string>();
     const recentInspections = recentRes.data || [];
 
     for (const insp of recentInspections) {
-      const photoUrl = insp.details?.foto_evidencia_url || insp.details?.fotoUrl || insp.details?.foto_url;
-      if (photoUrl && insp.ativo_id) {
-        const pNorm = String(insp.ativo_id).replace(/\s+/g, '').toUpperCase();
-        if (!inspectionPhotoMap.has(pNorm)) {
-          inspectionPhotoMap.set(pNorm, photoUrl);
+      const rawPhoto = insp.foto_evidencia_url || insp.details?.foto_evidencia_url || insp.details?.fotoUrl || insp.details?.foto_url;
+      if (rawPhoto) {
+        const photoUrl = normalizePhotoPublicUrl(rawPhoto, supabase);
+        if (photoUrl) {
+          if (insp.asset_patrimonio) {
+            const pNorm = String(insp.asset_patrimonio).replace(/\s+/g, '').toUpperCase();
+            if (!inspectionPhotoMap.has(pNorm)) {
+              inspectionPhotoMap.set(pNorm, photoUrl);
+            }
+          }
+          if (insp.asset_id) {
+            const idNorm = String(insp.asset_id).toLowerCase();
+            if (!inspectionPhotoMap.has(idNorm)) {
+              inspectionPhotoMap.set(idNorm, photoUrl);
+            }
+          }
         }
       }
     }
 
-    // 4. Mapear e unir todos os ativos com coordenadas válidas
+    // 3. Mapear e unir todos os ativos com coordenadas válidas
     const resultMap = new Map<string, any>();
 
-    for (const item of (assetsData || [])) {
+    // 3.1. Primeiro, adicionar extintores que já possuem latitude/longitude em vw_extintores_publico
+    for (const ext of extList) {
+      const lat = ext.latitude != null ? Number(ext.latitude) : null;
+      const lng = ext.longitude != null ? Number(ext.longitude) : null;
+      if (lat != null && lng != null && !isNaN(lat) && !isNaN(lng)) {
+        const pat = String(ext.numero_patrimonio || ext.id).trim().toUpperCase();
+        const pNorm = pat.replace(/\s+/g, '');
+        const idLower = String(ext.id).toLowerCase();
+
+        const resolvedPhoto = 
+          normalizePhotoPublicUrl(ext.foto_url, supabase) || 
+          inspectionPhotoMap.get(pNorm) || 
+          inspectionPhotoMap.get(idLower) || 
+          null;
+
+        resultMap.set(pNorm, {
+          id: ext.id,
+          idAtivo: pat,
+          patrimonio: pat,
+          category: 'extintores',
+          model: ext.modelo_tipo || 'Extintor',
+          location: ext.local_instalacao || 'Área Operacional',
+          subLocation: ext.sub_local_instalacao || '',
+          status: ext.status_conformidade === 'VENCIDO' ? 'Vencido' : 'Conforme',
+          status_estoque: ext.status_estoque || 'NA ÁREA (APLICADO)',
+          tipo_movimentacao: ext.tipo_movimentacao || 'na_area_aplicado',
+          latitude: lat,
+          longitude: lng,
+          precisao_gps: ext.precisao_gps != null ? Number(ext.precisao_gps) : null,
+          data_ultima_localizacao: ext.data_ultima_inspecao || ext.updated_at,
+          origem_localizacao: 'INSPECAO_TECNICA',
+          foto_url: resolvedPhoto
+        });
+      }
+    }
+
+    // 3.2. Agora, adicionar ou enriquecer com os ativos da tabela assets
+    const assetsData = assetsRes.data || [];
+    for (const item of assetsData) {
       const lat = Number(item.latitude);
       const lng = Number(item.longitude);
 
@@ -316,9 +430,18 @@ export async function getOperationalMapAssetsAction(): Promise<{
 
       const pat = String(item.id_ativo || item.patrimonio || item.id).trim().toUpperCase();
       const pNorm = pat.replace(/\s+/g, '');
-      const extMeta = extMetaMap.get(String(item.id).toLowerCase()) || extMetaMap.get(pNorm);
+      const idLower = String(item.id).toLowerCase();
+      const extMeta = extMetaMap.get(idLower) || extMetaMap.get(pNorm);
 
       const isExt = (item.category || '').toLowerCase().includes('extintor') || pat.includes('EXT');
+
+      const resolvedPhoto = 
+        normalizePhotoPublicUrl(extMeta?.foto_url, supabase) ||
+        normalizePhotoPublicUrl(item.details?.foto_url, supabase) ||
+        normalizePhotoPublicUrl(item.details?.fotoUrl, supabase) ||
+        inspectionPhotoMap.get(pNorm) ||
+        inspectionPhotoMap.get(idLower) ||
+        null;
 
       resultMap.set(pNorm, {
         id: item.id,
@@ -336,7 +459,7 @@ export async function getOperationalMapAssetsAction(): Promise<{
         precisao_gps: item.details?.precisao_gps != null ? Number(item.details.precisao_gps) : null,
         data_ultima_localizacao: item.details?.data_ultima_localizacao || item.updated_at,
         origem_localizacao: item.details?.origem_localizacao || 'EDICAO_MANUAL',
-        foto_url: extMeta?.foto_url || item.details?.foto_url || inspectionPhotoMap.get(pNorm) || null
+        foto_url: resolvedPhoto
       });
     }
 

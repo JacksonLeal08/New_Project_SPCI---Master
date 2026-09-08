@@ -9,7 +9,7 @@ import QrCameraScanner from './QrCameraScanner';
 import { parseInmetroCode } from '@/lib/utils';
 import { TipoMovimentacaoType, TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
 import { useGeoCapture } from '@/hooks/useGeoCapture';
-import { processAssetLocationUpdateAction } from '@/app/actions/geoTrackingActions';
+import { processAssetLocationUpdateAction, uploadAssetPhotoAction } from '@/app/actions/geoTrackingActions';
 import { GeoCoordinates } from '@/lib/geoUtils';
 
 interface ExtintorAddModalProps {
@@ -597,29 +597,25 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       const uniqueId = generateUUID();
       let uploadedFotoUrl = '';
 
-      if (selectedFile) {
-        const fileExt = selectedFile.name.split('.').pop() || 'jpg';
-        const fileName = `ext_${codePatrimonio}_${Date.now()}.${fileExt}`;
+      if (previewUrl || selectedFile) {
         const isOnline = typeof window !== 'undefined' && navigator.onLine;
 
-        if (isOnline) {
+        if (isOnline && previewUrl) {
           try {
-            const { data: uploadData, error: uploadErr } = await supabase.storage
-              .from('fotos_extintores')
-              .upload(fileName, selectedFile);
-
-            if (uploadErr) throw uploadErr;
-
-            const { data: { publicUrl } } = supabase.storage
-              .from('fotos_extintores')
-              .getPublicUrl(uploadData.path);
-
-            uploadedFotoUrl = publicUrl;
+            const upRes = await uploadAssetPhotoAction(codePatrimonio, previewUrl);
+            if (upRes.success && upRes.publicUrl) {
+              uploadedFotoUrl = upRes.publicUrl;
+            } else {
+              console.warn('Upload via action falhou, enfileirando offline:', upRes.error);
+            }
           } catch (err: any) {
             console.warn('Image storage upload failed, enqueuing offline:', err);
-            await MediaQueue.enqueue(uniqueId, 'extintores', fileName, selectedFile);
           }
-        } else {
+        }
+
+        if (!uploadedFotoUrl && selectedFile) {
+          const fileExt = selectedFile.name.split('.').pop() || 'jpg';
+          const fileName = `ext_${codePatrimonio}_${Date.now()}.${fileExt}`;
           await MediaQueue.enqueue(uniqueId, 'extintores', fileName, selectedFile);
         }
       }

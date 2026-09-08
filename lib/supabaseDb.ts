@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import { InspecaoRealizada, normalizeTipoMovimentacao, TIPO_MOVIMENTACAO_MAP } from './types';
 import { getUsersListAction } from '@/app/actions/userActions';
+import { uploadAssetPhotoAction } from '@/app/actions/geoTrackingActions';
 import { MediaQueue } from './mediaQueue';
 
 
@@ -401,6 +402,7 @@ const deserializeNewExtintor = (row: any) => {
     anoUltimoTesteHidro: row.ano_ultimo_teste_hidro || new Date().getFullYear(),
     ultimoTesteHidro: row.ano_ultimo_teste_hidro || new Date().getFullYear(),
     fotoUrl: row.foto_url || '',
+    foto_url: row.foto_url || '',
     validadeRecarga: limiteRecargaDate,
     validadeTesteHidro: row.data_limite_hidro || '',
     statusConformidade: row.status_conformidade,
@@ -894,20 +896,14 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
       let resolvedFotoUrl = asset.fotoUrl || asset.foto_url || null;
       if (resolvedFotoUrl && typeof resolvedFotoUrl === 'string' && resolvedFotoUrl.startsWith('data:image/')) {
         try {
-          const blob = MediaQueue.base64ToBlob(resolvedFotoUrl, 'image/jpeg');
           const cleanId = String(asset.idAtivo || asset.patrimonio || id).replace(/[^a-zA-Z0-9_-]/g, '_');
-          const fileName = `ext_${cleanId}_${Date.now()}.jpg`;
-          const { data: upData, error: upErr } = await supabase.storage
-            .from('fotos_extintores')
-            .upload(fileName, blob, { contentType: 'image/jpeg', upsert: true });
-
-          if (!upErr && upData?.path) {
-            const { data: { publicUrl } } = supabase.storage
-              .from('fotos_extintores')
-              .getPublicUrl(upData.path);
-            resolvedFotoUrl = publicUrl;
+          const upRes = await uploadAssetPhotoAction(cleanId, resolvedFotoUrl);
+          if (upRes.success && upRes.publicUrl) {
+            resolvedFotoUrl = upRes.publicUrl;
           } else {
-            console.warn('[saveAssetToDb] Falha ao subir imagem Base64 no storage, enfileirando offline:', upErr);
+            console.warn('[saveAssetToDb] Falha ao subir imagem Base64 no storage, enfileirando offline:', upRes.error);
+            const blob = MediaQueue.base64ToBlob(resolvedFotoUrl, 'image/jpeg');
+            const fileName = `ext_${cleanId}_${Date.now()}.jpg`;
             await MediaQueue.enqueue(id, 'extintores', fileName, blob as any).catch(console.warn);
             resolvedFotoUrl = null;
           }
@@ -1108,6 +1104,20 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada & { j
     const justificativa = inspecao.justificativa_reinspecao ?? (inspecao.details?.justificativa_reinspecao || null);
     const dataInsp = inspecao.data_inspecao || new Date().toISOString();
 
+    // Se a foto da vistoria estiver em Base64, realiza upload seguro para gerar URL pública permanente
+    let finalPhotoUrl = fotoUrl;
+    if (fotoUrl && typeof fotoUrl === 'string' && fotoUrl.startsWith('data:image/')) {
+      try {
+        const cleanPat = String(inspecao.asset_patrimonio || inspecao.asset_id).replace(/[^a-zA-Z0-9_-]/g, '_');
+        const upRes = await uploadAssetPhotoAction(cleanPat, fotoUrl);
+        if (upRes.success && upRes.publicUrl) {
+          finalPhotoUrl = upRes.publicUrl;
+        }
+      } catch (err) {
+        console.warn('[salvarInspecaoNoSupabase] Aviso ao enviar foto da inspeção para storage:', err);
+      }
+    }
+
     const payload: Record<string, any> = {
       asset_id: inspecao.asset_id,
       asset_patrimonio: inspecao.asset_patrimonio,
@@ -1118,11 +1128,11 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada & { j
       latitude: lat,
       longitude: lng,
       precisao_gps: precisao,
-      foto_evidencia_url: fotoUrl,
+      foto_evidencia_url: finalPhotoUrl,
       details: {
         ...inspecao.details,
         justificativa_reinspecao: justificativa,
-        foto_evidencia_url: fotoUrl,
+        foto_evidencia_url: finalPhotoUrl,
         geo_latitude: lat,
         geo_longitude: lng,
         geo_precisao: precisao
@@ -1167,6 +1177,10 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada & { j
       assetUpdatePayload.justificativa_reinspecao = justificativa;
     }
 
+    if (finalPhotoUrl) {
+      assetUpdatePayload.foto_url = finalPhotoUrl;
+    }
+
     if (lat != null && lng != null) {
       assetUpdatePayload.latitude = lat;
       assetUpdatePayload.longitude = lng;
@@ -1193,6 +1207,11 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada & { j
       }
     } else {
       assetUpdatePayload.status = inspecao.status;
+      if (finalPhotoUrl) {
+        assetUpdatePayload.details = {
+          foto_url: finalPhotoUrl
+        };
+      }
 
       let query = supabase
         .from('assets')
