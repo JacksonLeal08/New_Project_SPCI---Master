@@ -72,9 +72,10 @@ export default function InspectionMiniMap({
 
       tileLayerRef.current = L.tileLayer(tileUrl, { maxZoom: 19 }).addTo(map);
 
-      // Cor do marcador
-      const isConforme = status?.toLowerCase().includes('conforme') && !status?.toLowerCase().includes('não') && !status?.toLowerCase().includes('nao');
-      const isCancelada = status?.toLowerCase().includes('cancel');
+      // Cor do marcador blindada contra undefined
+      const statusStr = String(status || '').toLowerCase();
+      const isConforme = statusStr.includes('conforme') && !statusStr.includes('não') && !statusStr.includes('nao');
+      const isCancelada = statusStr.includes('cancel');
       const markerColor = isCancelada ? '#64748b' : (isConforme ? '#10b981' : '#ef4444');
       const pulseColor = isCancelada ? 'rgba(100,116,139,0.3)' : (isConforme ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)');
 

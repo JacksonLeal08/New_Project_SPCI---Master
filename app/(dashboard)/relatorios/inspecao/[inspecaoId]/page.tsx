@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import dynamic from 'next/dynamic';
 import {
   Printer,
   ArrowLeft,
@@ -17,24 +18,43 @@ import {
   Layers,
   X,
   Building,
-  Info,
-  ExternalLink
+  Info
 } from 'lucide-react';
 import { fetchInspecaoById } from '@/lib/supabaseDb';
 import { InspecaoRealizada } from '@/lib/types';
-import InspectionMiniMap from '@/app/components/InspectionMiniMap';
+
+// Carregamento dinâmico estrito do Leaflet para evitar exceções de SSR / Hydration na Vercel
+const InspectionMiniMap = dynamic(() => import('@/app/components/InspectionMiniMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="h-64 sm:h-72 w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900/60 flex items-center justify-center text-xs text-slate-400">
+      Carregando mapa georreferenciado...
+    </div>
+  )
+});
 
 export default function LaudoInspecaoPage() {
   const params = useParams();
   const router = useRouter();
-  const inspecaoId = params?.inspecaoId as string;
+
+  // Tratamento seguro do inspecaoId de params
+  const rawId = params?.inspecaoId;
+  const inspecaoId = Array.isArray(rawId) ? rawId[0] : rawId ? String(rawId) : '';
 
   const [inspecao, setInspecao] = useState<InspecaoRealizada | null>(null);
   const [loading, setLoading] = useState(true);
   const [zoomFotoUrl, setZoomFotoUrl] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    if (!inspecaoId) return;
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (!inspecaoId) {
+      setLoading(false);
+      return;
+    }
 
     let isMounted = true;
     setLoading(true);
@@ -57,7 +77,9 @@ export default function LaudoInspecaoPage() {
   }, [inspecaoId]);
 
   const handlePrint = () => {
-    window.print();
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
   };
 
   if (loading) {
@@ -87,6 +109,7 @@ export default function LaudoInspecaoPage() {
           Não foi possível localizar o identificador informado ou o registro foi cancelado/removido do banco de dados.
         </p>
         <button
+          type="button"
           onClick={() => router.push('/extintores/historico-inspecoes')}
           className="flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-semibold shadow-sm transition"
         >
@@ -97,25 +120,46 @@ export default function LaudoInspecaoPage() {
     );
   }
 
+  // Verificações blindadas de status
+  const statusStr = String(inspecao?.status || '').toLowerCase();
   const isConforme =
-    inspecao.status?.toLowerCase().includes('conforme') &&
-    !inspecao.status?.toLowerCase().includes('não') &&
-    !inspecao.status?.toLowerCase().includes('nao');
-  const isCancelada = inspecao.status?.toLowerCase().includes('cancel');
+    statusStr.includes('conforme') && !statusStr.includes('não') && !statusStr.includes('nao');
+  const isCancelada = statusStr.includes('cancel');
 
-  const asset = inspecao.asset_details || {};
-  const checklist = inspecao.details?.checklistItems || inspecao.details || {};
+  const asset = inspecao?.asset_details || {};
 
-  // Formatação das datas
-  const dataVistoria = inspecao.data_inspecao
-    ? new Date(inspecao.data_inspecao).toLocaleString('pt-BR', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      })
-    : 'Não informada';
+  // Normalização de details se vier como string JSON
+  let detailsObj: any = {};
+  if (typeof inspecao.details === 'string') {
+    try {
+      detailsObj = JSON.parse(inspecao.details);
+    } catch {
+      detailsObj = {};
+    }
+  } else if (inspecao.details && typeof inspecao.details === 'object') {
+    detailsObj = inspecao.details;
+  }
+
+  const checklist = detailsObj?.checklistItems || detailsObj || {};
+
+  // Formatação segura de datas
+  let dataVistoria = 'Não informada';
+  if (inspecao.data_inspecao) {
+    try {
+      const d = new Date(inspecao.data_inspecao);
+      if (!isNaN(d.getTime())) {
+        dataVistoria = d.toLocaleString('pt-BR', {
+          day: '2-digit',
+          month: '2-digit',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        });
+      }
+    } catch {
+      dataVistoria = String(inspecao.data_inspecao);
+    }
+  }
 
   // Itens do checklist NBR
   const checkItems = [
@@ -151,41 +195,44 @@ export default function LaudoInspecaoPage() {
     }
   ];
 
+  const laudoCodigo = String(inspecao.id || '').slice(0, 8).toUpperCase() || 'PENDENTE';
+
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 py-4 sm:py-8 px-2 sm:px-6 print:bg-white print:p-0">
-      {/* Estilos CSS específicos para impressão corporativa A4 */}
-      <style jsx global>{`
-        @page {
-          size: A4 portrait;
-          margin: 12mm 10mm 12mm 10mm;
-        }
-        @media print {
-          body {
-            background: #ffffff !important;
-            color: #0f172a !important;
-            font-size: 11px !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          nav, aside, header, .no-print {
-            display: none !important;
-          }
-          .page-break {
-            page-break-before: always;
-          }
-          .avoid-break {
-            page-break-inside: avoid;
-          }
-          .print-shadow-none {
-            box-shadow: none !important;
-            border-color: #cbd5e1 !important;
-          }
-        }
-      `}</style>
+      {/* Estilos CSS de impressão injetados de forma compatível com React 19 */}
+      <style
+        dangerouslySetInnerHTML={{
+          __html: `
+            @page {
+              size: A4 portrait;
+              margin: 12mm 10mm 12mm 10mm;
+            }
+            @media print {
+              body {
+                background: #ffffff !important;
+                color: #0f172a !important;
+                font-size: 11px !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+              nav, aside, header, .no-print {
+                display: none !important;
+              }
+              .page-break {
+                page-break-before: always;
+              }
+              .avoid-break {
+                page-break-inside: avoid;
+              }
+            }
+          `
+        }}
+      />
 
       {/* Barra de Ferramentas Superior (Oculta na Impressão) */}
       <div className="max-w-4xl mx-auto mb-4 flex items-center justify-between no-print gap-2">
         <button
+          type="button"
           onClick={() => router.push('/extintores/historico-inspecoes')}
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-sm hover:bg-slate-50 dark:hover:bg-slate-800/80 transition"
         >
@@ -195,6 +242,7 @@ export default function LaudoInspecaoPage() {
 
         <div className="flex items-center gap-2">
           <button
+            type="button"
             onClick={handlePrint}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md shadow-red-600/20 transition active:scale-95"
           >
@@ -227,11 +275,13 @@ export default function LaudoInspecaoPage() {
           <div className="text-left sm:text-right text-xs">
             <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full font-mono text-[11px] font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 print:bg-slate-100 print:text-slate-900">
               <FileText className="w-3.5 h-3.5 text-red-600" />
-              LAUDO #{inspecao.id ? inspecao.id.slice(0, 8).toUpperCase() : 'PENDENTE'}
+              LAUDO #{laudoCodigo}
             </div>
-            <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-mono">
-              Emissão do Laudo: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-            </div>
+            {mounted && (
+              <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 font-mono">
+                Emissão: {new Date().toLocaleDateString('pt-BR')} às {new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            )}
           </div>
         </div>
 
@@ -297,19 +347,19 @@ export default function LaudoInspecaoPage() {
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Número de Série / Chassi</span>
                 <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
-                  {asset.numero_serie || asset.chassi || inspecao.details?.numero_serie || 'N/A'}
+                  {asset.numero_serie || asset.chassi || detailsObj?.numero_serie || 'N/A'}
                 </span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Tipo / Agente Extintor</span>
                 <span className="font-bold text-slate-700 dark:text-slate-300">
-                  {asset.tipo || asset.modelo || inspecao.details?.tipo || 'Pó Químico Seco (PQS)'}
+                  {asset.tipo || asset.modelo || detailsObj?.tipo || 'Pó Químico Seco (PQS)'}
                 </span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Capacidade Carga</span>
                 <span className="font-semibold text-slate-700 dark:text-slate-300">
-                  {asset.capacidade || inspecao.details?.capacidade || 'N/A'}
+                  {asset.capacidade || detailsObj?.capacidade || 'N/A'}
                 </span>
               </div>
               <div>
@@ -321,7 +371,7 @@ export default function LaudoInspecaoPage() {
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Localização / Setor</span>
                 <span className="font-semibold text-slate-700 dark:text-slate-300">
-                  {asset.localizacao || asset.area || inspecao.details?.localizacao || 'Área Operacional'}
+                  {asset.localizacao || asset.area || detailsObj?.localizacao || 'Área Operacional'}
                 </span>
               </div>
             </div>
@@ -349,7 +399,7 @@ export default function LaudoInspecaoPage() {
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Coordenadas GPS</span>
                 <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
-                  {inspecao.latitude != null && inspecao.longitude != null
+                  {inspecao.latitude != null && inspecao.longitude != null && !isNaN(inspecao.latitude) && !isNaN(inspecao.longitude)
                     ? `${inspecao.latitude.toFixed(5)}, ${inspecao.longitude.toFixed(5)}`
                     : 'Não capturadas'}
                 </span>
@@ -357,7 +407,9 @@ export default function LaudoInspecaoPage() {
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Precisão do Dispositivo</span>
                 <span className="font-mono font-medium text-slate-700 dark:text-slate-300">
-                  {inspecao.precisao_gps != null ? `±${Math.round(inspecao.precisao_gps)} metros` : 'N/A'}
+                  {inspecao.precisao_gps != null && !isNaN(inspecao.precisao_gps)
+                    ? `±${Math.round(inspecao.precisao_gps)} metros`
+                    : 'N/A'}
                 </span>
               </div>
               <div className="col-span-2">
@@ -538,6 +590,7 @@ export default function LaudoInspecaoPage() {
         >
           <div className="relative max-w-3xl max-h-[90vh] bg-slate-950 rounded-2xl overflow-hidden border border-slate-800 p-2">
             <button
+              type="button"
               onClick={() => setZoomFotoUrl(null)}
               className="absolute top-4 right-4 p-2 rounded-full bg-black/70 hover:bg-black text-white transition z-10"
             >

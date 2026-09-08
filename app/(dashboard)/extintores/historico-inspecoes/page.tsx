@@ -564,7 +564,7 @@ function HistoricoInspecoesContent() {
                             {/* Ver Laudo Técnico / Imprimir */}
                             <button
                               type="button"
-                              onClick={() => router.push(`/relatorios/inspecao/${item.id}`)}
+                              onClick={() => router.push(`/relatorios/inspecao/${item.id || item.asset_id || item.asset_patrimonio}`)}
                               className="p-1.5 rounded-lg bg-red-50 dark:bg-red-950/40 text-red-700 dark:text-red-300 hover:bg-red-100 border border-red-200 dark:border-red-900/40 transition"
                               title="Ver Laudo Técnico Pericial & PDF"
                             >
@@ -655,7 +655,7 @@ function HistoricoInspecoesContent() {
 
                       <button
                         type="button"
-                        onClick={() => router.push(`/relatorios/inspecao/${item.id}`)}
+                        onClick={() => router.push(`/relatorios/inspecao/${item.id || item.asset_id || item.asset_patrimonio}`)}
                         className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-red-600 text-white text-[11px] font-bold shadow-sm"
                       >
                         <FileText className="w-3.5 h-3.5" />

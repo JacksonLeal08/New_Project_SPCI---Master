@@ -1499,17 +1499,36 @@ export async function fetchAllInspecoes(options?: { site?: string; search?: stri
 }
 
 /**
- * Busca inspeção detalhada por ID, enriquecendo com dados cadastrais do ativo caso existam.
+ * Busca inspeção detalhada por ID ou Patrimônio, enriquecendo com dados cadastrais do ativo caso existam.
  */
-export async function fetchInspecaoById(id: string): Promise<InspecaoRealizada | null> {
+export async function fetchInspecaoById(idOrPatrimonio: string): Promise<InspecaoRealizada | null> {
   try {
-    const { data, error } = await supabase
-      .from('inspecoes_realizadas')
-      .select('*')
-      .eq('id', id)
-      .maybeSingle();
+    if (!idOrPatrimonio) return null;
+    const cleanParam = String(idOrPatrimonio).trim();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanParam);
 
-    if (error) throw error;
+    let data: any = null;
+
+    if (isUuid) {
+      const { data: singleRow, error } = await supabase
+        .from('inspecoes_realizadas')
+        .select('*')
+        .eq('id', cleanParam)
+        .maybeSingle();
+      if (error) throw error;
+      data = singleRow;
+    } else {
+      // Se não for UUID (ex: patrimônio EXT-337), busca a inspeção mais recente desse ativo
+      const { data: rows, error } = await supabase
+        .from('inspecoes_realizadas')
+        .select('*')
+        .or(`asset_patrimonio.eq.${cleanParam.toUpperCase()},asset_id.eq.${cleanParam}`)
+        .order('data_inspecao', { ascending: false })
+        .limit(1);
+      if (error) throw error;
+      data = (rows && rows.length > 0) ? rows[0] : null;
+    }
+
     if (!data) return null;
 
     let assetDetails = data.details?.asset_snapshot || null;
@@ -1557,7 +1576,7 @@ export async function fetchInspecaoById(id: string): Promise<InspecaoRealizada |
       asset_details: assetDetails
     };
   } catch (error: any) {
-    console.error(`Erro ao buscar inspeção [${id}]:`, error);
+    console.error(`Erro ao buscar inspeção [${idOrPatrimonio}]:`, error);
     return null;
   }
 }
