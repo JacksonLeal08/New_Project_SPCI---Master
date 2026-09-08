@@ -176,7 +176,7 @@ export default function InspectionMiniMap({
           )}
         </div>
 
-        <div className="flex items-center gap-1 pointer-events-auto">
+        <div className="flex items-center gap-1 pointer-events-auto no-print print:hidden">
           <button
             type="button"
             onClick={toggleMapType}

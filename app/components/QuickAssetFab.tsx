@@ -194,7 +194,7 @@ export default function QuickAssetFab() {
   return (
     <>
       <div 
-        className={`fixed bottom-6 z-50 flex flex-col items-end select-none transition-all duration-300 ease-out ${
+        className={`fixed bottom-6 z-50 flex flex-col items-end select-none transition-all duration-300 ease-out no-print print:hidden ${
           chatOpened ? 'right-6 sm:right-[440px] md:right-[475px]' : 'right-6'
         }`}
       >

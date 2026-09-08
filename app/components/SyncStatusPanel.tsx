@@ -91,7 +91,7 @@ export default function SyncStatusPanel() {
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           onClick={() => setIsOpen(true)}
-          className={`fixed bottom-4 right-4 z-40 px-3.5 py-2.5 rounded-xl font-mono text-[10px] font-black tracking-wider flex items-center gap-2 border cursor-pointer shadow-lg active:scale-95 transition-all uppercase ${
+          className={`fixed bottom-4 right-4 z-40 px-3.5 py-2.5 rounded-xl font-mono text-[10px] font-black tracking-wider flex items-center gap-2 border cursor-pointer shadow-lg active:scale-95 transition-all uppercase no-print print:hidden ${
             totalFailed > 0
               ? 'bg-red-600 hover:bg-red-700 border-red-400 text-white animate-pulse'
               : 'bg-amber-500 hover:bg-amber-600 border-amber-400 text-slate-950 shadow-amber-950/20'
@@ -108,7 +108,7 @@ export default function SyncStatusPanel() {
       {/* Modal HUD Detalhado */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 font-mono">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 font-mono no-print print:hidden">
             <motion.div
               initial={{ opacity: 0, scale: 0.98, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}

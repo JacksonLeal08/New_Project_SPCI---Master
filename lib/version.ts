@@ -30,8 +30,8 @@ export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
     },
     {
       category: 'NBR',
-      title: 'Laudo Técnico Pericial com Mini-Mapa Georreferenciado & PDF',
-      description: 'Página oficial de laudo de vistoria (/relatorios/inspecao/:id) com dados cadastrais do extintor, mini-mapa Leaflet com raio de precisão GPS, checklist normativo NBR 12962, fotos com lightbox e exportação pronta para impressão/PDF A4 com assinaturas.'
+      title: 'Laudo Técnico Pericial em Página Única A4 & PDF com Nome Dinâmico',
+      description: 'Página oficial de laudo de vistoria (/relatorios/inspecao/:id) com layout executivo calibrado para caber 100% em uma única folha A4, nome dinâmico de salvamento (SISTEMA SPCI - Laudo Técnico Pericial - [Ativo]), ocultação de botões flutuantes/FAB e assinaturas técnicas.'
     },
     {
       category: 'UI/UX',
