@@ -13,11 +13,26 @@ export interface SystemVersionInfo {
 }
 
 export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
-  version: 'v2.10.2',
+  version: 'v2.11.0',
   date: '08/09/2026',
-  title: 'SPCI Master v2.10.2 - Formulário Mobile Alto Contraste & Bento Card com Foto, Chassi e Capacidade (Opção B)',
-  summary: 'Aprimoramento completo de contraste visual e legibilidade no tema claro do formulário de campo mobile: eliminação de semitransparências nos blocos de Não Conforme, slots de fotos nítidos com fundo sólido, alertas legíveis, além do Bento Grid enriquecido com miniatura da foto do ativo e zoom, número do Chassi agrupado ao Patrimônio e novo campo de Capacidade Extintora.',
+  title: 'SPCI Master v2.11.0 - Gestão de Ativos Mobile & Histórico Geral de Vistorias com Laudo PDF (Opção C)',
+  summary: 'Refatoração mobile-first do modal Gestão de Ativos & Estoque Operacional com tela cheia, bloqueio de scroll bleed, régua compacta de 3 colunas e abas deslizantes. Ativação completa do Módulo Histórico de Inspeções (CRUD Supabase, telemetria GPS e fotos de evidência) e página de Laudo Técnico Pericial NBR 12962 com mini-mapa interativo e exportação em PDF (@media print).',
   changes: [
+    {
+      category: 'UI/UX',
+      title: 'Modal Gestão de Ativos Mobile-First em Tela Cheia (Opção C)',
+      description: 'Estrutura 100dvh responsiva no celular com bloqueio de scroll de fundo (overflow: hidden), mini-cards de vencimento em 3 colunas compactas, barra de ações com + Novo Ativo em destaque e scroll horizontal suave nas abas de estoque.'
+    },
+    {
+      category: 'UI/UX',
+      title: 'Módulo Dedicado "Histórico Geral de Inspeções"',
+      description: 'Ativação da rota /extintores/historico-inspecoes substituindo o status de homologação, com tabela interativa, filtros por patrimônio (?ativo=), status e inspetor, retificação de notas com log de auditoria e cancelamento soft-delete.'
+    },
+    {
+      category: 'NBR',
+      title: 'Laudo Técnico Pericial com Mini-Mapa Georreferenciado & PDF',
+      description: 'Página oficial de laudo de vistoria (/relatorios/inspecao/:id) com dados cadastrais do extintor, mini-mapa Leaflet com raio de precisão GPS, checklist normativo NBR 12962, fotos com lightbox e exportação pronta para impressão/PDF A4 com assinaturas.'
+    },
     {
       category: 'UI/UX',
       title: 'Bento Card com Foto do Ativo, Chassi e Capacidade',

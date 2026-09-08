@@ -178,7 +178,7 @@ export interface InspecaoRealizada {
   id?: string;
   asset_id: string;
   asset_patrimonio: string;
-  status: 'Conforme' | 'Não Conforme';
+  status: 'Conforme' | 'Não Conforme' | 'Cancelada';
   observacoes?: string;
   tecnico_nome: string;
   data_inspecao: string;
@@ -188,6 +188,7 @@ export interface InspecaoRealizada {
   longitude?: number | null;
   precisao_gps?: number | null;
   foto_evidencia_url?: string | null;
+  site?: string | null;
   details?: {
     lacre_presente?: boolean;
     pressao_adequada?: boolean;
@@ -198,6 +199,7 @@ export interface InspecaoRealizada {
     [key: string]: any;
   };
   created_at?: string;
+  asset_details?: any;
 }
 
 export interface NotificationItem {

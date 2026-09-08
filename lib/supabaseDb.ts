@@ -1431,6 +1431,12 @@ export async function fetchRecentInspecoes(): Promise<InspecaoRealizada[]> {
       observacoes: row.observacoes,
       tecnico_nome: row.tecnico_nome,
       data_inspecao: row.data_inspecao,
+      justificativa_reinspecao: row.justificativa_reinspecao || row.details?.justificativa_reinspecao || null,
+      latitude: row.latitude != null ? Number(row.latitude) : (row.details?.geo_latitude ? Number(row.details.geo_latitude) : null),
+      longitude: row.longitude != null ? Number(row.longitude) : (row.details?.geo_longitude ? Number(row.details.geo_longitude) : null),
+      precisao_gps: row.precisao_gps || row.details?.geo_precisao || null,
+      foto_evidencia_url: row.foto_evidencia_url || row.details?.foto_evidencia_url || null,
+      site: row.site || row.details?.site || null,
       details: row.details || {},
       created_at: row.created_at
     }));
@@ -1445,3 +1451,251 @@ export async function fetchRecentInspecoes(): Promise<InspecaoRealizada[]> {
     return [];
   }
 }
+
+/**
+ * Busca lista completa de inspeções com suporte a filtros (site, busca, limite).
+ */
+export async function fetchAllInspecoes(options?: { site?: string; search?: string; limit?: number }): Promise<InspecaoRealizada[]> {
+  try {
+    let query = supabase
+      .from('inspecoes_realizadas')
+      .select('*')
+      .order('data_inspecao', { ascending: false })
+      .limit(options?.limit || 300);
+
+    if (options?.site && options.site !== 'TODOS' && options.site !== 'TODOS OS SITES (Acesso Global)') {
+      query = query.eq('site', options.site);
+    }
+
+    if (options?.search && options.search.trim()) {
+      const s = options.search.trim();
+      query = query.or(`asset_patrimonio.ilike.%${s}%,tecnico_nome.ilike.%${s}%,observacoes.ilike.%${s}%`);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    return (data || []).map((row: any) => ({
+      id: row.id,
+      asset_id: row.asset_id,
+      asset_patrimonio: row.asset_patrimonio,
+      status: row.status,
+      observacoes: row.observacoes,
+      tecnico_nome: row.tecnico_nome,
+      data_inspecao: row.data_inspecao,
+      justificativa_reinspecao: row.justificativa_reinspecao || row.details?.justificativa_reinspecao || null,
+      latitude: row.latitude != null ? Number(row.latitude) : (row.details?.geo_latitude ? Number(row.details.geo_latitude) : null),
+      longitude: row.longitude != null ? Number(row.longitude) : (row.details?.geo_longitude ? Number(row.details.geo_longitude) : null),
+      precisao_gps: row.precisao_gps || row.details?.geo_precisao || null,
+      foto_evidencia_url: row.foto_evidencia_url || row.details?.foto_evidencia_url || null,
+      site: row.site || row.details?.site || null,
+      details: row.details || {},
+      created_at: row.created_at
+    }));
+  } catch (error: any) {
+    console.error('Erro ao buscar todas as inspeções:', error);
+    return [];
+  }
+}
+
+/**
+ * Busca inspeção detalhada por ID, enriquecendo com dados cadastrais do ativo caso existam.
+ */
+export async function fetchInspecaoById(id: string): Promise<InspecaoRealizada | null> {
+  try {
+    const { data, error } = await supabase
+      .from('inspecoes_realizadas')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return null;
+
+    let assetDetails = data.details?.asset_snapshot || null;
+
+    // Se não tiver snapshot salvo no details, busca na tabela de ativos
+    if (!assetDetails && data.asset_patrimonio) {
+      try {
+        const { data: extData } = await supabase
+          .from('ativos_extintores')
+          .select('*')
+          .eq('patrimonio', data.asset_patrimonio)
+          .maybeSingle();
+
+        if (extData) {
+          assetDetails = extData;
+        } else {
+          const { data: generalAsset } = await supabase
+            .from('assets')
+            .select('*')
+            .eq('code', data.asset_patrimonio)
+            .maybeSingle();
+          if (generalAsset) assetDetails = generalAsset;
+        }
+      } catch (err) {
+        console.warn('Não foi possível carregar detalhes do ativo:', err);
+      }
+    }
+
+    return {
+      id: data.id,
+      asset_id: data.asset_id,
+      asset_patrimonio: data.asset_patrimonio,
+      status: data.status,
+      observacoes: data.observacoes,
+      tecnico_nome: data.tecnico_nome,
+      data_inspecao: data.data_inspecao,
+      justificativa_reinspecao: data.justificativa_reinspecao || data.details?.justificativa_reinspecao || null,
+      latitude: data.latitude != null ? Number(data.latitude) : (data.details?.geo_latitude ? Number(data.details.geo_latitude) : null),
+      longitude: data.longitude != null ? Number(data.longitude) : (data.details?.geo_longitude ? Number(data.details.geo_longitude) : null),
+      precisao_gps: data.precisao_gps || data.details?.geo_precisao || null,
+      foto_evidencia_url: data.foto_evidencia_url || data.details?.foto_evidencia_url || null,
+      site: data.site || data.details?.site || null,
+      details: data.details || {},
+      created_at: data.created_at,
+      asset_details: assetDetails
+    };
+  } catch (error: any) {
+    console.error(`Erro ao buscar inspeção [${id}]:`, error);
+    return null;
+  }
+}
+
+/**
+ * Atualiza anotações técnicas de uma inspeção existente, mantendo log de auditoria.
+ */
+export async function updateInspecaoNotes(id: string, notes: string, userNome: string = 'Sistema'): Promise<boolean> {
+  try {
+    // Busca registro atual para auditar
+    const { data: current } = await supabase
+      .from('inspecoes_realizadas')
+      .select('details, observacoes')
+      .eq('id', id)
+      .maybeSingle();
+
+    const currentDetails = current?.details || {};
+    const auditLogs = currentDetails.audit_log || [];
+
+    const newAudit = {
+      action: 'RETIFICACAO_NOTAS',
+      data: new Date().toISOString(),
+      responsavel: userNome,
+      nota_anterior: current?.observacoes || ''
+    };
+
+    const updatedDetails = {
+      ...currentDetails,
+      audit_log: [...auditLogs, newAudit]
+    };
+
+    const { error } = await supabase
+      .from('inspecoes_realizadas')
+      .update({
+        observacoes: notes,
+        details: updatedDetails
+      })
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  } catch (error: any) {
+    console.error(`Erro ao atualizar notas da inspeção [${id}]:`, error);
+    return false;
+  }
+}
+
+/**
+ * Cancela uma inspeção (Soft-Delete auditado) com justificativa obrigatória.
+ */
+export async function cancelarInspecao(id: string, justificativa: string, userNome: string = 'Sistema'): Promise<boolean> {
+  try {
+    const { data: current } = await supabase
+      .from('inspecoes_realizadas')
+      .select('details, status')
+      .eq('id', id)
+      .maybeSingle();
+
+    const currentDetails = current?.details || {};
+    const auditLogs = currentDetails.audit_log || [];
+
+    const cancelAudit = {
+      action: 'CANCELAMENTO_INSPECAO',
+      data: new Date().toISOString(),
+      responsavel: userNome,
+      justificativa,
+      status_anterior: current?.status
+    };
+
+    const updatedDetails = {
+      ...currentDetails,
+      justificativa_reinspecao: justificativa,
+      cancelado_por: userNome,
+      cancelado_em: new Date().toISOString(),
+      audit_log: [...auditLogs, cancelAudit]
+    };
+
+    const { error } = await supabase
+      .from('inspecoes_realizadas')
+      .update({
+        status: 'Cancelada',
+        justificativa_reinspecao: justificativa,
+        details: updatedDetails
+      })
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  } catch (error: any) {
+    console.error(`Erro ao cancelar inspeção [${id}]:`, error);
+    return false;
+  }
+}
+
+/**
+ * Registra uma nova inspeção manualmente no sistema.
+ */
+export async function createManualInspecao(inspecaoData: {
+  asset_id: string;
+  asset_patrimonio: string;
+  status: 'Conforme' | 'Não Conforme';
+  tecnico_nome: string;
+  data_inspecao: string;
+  observacoes?: string;
+  site?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  precisao_gps?: number | null;
+  foto_evidencia_url?: string | null;
+  details?: any;
+}): Promise<string | null> {
+  try {
+    const payload = {
+      asset_id: inspecaoData.asset_id,
+      asset_patrimonio: inspecaoData.asset_patrimonio,
+      status: inspecaoData.status,
+      tecnico_nome: inspecaoData.tecnico_nome,
+      data_inspecao: inspecaoData.data_inspecao || new Date().toISOString(),
+      observacoes: inspecaoData.observacoes || '',
+      site: inspecaoData.site || 'SALOBO',
+      latitude: inspecaoData.latitude || null,
+      longitude: inspecaoData.longitude || null,
+      precisao_gps: inspecaoData.precisao_gps || null,
+      foto_evidencia_url: inspecaoData.foto_evidencia_url || null,
+      details: inspecaoData.details || {}
+    };
+
+    const { data, error } = await supabase
+      .from('inspecoes_realizadas')
+      .insert([payload])
+      .select('id')
+      .single();
+
+    if (error) throw error;
+    return data?.id || null;
+  } catch (error: any) {
+    console.error('Erro ao cadastrar inspeção manual:', error);
+    return null;
+  }
+}
+

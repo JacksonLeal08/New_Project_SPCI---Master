@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import AssetDetailDrawer from '@/app/components/AssetDetailDrawer';
@@ -70,6 +71,7 @@ function generateUUID() {
 }
 
 export default function ExtintoresPage() {
+  const router = useRouter();
   const {
     extintores,
     setExtintores,
@@ -227,7 +229,7 @@ export default function ExtintoresPage() {
     { id: 'import', label: 'Cadastro em massa', icon: Upload, borderClass: 'border-l-4 border-l-blue-500 hover:border-blue-500', iconColor: 'text-blue-600', badgeClass: 'bg-blue-100 text-blue-800' },
     { id: 'edit_mass', label: 'Edição em massa', icon: Settings, borderClass: 'border-l-4 border-l-emerald-500 hover:border-emerald-500', iconColor: 'text-emerald-600', badgeClass: 'bg-emerald-100 text-emerald-800' },
     { id: 'edit_check', label: 'Edição de checklist', icon: CheckSquare, borderClass: 'border-l-4 border-l-red-650 hover:border-red-650', iconColor: 'text-red-750', badgeClass: 'bg-red-100 text-red-800' },
-    { id: 'history', label: 'Histórico Inspeções', icon: History, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeText: 'Desenvolvimento', badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black' },
+    { id: 'history', label: 'Histórico Inspeções', icon: History, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeClass: 'bg-rose-100 text-rose-800' },
     { id: 'manutencao', label: 'Retorno Manutenção', icon: Wrench, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeText: 'Desenvolvimento', badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black' },
     { id: 'laudos', label: 'Certificados/Laudos', icon: FileText, borderClass: 'border-l-4 border-l-teal-500 hover:border-teal-500', iconColor: 'text-teal-600', badgeText: 'Desenvolvimento', badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black' },
   ];
@@ -250,6 +252,9 @@ export default function ExtintoresPage() {
         break;
       case 'edit_check':
         setShowChecklistModal(true);
+        break;
+      case 'history':
+        router.push('/extintores/historico-inspecoes');
         break;
       default:
         setPremiumAlert({

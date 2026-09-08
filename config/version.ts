@@ -1,4 +1,4 @@
-export const SYSTEM_VERSION = 'v2.7.1';
+export const SYSTEM_VERSION = 'v2.11.0';
 export const COMPANY_NAME = 'Grupo OMG';
 export const COPYRIGHT_YEAR = '2026';
 
@@ -11,6 +11,18 @@ export interface ChangelogRelease {
 }
 
 export const SYSTEM_CHANGELOG: ChangelogRelease[] = [
+  {
+    version: 'v2.11.0',
+    date: '08-09-2026',
+    title: '📱 Gestão de Ativos Mobile & Histórico Geral de Vistorias com Laudo PDF (Opção C)',
+    description: 'Refatoração mobile do modal de estoque de ativos e módulo completo de histórico de inspeções com laudo técnico e mini-mapa.',
+    changes: [
+      '📱 Modal Gestão de Ativos & Estoque 100% Mobile-First em tela cheia (100dvh) com bloqueio de scroll de fundo e cards de vencimento compactos.',
+      '📋 Módulo Histórico de Vistorias ativado na rota /extintores/historico-inspecoes com busca, filtros e atalho no card e na sidebar.',
+      '📄 Emissão de Laudo Técnico Pericial NBR 12962 em PDF com mini-mapa georreferenciado e assinaturas formais.',
+      '✏️ Retificação auditada de anotações técnicas e cancelamento de vistoria com justificativa obrigatória.'
+    ]
+  },
   {
     version: 'v2.7.1',
     date: '29-07-2026',
