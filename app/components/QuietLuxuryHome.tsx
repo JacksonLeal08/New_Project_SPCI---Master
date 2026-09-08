@@ -319,7 +319,7 @@ export default function QuietLuxuryHome() {
           </div>
           <div className="space-y-2">
             <p className="text-3xl md:text-4xl font-black text-emerald-600 dark:text-emerald-400 font-mono tracking-tight">256-Bit</p>
-            <span className="text-[10px] font-bold uppercase text-slate-500 tracking-wider block">Criptografia Supabase RLS</span>
+            <span className="text-[10px] font-bold uppercase text-slate-500 tracking-wider block">Criptografia RLS / Banco de Dados</span>
           </div>
         </div>
       </section>

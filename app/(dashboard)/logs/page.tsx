@@ -43,7 +43,7 @@ export default function LogsAuditoriaPage() {
     setIsRefreshing(true);
     try {
       await syncWithRealDatabase();
-      triggerSuccessNotification('Logs Atualizados! 🔄', 'Histórico de auditoria sincronizado com o Supabase.');
+      triggerSuccessNotification('Logs Atualizados! 🔄', 'Histórico de auditoria sincronizado com o Banco de Dados.');
     } catch (e) {
       console.warn('Erro ao sincronizar logs:', e);
     } finally {
@@ -402,7 +402,7 @@ export default function LogsAuditoriaPage() {
               onClick={handleManualRefresh}
               disabled={isRefreshing}
               className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-755 border border-slate-200 font-bold text-xs uppercase rounded-xl flex items-center justify-center gap-2 transition-colors cursor-pointer active:scale-95 shadow-xs disabled:opacity-60"
-              title="Recarregar Logs do Supabase"
+              title="Recarregar Logs do Banco de Dados"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-red-600' : ''}`} />
               <span>{isRefreshing ? 'Sincronizando...' : 'Atualizar'}</span>

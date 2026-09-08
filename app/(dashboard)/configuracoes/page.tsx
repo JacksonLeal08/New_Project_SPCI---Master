@@ -171,7 +171,7 @@ export default function ConfiguracoesPage() {
     }
 
     await syncAllContratos();
-    triggerSuccessNotification('Novo Contrato Cadastrado! 🏢', `O contrato/site "${trimmed}" foi registrado e homologado no Supabase.`);
+    triggerSuccessNotification('Novo Contrato Cadastrado! 🏢', `O contrato/site "${trimmed}" foi registrado e homologado no Banco de Dados.`);
   };
 
   const handleDeleteSite = async (siteName: string) => {
@@ -631,7 +631,7 @@ export default function ConfiguracoesPage() {
                   <h3 className="font-bold text-xs text-slate-900 uppercase tracking-widest">
                     Quadro Geral de Credenciais
                   </h3>
-                  <p className="text-[10px] text-slate-500 mt-0.5 font-sans">Listagem direta do banco Supabase ativo.</p>
+                  <p className="text-[10px] text-slate-500 mt-0.5 font-sans">Listagem direta do Banco de Dados ativo.</p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <button 
@@ -660,7 +660,7 @@ export default function ConfiguracoesPage() {
               {loadingUsersList ? (
                 <div className="p-12 text-center text-xs text-slate-500 font-mono flex items-center justify-center gap-2">
                   <span className="w-3.5 h-3.5 border-2 border-red-650 border-t-transparent animate-spin rounded-full"></span>
-                  Sincronizando usuários do Supabase...
+                  Sincronizando usuários do Banco de Dados...
                 </div>
               ) : userList.length === 0 ? (
                 <div className="p-12 text-center text-xs text-slate-500 font-mono">
@@ -1050,7 +1050,7 @@ export default function ConfiguracoesPage() {
                   NOVO USUÁRIO
                 </h3>
                 <p className="text-[10px] text-slate-500 mt-0.5 font-sans leading-relaxed">
-                  Registro de credenciais corporativas no Supabase Auth com atribuição de perfil RBAC e localidade.
+                  Registro de credenciais corporativas no Banco de Dados com atribuição de perfil RBAC e localidade.
                 </p>
               </div>
             </div>
@@ -1627,7 +1627,7 @@ export default function ConfiguracoesPage() {
                   Atenção: Ação Definitiva e Irreversível!
                 </p>
                 <p className="text-amber-800 text-[11px]">
-                  Tem certeza de que deseja excluir permanentemente o perfil de <strong>{userToDelete.name}</strong>? Esta ação removerá a conta do Supabase Auth e excluirá seus registros de acesso. <strong>Após confirmada, não será possível desfazer.</strong>
+                  Tem certeza de que deseja excluir permanentemente o perfil de <strong>{userToDelete.name}</strong>? Esta ação removerá a conta do Banco de Dados e excluirá seus registros de acesso. <strong>Após confirmada, não será possível desfazer.</strong>
                 </p>
               </div>
             </div>
@@ -1694,7 +1694,7 @@ export default function ConfiguracoesPage() {
                   Editar Cadastro do Colaborador
                 </h3>
                 <p className="text-[10px] text-slate-500 font-sans mt-0.5">
-                  Atualização de credenciais, nível de acesso RBAC, validade e permissões no Supabase
+                  Atualização de credenciais, nível de acesso RBAC, validade e permissões no Banco de Dados
                 </p>
               </div>
             </div>
@@ -1720,7 +1720,7 @@ export default function ConfiguracoesPage() {
                   });
                   setEditingUser(null);
                 } catch (err: any) {
-                  showAlertModal('Erro ao Salvar Perfil ❌', err.message || 'Ocorreu um erro ao atualizar os dados no Supabase.', 'error');
+                  showAlertModal('Erro ao Salvar Perfil ❌', err.message || 'Ocorreu um erro ao atualizar os dados no Banco de Dados.', 'error');
                 } finally {
                   setSavingEdit(false);
                 }
@@ -1809,7 +1809,7 @@ export default function ConfiguracoesPage() {
                       onClick={() => {
                         showConfirmModal({
                           title: 'Excluir Site 🗑️',
-                          message: `Deseja realmente excluir o site "${editSite}" do sistema? Esta ação removerá a localidade da tabela public.locais no Supabase.`,
+                          message: `Deseja realmente excluir o site "${editSite}" do sistema? Esta ação removerá a localidade do Banco de Dados.`,
                           type: 'error',
                           confirmText: 'EXCLUIR SITE',
                           cancelText: 'CANCELAR',

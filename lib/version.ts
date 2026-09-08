@@ -16,7 +16,7 @@ export const CURRENT_SYSTEM_VERSION: SystemVersionInfo = {
   version: 'v2.11.0',
   date: '08/09/2026',
   title: 'SPCI Master v2.11.0 - Gestão de Ativos Mobile & Histórico Geral de Vistorias com Laudo PDF (Opção C)',
-  summary: 'Refatoração mobile-first do modal Gestão de Ativos & Estoque Operacional com tela cheia, bloqueio de scroll bleed, régua compacta de 3 colunas e abas deslizantes. Ativação completa do Módulo Histórico de Inspeções (CRUD Supabase, telemetria GPS e fotos de evidência) e página de Laudo Técnico Pericial NBR 12962 com mini-mapa interativo e exportação em PDF (@media print).',
+  summary: 'Refatoração mobile-first do modal Gestão de Ativos & Estoque Operacional com tela cheia, bloqueio de scroll bleed, régua compacta de 3 colunas e abas deslizantes. Ativação completa do Módulo Histórico de Inspeções (CRUD no Banco de Dados, telemetria GPS e fotos de evidência) e página de Laudo Técnico Pericial NBR 12962 com mini-mapa interativo e exportação em PDF (@media print).',
   changes: [
     {
       category: 'UI/UX',

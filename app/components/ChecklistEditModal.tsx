@@ -422,7 +422,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
         setHudAlert({
           isOpen: true,
           title: 'SALVO LOCALMENTE NO DISPOSITIVO 🟡',
-          message: 'O checklist NBR foi salvo localmente no seu dispositivo e está 100% funcional nas vistorias! (Aguardando criação da tabela "checklists_ativos" no Supabase para sincronia em nuvem).',
+          message: 'O checklist NBR foi salvo localmente no seu dispositivo e está 100% funcional nas vistorias! (Aguardando criação da tabela "checklists_ativos" no Banco de Dados para sincronia em nuvem).',
           type: 'warning',
           shouldCloseModalOnConfirm: true
         });
@@ -870,7 +870,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
               className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white font-black rounded-xl flex items-center gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer border-none"
             >
               <Save className="w-4 h-4" />
-              <span>{saving ? 'Salvando...' : 'Salvar Alterações no Supabase'}</span>
+              <span>{saving ? 'Salvando...' : 'Salvar Alterações no Banco de Dados'}</span>
             </button>
           </div>
         </div>

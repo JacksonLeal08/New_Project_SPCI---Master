@@ -462,7 +462,7 @@ function HistoricoInspecoesContent() {
         {loading ? (
           <div className="p-12 text-center">
             <div className="w-10 h-10 border-3 border-red-600 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-xs text-slate-500 dark:text-slate-400">Carregando vistorias do Supabase...</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Carregando vistorias do Banco de Dados...</p>
           </div>
         ) : filteredList.length === 0 ? (
           <div className="p-12 text-center">

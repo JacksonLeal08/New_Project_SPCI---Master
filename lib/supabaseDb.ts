@@ -1545,24 +1545,67 @@ export async function fetchInspecaoById(idOrPatrimonio: string | number): Promis
 
     let assetDetails = data.details?.asset_snapshot || null;
 
-    // Se não tiver snapshot salvo no details, busca na tabela de ativos
-    if (!assetDetails && data.asset_patrimonio) {
+    // Se não tiver snapshot salvo no details, busca na tabela unificada 'assets' ou 'ativos_extintores'
+    if (!assetDetails && (data.asset_patrimonio || data.asset_id)) {
       try {
-        const { data: extData } = await supabase
-          .from('ativos_extintores')
-          .select('*')
-          .eq('patrimonio', data.asset_patrimonio)
-          .maybeSingle();
+        const patUpper = String(data.asset_patrimonio || '').trim().toUpperCase();
 
-        if (extData) {
-          assetDetails = extData;
-        } else {
-          const { data: generalAsset } = await supabase
-            .from('assets')
-            .select('*')
-            .eq('code', data.asset_patrimonio)
+        // 1. Busca prioritária na tabela 'assets' (onde residem modelo, chassi e capacidade)
+        let assetQuery = supabase.from('assets').select('*');
+        if (data.asset_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(data.asset_id)) {
+          assetQuery = assetQuery.or(`id.eq.${data.asset_id},id_ativo.eq.${patUpper},patrimonio.eq.${patUpper}`);
+        } else if (patUpper) {
+          assetQuery = assetQuery.or(`id_ativo.eq.${patUpper},patrimonio.eq.${patUpper}`);
+        }
+
+        const { data: assetRows } = await assetQuery.limit(1);
+        if (assetRows && assetRows.length > 0) {
+          const a = assetRows[0];
+          assetDetails = {
+            id: a.id,
+            patrimonio: a.patrimonio || a.id_ativo || patUpper,
+            model: a.model || a.details?.model || 'ABC',
+            modelo: a.model || a.details?.model || 'ABC',
+            tipo: a.model || a.details?.model || 'ABC',
+            numero_serie: a.numero_serie || a.details?.serialNumber || a.details?.chassi || '',
+            chassi: a.numero_serie || a.details?.serialNumber || a.details?.chassi || '',
+            peso: a.details?.peso_capacidade || a.peso_capacidade || a.details?.peso || '6',
+            peso_capacidade: a.details?.peso_capacidade || a.peso_capacidade || a.details?.peso || '6',
+            capacidade: a.details?.peso_capacidade || a.peso_capacidade || a.details?.peso || '6',
+            location: a.location || '',
+            localizacao: a.location || '',
+            sub_location: a.sub_location || '',
+            subLocation: a.sub_location || '',
+            site: a.site || a.details?.site || 'SALOBO',
+            details: a.details || {}
+          };
+        } else if (patUpper) {
+          // 2. Fallback na tabela relacional 'ativos_extintores'
+          const { data: extData } = await supabase
+            .from('ativos_extintores')
+            .select('*, modelos_extintores(nome), locais(nome), sub_locais(nome)')
+            .eq('numero_patrimonio', patUpper)
             .maybeSingle();
-          if (generalAsset) assetDetails = generalAsset;
+
+          if (extData) {
+            assetDetails = {
+              id: extData.id,
+              patrimonio: extData.numero_patrimonio,
+              model: extData.modelos_extintores?.nome || 'ABC',
+              modelo: extData.modelos_extintores?.nome || 'ABC',
+              tipo: extData.modelos_extintores?.nome || 'ABC',
+              numero_serie: extData.chassi || '',
+              chassi: extData.chassi || '',
+              peso: extData.peso_capacidade || '6',
+              peso_capacidade: extData.peso_capacidade || '6',
+              capacidade: extData.peso_capacidade || '6',
+              location: extData.locais?.nome || '',
+              localizacao: extData.locais?.nome || '',
+              sub_location: extData.sub_locais?.nome || '',
+              subLocation: extData.sub_locais?.nome || '',
+              site: extData.site || 'SALOBO'
+            };
+          }
         }
       } catch (err) {
         console.warn('Não foi possível carregar detalhes do ativo:', err);

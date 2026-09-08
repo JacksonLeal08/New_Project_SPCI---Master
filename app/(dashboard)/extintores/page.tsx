@@ -1730,7 +1730,7 @@ export default function ExtintoresPage() {
                   <button 
                     onClick={async () => {
                       await syncWithRealDatabase();
-                      triggerSuccessNotification('Dados Atualizados! 🔄', 'O inventário de extintores foi sincronizado com o Supabase.');
+                      triggerSuccessNotification('Dados Atualizados! 🔄', 'O inventário de extintores foi sincronizado com o Banco de Dados.');
                     }}
                     className="p-1 hover:bg-slate-200 rounded-md transition-colors border-none bg-transparent cursor-pointer flex items-center justify-center"
                     title="Atualizar Dados"

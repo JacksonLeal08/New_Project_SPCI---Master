@@ -13,7 +13,7 @@ import { supabase } from '@/lib/supabaseClient';
 // Status messages for interactive loading
 const statusMessages = [
   'Validando chaves criptográficas...',
-  'Resolvendo endpoint Supabase...',
+  'Resolvendo endpoint do Banco de Dados...',
   'Mapeando políticas de Row Level Security (RLS)...',
   'Conectando chaves assimétricas...',
   'Iniciando handshake seguro com servidor...',

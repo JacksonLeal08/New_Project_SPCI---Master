@@ -337,7 +337,7 @@ export default function RondaPage() {
             </div>
             
             <p className="text-[10px] text-slate-400 text-center font-mono select-none">
-              O simulador acima está ativo. Quaisquer ações feitas nele serão sincronizadas com o banco local e Supabase em tempo real.
+              O simulador acima está ativo. Quaisquer ações feitas nele serão sincronizadas com o banco local e Banco de Dados em tempo real.
             </p>
           </div>
 

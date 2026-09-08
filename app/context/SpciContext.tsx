@@ -483,7 +483,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const isOnline = typeof window !== 'undefined' && navigator.onLine;
       
       if (isOnline) {
-        addConsoleLog(`[Offline-Sync] Conexão ativa. Sincronizando lote de [${moduleKey}] no Supabase...`);
+        addConsoleLog(`[Offline-Sync] Conexão ativa. Sincronizando lote de [${moduleKey}] no Banco de Dados...`);
         
         // Tenta sincronizar todos os itens
         await Promise.all(
@@ -597,7 +597,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // --- MEMOIZED SUPABASE SYNC FUNCTION ---
   const syncWithRealDatabase = useCallback(async () => {
     try {
-      addConsoleLog(`[Sincronia] Carregando dados atualizados do Supabase...`, 'INFO');
+      addConsoleLog(`[Sincronia] Carregando dados atualizados do Banco de Dados...`, 'INFO');
       
       const extDb = await getAssetsList('extintores');
       if (extDb && extDb.length > 0) {
@@ -699,10 +699,10 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       setLastSyncTime(new Date());
-      addConsoleLog(`[Sincronia] Dados do Supabase sincronizados com sucesso!`, 'SUCESSO');
+      addConsoleLog(`[Sincronia] Dados sincronizados com o Banco de Dados com sucesso!`, 'SUCESSO');
     } catch (err) {
       console.warn('Erro ao sincronizar com banco em tempo real:', err);
-      addConsoleLog(`[Sincronia] Erro ao sincronizar com Supabase.`, 'ERRO');
+      addConsoleLog(`[Sincronia] Erro ao sincronizar com o Banco de Dados.`, 'ERRO');
     }
   }, [addConsoleLog]);
 
@@ -968,7 +968,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         lastNotificationTimeRef.current = now;
         triggerSuccessNotification(
           "Ativo Sincronizado! 🔄",
-          `O ativo foi sincronizado com o Supabase e o cache foi atualizado.`
+          `O ativo foi sincronizado com o Banco de Dados e o cache foi atualizado.`
         );
       }
     };
@@ -1407,7 +1407,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const dbStatus = (newStatus === 'active' || newStatus === 'Ativo') ? 'Ativo' : (newStatus === 'pending' || newStatus === 'Pendente') ? 'Pendente' : 'Inativo/Suspenso';
       const res = await updateUserStatusAction(uid, { role: newRole, status: dbStatus as any });
       if (!res.success) {
-        throw new Error(res.error || 'Falha ao salvar alteração no Supabase.');
+        throw new Error(res.error || 'Falha ao salvar alteração no Banco de Dados.');
       }
       await fetchUsers();
       triggerSuccessNotification("Usuário Atualizado! 🟢", "Perfil de governança modificado com sucesso.");
@@ -1467,7 +1467,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       await fetchUsers();
-      triggerSuccessNotification("Perfil Atualizado! 🟢", `As alterações do usuário ${payload.name} foram salvas no Supabase.`);
+      triggerSuccessNotification("Perfil Atualizado! 🟢", `As alterações do usuário ${payload.name} foram salvas no Banco de Dados.`);
       return res;
     } catch (err: any) {
       console.error('[handleUpdateUserFull Erro]', err);

@@ -204,6 +204,57 @@ export default function LaudoInspecaoPage() {
     ? String(numId).padStart(4, '0')
     : (String(inspecao.id || '').slice(0, 8).toUpperCase() || 'PENDENTE');
 
+  // Resolução inteligente e refinada dos dados técnicos do ativo
+  const rawTipo =
+    asset.model ||
+    asset.modelo ||
+    asset.tipo ||
+    asset.details?.model ||
+    detailsObj?.model ||
+    detailsObj?.tipo ||
+    '';
+  const formatTipo = rawTipo ? String(rawTipo).trim().toUpperCase() : 'ABC';
+
+  const formatChassi =
+    asset.numero_serie ||
+    asset.chassi ||
+    asset.details?.serialNumber ||
+    asset.details?.chassi ||
+    detailsObj?.numero_serie ||
+    detailsObj?.chassi ||
+    'N/A';
+
+  const rawCapacidade =
+    asset.peso_capacidade ||
+    asset.peso ||
+    asset.capacidade ||
+    asset.details?.peso_capacidade ||
+    asset.details?.peso ||
+    detailsObj?.peso_capacidade ||
+    detailsObj?.capacidade ||
+    '';
+
+  let formatCapacidade = 'N/A';
+  if (rawCapacidade) {
+    const cleanCap = String(rawCapacidade).trim().toUpperCase();
+    if (cleanCap.includes('KG') || cleanCap.includes('L') || cleanCap.includes('G')) {
+      formatCapacidade = cleanCap;
+    } else {
+      const tipoUpper = String(formatTipo).toUpperCase();
+      if (tipoUpper.includes('ÁGUA') || tipoUpper.includes('AGUA') || tipoUpper.includes('ESPUMA') || tipoUpper.includes('H2O')) {
+        formatCapacidade = `${cleanCap} L`;
+      } else {
+        formatCapacidade = `${cleanCap} KG`;
+      }
+    }
+  }
+
+  const locPart = asset.location || asset.localizacao || detailsObj?.location || '';
+  const subPart = asset.sub_location || asset.subLocation || detailsObj?.subLocation || '';
+  const formatLocal = [locPart, subPart].filter(Boolean).join(' - ') || asset.area || detailsObj?.localizacao || 'Área Operacional';
+
+  const formatSite = inspecao.site || asset.site || asset.details?.site || detailsObj?.site || 'SALOBO';
+
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 py-4 sm:py-8 px-2 sm:px-6 print:bg-white print:p-0">
       {/* Estilos CSS de impressão injetados de forma compatível com React 19 */}
@@ -324,8 +375,8 @@ export default function LaudoInspecaoPage() {
                 {isCancelada
                   ? 'VISTORIA CANCELADA / ANULADA'
                   : isConforme
-                  ? 'EQUIPAMENTO CONFORME &bull; APTO PARA USO'
-                  : 'NÃO CONFORME &bull; REQUER MANUTENÇÃO IMEDIATA'}
+                  ? 'EQUIPAMENTO CONFORME • APTO PARA USO'
+                  : 'NÃO CONFORME • REQUER MANUTENÇÃO IMEDIATA'}
               </div>
             </div>
           </div>
@@ -354,31 +405,31 @@ export default function LaudoInspecaoPage() {
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Número de Série / Chassi</span>
                 <span className="font-mono font-semibold text-slate-700 dark:text-slate-300">
-                  {asset.numero_serie || asset.chassi || detailsObj?.numero_serie || 'N/A'}
+                  {formatChassi}
                 </span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Tipo / Agente Extintor</span>
                 <span className="font-bold text-slate-700 dark:text-slate-300">
-                  {asset.tipo || asset.modelo || detailsObj?.tipo || 'Pó Químico Seco (PQS)'}
+                  {formatTipo}
                 </span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Capacidade Carga</span>
                 <span className="font-semibold text-slate-700 dark:text-slate-300">
-                  {asset.capacidade || detailsObj?.capacidade || 'N/A'}
+                  {formatCapacidade}
                 </span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Contrato / Site</span>
                 <span className="font-semibold text-slate-700 dark:text-slate-300">
-                  {inspecao.site || asset.site || 'SALOBO'}
+                  {formatSite}
                 </span>
               </div>
               <div>
                 <span className="text-[10px] text-slate-400 block uppercase font-medium">Localização / Setor</span>
                 <span className="font-semibold text-slate-700 dark:text-slate-300">
-                  {asset.localizacao || asset.area || detailsObj?.localizacao || 'Área Operacional'}
+                  {formatLocal}
                 </span>
               </div>
             </div>

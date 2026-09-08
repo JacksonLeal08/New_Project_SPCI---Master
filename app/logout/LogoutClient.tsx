@@ -8,7 +8,7 @@ import { Shield, LogOut, ArrowLeft } from 'lucide-react';
 
 const STATUS_MESSAGES = [
   'Encerrando Handshake Seguro...',
-  'Desfazendo conexões de banco de dados Supabase...',
+  'Desfazendo conexões com o Banco de Dados...',
   'Limpando tokens de autenticação criptografados...',
   'Preservando fila de sincronismo local (IndexedDB)...',
   'Sessão Finalizada com Segurança. Até logo! 🚒'

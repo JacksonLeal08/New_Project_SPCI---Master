@@ -743,6 +743,22 @@ function InspecaoOuCadastroContent() {
       precisao_gps: fotoEvidenciaCoords?.accuracy || null,
       foto_evidencia_url: fotoEvidenciaUrl || primeiraFotoEvidencia || null,
       details: {
+        asset_snapshot: {
+          id: ativo.id,
+          patrimonio: ativo.idAtivo || ativo.id_ativo || rawId,
+          model: ativo.model || ativo.modelo || 'ABC',
+          modelo: ativo.model || ativo.modelo || 'ABC',
+          tipo: ativo.model || ativo.modelo || 'ABC',
+          numero_serie: ativo.numero_serie || ativo.chassi || '',
+          chassi: ativo.numero_serie || ativo.chassi || '',
+          peso: ativo.peso_capacidade || ativo.peso || '6',
+          peso_capacidade: ativo.peso_capacidade || ativo.peso || '6',
+          capacidade: ativo.peso_capacidade || ativo.peso || '6',
+          location: ativo.location || '',
+          sub_location: ativo.subLocation || ativo.sub_location || '',
+          site: ativo.site || 'SALOBO'
+        },
+        site: ativo.site || 'SALOBO',
         dynamicChecklistResults: dynamicChecklistResult.itemStates,
         hasNonConformity: dynamicChecklistResult.hasNonConformity,
         impeditivoReprovado: dynamicChecklistResult.impeditivoReprovado,
@@ -1462,7 +1478,7 @@ function InspecaoOuCadastroContent() {
                 <p className={`text-xs leading-relaxed font-sans max-w-sm mx-auto ${textMutedClass}`}>
                   {isOnline 
                     ? 'O novo equipamento foi cadastrado e sincronizado com o banco de dados principal do SPCI.'
-                    : 'O equipamento foi cadastrado e salvo offline na fila local. Ele será transmitido ao Supabase automaticamente ao detectar conexão.'}
+                    : 'O equipamento foi cadastrado e salvo offline na fila local. Ele será transmitido ao Banco de Dados automaticamente ao detectar conexão.'}
                 </p>
               </div>
 
@@ -1906,7 +1922,7 @@ function InspecaoOuCadastroContent() {
                 </h3>
                 <p className={`text-xs leading-relaxed font-sans max-w-sm mx-auto ${textMutedClass}`}>
                   {submissionStatus === 'success_offline' 
-                    ? 'A vistoria foi gravada localmente na fila do celular por falta de rede. Ela será enviada ao Supabase automaticamente quando você se conectar.'
+                    ? 'A vistoria foi gravada localmente na fila do celular por falta de rede. Ela será enviada ao Banco de Dados automaticamente quando você se conectar.'
                     : 'Laudo de inspeção transmitido e integrado ao banco de dados histórico do SPCI com sucesso.'}
                 </p>
               </div>

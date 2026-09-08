@@ -287,7 +287,13 @@ export default function AssetDetailDrawer() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      const payloadToSave = { ...formData };
+      const payloadToSave = {
+        ...formData,
+        peso_capacidade: formData.peso || formData.peso_capacidade || '',
+        peso: formData.peso || formData.peso_capacidade || '',
+        chassi: formData.chassi || formData.numero_serie || '',
+        numero_serie: formData.chassi || formData.numero_serie || ''
+      };
 
       // Se a foto ainda estiver em Base64 (data:image/...), fazemos o upload antes de persistir no PostgreSQL
       const currentPhoto = payloadToSave.fotoUrl || payloadToSave.foto_url;
@@ -473,7 +479,14 @@ export default function AssetDetailDrawer() {
                       <FieldInput label="Sub-local" value={formData.subLocation || ''} onChange={(v) => handleFieldChange('subLocation', v)} />
                       <FieldInput label="Selo INMETRO" value={formData.seloInmetro || ''} onChange={(v) => handleFieldChange('seloInmetro', v)} mono />
                       <FieldInput label="Chassi / Nº Série" value={formData.chassi || ''} onChange={(v) => handleFieldChange('chassi', v)} mono />
-                      <FieldInput label="Peso / Capacidade" value={formData.peso || formData.peso_capacidade || ''} onChange={(v) => handleFieldChange('peso', v)} />
+                      <FieldInput
+                        label="Peso / Capacidade"
+                        value={formData.peso || formData.peso_capacidade || ''}
+                        onChange={(v) => {
+                          handleFieldChange('peso', v);
+                          handleFieldChange('peso_capacidade', v);
+                        }}
+                      />
                       <FieldInput label="Validade (meses)" value={formData.validadeRecargaMeses || formData.meses_validade_recarga || '12'} onChange={(v) => handleFieldChange('validadeRecargaMeses', v)} type="number" />
                     </div>
 
@@ -711,7 +724,7 @@ export default function AssetDetailDrawer() {
                     {/* DB inspections */}
                     <div>
                       <h4 className="text-[10px] text-slate-500 font-black uppercase tracking-widest mb-2 flex items-center gap-1">
-                        <History className="w-3 h-3" /> Histórico de Inspeções (Supabase)
+                        <History className="w-3 h-3" /> Histórico de Inspeções (Banco de Dados)
                       </h4>
                       {loadingInspecoes ? (
                         <div className="flex items-center justify-center py-8 text-slate-400 gap-2">
