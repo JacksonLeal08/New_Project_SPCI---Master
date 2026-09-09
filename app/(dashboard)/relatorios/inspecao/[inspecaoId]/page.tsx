@@ -477,7 +477,7 @@ export default function LaudoInspecaoPage() {
     return (
       <div
         key={item.id || displayIdx}
-        className={`flex items-center justify-between p-2 print:py-1 print:px-2 rounded-lg border transition ${
+        className={`flex items-center justify-between p-2 print:py-1.5 print:px-2.5 rounded-lg border transition ${
           isConforme
             ? 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/30 print:border-slate-200 print:bg-white'
             : isNA
@@ -486,18 +486,18 @@ export default function LaudoInspecaoPage() {
         }`}
       >
         <div className="flex items-center gap-2 min-w-0 pr-2">
-          <span className="font-mono font-bold text-slate-400 print:text-[7.5px] shrink-0">
+          <span className="font-mono font-bold text-slate-400 print:text-[8px] shrink-0">
             {String(displayIdx + 1).padStart(2, '0')}
           </span>
           <div className="min-w-0">
-            <div className="font-bold text-slate-800 dark:text-slate-100 text-xs print:text-[8px] print:text-slate-950 leading-tight truncate">
+            <div className="font-bold text-slate-800 dark:text-slate-100 text-xs print:text-[8.5px] print:text-slate-950 leading-tight truncate">
               {item.label}
             </div>
-            <div className="text-[10px] print:text-[6.5px] text-slate-500 dark:text-slate-400 print:text-slate-600 leading-tight truncate">
+            <div className="text-[10px] print:text-[7px] text-slate-500 dark:text-slate-400 print:text-slate-600 leading-tight truncate">
               {item.desc}
             </div>
             {item.ocorrencia && (
-              <div className="text-[10px] print:text-[6.5px] text-red-600 dark:text-red-400 font-semibold truncate">
+              <div className="text-[10px] print:text-[7px] text-red-600 dark:text-red-400 font-semibold truncate">
                 • {item.ocorrencia}
               </div>
             )}
@@ -506,17 +506,17 @@ export default function LaudoInspecaoPage() {
 
         <div className="shrink-0">
           {isConforme ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 print:bg-emerald-50 print:text-emerald-800 print:border-emerald-300 print:text-[6.5px] print:py-0 print:px-1">
-              <CheckCircle2 className="w-3 h-3 print:w-2 print:h-2 text-emerald-600" />
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 print:bg-emerald-50 print:text-emerald-800 print:border-emerald-300 print:text-[7px] print:py-0.5 print:px-1.5">
+              <CheckCircle2 className="w-3 h-3 print:w-2.5 print:h-2.5 text-emerald-600" />
               CONFORME
             </span>
           ) : isNA ? (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 print:bg-slate-50 print:text-slate-600 print:border-slate-300 print:text-[6.5px] print:py-0 print:px-1">
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 print:bg-slate-50 print:text-slate-600 print:border-slate-300 print:text-[7px] print:py-0.5 print:px-1.5">
               N/A
             </span>
           ) : (
-            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800 print:bg-red-50 print:text-red-800 print:border-red-300 print:text-[6.5px] print:py-0 print:px-1">
-              <XCircle className="w-3 h-3 print:w-2 print:h-2 text-red-600" />
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800 print:bg-red-50 print:text-red-800 print:border-red-300 print:text-[7px] print:py-0.5 print:px-1.5">
+              <XCircle className="w-3 h-3 print:w-2.5 print:h-2.5 text-red-600" />
               NÃO CONF.
             </span>
           )}
@@ -536,6 +536,15 @@ export default function LaudoInspecaoPage() {
               margin: 6mm 8mm 6mm 8mm;
             }
             @media print {
+              *, *::before, *::after {
+                scrollbar-width: none !important;
+                -ms-overflow-style: none !important;
+              }
+              *::-webkit-scrollbar {
+                display: none !important;
+                width: 0 !important;
+                height: 0 !important;
+              }
               html, body {
                 width: 100% !important;
                 height: 100% !important;
@@ -543,17 +552,30 @@ export default function LaudoInspecaoPage() {
                 padding: 0 !important;
                 background: #ffffff !important;
                 color: #0f172a !important;
-                font-size: 8.5px !important;
-                line-height: 1.25 !important;
+                font-size: 9px !important;
+                line-height: 1.3 !important;
+                overflow: hidden !important;
+                scrollbar-width: none !important;
                 -webkit-print-color-adjust: exact !important;
                 print-color-adjust: exact !important;
               }
-              nav, aside, header, footer, .no-print, [class*="fixed"], [class*="bottom-"], [data-fab], .leaflet-control-zoom {
+              main {
+                overflow: visible !important;
+                height: auto !important;
+                min-height: auto !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                scrollbar-width: none !important;
+              }
+              nav, aside, header, footer, .no-print, [class*="fixed"], [class*="bottom-"], [data-fab], .leaflet-control-zoom, .leaflet-control {
                 display: none !important;
               }
               .print-page-box {
-                max-height: 282mm !important;
-                height: auto !important;
+                min-height: 280mm !important;
+                max-height: 284mm !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: space-between !important;
                 overflow: hidden !important;
                 margin: 0 !important;
                 padding: 0 !important;
@@ -562,6 +584,7 @@ export default function LaudoInspecaoPage() {
                 page-break-inside: avoid !important;
                 page-break-after: avoid !important;
                 background: #ffffff !important;
+                scrollbar-width: none !important;
               }
               .avoid-break {
                 page-break-inside: avoid !important;
@@ -598,17 +621,17 @@ export default function LaudoInspecaoPage() {
       {/* Documento Principal do Laudo Técnico (Estilo Prancheta Corporativa) */}
       <div className="max-w-4xl mx-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl p-5 sm:p-8 print:border-none print:shadow-none print:p-0 print:m-0 print:bg-white print:max-w-none print-page-box">
         {/* Cabeçalho Oficial SPCI Master */}
-        <div className="border-b-2 border-red-600 pb-4 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 print:pb-2 print:mb-2 print:flex-row">
+        <div className="border-b-2 border-red-600 pb-4 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 print:pb-2.5 print:mb-2.5 print:flex-row">
           <div>
             <div className="flex items-center gap-2.5 print:gap-2">
-              <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-md print:w-7 print:h-7 print:rounded-lg">
-                <ShieldCheck className="w-5 h-5 print:w-4 print:h-4" />
+              <div className="w-9 h-9 rounded-xl bg-red-600 flex items-center justify-center text-white shadow-md print:w-8 print:h-8 print:rounded-lg">
+                <ShieldCheck className="w-5 h-5 print:w-4.5 print:h-4.5" />
               </div>
               <div>
-                <h1 className="text-lg sm:text-xl print:text-xs font-black tracking-tight text-slate-900 dark:text-slate-100 print:text-slate-950 uppercase">
+                <h1 className="text-lg sm:text-xl print:text-sm font-black tracking-tight text-slate-900 dark:text-slate-100 print:text-slate-950 uppercase">
                   SPCI MASTER • LAUDO TÉCNICO PERICIAL
                 </h1>
-                <p className="text-[10.5px] print:text-[8px] font-semibold text-slate-500 dark:text-slate-400 print:text-slate-600 tracking-wider uppercase">
+                <p className="text-[10.5px] print:text-[8.5px] font-semibold text-slate-500 dark:text-slate-400 print:text-slate-600 tracking-wider uppercase">
                   Inspeção Regulatória Conforme Norma ABNT NBR 12962 / NR-23
                 </p>
               </div>
@@ -630,7 +653,7 @@ export default function LaudoInspecaoPage() {
 
         {/* Banner de Status da Vistoria */}
         <div
-          className={`mb-4 print:mb-2 p-3.5 print:p-1.5 rounded-xl print:rounded-lg border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 avoid-break print:flex-row ${
+          className={`mb-4 print:mb-2.5 p-3.5 print:p-2 rounded-xl print:rounded-lg border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 avoid-break print:flex-row ${
             isCancelada
               ? 'bg-slate-100 border-slate-300 dark:bg-slate-800/40 dark:border-slate-700'
               : isConforme
@@ -638,25 +661,25 @@ export default function LaudoInspecaoPage() {
               : 'bg-red-50 border-red-200 dark:bg-red-950/20 dark:border-red-800/40 text-red-900 dark:text-red-300'
           }`}
         >
-          <div className="flex items-center gap-3 print:gap-2">
+          <div className="flex items-center gap-3 print:gap-2.5">
             {isCancelada ? (
-              <div className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0 print:w-6 print:h-6 print:rounded-md">
-                <AlertTriangle className="w-5 h-5 print:w-3.5 print:h-3.5" />
+              <div className="w-9 h-9 rounded-xl bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0 print:w-7 print:h-7 print:rounded-md">
+                <AlertTriangle className="w-5 h-5 print:w-4 print:h-4" />
               </div>
             ) : isConforme ? (
-              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm print:w-6 print:h-6 print:rounded-md">
-                <CheckCircle2 className="w-5 h-5 print:w-3.5 print:h-3.5" />
+              <div className="w-9 h-9 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0 shadow-sm print:w-7 print:h-7 print:rounded-md">
+                <CheckCircle2 className="w-5 h-5 print:w-4 print:h-4" />
               </div>
             ) : (
-              <div className="w-9 h-9 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm print:w-6 print:h-6 print:rounded-md">
-                <XCircle className="w-5 h-5 print:w-3.5 print:h-3.5" />
+              <div className="w-9 h-9 rounded-xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-sm print:w-7 print:h-7 print:rounded-md">
+                <XCircle className="w-5 h-5 print:w-4 print:h-4" />
               </div>
             )}
             <div>
-              <div className="text-xs print:text-[7.5px] font-semibold uppercase tracking-wider opacity-80">
+              <div className="text-xs print:text-[8px] font-semibold uppercase tracking-wider opacity-80">
                 Resultado Oficial da Vistoria
               </div>
-              <div className="text-sm sm:text-base print:text-xs font-black uppercase tracking-tight">
+              <div className="text-sm sm:text-base print:text-[11px] font-black uppercase tracking-tight">
                 {isCancelada
                   ? 'VISTORIA CANCELADA / ANULADA'
                   : isConforme
@@ -666,54 +689,54 @@ export default function LaudoInspecaoPage() {
             </div>
           </div>
 
-          <div className="text-right text-xs print:text-[8px]">
+          <div className="text-right text-xs print:text-[8.5px]">
             <span className="font-semibold block print:inline print:mr-1">Data do Registro:</span>
-            <span className="font-mono text-[11px] print:text-[8px] font-bold">{dataVistoria}</span>
+            <span className="font-mono text-[11px] print:text-[8.5px] font-bold">{dataVistoria}</span>
           </div>
         </div>
 
         {/* Grid de Informações Cadastrais do Ativo & Vistoriador */}
-        <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 mb-4 avoid-break print:gap-2 print:mb-2">
+        <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 mb-4 avoid-break print:gap-3 print:mb-2.5">
           {/* Card: Dados do Ativo */}
-          <div className="p-3.5 print:p-2 rounded-xl print:rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 print:border-slate-300 print:bg-slate-50/70">
-            <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2.5 print:mb-1 flex items-center gap-2">
-              <Building className="w-3.5 h-3.5 print:w-3 print:h-3 text-red-600" />
+          <div className="p-3.5 print:p-2.5 rounded-xl print:rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 print:border-slate-300 print:bg-slate-50/70">
+            <h3 className="text-xs print:text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2.5 print:mb-1.5 flex items-center gap-2">
+              <Building className="w-3.5 h-3.5 print:w-3.5 print:h-3.5 text-red-600" />
               Ficha Técnica do Equipamento
             </h3>
-            <div className="grid grid-cols-2 gap-y-2 gap-x-3 text-xs print:text-[8px] print:gap-y-0.5">
+            <div className="grid grid-cols-2 gap-y-2 gap-x-3 text-xs print:text-[8.5px] print:gap-y-1">
               <div>
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Patrimônio</span>
-                <span className="font-mono font-black text-slate-800 dark:text-slate-100 text-sm print:text-[9.5px] text-red-600 dark:text-red-400">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Patrimônio</span>
+                <span className="font-mono font-black text-slate-800 dark:text-slate-100 text-sm print:text-[10px] text-red-600 dark:text-red-400">
                   {inspecao.asset_patrimonio || 'S/N'}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Número de Série / Chassi</span>
-                <span className="font-mono font-semibold text-slate-700 dark:text-slate-300 print:text-[8.5px]">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Número de Série / Chassi</span>
+                <span className="font-mono font-semibold text-slate-700 dark:text-slate-300 print:text-[9px]">
                   {formatChassi}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Tipo / Agente Extintor</span>
-                <span className="font-bold text-slate-700 dark:text-slate-300 print:text-[8.5px]">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Tipo / Agente Extintor</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300 print:text-[9px]">
                   {formatTipo}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Capacidade Carga</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300 print:text-[8.5px]">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Capacidade Carga</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300 print:text-[9px]">
                   {formatCapacidade}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Contrato / Site</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300 print:text-[8.5px]">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Contrato / Site</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300 print:text-[9px]">
                   {formatSite}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Localização / Setor</span>
-                <span className="font-semibold text-slate-700 dark:text-slate-300 print:text-[8px] truncate block" title={formatLocal}>
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Localização / Setor</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-300 print:text-[8.5px] truncate block" title={formatLocal}>
                   {formatLocal}
                 </span>
               </div>
@@ -721,43 +744,43 @@ export default function LaudoInspecaoPage() {
           </div>
 
           {/* Card: Metadados da Vistoria & Inspetor */}
-          <div className="p-3.5 print:p-2 rounded-xl print:rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 print:border-slate-300 print:bg-slate-50/70">
-            <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2.5 print:mb-1 flex items-center gap-2">
-              <User className="w-3.5 h-3.5 print:w-3 print:h-3 text-blue-600" />
+          <div className="p-3.5 print:p-2.5 rounded-xl print:rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 print:border-slate-300 print:bg-slate-50/70">
+            <h3 className="text-xs print:text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2.5 print:mb-1.5 flex items-center gap-2">
+              <User className="w-3.5 h-3.5 print:w-3.5 print:h-3.5 text-blue-600" />
               Auditoria de Campo & Responsabilidade
             </h3>
-            <div className="grid grid-cols-2 gap-y-2 gap-x-3 text-xs print:text-[8px] print:gap-y-0.5">
+            <div className="grid grid-cols-2 gap-y-2 gap-x-3 text-xs print:text-[8.5px] print:gap-y-1">
               <div>
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Técnico Inspetor</span>
-                <span className="font-bold text-slate-800 dark:text-slate-200 print:text-[8.5px]">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Técnico Inspetor</span>
+                <span className="font-bold text-slate-800 dark:text-slate-200 print:text-[9px]">
                   {inspecao.tecnico_nome || 'Inspetor SPCI'}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Horário da Vistoria</span>
-                <span className="font-mono text-slate-700 dark:text-slate-300 print:text-[8.5px]">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Horário da Vistoria</span>
+                <span className="font-mono text-slate-700 dark:text-slate-300 print:text-[9px]">
                   {dataVistoria}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Coordenadas GPS</span>
-                <span className="font-mono font-medium text-slate-700 dark:text-slate-300 print:text-[8px]">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Coordenadas GPS</span>
+                <span className="font-mono font-medium text-slate-700 dark:text-slate-300 print:text-[8.5px]">
                   {inspecao.latitude != null && inspecao.longitude != null && !isNaN(inspecao.latitude) && !isNaN(inspecao.longitude)
                     ? `${inspecao.latitude.toFixed(5)}, ${inspecao.longitude.toFixed(5)}`
                     : 'Não capturadas'}
                 </span>
               </div>
               <div>
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Precisão do Dispositivo</span>
-                <span className="font-mono font-medium text-slate-700 dark:text-slate-300 print:text-[8px]">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Precisão do Dispositivo</span>
+                <span className="font-mono font-medium text-slate-700 dark:text-slate-300 print:text-[8.5px]">
                   {inspecao.precisao_gps != null && !isNaN(inspecao.precisao_gps)
                     ? `±${Math.round(inspecao.precisao_gps)} metros`
                     : 'N/A'}
                 </span>
               </div>
               <div className="col-span-2">
-                <span className="text-[10px] print:text-[7px] text-slate-400 block uppercase font-medium">Regulamentação Vigente</span>
-                <span className="text-[11px] print:text-[8px] text-slate-600 dark:text-slate-400">
+                <span className="text-[10px] print:text-[7.5px] text-slate-400 block uppercase font-medium">Regulamentação Vigente</span>
+                <span className="text-[11px] print:text-[8.5px] text-slate-600 dark:text-slate-400">
                   Portaria INMETRO nº 500/2012 • IT-21 Bombeiros Militar
                 </span>
               </div>
@@ -766,36 +789,36 @@ export default function LaudoInspecaoPage() {
         </div>
 
         {/* Checklist Normativo de Itens Vistoriados em 2 Colunas (Bento Grid) */}
-        <div className="mb-3.5 print:mb-2 avoid-break">
+        <div className="mb-3.5 print:mb-2.5 avoid-break">
           <div className="flex items-center justify-between mb-1.5 print:mb-1">
-            <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+            <h3 className="text-xs print:text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
               <CheckCircle2 className="w-3.5 h-3.5 print:w-3 print:h-3 text-emerald-600" />
               Checklist Normativo de Itens Vistoriados ({resolvedChecklist.length} Itens Regulamentares)
             </h3>
-            <span className="text-[10px] print:text-[7px] font-mono text-slate-500 dark:text-slate-400">
+            <span className="text-[10px] print:text-[7.5px] font-mono text-slate-500 dark:text-slate-400">
               ABNT NBR 12962 • NR-23
             </span>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-1.5 print:gap-x-2.5 print:gap-y-1">
-            <div className="space-y-1.5 print:space-y-1">
+          <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-1.5 print:gap-x-3 print:gap-y-1.5">
+            <div className="space-y-1.5 print:space-y-1.5">
               {col1.map((item, idx) => renderCheckCard(item, idx))}
             </div>
-            <div className="space-y-1.5 print:space-y-1">
+            <div className="space-y-1.5 print:space-y-1.5">
               {col2.map((item, idx) => renderCheckCard(item, half + idx))}
             </div>
           </div>
         </div>
 
-        {/* Mini-Mapa Georreferenciado & Foto de Evidência lado a lado (Altura Áurea e Proporcional) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-3.5 mb-3.5 avoid-break print:gap-2.5 print:mb-1.5">
+        {/* Mini-Mapa Georreferenciado & Foto de Evidência lado a lado (Altura Nobre e Proporcional) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-3.5 mb-3.5 avoid-break print:gap-3 print:mb-2">
           {/* Mini-Mapa Georreferenciado */}
           <div>
-            <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1.5 print:mb-0.5 flex items-center gap-1.5">
+            <h3 className="text-xs print:text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1.5 print:mb-1 flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 print:w-3 print:h-3 text-red-600" />
               Telemetria & Georreferenciamento de Campo
             </h3>
-            <div className="h-64 sm:h-72 print:h-48 rounded-xl print:rounded-lg overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800 print:border-slate-300">
+            <div className="h-64 sm:h-72 print:h-[68mm] rounded-xl print:rounded-lg overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800 print:border-slate-300">
               <InspectionMiniMap
                 latitude={inspecao.latitude}
                 longitude={inspecao.longitude}
@@ -811,17 +834,17 @@ export default function LaudoInspecaoPage() {
 
           {/* Foto de Evidência da Vistoria */}
           <div>
-            <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1.5 print:mb-0.5 flex items-center gap-1.5">
+            <h3 className="text-xs print:text-[9px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1.5 print:mb-1 flex items-center gap-1.5">
               <Camera className="w-3.5 h-3.5 print:w-3 print:h-3 text-amber-600" />
               Registro Fotográfico de Evidência
             </h3>
-            <div className="h-64 sm:h-72 print:h-48 rounded-xl print:rounded-lg border border-slate-200 dark:border-slate-800 print:border-slate-300 bg-slate-900/90 print:bg-slate-100 overflow-hidden flex items-center justify-center relative group">
+            <div className="h-64 sm:h-72 print:h-[68mm] rounded-xl print:rounded-lg border border-slate-200 dark:border-slate-800 print:border-slate-300 bg-slate-900/90 print:bg-slate-100 overflow-hidden flex items-center justify-center relative group">
               {fotoEvidenciaFinal ? (
                 <>
                   <img
                     src={fotoEvidenciaFinal}
                     alt={`Evidência ${inspecao.asset_patrimonio}`}
-                    className="w-full h-full object-contain cursor-pointer transition duration-300 group-hover:scale-105 print:object-contain"
+                    className="w-full h-full object-contain cursor-pointer transition duration-300 group-hover:scale-105 print:object-contain print:max-h-full"
                     onClick={() => setZoomFotoUrl(fotoEvidenciaFinal || null)}
                   />
                   <div
@@ -871,30 +894,30 @@ export default function LaudoInspecaoPage() {
         )}
 
         {/* Campo Formal de Assinaturas (Padrão Corporativo SST) */}
-        <div className="mt-6 print:mt-1 pt-4 print:pt-1 border-t border-slate-300 dark:border-slate-700 grid grid-cols-2 gap-6 print:gap-4 text-center avoid-break">
+        <div className="mt-6 print:mt-auto pt-4 print:pt-3 border-t border-slate-300 dark:border-slate-700 grid grid-cols-2 gap-6 print:gap-8 text-center avoid-break">
           <div>
-            <div className="border-b border-slate-400 dark:border-slate-600 w-4/5 mx-auto mb-1.5 print:mb-0.5 pb-6 print:pb-2" />
-            <div className="text-xs print:text-[8px] font-bold text-slate-900 dark:text-slate-100">
+            <div className="border-b border-slate-400 dark:border-slate-600 w-4/5 mx-auto mb-1.5 print:mb-1 pb-6 print:pb-4" />
+            <div className="text-xs print:text-[9px] font-bold text-slate-900 dark:text-slate-100">
               {inspecao.tecnico_nome || 'TÉCNICO RESPONSÁVEL'}
             </div>
-            <div className="text-[10px] print:text-[7px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <div className="text-[10px] print:text-[7.5px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Inspetor de Equipamentos de Combate a Incêndio (SPCI)
             </div>
           </div>
 
           <div>
-            <div className="border-b border-slate-400 dark:border-slate-600 w-4/5 mx-auto mb-1.5 print:mb-0.5 pb-6 print:pb-2" />
-            <div className="text-xs print:text-[8px] font-bold text-slate-900 dark:text-slate-100">
+            <div className="border-b border-slate-400 dark:border-slate-600 w-4/5 mx-auto mb-1.5 print:mb-1 pb-6 print:pb-4" />
+            <div className="text-xs print:text-[9px] font-bold text-slate-900 dark:text-slate-100">
               VISTO DO GESTOR DE SST / CONTRATO
             </div>
-            <div className="text-[10px] print:text-[7px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+            <div className="text-[10px] print:text-[7.5px] text-slate-500 dark:text-slate-400 uppercase tracking-wider">
               Segurança do Trabalho • Gestão de Ativos
             </div>
           </div>
         </div>
 
         {/* Rodapé do Relatório */}
-        <div className="mt-4 print:mt-1 pt-2 print:pt-0.5 border-t border-slate-200 dark:border-slate-800 text-center text-[10px] print:text-[7px] text-slate-400 dark:text-slate-500 font-mono avoid-break">
+        <div className="mt-4 print:mt-2 pt-2 print:pt-1 border-t border-slate-200 dark:border-slate-800 text-center text-[10px] print:text-[7.5px] text-slate-400 dark:text-slate-500 font-mono avoid-break">
           SPCI MASTER ENTERPRISE • SISTEMA DE GESTÃO E CONFORMIDADE DE PROTEÇÃO CONTRA INCÊNDIO • LAUDO HOMOLOGADO (PÁGINA 1/1)
         </div>
       </div>
