@@ -14,6 +14,51 @@ export function formatFriendlyPatrimonio(idAtivo?: string, patrimonio?: string):
   return target;
 }
 
+export interface TypeAndCapacitySummary {
+  model: string;
+  capacity: string;
+  count: number;
+  percentage: string;
+}
+
+/**
+ * Agrupa itens do lote de manutenção por Tipo de Agente e Capacidade / Carga
+ */
+export function calculateTypeAndCapacityBreakdown(
+  itens: Array<{ modelo_tipo?: string; capacidade?: string; model?: string; peso_capacidade?: string }>
+): {
+  summary: TypeAndCapacitySummary[];
+  totalCount: number;
+} {
+  const totalCount = itens.length;
+  if (totalCount === 0) return { summary: [], totalCount: 0 };
+
+  const map = new Map<string, { model: string; capacity: string; count: number }>();
+
+  itens.forEach((item) => {
+    const rawModel = (item.modelo_tipo || item.model || 'PQS ABC').trim();
+    const rawCap = (item.capacidade || item.peso_capacidade || 'Padrão').trim();
+    const key = `${rawModel}:::${rawCap}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.count += 1;
+    } else {
+      map.set(key, { model: rawModel, capacity: rawCap, count: 1 });
+    }
+  });
+
+  const summary: TypeAndCapacitySummary[] = Array.from(map.values())
+    .sort((a, b) => b.count - a.count || a.model.localeCompare(b.model))
+    .map((entry) => ({
+      model: entry.model,
+      capacity: entry.capacity,
+      count: entry.count,
+      percentage: ((entry.count / totalCount) * 100).toFixed(1) + '%'
+    }));
+
+  return { summary, totalCount };
+}
+
 /**
  * Gera e abre o documento oficial de Romaneio de Envio de Manutenção formatado para impressão / salvamento em PDF
  */
@@ -53,6 +98,22 @@ export function generateBatchRomaneioPDF(
         <td style="font-family: monospace;">${item.selo_inmetro_anterior || 'Isento/Antigo'}</td>
         <td style="text-align: center;">${item.data_ultimo_hidro || 'N/A'}</td>
         <td style="text-align: center; color: #94a3b8; font-size: 8px;">[ &nbsp; ] OK</td>
+      </tr>
+    `
+    )
+    .join('');
+
+  const { summary: breakdownSummary, totalCount: totalSummaryCount } = calculateTypeAndCapacityBreakdown(itensList);
+
+  const summaryRowsHtml = breakdownSummary
+    .map(
+      (row, idx) => `
+      <tr>
+        <td style="text-align: center; font-weight: bold; width: 35px;">${String(idx + 1).padStart(2, '0')}</td>
+        <td><strong>${row.model}</strong></td>
+        <td><span style="font-weight: 600; color: #334155;">${row.capacity}</span></td>
+        <td style="text-align: center; font-weight: bold; color: #af101a; font-family: monospace;">${row.count} un</td>
+        <td style="text-align: center; font-weight: 600; color: #475569;">${row.percentage}</td>
       </tr>
     `
     )
@@ -184,6 +245,45 @@ export function generateBatchRomaneioPDF(
         }
         tr:nth-child(even) {
           background: #f8fafc;
+        }
+
+        .rows-even {
+          background: #f8fafc;
+        }
+
+        .summary-container {
+          margin-top: 14px;
+          margin-bottom: 18px;
+          page-break-inside: avoid;
+        }
+        .summary-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 6px;
+        }
+        .summary-table th {
+          background: #1e293b;
+          color: #ffffff;
+          font-size: 8.5px;
+          font-weight: 800;
+          text-transform: uppercase;
+          padding: 6px 8px;
+          text-align: left;
+          border: 1px solid #1e293b;
+        }
+        .summary-table td {
+          padding: 5px 8px;
+          border: 1px solid #cbd5e1;
+          font-size: 9.5px;
+        }
+        .summary-table tr:nth-child(even) {
+          background: #f8fafc;
+        }
+        .summary-table tfoot td {
+          background: #f1f5f9;
+          font-weight: 800;
+          border-top: 2px solid #0f172a;
+          color: #0f172a;
         }
 
         .disclaimer-box {
@@ -318,6 +418,34 @@ export function generateBatchRomaneioPDF(
         </tbody>
       </table>
 
+      <!-- Resumo Quantitativo Consolidado por Tipo e Capacidade -->
+      <div class="summary-container">
+        <div class="section-title">
+          <span>📊 Resumo Quantitativo da Carga (Por Tipo de Extintor e Capacidade)</span>
+        </div>
+        <table class="summary-table">
+          <thead>
+            <tr>
+              <th style="text-align: center; width: 35px;">Item</th>
+              <th>Tipo de Agente Extintor</th>
+              <th>Capacidade / Carga</th>
+              <th style="text-align: center; width: 140px;">Quantidade Total</th>
+              <th style="text-align: center; width: 90px;">% da Carga</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${summaryRowsHtml}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="3" style="text-align: right; text-transform: uppercase; font-size: 9px; letter-spacing: 0.5px;">Total Geral Consolidado da Remessa:</td>
+              <td style="text-align: center; color: #af101a; font-family: monospace; font-size: 10px;">${totalSummaryCount} Unidades</td>
+              <td style="text-align: center;">100.0%</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
       <div class="disclaimer-box">
         <strong>Termo de Responsabilidade e Guarda:</strong> Os equipamentos listados acima foram retirados para execução de serviços de manutenção de 2º ou 3º nível (recarga e/ou ensaio hidrostático) em conformidade com as normas ABNT NBR 12962 e regulamentações do INMETRO. A transportadora e o prestador de serviços assumem a guarda física e técnica dos cilindros a partir da data de coleta registrada.
       </div>
@@ -412,6 +540,31 @@ export function exportBatchRomaneioXLSX(
       item.motivo_condenacao || '',
     ]);
   });
+
+  // Resumo quantitativo por Tipo e Capacidade no Excel
+  const { summary: excelSummary, totalCount: excelTotalCount } = calculateTypeAndCapacityBreakdown(itensList);
+
+  sheetData.push([]);
+  sheetData.push(['RESUMO QUANTITATIVO DA CARGA (POR TIPO E CAPACIDADE)']);
+  sheetData.push(['Item', 'Tipo de Extintor', 'Capacidade / Carga', 'Quantidade (Un)', '% do Lote']);
+
+  excelSummary.forEach((row, index) => {
+    sheetData.push([
+      index + 1,
+      row.model,
+      row.capacity,
+      row.count,
+      row.percentage
+    ]);
+  });
+
+  sheetData.push([
+    '',
+    'TOTAL GERAL DA REMESSA',
+    '',
+    excelTotalCount,
+    '100.0%'
+  ]);
 
   // Linhas finais de protocolo
   sheetData.push([]);

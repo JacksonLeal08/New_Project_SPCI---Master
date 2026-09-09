@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { AssetStockItemRecord } from '@/app/actions/assetStockActions';
 import { createMaintenanceBatchAction, CreateBatchItemPayload } from '@/app/actions/maintenanceBatchActions';
-import { generateBatchRomaneioPDF, exportBatchRomaneioXLSX, formatFriendlyPatrimonio } from '@/lib/maintenanceBatchReports';
+import { generateBatchRomaneioPDF, exportBatchRomaneioXLSX, formatFriendlyPatrimonio, calculateTypeAndCapacityBreakdown } from '@/lib/maintenanceBatchReports';
 import { FornecedorRecord, getSuppliersAction } from '@/app/actions/supplierActions';
 import SupplierFormModal from './SupplierFormModal';
 
@@ -87,6 +87,14 @@ export default function BatchCreationModal({
     acc[model] = (acc[model] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
+
+  // Resumo detalhado por Tipo e Capacidade
+  const { summary: detailedBreakdown } = calculateTypeAndCapacityBreakdown(
+    selectedAssets.map((a) => ({
+      modelo_tipo: a.model,
+      capacidade: a.peso_capacidade || (a.details as any)?.capacidade || 'Padrão'
+    }))
+  );
 
   const handleSelectSupplier = (supplierId: string) => {
     setSelectedSupplierId(supplierId);
@@ -256,16 +264,48 @@ export default function BatchCreationModal({
                 </span>
               </div>
 
-              {/* Badges de Tipos */}
+              {/* Badges de Tipos Macro */}
               <div className="flex flex-wrap gap-2 pt-1">
                 {Object.entries(typeBreakdown).map(([type, count]) => (
                   <span
                     key={type}
-                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 shadow-xs"
+                    className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 shadow-xs flex items-center gap-1.5"
                   >
                     <strong className="text-red-600 dark:text-red-500">{count}x</strong> {type}
                   </span>
                 ))}
+              </div>
+
+              {/* Discriminação Detalhada por Tipo e Capacidade */}
+              <div className="pt-2 border-t border-slate-200/70 dark:border-slate-800/70">
+                <span className="text-[9.5px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 block mb-1.5">
+                  Discriminação Quantitativa por Tipo & Capacidade:
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {detailedBreakdown.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="p-2 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 shadow-2xs"
+                    >
+                      <div className="truncate">
+                        <div className="font-black text-slate-800 dark:text-slate-200 text-[10.5px] truncate">
+                          {item.model}
+                        </div>
+                        <div className="text-[9.5px] font-semibold text-slate-500 dark:text-slate-400">
+                          {item.capacity}
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <span className="px-1.5 py-0.5 rounded bg-red-50 dark:bg-red-950/60 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 font-mono font-black text-[11px]">
+                          {item.count} un
+                        </span>
+                        <div className="text-[8.5px] text-slate-400 text-right mt-0.5">
+                          {item.percentage}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* Mini preview dos IDs com Patrimônio Amigável e Chassi */}

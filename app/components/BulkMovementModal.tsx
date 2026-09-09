@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { AssetStockItemRecord, StatusEstoqueType, bulkMoveAssetStatusAction } from '@/app/actions/assetStockActions';
 import { createMaintenanceBatchAction } from '@/app/actions/maintenanceBatchActions';
-import { generateBatchRomaneioPDF } from '@/lib/maintenanceBatchReports';
+import { generateBatchRomaneioPDF, calculateTypeAndCapacityBreakdown } from '@/lib/maintenanceBatchReports';
 
 interface BulkMovementModalProps {
   isOpen: boolean;
@@ -64,6 +64,14 @@ export default function BulkMovementModal({
   if (!isOpen) return null;
 
   const count = selectedItems.length;
+
+  // Resumo discriminado por Tipo e Capacidade para o lote
+  const { summary: bulkDetailedBreakdown } = calculateTypeAndCapacityBreakdown(
+    selectedItems.map((item) => ({
+      modelo_tipo: item.model,
+      capacidade: item.peso_capacidade || (item.details as any)?.capacidade || 'Padrão'
+    }))
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -392,6 +400,28 @@ export default function BulkMovementModal({
                         required
                         className="w-full px-3 py-2 text-xs rounded-xl bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-700 text-slate-900 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
+                    </div>
+                  </div>
+
+                  {/* Resumo Consolidado Tipo & Capacidade */}
+                  <div className="pt-2 border-t border-blue-200/60 dark:border-blue-900/60">
+                    <span className="text-[9.5px] font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300 block mb-1.5">
+                      Resumo da Carga ({count} extintores por tipo & carga):
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                      {bulkDetailedBreakdown.map((item, idx) => (
+                        <div
+                          key={idx}
+                          className="p-1.5 rounded-lg bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-900/60 flex items-center justify-between text-[10px]"
+                        >
+                          <span className="font-bold text-slate-800 dark:text-slate-200 truncate">
+                            {item.model} <span className="font-normal text-slate-400">({item.capacity})</span>
+                          </span>
+                          <span className="font-mono font-black text-red-600 dark:text-red-400 ml-1.5 shrink-0">
+                            {item.count} un
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 </div>
