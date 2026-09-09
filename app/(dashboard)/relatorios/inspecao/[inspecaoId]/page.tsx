@@ -18,7 +18,8 @@ import {
   Layers,
   X,
   Building,
-  Info
+  Info,
+  MinusCircle
 } from 'lucide-react';
 import { fetchInspecaoById } from '@/lib/supabaseDb';
 import { InspecaoRealizada } from '@/lib/types';
@@ -181,40 +182,6 @@ export default function LaudoInspecaoPage() {
     }
   }
 
-  // Itens do checklist NBR
-  const checkItems = [
-    {
-      label: 'Lacre de Segurança & Pino Trava',
-      desc: 'Integridade física do lacre numerado e pino de travamento',
-      val: checklist.lacre_presente ?? checklist.lacre ?? true
-    },
-    {
-      label: 'Pressão do Manômetro (Faixa Verde)',
-      desc: 'Indicador de pressão na faixa nominal de operação',
-      val: checklist.pressao_adequada ?? checklist.pressao ?? true
-    },
-    {
-      label: 'Selo INMETRO & Vencimento',
-      desc: 'Selo regulamentar legível e dentro do prazo de vigência',
-      val: checklist.valido_inmetro ?? checklist.inmetro ?? true
-    },
-    {
-      label: 'Acesso e Desobstrução na Área',
-      desc: 'Área livre de 1m², sem obstáculos para acesso imediato',
-      val: checklist.obstruido != null ? !checklist.obstruido : true
-    },
-    {
-      label: 'Sinalização Fotoluminescente',
-      desc: 'Placa indicativa conforme NBR 13434 e pintura de piso',
-      val: checklist.sinalizado ?? true
-    },
-    {
-      label: 'Estado do Cilindro / Pintura',
-      desc: 'Ausência de corrosão, mossas, amassados ou danos estruturais',
-      val: checklist.casco_pintura ?? checklist.casco ?? true
-    }
-  ];
-
   const numId = Number(inspecao.id);
   const laudoCodigo = !isNaN(numId)
     ? String(numId).padStart(4, '0')
@@ -228,6 +195,9 @@ export default function LaudoInspecaoPage() {
     asset.details?.model ||
     detailsObj?.model ||
     detailsObj?.tipo ||
+    detailsObj?.asset_snapshot?.model ||
+    detailsObj?.asset_snapshot?.modelo ||
+    detailsObj?.asset_snapshot?.tipo ||
     '';
   const formatTipo = rawTipo ? String(rawTipo).trim().toUpperCase() : 'ABC';
 
@@ -238,6 +208,8 @@ export default function LaudoInspecaoPage() {
     asset.details?.chassi ||
     detailsObj?.numero_serie ||
     detailsObj?.chassi ||
+    detailsObj?.asset_snapshot?.numero_serie ||
+    detailsObj?.asset_snapshot?.chassi ||
     'N/A';
 
   const rawCapacidade =
@@ -248,6 +220,8 @@ export default function LaudoInspecaoPage() {
     asset.details?.peso ||
     detailsObj?.peso_capacidade ||
     detailsObj?.capacidade ||
+    detailsObj?.asset_snapshot?.peso_capacidade ||
+    detailsObj?.asset_snapshot?.peso ||
     '';
 
   let formatCapacidade = 'N/A';
@@ -265,11 +239,291 @@ export default function LaudoInspecaoPage() {
     }
   }
 
-  const locPart = asset.location || asset.localizacao || detailsObj?.location || '';
-  const subPart = asset.sub_location || asset.subLocation || detailsObj?.subLocation || '';
+  const locPart = asset.location || asset.localizacao || detailsObj?.location || detailsObj?.asset_snapshot?.location || '';
+  const subPart = asset.sub_location || asset.subLocation || detailsObj?.subLocation || detailsObj?.asset_snapshot?.sub_location || '';
   const formatLocal = [locPart, subPart].filter(Boolean).join(' - ') || asset.area || detailsObj?.localizacao || 'Área Operacional';
 
-  const formatSite = inspecao.site || asset.site || asset.details?.site || detailsObj?.site || 'SALOBO';
+  const formatSite = inspecao.site || asset.site || asset.details?.site || detailsObj?.site || detailsObj?.asset_snapshot?.site || 'SALOBO';
+
+  // Resolução da foto de evidência principal (url direta, details ou primeira foto de não conformidade)
+  let fotoEvidenciaFinal = inspecao.foto_evidencia_url || detailsObj?.foto_evidencia_url || null;
+  if (!fotoEvidenciaFinal && detailsObj?.dynamicChecklistResults) {
+    for (const val of Object.values(detailsObj.dynamicChecklistResults) as any[]) {
+      if (val?.fotoEvidencia1 || val?.fotoEvidencia2) {
+        fotoEvidenciaFinal = val.fotoEvidencia1 || val.fotoEvidencia2;
+        break;
+      }
+    }
+  }
+
+  // Resolução dinâmica de todos os itens normativos do checklist associados ao tipo de ativo
+  const resolvedChecklist = (() => {
+    const category = (asset.category || asset.categoria || detailsObj?.category || 'extintores').toLowerCase();
+    const dynResults = detailsObj?.dynamicChecklistResults || {};
+
+    let baseItems: Array<{
+      id: string;
+      label: string;
+      desc: string;
+      tiposAplicaveis?: string[];
+      pesosAplicaveis?: string[];
+      legacyKey?: string;
+      isLegacyInverted?: boolean;
+    }> = [];
+
+    if (category === 'extintores' || !category) {
+      baseItems = [
+        {
+          id: 'chk-1',
+          label: 'Localização & Modelo',
+          desc: 'Conforme projeto de combate a incêndio e pânico',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos']
+        },
+        {
+          id: 'chk-2',
+          label: 'Acesso & Desobstrução',
+          desc: 'Área livre de 1m², sem obstáculos para acesso imediato',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos'],
+          legacyKey: 'obstruido',
+          isLegacyInverted: true
+        },
+        {
+          id: 'chk-3',
+          label: 'Suporte & Altura de Instalação',
+          desc: 'Fixação rígida e altura máxima de 1,60 m do piso',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos']
+        },
+        {
+          id: 'chk-4',
+          label: 'Sinalização de Parede',
+          desc: 'Placa indicativa conforme NBR 13434 e visibilidade',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos'],
+          legacyKey: 'sinalizado'
+        },
+        {
+          id: 'chk-5',
+          label: 'Sinalização de Piso',
+          desc: 'Demarcação de solo regulamentar conforme NBR 13434',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos'],
+          legacyKey: 'sinalizado'
+        },
+        {
+          id: 'chk-6',
+          label: 'Estado do Cilindro / Pintura',
+          desc: 'Ausência de corrosão, mossas, amassados ou danos',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos'],
+          legacyKey: 'casco_pintura'
+        },
+        {
+          id: 'chk-7',
+          label: 'Lacre de Segurança & Pino',
+          desc: 'Integridade física do lacre numerado e pino trava',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos'],
+          legacyKey: 'lacre_presente'
+        },
+        {
+          id: 'chk-8',
+          label: 'Selo INMETRO & Vencimento',
+          desc: 'Selo regulamentar legível e dentro do prazo de vigência',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos'],
+          legacyKey: 'valido_inmetro'
+        },
+        {
+          id: 'chk-9',
+          label: 'Manutenção Anual & TH (5 Anos)',
+          desc: 'Inspeção anual e teste hidrostático dentro da validade',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos']
+        },
+        {
+          id: 'chk-10',
+          label: 'Pesagem Semestral de CO2',
+          desc: 'Pesagem com perda de massa inferior a 10% da carga',
+          tiposAplicaveis: ['CO2'],
+          pesosAplicaveis: ['Todos']
+        },
+        {
+          id: 'chk-11',
+          label: 'Pressão do Manômetro (Faixa Verde)',
+          desc: 'Indicador de pressão na faixa nominal de operação',
+          tiposAplicaveis: ['PQS', 'AP', 'Espuma', 'K'],
+          pesosAplicaveis: ['Todos'],
+          legacyKey: 'pressao_adequada'
+        },
+        {
+          id: 'chk-12',
+          label: 'Acessórios & Válvulas',
+          desc: 'Gatilho, punho, difusor e travas íntegros e operacionais',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos']
+        },
+        {
+          id: 'chk-13',
+          label: 'Mangueira de Descarga',
+          desc: 'Mangueira desobstruída, flexível e sem ressecamento',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Todos']
+        },
+        {
+          id: 'chk-14',
+          label: 'Conjunto de Rodagem (Carreta)',
+          desc: 'Pneus/rodas, eixo e mangueira longa operacionais',
+          tiposAplicaveis: ['Todos'],
+          pesosAplicaveis: ['Carreta / Sobre Rodas']
+        }
+      ];
+
+      // Filtra com base nas características do ativo
+      const modelUpper = formatTipo.toUpperCase();
+      const rawPesoVal = parseFloat(String(rawCapacidade).replace(/\D/g, '')) || 0;
+      const isCarreta = modelUpper.includes('CARRETA') || modelUpper.includes('RODAS') || rawPesoVal >= 20;
+
+      let tipoAgente = 'PQS';
+      if (modelUpper.includes('CO2')) tipoAgente = 'CO2';
+      else if (modelUpper.includes('AGUA') || modelUpper.includes('ÁGUA') || modelUpper.includes('AP')) tipoAgente = 'AP';
+      else if (modelUpper.includes('ESPUMA')) tipoAgente = 'Espuma';
+      else if (modelUpper.includes('K')) tipoAgente = 'K';
+
+      baseItems = baseItems.filter(item => {
+        const tipos = item.tiposAplicaveis || ['Todos'];
+        const matchesTipo = tipos.includes('Todos') || tipos.includes(tipoAgente);
+
+        const pesos = item.pesosAplicaveis || ['Todos'];
+        const matchesPeso =
+          pesos.includes('Todos') ||
+          (isCarreta && pesos.includes('Carreta / Sobre Rodas')) ||
+          (!isCarreta && pesos.includes('Portátil'));
+
+        return matchesTipo && matchesPeso;
+      });
+    } else if (category === 'hidrantes') {
+      baseItems = [
+        { id: 'hid-1', label: 'Abrigo de Hidrante', desc: 'Limpo, desobstruído e sinalizado conforme NBR 13714' },
+        { id: 'hid-2', label: 'Mangueiras de Incêndio', desc: 'Enroladas corretamente (aduchadas ou ziguezague)' },
+        { id: 'hid-3', label: 'Esguicho & Chaves Storz', desc: 'Esguicho regulável e chaves Storz em perfeito estado' },
+        { id: 'hid-4', label: 'Válvula Globo Angular', desc: 'Válvula angular estanque e sem vazamentos' },
+        { id: 'hid-5', label: 'Sinalização de Solo e Parede', desc: 'Placas e demarcação de piso regulamentares' }
+      ];
+    } else if (category === 'sinalizacoes') {
+      baseItems = [
+        { id: 'sin-1', label: 'Altura de Fixação da Placa', desc: 'Fixada na altura recomendada pela NBR 13434' },
+        { id: 'sin-2', label: 'Propriedades Fotoluminescentes', desc: 'Pigmentação fotoluminescente legível e sem desgaste' },
+        { id: 'sin-3', label: 'Indicação de Rota de Fuga', desc: 'Seta e sentido corretos conforme projeto de pânico' },
+        { id: 'sin-4', label: 'Fixação Rígida do Suporte', desc: 'Sem risco de queda em rota de evacuação' }
+      ];
+    } else if (category === 'iluminacao') {
+      baseItems = [
+        { id: 'lum-1', label: 'Bloco Autônomo & Desobstrução', desc: 'Fixado em local desobstruído e visível' },
+        { id: 'lum-2', label: 'LEDs de Carga da Bateria', desc: 'Sinalizadores de carregamento ativos na rede' },
+        { id: 'lum-3', label: 'Autonomia Mínima (2 Horas)', desc: 'Bateria atende aos requisitos mínimos de autonomia' },
+        { id: 'lum-4', label: 'Botão de Teste Rápido', desc: 'Mecanismo de teste rápido acionando as lâmpadas' }
+      ];
+    } else {
+      baseItems = [
+        { id: 'gen-1', label: 'Posicionamento & Localização', desc: 'Conforme normas técnicas de segurança e projeto' },
+        { id: 'gen-2', label: 'Acesso & Desobstrução', desc: 'Acesso livre e desimpedido para uso imediato' },
+        { id: 'gen-3', label: 'Sinalização Regulamentar', desc: 'Identificação visual e sinalização legíveis' },
+        { id: 'gen-4', label: 'Validade & Manutenção', desc: 'Dentro do prazo de manutenção e inspeção' },
+        { id: 'gen-5', label: 'Integridade Estrutural', desc: 'Sem avarias, amassados, oxidação ou danos' }
+      ];
+    }
+
+    // Mapeia os estados reais de cada item
+    return baseItems.map(item => {
+      let status: 'Conforme' | 'Não Conforme' | 'NA' = 'Conforme';
+      let ocorrencia = '';
+      let fotoEvidencia: string | null = null;
+
+      if (dynResults[item.id]) {
+        const d = dynResults[item.id];
+        status = d.status === 'Não Conforme' ? 'Não Conforme' : d.status === 'NA' ? 'NA' : 'Conforme';
+        ocorrencia = d.ocorrencia || '';
+        fotoEvidencia = d.fotoEvidencia1 || d.fotoEvidencia2 || null;
+      } else if (item.legacyKey && detailsObj[item.legacyKey] !== undefined) {
+        const val = detailsObj[item.legacyKey];
+        const isOk = item.isLegacyInverted ? !val : !!val;
+        status = isOk ? 'Conforme' : 'Não Conforme';
+      } else if (item.legacyKey && checklist[item.legacyKey] !== undefined) {
+        const val = checklist[item.legacyKey];
+        const isOk = item.isLegacyInverted ? !val : !!val;
+        status = isOk ? 'Conforme' : 'Não Conforme';
+      }
+
+      return {
+        ...item,
+        status,
+        ocorrencia,
+        fotoEvidencia
+      };
+    });
+  })();
+
+  const half = Math.ceil(resolvedChecklist.length / 2);
+  const col1 = resolvedChecklist.slice(0, half);
+  const col2 = resolvedChecklist.slice(half);
+
+  const renderCheckCard = (item: any, displayIdx: number) => {
+    const isConforme = item.status === 'Conforme';
+    const isNA = item.status === 'NA';
+
+    return (
+      <div
+        key={item.id || displayIdx}
+        className={`flex items-center justify-between p-2 print:py-1 print:px-2 rounded-lg border transition ${
+          isConforme
+            ? 'border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/30 print:border-slate-200 print:bg-white'
+            : isNA
+            ? 'border-slate-200 dark:border-slate-800 bg-slate-50/30 dark:bg-slate-900/20 print:border-slate-200 print:bg-slate-50/50'
+            : 'border-red-200 dark:border-red-900/40 bg-red-50/70 dark:bg-red-950/20 print:border-red-300 print:bg-red-50/50'
+        }`}
+      >
+        <div className="flex items-center gap-2 min-w-0 pr-2">
+          <span className="font-mono font-bold text-slate-400 print:text-[7.5px] shrink-0">
+            {String(displayIdx + 1).padStart(2, '0')}
+          </span>
+          <div className="min-w-0">
+            <div className="font-bold text-slate-800 dark:text-slate-100 text-xs print:text-[8px] print:text-slate-950 leading-tight truncate">
+              {item.label}
+            </div>
+            <div className="text-[10px] print:text-[6.5px] text-slate-500 dark:text-slate-400 print:text-slate-600 leading-tight truncate">
+              {item.desc}
+            </div>
+            {item.ocorrencia && (
+              <div className="text-[10px] print:text-[6.5px] text-red-600 dark:text-red-400 font-semibold truncate">
+                • {item.ocorrencia}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="shrink-0">
+          {isConforme ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 print:bg-emerald-50 print:text-emerald-800 print:border-emerald-300 print:text-[6.5px] print:py-0 print:px-1">
+              <CheckCircle2 className="w-3 h-3 print:w-2 print:h-2 text-emerald-600" />
+              CONFORME
+            </span>
+          ) : isNA ? (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700 print:bg-slate-50 print:text-slate-600 print:border-slate-300 print:text-[6.5px] print:py-0 print:px-1">
+              N/A
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-bold text-[10px] bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800 print:bg-red-50 print:text-red-800 print:border-red-300 print:text-[6.5px] print:py-0 print:px-1">
+              <XCircle className="w-3 h-3 print:w-2 print:h-2 text-red-600" />
+              NÃO CONF.
+            </span>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-950 py-4 sm:py-8 px-2 sm:px-6 print:bg-white print:p-0 print:m-0">
@@ -511,63 +765,37 @@ export default function LaudoInspecaoPage() {
           </div>
         </div>
 
-        {/* Tabela de Itens Verificados (NBR 12962) */}
-        <div className="mb-4 print:mb-2 avoid-break">
-          <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2 print:mb-1 flex items-center gap-2">
-            <CheckCircle2 className="w-3.5 h-3.5 print:w-3 print:h-3 text-emerald-600" />
-            Checklist Normativo de Itens Vistoriados
-          </h3>
-          <div className="overflow-hidden rounded-xl print:rounded-lg border border-slate-200 dark:border-slate-800 print:border-slate-300">
-            <table className="w-full text-left text-xs print:text-[8px] border-collapse">
-              <thead>
-                <tr className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold border-b border-slate-200 dark:border-slate-700 print:bg-slate-100">
-                  <th className="py-2 px-3 w-10 text-center print:py-0.5 print:px-1.5 print:w-6">#</th>
-                  <th className="py-2 px-3 print:py-0.5 print:px-2">Item Avaliado</th>
-                  <th className="py-2 px-3 print:py-0.5 print:px-2">Critério Normativo</th>
-                  <th className="py-2 px-3 w-28 text-center print:py-0.5 print:px-2 print:w-20">Parecer</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800 print:divide-slate-200">
-                {checkItems.map((item, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 print:bg-white">
-                    <td className="py-1.5 px-3 text-center font-mono font-bold text-slate-400 print:py-0.5 print:px-1.5 print:text-[7.5px]">
-                      {String(idx + 1).padStart(2, '0')}
-                    </td>
-                    <td className="py-1.5 px-3 font-semibold text-slate-800 dark:text-slate-200 print:py-0.5 print:px-2 print:text-[8px] print:text-slate-950">
-                      {item.label}
-                    </td>
-                    <td className="py-1.5 px-3 text-slate-500 dark:text-slate-400 text-[11px] print:py-0.5 print:px-2 print:text-[7.5px] print:text-slate-600">
-                      {item.desc}
-                    </td>
-                    <td className="py-1.5 px-3 text-center print:py-0.5 print:px-1">
-                      {item.val ? (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[10.5px] bg-emerald-100 dark:bg-emerald-950/60 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 print:bg-emerald-50 print:text-emerald-800 print:border-emerald-300 print:text-[7px] print:py-0 print:px-1">
-                          <CheckCircle2 className="w-3 h-3 print:w-2.5 print:h-2.5" />
-                          CONFORME
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-bold text-[10.5px] bg-red-100 dark:bg-red-950/60 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800 print:bg-red-50 print:text-red-800 print:border-red-300 print:text-[7px] print:py-0 print:px-1">
-                          <XCircle className="w-3 h-3 print:w-2.5 print:h-2.5" />
-                          NÃO CONF.
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        {/* Checklist Normativo de Itens Vistoriados em 2 Colunas (Bento Grid) */}
+        <div className="mb-3.5 print:mb-2 avoid-break">
+          <div className="flex items-center justify-between mb-1.5 print:mb-1">
+            <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider flex items-center gap-1.5">
+              <CheckCircle2 className="w-3.5 h-3.5 print:w-3 print:h-3 text-emerald-600" />
+              Checklist Normativo de Itens Vistoriados ({resolvedChecklist.length} Itens Regulamentares)
+            </h3>
+            <span className="text-[10px] print:text-[7px] font-mono text-slate-500 dark:text-slate-400">
+              ABNT NBR 12962 • NR-23
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-1.5 print:gap-x-2.5 print:gap-y-1">
+            <div className="space-y-1.5 print:space-y-1">
+              {col1.map((item, idx) => renderCheckCard(item, idx))}
+            </div>
+            <div className="space-y-1.5 print:space-y-1">
+              {col2.map((item, idx) => renderCheckCard(item, half + idx))}
+            </div>
           </div>
         </div>
 
-        {/* Mini-Mapa Georreferenciado & Foto de Evidência lado a lado */}
-        <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-4 mb-4 avoid-break print:gap-2 print:mb-2">
+        {/* Mini-Mapa Georreferenciado & Foto de Evidência lado a lado (Altura Áurea e Proporcional) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 print:grid-cols-2 gap-3.5 mb-3.5 avoid-break print:gap-2.5 print:mb-1.5">
           {/* Mini-Mapa Georreferenciado */}
           <div>
-            <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2 print:mb-1 flex items-center gap-2">
+            <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1.5 print:mb-0.5 flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 print:w-3 print:h-3 text-red-600" />
               Telemetria & Georreferenciamento de Campo
             </h3>
-            <div className="h-64 sm:h-72 print:h-28 rounded-xl print:rounded-lg overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800 print:border-slate-300">
+            <div className="h-64 sm:h-72 print:h-48 rounded-xl print:rounded-lg overflow-hidden shadow-sm border border-slate-200 dark:border-slate-800 print:border-slate-300">
               <InspectionMiniMap
                 latitude={inspecao.latitude}
                 longitude={inspecao.longitude}
@@ -583,21 +811,21 @@ export default function LaudoInspecaoPage() {
 
           {/* Foto de Evidência da Vistoria */}
           <div>
-            <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-2 print:mb-1 flex items-center gap-2">
+            <h3 className="text-xs print:text-[8.5px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider mb-1.5 print:mb-0.5 flex items-center gap-1.5">
               <Camera className="w-3.5 h-3.5 print:w-3 print:h-3 text-amber-600" />
               Registro Fotográfico de Evidência
             </h3>
-            <div className="h-64 sm:h-72 print:h-28 rounded-xl print:rounded-lg border border-slate-200 dark:border-slate-800 print:border-slate-300 bg-slate-50 dark:bg-slate-900/50 overflow-hidden flex items-center justify-center relative group">
-              {inspecao.foto_evidencia_url ? (
+            <div className="h-64 sm:h-72 print:h-48 rounded-xl print:rounded-lg border border-slate-200 dark:border-slate-800 print:border-slate-300 bg-slate-900/90 print:bg-slate-100 overflow-hidden flex items-center justify-center relative group">
+              {fotoEvidenciaFinal ? (
                 <>
                   <img
-                    src={inspecao.foto_evidencia_url}
+                    src={fotoEvidenciaFinal}
                     alt={`Evidência ${inspecao.asset_patrimonio}`}
-                    className="w-full h-full object-cover cursor-pointer transition duration-300 group-hover:scale-105"
-                    onClick={() => setZoomFotoUrl(inspecao.foto_evidencia_url || null)}
+                    className="w-full h-full object-contain cursor-pointer transition duration-300 group-hover:scale-105 print:object-contain"
+                    onClick={() => setZoomFotoUrl(fotoEvidenciaFinal || null)}
                   />
                   <div
-                    onClick={() => setZoomFotoUrl(inspecao.foto_evidencia_url || null)}
+                    onClick={() => setZoomFotoUrl(fotoEvidenciaFinal || null)}
                     className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition flex items-center justify-center cursor-pointer no-print"
                   >
                     <span className="px-3 py-1.5 rounded-lg bg-white/90 text-slate-900 text-xs font-bold shadow-lg flex items-center gap-1.5">
@@ -605,7 +833,7 @@ export default function LaudoInspecaoPage() {
                       Clique para Ampliar Foto
                     </span>
                   </div>
-                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-[10px] print:text-[7px] text-white font-mono backdrop-blur-sm print:bottom-1 print:left-1">
+                  <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-[10px] print:text-[6.5px] text-white font-mono backdrop-blur-sm print:bottom-1 print:left-1">
                     Foto Registrada em Campo
                   </div>
                 </>
@@ -613,7 +841,7 @@ export default function LaudoInspecaoPage() {
                 <div className="text-center p-3 print:p-2">
                   <Camera className="w-6 h-6 print:w-4 print:h-4 text-slate-300 dark:text-slate-600 mx-auto mb-1" />
                   <p className="text-xs print:text-[8px] text-slate-500 font-medium">Sem foto de evidência anexada</p>
-                  <p className="text-[10px] print:text-[7px] text-slate-400">Vistoria com formulário simplificado</p>
+                  <p className="text-[10px] print:text-[6.5px] text-slate-400">Vistoria com formulário simplificado</p>
                 </div>
               )}
             </div>
