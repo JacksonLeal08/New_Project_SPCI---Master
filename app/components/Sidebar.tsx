@@ -24,7 +24,8 @@ import {
   Bot,
   Sparkles,
   MapPin,
-  ClipboardList
+  ClipboardList,
+  Truck
 } from 'lucide-react';
 import { SYSTEM_VERSION } from '@/config/version';
 import WhatsNewModal from './WhatsNewModal';
@@ -68,6 +69,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
   const getActiveTab = () => {
     if (pathname === '/') return 'dashboard';
     if (pathname.includes('/extintores/historico-inspecoes')) return 'historico-inspecoes';
+    if (pathname.includes('/extintores/retorno-manutencao')) return 'retorno-manutencao';
     const firstSegment = pathname.split('/')[1];
     return firstSegment || 'dashboard';
   };
@@ -84,6 +86,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
   const navItems = [
     { id: 'dashboard', label: 'Dashboard / Visão Geral', icon: <LayoutDashboard className="w-5 h-5" />, path: '/dashboard' },
     { id: 'extintores', label: 'Extintores', icon: <Flame className="w-5 h-5" />, path: '/extintores' },
+    { id: 'retorno-manutencao', label: 'Retorno Manutenção', icon: <Truck className="w-5 h-5" />, path: '/extintores/retorno-manutencao' },
     { id: 'historico-inspecoes', label: 'Histórico de Vistorias', icon: <ClipboardList className="w-5 h-5" />, path: '/extintores/historico-inspecoes' },
     { id: 'hidrantes', label: 'Hidrantes & Abrigos', icon: <Droplet className="w-5 h-5" />, path: '/hidrantes' },
     { id: 'sinalizacao', label: 'Sinalização NBR', icon: <AlertTriangle className="w-5 h-5" />, path: '/sinalizacao' },
@@ -100,6 +103,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
   const filteredNavItems = navItems.filter(item => {
     if (userProfile?.role === 'Desenvolvedor') return true;
     if (item.id === 'logs') return false;
+    if (item.id === 'retorno-manutencao') return true;
     if (item.id === 'historico-inspecoes') return true;
     if (item.id === 'gestao-ativo') return true;
     if (item.id === 'mapa') return true;

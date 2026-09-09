@@ -44,6 +44,7 @@ import { exportStockItemsToCSV } from '@/lib/excelStockUtils';
 import { GestaoAtivosImportModal } from './GestaoAtivosImportModal';
 import BatchCreationModal from './BatchCreationModal';
 import BatchManagementBento from './BatchManagementBento';
+import BulkMovementModal from './BulkMovementModal';
 import { idb } from '@/lib/indexedDb';
 import { useSpci } from '@/app/context/SpciContext';
 
@@ -132,6 +133,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   // Seleção Múltipla de Linhas para Edição em Massa (REQUISITO 3)
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [isBulkEditModalOpen, setIsBulkEditModalOpen] = useState<boolean>(false);
+  const [isBulkMovementModalOpen, setIsBulkMovementModalOpen] = useState<boolean>(false);
   const [isSavingBulk, setIsSavingBulk] = useState<boolean>(false);
   const [isBatchCreationModalOpen, setIsBatchCreationModalOpen] = useState<boolean>(false);
   const [emManutencaoViewMode, setEmManutencaoViewMode] = useState<'LOTES' | 'ATIVOS'>('LOTES');
@@ -908,6 +910,17 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {/* BOTÃO MOVER EM LOTE (AÇÃO RÁPIDA DE TRANSIÇÃO DE STATUS) */}
+              <button
+                type="button"
+                onClick={() => setIsBulkMovementModalOpen(true)}
+                className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition-all flex items-center gap-1.5 cursor-pointer border-none shadow-sm active:scale-95"
+                title="Movimentar em lote para Estoque Manutenção, Remessa Externa ou Estoque Aplicação"
+              >
+                <ArrowRightLeft className="w-4 h-4 text-white" />
+                <span>Mover em Lote ({selectedIds.length})</span>
+              </button>
+
               {/* BOTÃO GERAR LOTE DE MANUTENÇÃO: EXIBIDO EXCLUSIVAMENTE NA ETAPA 'ESTOQUE MANUTENÇÃO' */}
               {activeTab === 'ESTOQUE MANUTENÇÃO' && (
                 <button
@@ -916,7 +929,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                   title="Gerar Lote de Manutenção e Romaneio Oficial para os itens selecionados em Estoque Manutenção"
                 >
                   <Truck className="w-4 h-4 text-white" />
-                  <span>📦 Gerar Lote de Manutenção ({selectedIds.length})</span>
+                  <span>📦 Gerar Lote ({selectedIds.length})</span>
                 </button>
               )}
 
@@ -2206,6 +2219,33 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
               isOpen: true,
               title: 'LOTE GERADO COM SUCESSO! 🟢',
               message: `Lote "${numeroLote}" gerado com sucesso. Os extintores foram transferidos para "Em Manutenção".`,
+              type: 'success'
+            });
+          }}
+        />
+      )}
+
+      {/* MODAL DE MOVIMENTAÇÕES EM LOTE NO ESTOQUE */}
+      {isBulkMovementModalOpen && (
+        <BulkMovementModal
+          isOpen={isBulkMovementModalOpen}
+          onClose={() => setIsBulkMovementModalOpen(false)}
+          selectedItems={items.filter((it) => selectedIds.includes(it.id))}
+          currentUserName={loggedUserName}
+          currentUserEmail={loggedUserEmail}
+          onSuccess={(targetStatus, count) => {
+            loadAssets();
+            setSelectedIds([]);
+            if (targetStatus === 'EM MANUTENÇÃO') {
+              setActiveTab('EM MANUTENÇÃO');
+              setEmManutencaoViewMode('LOTES');
+            } else {
+              setActiveTab(targetStatus as any);
+            }
+            setHudAlert({
+              isOpen: true,
+              title: 'MOVIMENTAÇÃO EM LOTE CONCLUÍDA! 🟢',
+              message: `${count} ativo(s) transferido(s) com sucesso para "${targetStatus}".`,
               type: 'success'
             });
           }}

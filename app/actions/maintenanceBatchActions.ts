@@ -696,3 +696,87 @@ export async function reconcileBatchesAndAssetsAction() {
     return { success: false, error: error.message };
   }
 }
+
+export interface MaintenanceKpisResult {
+  lotesEmAndamento: number;
+  extintoresEmManutencao: number;
+  lotesPendentesConferencia: number;
+  taxaCondenacaoPercent: number;
+  totalCondenados: number;
+  totalAprovados: number;
+  totalLotes: number;
+}
+
+/**
+ * Totaliza e consolida métricas executivas em tempo real para o cockpit de Retorno de Manutenção
+ */
+export async function getMaintenanceKpisAction(): Promise<{ success: boolean; kpis?: MaintenanceKpisResult; error?: string }> {
+  try {
+    const supabase = getSupabaseAdminClient();
+
+    // 1. Lotes de manutenção
+    const { data: lotes, error: lotesError } = await supabase
+      .from('lotes_manutencao')
+      .select('id, status, total_itens, total_aprovados, total_condenados');
+
+    if (lotesError) {
+      console.warn('[getMaintenanceKpisAction] Aviso ao carregar lotes:', lotesError.message);
+    }
+
+    const lotesList = lotes || [];
+    const lotesEmAndamento = lotesList.filter((l) => l.status === 'EM_ANDAMENTO').length;
+    const totalLotes = lotesList.length;
+
+    let totalAprovados = 0;
+    let totalCondenados = 0;
+    for (const l of lotesList) {
+      totalAprovados += Number(l.total_aprovados || 0);
+      totalCondenados += Number(l.total_condenados || 0);
+    }
+
+    // 2. Extintores atualmente com status_estoque = 'EM MANUTENÇÃO'
+    const { count: countEmManutencao } = await supabase
+      .from('assets')
+      .select('id', { count: 'exact', head: true })
+      .or('status_estoque.eq."EM MANUTENÇÃO",tipo_movimentacao.eq."em_manutencao"');
+
+    // 3. Extintores condenados na base de ativos
+    const { count: countCondenadosAssets } = await supabase
+      .from('assets')
+      .select('id', { count: 'exact', head: true })
+      .or('status_estoque.eq."CONDENADOS",tipo_movimentacao.eq."condenado"');
+
+    const totalCilindrosCondenados = Math.max(totalCondenados, Number(countCondenadosAssets || 0));
+    const totalAvaliados = totalAprovados + totalCilindrosCondenados;
+    const taxaCondenacaoPercent = totalAvaliados > 0 ? Number(((totalCilindrosCondenados / totalAvaliados) * 100).toFixed(1)) : 0;
+
+    return {
+      success: true,
+      kpis: {
+        lotesEmAndamento,
+        extintoresEmManutencao: countEmManutencao || 0,
+        lotesPendentesConferencia: lotesEmAndamento,
+        taxaCondenacaoPercent,
+        totalCondenados: totalCilindrosCondenados,
+        totalAprovados,
+        totalLotes,
+      }
+    };
+  } catch (error: any) {
+    console.error('[getMaintenanceKpisAction] Exceção:', error);
+    return {
+      success: false,
+      error: error.message,
+      kpis: {
+        lotesEmAndamento: 0,
+        extintoresEmManutencao: 0,
+        lotesPendentesConferencia: 0,
+        taxaCondenacaoPercent: 0,
+        totalCondenados: 0,
+        totalAprovados: 0,
+        totalLotes: 0,
+      }
+    };
+  }
+}
+

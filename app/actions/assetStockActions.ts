@@ -522,3 +522,106 @@ export async function getAssetMovementsHistoryAction(assetId: string) {
     return { success: false, error: err.message || 'Erro ao carregar histórico.', history: [] };
   }
 }
+
+export interface BulkMovePayload {
+  assetIds: string[];
+  targetStatus: StatusEstoqueType;
+  motivo?: string;
+  observacao?: string;
+  usuarioNome: string;
+  usuarioEmail?: string;
+}
+
+/**
+ * Realiza a movimentação em lote (batch update) atômica de múltiplos ativos
+ * com inserção de histórico perpétuo de auditoria
+ */
+export async function bulkMoveAssetStatusAction(payload: BulkMovePayload) {
+  try {
+    const { assetIds, targetStatus, motivo, observacao, usuarioNome, usuarioEmail } = payload;
+    if (!assetIds || assetIds.length === 0) {
+      return { success: false, error: 'Nenhum ativo selecionado para movimentação.' };
+    }
+
+    const supabaseAdmin = getSupabaseAdminClient();
+    const tipoMov = mapStatusEstoqueToTipoMovimentacao(targetStatus);
+    const nowIso = new Date().toISOString();
+
+    // 1. Busca os dados dos ativos para registrar o histórico com status anterior
+    const { data: currentAssets, error: fetchErr } = await supabaseAdmin
+      .from('assets')
+      .select('id, id_ativo, status_estoque, patrimonio')
+      .in('id', assetIds);
+
+    if (fetchErr) {
+      console.warn('[bulkMoveAssetStatusAction] Aviso ao buscar ativos atuais:', fetchErr.message);
+    }
+
+    // 2. Atualiza os ativos em lote
+    const { error: updateErr } = await supabaseAdmin
+      .from('assets')
+      .update({
+        status_estoque: targetStatus,
+        tipo_movimentacao: tipoMov,
+        updated_at: nowIso
+      })
+      .in('id', assetIds);
+
+    if (updateErr) {
+      return { success: false, error: `Erro ao atualizar ativos em lote: ${updateErr.message}` };
+    }
+
+    // 3. Registra eventos no histórico de auditoria
+    if (currentAssets && currentAssets.length > 0) {
+      const historyRows = currentAssets.map((asset) => ({
+        asset_id: asset.id,
+        id_ativo: asset.id_ativo || asset.patrimonio || asset.id,
+        status_anterior: asset.status_estoque || 'Desconhecido',
+        status_novo: targetStatus,
+        motivo_movimentacao: motivo || 'Movimentação em lote via painel de estoque',
+        observacao: observacao || null,
+        usuario_nome: usuarioNome || 'Operador SPCI',
+        usuario_email: usuarioEmail || null,
+        created_at: nowIso
+      }));
+
+      try {
+        await supabaseAdmin.from('ativo_movimentacoes').insert(historyRows);
+      } catch (histErr: any) {
+        console.warn('[bulkMoveAssetStatusAction] Aviso histórico ativo_movimentacoes:', histErr?.message);
+      }
+
+      // Registro adicional em historico_movimentacoes_ativos se a tabela existir
+      try {
+        const auditRows = currentAssets.map((asset) => ({
+          asset_id: asset.id,
+          id_ativo: asset.id_ativo || asset.patrimonio || asset.id,
+          tipo_evento: 'MOVIMENTACAO_LOTE',
+          status_origem: asset.status_estoque || 'Desconhecido',
+          status_destino: targetStatus,
+          usuario_responsavel_nome: usuarioNome || 'Operador SPCI',
+          usuario_responsavel_email: usuarioEmail || null,
+          descricao_evento: motivo || `Movimentação em lote para ${targetStatus}`,
+          detalhes_alteracao: {
+            observacao: observacao || null,
+            total_afetados: assetIds.length
+          },
+          created_at: nowIso
+        }));
+        await supabaseAdmin.from('historico_movimentacoes_ativos').insert(auditRows);
+      } catch (auditErr: any) {
+        console.warn('[bulkMoveAssetStatusAction] Aviso historico_movimentacoes_ativos:', auditErr?.message);
+      }
+    }
+
+    return {
+      success: true,
+      count: assetIds.length,
+      targetStatus
+    };
+  } catch (err: any) {
+    console.error('[bulkMoveAssetStatusAction] Exceção crítica:', err);
+    return { success: false, error: err.message || 'Erro inesperado na movimentação em lote.' };
+  }
+}
+

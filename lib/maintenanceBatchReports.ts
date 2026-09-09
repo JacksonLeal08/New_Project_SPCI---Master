@@ -17,12 +17,17 @@ export function formatFriendlyPatrimonio(idAtivo?: string, patrimonio?: string):
 /**
  * Gera e abre o documento oficial de Romaneio de Envio de Manutenção formatado para impressão / salvamento em PDF
  */
-export function generateBatchRomaneioPDF(lote: LoteManutencaoRecord, itens: ItemLoteManutencaoRecord[]) {
+export function generateBatchRomaneioPDF(
+  lote: LoteManutencaoRecord & { itens?: ItemLoteManutencaoRecord[] }, 
+  itens?: ItemLoteManutencaoRecord[]
+) {
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
     alert('Por favor, permita popups para visualizar e baixar o Romaneio em PDF.');
     return;
   }
+
+  const itensList = (itens && itens.length > 0) ? itens : (lote.itens || []);
 
   const dataEnvioFormatada = new Date(lote.data_envio).toLocaleDateString('pt-BR', {
     day: '2-digit',
@@ -36,7 +41,7 @@ export function generateBatchRomaneioPDF(lote: LoteManutencaoRecord, itens: Item
     ? new Date(lote.previsao_retorno + 'T12:00:00').toLocaleDateString('pt-BR')
     : 'Não informada';
 
-  const rowsHtml = itens
+  const rowsHtml = itensList
     .map(
       (item, idx) => `
       <tr>
@@ -267,7 +272,7 @@ export function generateBatchRomaneioPDF(lote: LoteManutencaoRecord, itens: Item
         </div>
         <div class="meta-item">
           <span class="meta-label">Total de Extintores</span>
-          <span class="meta-value" style="color: #af101a;">${itens.length} Unidades</span>
+          <span class="meta-value" style="color: #af101a;">${itensList.length} Unidades</span>
         </div>
         <div class="meta-item">
           <span class="meta-label">Responsável pelo Envio</span>
@@ -292,7 +297,7 @@ export function generateBatchRomaneioPDF(lote: LoteManutencaoRecord, itens: Item
       }
 
       <div class="section-title">
-        <span>📋 Relação de Extintores Enviados (${itens.length})</span>
+        <span>📋 Relação de Extintores Enviados (${itensList.length})</span>
       </div>
 
       <table>
@@ -353,7 +358,11 @@ export function generateBatchRomaneioPDF(lote: LoteManutencaoRecord, itens: Item
 /**
  * Exporta os dados do lote de manutenção para planilha corporativa formatada em .XLSX
  */
-export function exportBatchRomaneioXLSX(lote: LoteManutencaoRecord, itens: ItemLoteManutencaoRecord[]) {
+export function exportBatchRomaneioXLSX(
+  lote: LoteManutencaoRecord & { itens?: ItemLoteManutencaoRecord[] }, 
+  itens?: ItemLoteManutencaoRecord[]
+) {
+  const itensList = (itens && itens.length > 0) ? itens : (lote.itens || []);
   const dataEnvioStr = new Date(lote.data_envio).toLocaleDateString('pt-BR');
 
   // Cabeçalho de metadados
@@ -361,7 +370,7 @@ export function exportBatchRomaneioXLSX(lote: LoteManutencaoRecord, itens: ItemL
     ['SISTEMA SPCI MASTER - ROMANEIO DE ENVIO PARA MANUTENÇÃO'],
     [`Número do Lote:`, lote.numero_lote, '', `Data de Envio:`, dataEnvioStr],
     [`Fornecedor:`, lote.fornecedor_nome, '', `Previsão de Retorno:`, lote.previsao_retorno || 'N/A'],
-    [`Responsável pelo Envio:`, lote.usuario_envio_nome, '', `Total de Extintores:`, itens.length],
+    [`Responsável pelo Envio:`, lote.usuario_envio_nome, '', `Total de Extintores:`, itensList.length],
     [`Status do Lote:`, lote.status, '', `Observações:`, lote.observacoes || 'Nenhuma'],
     [], // Linha em branco
     [
@@ -384,7 +393,7 @@ export function exportBatchRomaneioXLSX(lote: LoteManutencaoRecord, itens: ItemL
   ];
 
   // Inserção das linhas de dados
-  itens.forEach((item, index) => {
+  itensList.forEach((item, index) => {
     sheetData.push([
       index + 1,
       formatFriendlyPatrimonio(item.id_ativo, item.patrimonio),
