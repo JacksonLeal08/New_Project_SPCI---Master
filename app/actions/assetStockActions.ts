@@ -97,7 +97,11 @@ export async function getAssetStockItemsAction(statusEstoque?: string) {
 
     if (statusEstoque && statusEstoque !== 'Todos') {
       const tipo = mapStatusEstoqueToTipoMovimentacao(statusEstoque);
-      query = query.or(`status_estoque.eq."${statusEstoque}",tipo_movimentacao.eq."${tipo}"`);
+      if (statusEstoque === 'NA ÁREA (APLICADO)') {
+        query = query.or(`status_estoque.eq."NA ÁREA (APLICADO)",tipo_movimentacao.eq."na_area_aplicado",status_estoque.is.null`);
+      } else {
+        query = query.or(`status_estoque.eq."${statusEstoque}",tipo_movimentacao.eq."${tipo}"`);
+      }
     }
 
     const { data, error } = await query.order('created_at', { ascending: false });

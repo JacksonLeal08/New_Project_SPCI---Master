@@ -288,77 +288,90 @@ export default function PortalTecnicoPage() {
   return (
     <div className={`min-h-screen ${bgClass} flex flex-col justify-between font-mono relative antialiased transition-colors duration-300 selection:bg-red-655 selection:text-white`}>
       
-      {/* Grade técnica industrial de fundo */}
-      <div className={`absolute inset-0 bg-[linear-gradient(to_right,#0f172a_1px,transparent_1px),linear-gradient(to_bottom,#0f172a_1px,transparent_1px)] bg-[size:3.5rem_3.5rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] pointer-events-none transition-opacity duration-300 ${
-        isDark ? 'opacity-30 bg-slate-950' : 'opacity-10 bg-slate-50'
-      }`} />
+      {/* Fundo elegante, moderno e minimalista (sem estilo xadrez/quadriculado) */}
+      <div 
+        className={`fixed inset-0 pointer-events-none transition-colors duration-500 ${
+          isDark 
+            ? 'bg-radial-[at_50%_0%] from-red-950/25 via-slate-950 to-slate-950' 
+            : 'bg-radial-[at_50%_0%] from-red-500/5 via-slate-50/60 to-slate-100/90'
+        }`} 
+      />
 
-      {/* TOP HEADER: Curved SPCI Bombeiros Wave */}
-      <header className="relative w-full z-20">
-        <div className="bg-gradient-to-r from-red-700 to-red-600 text-white pb-8 pt-6 px-4 rounded-b-[40px] shadow-xl relative overflow-hidden">
-          <div className="absolute -right-10 -bottom-10 opacity-10 text-[120px] font-black pointer-events-none select-none">
-            BOMBEIRO
-          </div>
-          
-          <div className="max-w-lg mx-auto flex items-center justify-between">
-            {/* Título / Marca */}
-            <div className="flex items-center gap-2 select-none">
-              <span className="p-1.5 bg-white text-red-700 rounded-none font-sans font-black tracking-tighter text-sm flex items-center justify-center">
-                SPCI
-              </span>
-              <div>
-                <h1 className="text-sm font-extrabold uppercase tracking-widest font-sans">SPCI BOMBEIROS</h1>
-                <p className="text-[7px] text-red-100 tracking-wider">GESTOR DE CONFORMIDADE E BRIGADA</p>
-              </div>
+      {/* TOP HEADER: Sticky Header Profissional com Banner Institucional do Bombeiro Industrial */}
+      <header className="sticky top-0 z-40 w-full bg-gradient-to-r from-red-700 via-red-650 to-red-600 text-white shadow-xl border-b border-red-800/40 backdrop-blur-md overflow-hidden">
+        {/* Banner Institucional: Bombeiro Industrial com Máscara Gradiente */}
+        <div
+          className="absolute right-0 top-0 bottom-0 w-2/5 sm:w-1/3 pointer-events-none bg-cover bg-right bg-no-repeat opacity-25 dark:opacity-35 mix-blend-luminosity"
+          style={{
+            backgroundImage: "url('/login-bg.png')",
+            maskImage: 'linear-gradient(to left, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0) 100%)',
+            WebkitMaskImage: 'linear-gradient(to left, rgba(0,0,0,0.9) 20%, rgba(0,0,0,0) 100%)'
+          }}
+          aria-hidden="true"
+        />
+
+        <div className="relative z-10 max-w-lg mx-auto px-4 py-3 sm:py-3.5 flex items-center justify-between gap-2">
+          {/* Título / Marca Institucional */}
+          <div className="flex items-center gap-2.5 select-none min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-white text-red-700 font-sans font-black tracking-tighter text-xs flex items-center justify-center shadow-sm shrink-0">
+              SPCI
             </div>
-
-            {/* Ações Rápidas de Cabeçalho: Tema, Sincronia e Rede */}
-            <div className="flex items-center gap-2">
-              {/* Chaveador de Tema Sol/Lua (Telegram Style) */}
-              <button 
-                onClick={toggleTheme}
-                className="p-2 rounded-lg bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white border-none cursor-pointer"
-                title={isDark ? 'Ativar Tema Claro' : 'Ativar Tema Escuro'}
-                aria-label={isDark ? 'Ativar Tema Claro' : 'Ativar Tema Escuro'}
-              >
-                {isDark ? <Sun size={14} className="text-amber-400" /> : <Moon size={14} className="text-yellow-100" />}
-              </button>
-
-              <div className={`flex items-center gap-1 text-[8px] font-bold px-2 py-1 select-none ${
-                isOnline ? 'bg-emerald-950/30 text-emerald-350 border border-emerald-500/30' : 'bg-amber-950/40 text-amber-350 border border-amber-500/40 animate-pulse'
-              }`}>
-                {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
-                <span className="hidden sm:inline">{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-xs sm:text-sm font-black uppercase tracking-widest font-sans truncate text-white">
+                  SPCI BOMBEIROS
+                </h1>
+                <span className="hidden xs:inline-block text-[8px] font-mono px-1.5 py-0.5 rounded bg-red-900/60 border border-red-400/30 text-red-100 font-bold">
+                  BRIGADA
+                </span>
               </div>
-
-              <button 
-                onClick={async () => {
-                  await triggerSync();
-                  await loadCategoryAssets();
-                }}
-                disabled={!isOnline || pendingCount === 0 || syncing}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-[9px] font-bold uppercase transition-all select-none border border-white/20 bg-white/10 hover:bg-white/20 active:scale-[0.98] ${
-                  pendingCount > 0 ? 'animate-bounce border-emerald-400 bg-emerald-600 text-white' : 'opacity-85 text-white'
-                }`}
-                aria-label={`Sincronizar dados pendentes. ${pendingCount} itens na fila.`}
-              >
-                <RefreshCw size={11} className={`${syncing ? 'animate-spin' : ''}`} />
-                <span>Sincronia</span>
-                {pendingCount > 0 && (
-                  <span className="px-1.5 py-0.5 rounded-full bg-white text-red-700 font-sans font-bold text-[8px]">
-                    {pendingCount}
-                  </span>
-                )}
-              </button>
+              <p className="text-[8px] text-red-100 font-mono tracking-wider truncate">
+                GESTOR DE CONFORMIDADE & RONDA
+              </p>
             </div>
           </div>
-        </div>
-        
-        {/* Curva física na base */}
-        <div className="absolute -bottom-1 left-0 right-0 pointer-events-none">
-          <svg viewBox="0 0 1440 120" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-[30px] fill-red-700 drop-shadow-md">
-            <path d="M0,64L80,69.3C160,75,320,85,480,85.3C640,85,800,75,960,64C1120,53,1280,43,1360,37.3L1440,32L1440,0L1360,0C1280,0,1120,0,960,0C800,0,640,0,480,0C320,0,160,0,80,0L0,0Z"></path>
-          </svg>
+
+          {/* Ações Rápidas de Cabeçalho: Tema, Sincronia e Rede */}
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            {/* Chaveador de Tema Sol/Lua */}
+            <button 
+              onClick={toggleTheme}
+              className="p-1.5 sm:p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 transition-all text-white border border-white/15 cursor-pointer shadow-2xs"
+              title={isDark ? 'Ativar Tema Claro' : 'Ativar Tema Escuro'}
+              aria-label={isDark ? 'Ativar Tema Claro' : 'Ativar Tema Escuro'}
+            >
+              {isDark ? <Sun size={14} className="text-amber-300" /> : <Moon size={14} className="text-yellow-100" />}
+            </button>
+
+            {/* Status Online/Offline */}
+            <div className={`flex items-center gap-1 text-[8px] font-bold px-2 py-1 rounded-lg select-none ${
+              isOnline ? 'bg-emerald-950/40 text-emerald-300 border border-emerald-400/30' : 'bg-amber-950/50 text-amber-300 border border-amber-400/40 animate-pulse'
+            }`}>
+              {isOnline ? <Wifi size={10} /> : <WifiOff size={10} />}
+              <span className="hidden sm:inline font-mono">{isOnline ? 'ONLINE' : 'OFFLINE'}</span>
+            </div>
+
+            {/* Botão de Sincronia */}
+            <button 
+              onClick={async () => {
+                await triggerSync();
+                await loadCategoryAssets();
+              }}
+              disabled={!isOnline || pendingCount === 0 || syncing}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 text-[9px] font-mono font-bold uppercase transition-all select-none rounded-xl border border-white/25 bg-white/15 hover:bg-white/25 active:scale-[0.98] cursor-pointer ${
+                pendingCount > 0 ? 'animate-bounce border-emerald-400 bg-emerald-600 text-white' : 'opacity-90 text-white'
+              }`}
+              aria-label={`Sincronizar dados pendentes. ${pendingCount} itens na fila.`}
+            >
+              <RefreshCw size={11} className={`${syncing ? 'animate-spin' : ''}`} />
+              <span className="hidden xs:inline">Sincronia</span>
+              {pendingCount > 0 && (
+                <span className="px-1.5 py-0.5 rounded-full bg-white text-red-700 font-sans font-bold text-[8px]">
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 

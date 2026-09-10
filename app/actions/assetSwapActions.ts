@@ -144,21 +144,27 @@ export async function processAssetSwapAction(
     const nowIso = new Date().toISOString();
     const swapId = `TRC-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    // 1. Busca os dados dos dois ativos
+    // 1. Busca os dados dos dois ativos (por ID, ID do Ativo ou Patrimônio)
     const { data: assets, error: fetchErr } = await supabase
       .from('assets')
       .select('*')
-      .in('id', [payload.ativo_retirado_id, payload.ativo_substituto_id]);
+      .or(`id.in.("${payload.ativo_retirado_id}","${payload.ativo_substituto_id}"),id_ativo.in.("${payload.ativo_retirado_id}","${payload.ativo_substituto_id}"),patrimonio.in.("${payload.ativo_retirado_id}","${payload.ativo_substituto_id}")`);
 
-    if (fetchErr || !assets || assets.length < 2) {
+    const retirado = (assets || []).find(
+      (a) =>
+        a.id === payload.ativo_retirado_id ||
+        a.id_ativo === payload.ativo_retirado_id ||
+        a.patrimonio === payload.ativo_retirado_id
+    );
+    const substituto = (assets || []).find(
+      (a) =>
+        a.id === payload.ativo_substituto_id ||
+        a.id_ativo === payload.ativo_substituto_id ||
+        a.patrimonio === payload.ativo_substituto_id
+    );
+
+    if (fetchErr || !retirado || !substituto) {
       throw new Error('Não foi possível localizar ambos os extintores no sistema para realizar a troca.');
-    }
-
-    const retirado = assets.find((a) => a.id === payload.ativo_retirado_id);
-    const substituto = assets.find((a) => a.id === payload.ativo_substituto_id);
-
-    if (!retirado || !substituto) {
-      throw new Error('Identificadores de ativo inconsistentes.');
     }
 
     // Setor e localização definitiva do ponto

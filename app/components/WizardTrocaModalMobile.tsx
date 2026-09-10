@@ -15,6 +15,7 @@ import {
 import { formatFriendlyPatrimonio } from '@/lib/maintenanceBatchReports';
 import { formatFriendlyMotivo, generateSwapReportPDF } from '@/lib/assetSwapReports';
 import { soundNotificationService } from '@/lib/soundNotificationService';
+import { getAssetsList } from '@/lib/supabaseDb';
 import AssetSelectionCard from './AssetSelectionCard';
 import {
   ArrowLeftRight,
@@ -177,22 +178,101 @@ export default function WizardTrocaModalMobile({
   const handleMinimize = () => setWindowState(MODAL_ID, 'minimized');
   const toggleMaximize = () => setWindowState(MODAL_ID, isMaximized ? 'restored' : 'maximized');
 
-  // Carrega inventário de extintores
+  // Carrega inventário de extintores (combina tabela assets e view ao vivo com 602 ativos)
   const loadInventory = async () => {
     setLoadingAssets(true);
     setErrorMsg(null);
     try {
-      const [resArea, resEstoque] = await Promise.all([
-        getAssetStockItemsAction('NA ÁREA (APLICADO)'),
-        getAssetStockItemsAction('ESTOQUE APLICAÇÃO')
+      const [allExtintoresLive, resEstoque, resAreaAction] = await Promise.all([
+        getAssetsList('extintores').catch((e) => {
+          console.warn('[WizardTrocaModalMobile] Falha ao buscar lista de extintores:', e);
+          return [] as any[];
+        }),
+        getAssetStockItemsAction('ESTOQUE APLICAÇÃO').catch(() => ({ success: false, assets: [] })),
+        getAssetStockItemsAction('NA ÁREA (APLICADO)').catch(() => ({ success: false, assets: [] }))
       ]);
 
-      const extintoresArea = (resArea.assets || []).filter(
-        (a) => (a.category || '').toLowerCase().includes('extintor') || (a.id_ativo || '').startsWith('EXT-') || (a.patrimonio || '').startsWith('EXT-')
-      );
-      const extintoresEstoque = (resEstoque.assets || []).filter(
-        (a) => (a.category || '').toLowerCase().includes('extintor') || (a.id_ativo || '').startsWith('EXT-') || (a.patrimonio || '').startsWith('EXT-')
-      );
+      // 1. Constrói a lista completa de extintores da área instalados na planta
+      const mappedAreaMap = new Map<string, AssetStockItemRecord>();
+
+      // Adiciona itens da tabela assets retornados pela action
+      (resAreaAction.assets || []).forEach((a) => {
+        const key = (a.id_ativo || a.patrimonio || a.id || '').toUpperCase();
+        if (key) mappedAreaMap.set(key, a);
+      });
+
+      // Adiciona/enriquece com os dados vivos dos 602 extintores da planta
+      (allExtintoresLive || []).forEach((ext: any) => {
+        const key = String(ext.idAtivo || ext.numero_patrimonio || ext.id || '').toUpperCase();
+        if (!key) return;
+
+        const isEstoque =
+          ext.status_estoque === 'ESTOQUE APLICAÇÃO' ||
+          ext.tipo_movimentacao === 'estoque_aplicacao' ||
+          (ext.location && ext.location.toUpperCase().includes('ESTOQUE APLICAÇÃO'));
+
+        if (!isEstoque) {
+          const existing = mappedAreaMap.get(key);
+          mappedAreaMap.set(key, {
+            id: String(ext.id || key),
+            id_ativo: ext.idAtivo || ext.numero_patrimonio || key,
+            patrimonio: ext.numero_patrimonio || ext.idAtivo || key,
+            category: 'extintores',
+            model: ext.model || ext.tipoExtintor || existing?.model || 'ABC',
+            fabricante: ext.fabricante || existing?.fabricante || 'Kidde',
+            peso_capacidade: ext.peso_capacidade || ext.capacidade || ext.peso || existing?.peso_capacidade || '4KG',
+            validadeRecarga: ext.validadeRecarga || ext.data_vencimento_teste || existing?.validadeRecarga || '',
+            location: ext.location || existing?.location || 'Área Operacional',
+            sub_location: ext.subLocation || ext.sub_location || existing?.sub_location || '',
+            status: ext.status || existing?.status || 'Conforme',
+            status_estoque: 'NA ÁREA (APLICADO)',
+            tipo_movimentacao: 'na_area_aplicado',
+            numero_serie: ext.numero_serie || ext.chassi || existing?.numero_serie || '',
+            details: ext
+          });
+        }
+      });
+
+      // 2. Constrói a lista de substitutos em estoque (ESTOQUE APLICAÇÃO)
+      const mappedEstoqueMap = new Map<string, AssetStockItemRecord>();
+
+      (resEstoque.assets || []).forEach((a) => {
+        const key = (a.id_ativo || a.patrimonio || a.id || '').toUpperCase();
+        if (key) mappedEstoqueMap.set(key, a);
+      });
+
+      (allExtintoresLive || []).forEach((ext: any) => {
+        const key = String(ext.idAtivo || ext.numero_patrimonio || ext.id || '').toUpperCase();
+        if (!key) return;
+
+        const isEstoque =
+          ext.status_estoque === 'ESTOQUE APLICAÇÃO' ||
+          ext.tipo_movimentacao === 'estoque_aplicacao' ||
+          (ext.location && (ext.location.toUpperCase().includes('ALMOXARIFADO') || ext.location.toUpperCase().includes('ESTOQUE')));
+
+        if (isEstoque && !mappedEstoqueMap.has(key)) {
+          mappedEstoqueMap.set(key, {
+            id: String(ext.id || key),
+            id_ativo: ext.idAtivo || ext.numero_patrimonio || key,
+            patrimonio: ext.numero_patrimonio || ext.idAtivo || key,
+            category: 'extintores',
+            model: ext.model || ext.tipoExtintor || 'ABC',
+            fabricante: ext.fabricante || 'Kidde',
+            peso_capacidade: ext.peso_capacidade || ext.capacidade || ext.peso || '4KG',
+            validadeRecarga: ext.validadeRecarga || ext.data_vencimento_teste || '',
+            location: ext.location || 'Almoxarifado',
+            sub_location: ext.subLocation || ext.sub_location || 'Estoque Aplicação',
+            status: ext.status || 'Conforme',
+            status_estoque: 'ESTOQUE APLICAÇÃO',
+            tipo_movimentacao: 'estoque_aplicacao',
+            numero_serie: ext.numero_serie || ext.chassi || '',
+            details: ext
+          });
+        }
+      });
+
+      const extintoresArea = Array.from(mappedAreaMap.values());
+      const extintoresEstoque = Array.from(mappedEstoqueMap.values());
 
       setAreaAssets(extintoresArea);
       setSubstituteAssets(extintoresEstoque);
