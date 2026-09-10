@@ -23,8 +23,10 @@ import {
   Smartphone,
   Info,
   ChevronRight,
-  UserCheck
+  UserCheck,
+  ArrowLeftRight
 } from 'lucide-react';
+import AssetSwapModal from '@/app/components/AssetSwapModal';
 
 export default function RondaPage() {
   const router = useRouter();
@@ -34,6 +36,7 @@ export default function RondaPage() {
     sinalizacoes,
     iluminacoes,
     bombas,
+    userProfile,
     triggerSuccessNotification
   } = useSpci();
 
@@ -47,6 +50,7 @@ export default function RondaPage() {
   const [activeSharedToken, setActiveSharedToken] = useState<string>('');
   const [isRevoking, setIsRevoking] = useState<boolean>(false);
   const [showWarningModal, setShowWarningModal] = useState<boolean>(false);
+  const [isSwapModalOpen, setIsSwapModalOpen] = useState<boolean>(false);
 
   // Controle do Iframe do Celular
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -645,6 +649,17 @@ export default function RondaPage() {
                         </button>
                       </div>
 
+                      {/* Botão de Troca Rápida para Extintores */}
+                      {selectedCategory === 'extintores' && (
+                        <button
+                          onClick={() => setIsSwapModalOpen(true)}
+                          className="w-full flex items-center justify-center gap-2 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-mono text-xs uppercase tracking-wider transition-all cursor-pointer border-none shadow-xs rounded-lg active:scale-98 font-bold"
+                        >
+                          <ArrowLeftRight size={13} />
+                          Trocar Extintor em Campo
+                        </button>
+                      )}
+
                       {/* Copiar Link Geral */}
                       <div className="flex items-center justify-between text-[10px] text-slate-500 pt-2 font-mono">
                         <span>Portal Público Geral:</span>
@@ -759,6 +774,19 @@ export default function RondaPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal de Gestão de Trocas & Substituições */}
+      <AssetSwapModal
+        isOpen={isSwapModalOpen}
+        onClose={() => setIsSwapModalOpen(false)}
+        currentUserName={userProfile?.displayName || userProfile?.nome || 'Operador SPCI'}
+        currentUserEmail={userProfile?.email || undefined}
+        preSelectedAssetId={selectedAsset?.idAtivo || selectedAsset?.id}
+        onSuccess={() => {
+          setIsSwapModalOpen(false);
+          triggerSuccessNotification('Substituição Realizada! 🧯', 'Substituição de extintor homologada com sucesso no banco de dados.');
+        }}
+      />
 
     </motion.div>
   );

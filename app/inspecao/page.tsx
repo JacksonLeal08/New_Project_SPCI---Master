@@ -26,13 +26,15 @@ import {
   History,
   FileText,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  ArrowLeftRight
 } from 'lucide-react';
 import { getAssetsList } from '@/lib/supabaseDb';
 import { SyncQueue } from '@/lib/syncQueue';
 import QrCameraScanner from '@/app/components/QrCameraScanner';
 import ReinspecaoJustificativaModal from '@/app/components/ReinspecaoJustificativaModal';
 import AssetInspectionHistoryModal from '@/app/components/AssetInspectionHistoryModal';
+import AssetSwapModal from '@/app/components/AssetSwapModal';
 import { idb } from '@/lib/indexedDb';
 import { useSync } from '@/hooks/useSync';
 import { extractIdOrHashFromUrl, formatDateBr } from '@/lib/utils';
@@ -66,6 +68,10 @@ export default function PortalTecnicoPage() {
   const [isReinspecaoModalOpen, setIsReinspecaoModalOpen] = useState<boolean>(false);
   const [selectedAssetForHistory, setSelectedAssetForHistory] = useState<any | null>(null);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState<boolean>(false);
+
+  // Controle de Troca & Substituição Direta em Campo
+  const [isSwapModalOpen, setIsSwapModalOpen] = useState<boolean>(false);
+  const [selectedAssetForSwap, setSelectedAssetForSwap] = useState<any | null>(null);
 
   // Hook unificado de sincronia e status de rede
   const { isOnline, pendingCount, syncing, triggerSync } = useSync();
@@ -458,25 +464,38 @@ export default function PortalTecnicoPage() {
 
         {/* 2. BARRA DE PESQUISA & AÇÕES DE CAMPO (Layout Otimizado 2 Colunas) */}
         <section className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-2">
             {/* Novo Ativo */}
             <button 
               onClick={() => router.push(`/inspecao/novo?category=${selectedCategory}`)}
-              className="flex items-center justify-center p-3.5 bg-emerald-600/10 hover:bg-emerald-600/15 border border-emerald-500/30 text-emerald-450 transition-all font-mono text-xs uppercase font-bold tracking-wider gap-2 cursor-pointer rounded-xl active:scale-[0.97] min-h-[48px]"
+              className="flex flex-col sm:flex-row items-center justify-center p-2.5 sm:p-3.5 bg-emerald-600/10 hover:bg-emerald-600/15 border border-emerald-500/30 text-emerald-500 transition-all font-mono text-[10px] sm:text-xs uppercase font-bold tracking-wider gap-1.5 cursor-pointer rounded-xl active:scale-[0.97] min-h-[48px] text-center"
               aria-label={`Cadastrar novo ativo da categoria ${selectedCategory}`}
             >
-              <Plus size={18} />
-              Novo Ativo
+              <Plus size={16} />
+              <span>Novo Ativo</span>
+            </button>
+
+            {/* Troca em Campo */}
+            <button 
+              onClick={() => {
+                setSelectedAssetForSwap(null);
+                setIsSwapModalOpen(true);
+              }}
+              className="flex flex-col sm:flex-row items-center justify-center p-2.5 sm:p-3.5 bg-rose-600/10 hover:bg-rose-600/15 border border-rose-500/30 text-rose-500 transition-all font-mono text-[10px] sm:text-xs uppercase font-bold tracking-wider gap-1.5 cursor-pointer rounded-xl active:scale-[0.97] min-h-[48px] text-center"
+              aria-label="Realizar troca ou substituição de extintor em campo"
+            >
+              <ArrowLeftRight size={16} />
+              <span>Troca Campo</span>
             </button>
 
             {/* QR Code Scanner */}
             <button 
               onClick={() => setIsScannerOpen(true)}
-              className="flex items-center justify-center p-3.5 bg-red-655/10 hover:bg-red-655/15 border border-red-500/30 text-red-450 transition-all font-mono text-xs uppercase font-bold tracking-wider gap-2 cursor-pointer rounded-xl active:scale-[0.97] min-h-[48px]"
+              className="flex flex-col sm:flex-row items-center justify-center p-2.5 sm:p-3.5 bg-red-655/10 hover:bg-red-655/15 border border-red-500/30 text-red-500 transition-all font-mono text-[10px] sm:text-xs uppercase font-bold tracking-wider gap-1.5 cursor-pointer rounded-xl active:scale-[0.97] min-h-[48px] text-center"
               aria-label="Ler QR Code utilizando a câmera do dispositivo"
             >
-              <QrCode size={18} />
-              Ler QR Code
+              <QrCode size={16} />
+              <span>Ler QR Code</span>
             </button>
           </div>
 
@@ -689,8 +708,8 @@ export default function PortalTecnicoPage() {
                           </div>
                         </div>
 
-                        {/* Botões de Ações (Editar, Histórico e Inspecionar) */}
-                        <div className={`grid grid-cols-3 gap-2 pt-3 border-t ${
+                        {/* Botões de Ações (Editar, Histórico, Trocar e Inspecionar) */}
+                        <div className={`grid ${selectedCategory === 'extintores' ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-3'} gap-2 pt-3 border-t ${
                           isDark ? 'border-slate-850' : 'border-slate-100'
                         }`}>
                           <button 
@@ -710,6 +729,20 @@ export default function PortalTecnicoPage() {
                             <History size={11} className="text-cyan-400" />
                             <span>Histórico</span>
                           </button>
+
+                          {selectedCategory === 'extintores' && (
+                            <button 
+                              onClick={() => {
+                                setSelectedAssetForSwap(asset);
+                                setIsSwapModalOpen(true);
+                              }}
+                              className="py-2 text-rose-500 bg-rose-600/10 hover:bg-rose-600/20 border border-rose-500/30 text-[8.5px] font-bold uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer rounded-lg shadow-2xs transition-colors"
+                              aria-label={`Realizar troca em campo do extintor ${asset.idAtivo || asset.id}`}
+                            >
+                              <ArrowLeftRight size={11} />
+                              <span>Trocar</span>
+                            </button>
+                          )}
                           
                           <button 
                             onClick={() => handleInspecionarClick(asset)}
@@ -858,6 +891,21 @@ export default function PortalTecnicoPage() {
         onClose={() => setIsHistoryModalOpen(false)}
         asset={selectedAssetForHistory}
         isDark={isDark}
+      />
+
+      {/* Modal de Troca e Substituição de Extintores em Campo */}
+      <AssetSwapModal
+        isOpen={isSwapModalOpen}
+        onClose={() => {
+          setIsSwapModalOpen(false);
+          setSelectedAssetForSwap(null);
+        }}
+        currentUserName={userProfile?.displayName || userProfile?.nome || 'Técnico de Campo'}
+        currentUserEmail={userProfile?.email || undefined}
+        preSelectedAssetId={selectedAssetForSwap?.idAtivo || selectedAssetForSwap?.id || selectedAssetForSwap?.id_ativo}
+        onSuccess={async () => {
+          await loadCategoryAssets();
+        }}
       />
 
     </div>

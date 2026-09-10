@@ -28,7 +28,8 @@ import {
   QrCode,
   Camera,
   Crosshair,
-  Eye
+  Eye,
+  ArrowLeftRight
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import { fetchAtivoParaInspecao, salvarInspecaoNoSupabase, saveAssetToDb } from '@/lib/supabaseDb';
@@ -45,6 +46,7 @@ import { GeoCoordinates } from '@/lib/geoUtils';
 import { DynamicChecklistRenderer, ItemInspectionState } from '@/app/components/DynamicChecklistRenderer';
 import { submitInspectionWithSync, getCachedChecklistItems } from '@/lib/dbSync';
 import { ChecklistItemData } from '@/app/components/ChecklistEditModal';
+import AssetSwapModal from '@/app/components/AssetSwapModal';
 
 // Tipagem de categorias
 interface CategoriaOpcao {
@@ -94,6 +96,7 @@ function InspecaoOuCadastroContent() {
   const [theme, setTheme] = useState<'light' | 'dark'>('dark');
   const [mounted, setMounted] = useState<boolean>(false);
   const [zoomPhotoUrl, setZoomPhotoUrl] = useState<string | null>(null);
+  const [isSwapModalOpen, setIsSwapModalOpen] = useState<boolean>(false);
 
   // Alterna o tema de forma fluida (Telegram Style)
   const toggleTheme = () => {
@@ -1517,6 +1520,43 @@ function InspecaoOuCadastroContent() {
               exit={{ opacity: 0 }}
               className="space-y-6"
             >
+              {/* BANNER / AÇÃO DE TROCA IMEDIATA EM CAMPO */}
+              {(ativo.category === 'extintores' || targetCategory === 'extintores' || String(ativo.id || '').toUpperCase().startsWith('EXT-') || String(ativo.idAtivo || '').toUpperCase().startsWith('EXT-')) && (
+                <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3.5 shadow-xs ${
+                  isDark 
+                    ? 'bg-rose-950/25 border-rose-900/50 text-rose-100' 
+                    : 'bg-rose-50/90 border-rose-200 text-rose-950'
+                }`}>
+                  <div className="flex items-center gap-3 w-full sm:w-auto">
+                    <div className="p-3 rounded-xl bg-rose-600/15 text-rose-600 border border-rose-500/30 shrink-0">
+                      <ArrowLeftRight size={22} />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider font-sans text-rose-600">
+                          Troca & Substituição de Extintor
+                        </h4>
+                        <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-rose-600/15 text-rose-600 border border-rose-500/30 uppercase">
+                          Ação Direta
+                        </span>
+                      </div>
+                      <p className={`text-[10px] font-sans mt-0.5 leading-snug ${isDark ? 'text-rose-200/80' : 'text-rose-800'}`}>
+                        Extintor avariado, vencido ou despressurizado? Realize a substituição imediata sem precisar preencher o checklist.
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsSwapModalOpen(true)}
+                    className="w-full sm:w-auto px-4 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono text-xs uppercase font-bold tracking-wider rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                  >
+                    <ArrowLeftRight size={14} />
+                    <span>Substituir Agora</span>
+                  </button>
+                </div>
+              )}
+
               {/* CARD DETALHES DO ATIVO (BENTO GRID MODERNO) */}
               <section className={`${cardClass} p-5 space-y-4 relative overflow-hidden rounded-2xl`}>
                 {/* Header com Categoria, Modelo, Foto do Ativo e Badge de Status */}
@@ -2235,6 +2275,20 @@ function InspecaoOuCadastroContent() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Modal de Troca e Substituição Bilateral de Extintor */}
+      <AssetSwapModal
+        isOpen={isSwapModalOpen}
+        onClose={() => setIsSwapModalOpen(false)}
+        currentUserName={userProfile?.displayName || userProfile?.nome || 'Técnico de Campo'}
+        currentUserEmail={userProfile?.email || undefined}
+        preSelectedAssetId={ativo?.idAtivo || ativo?.id_ativo || ativo?.id || rawId}
+        onSuccess={(troca) => {
+          setIsSwapModalOpen(false);
+          // Redireciona para o portal de inspeções com o extintor substituto atualizado
+          router.push('/inspecao');
+        }}
+      />
 
     </div>
   );

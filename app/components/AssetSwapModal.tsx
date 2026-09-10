@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import WindowModal from './WindowModal';
 import {
   AssetStockItemRecord,
@@ -28,7 +28,11 @@ import {
   ArrowRight,
   ArrowLeft,
   X,
-  FileText
+  FileText,
+  Eye,
+  Trash2,
+  Loader2,
+  Image as ImageIcon
 } from 'lucide-react';
 
 interface AssetSwapModalProps {
@@ -111,6 +115,14 @@ export default function AssetSwapModal({
   const [descricao, setDescricao] = useState('');
   const [fotoAntes, setFotoAntes] = useState<string>('');
   const [fotoDepois, setFotoDepois] = useState<string>('');
+  const [processingPhoto, setProcessingPhoto] = useState<'antes' | 'depois' | null>(null);
+  const [zoomPhotoUrl, setZoomPhotoUrl] = useState<string | null>(null);
+
+  // Refs para acionamento direto de câmera nativa e galeria
+  const cameraInputAntesRef = useRef<HTMLInputElement>(null);
+  const galleryInputAntesRef = useRef<HTMLInputElement>(null);
+  const cameraInputDepoisRef = useRef<HTMLInputElement>(null);
+  const galleryInputDepoisRef = useRef<HTMLInputElement>(null);
 
   // Estados de Envio
   const [submitting, setSubmitting] = useState(false);
@@ -254,14 +266,77 @@ export default function AssetSwapModal({
     }
   };
 
-  const handleSimulatePhotoUpload = (field: 'antes' | 'depois') => {
-    // Simula captura de foto via câmera/arquivo com imagem SVG demonstrativa
-    const sample = field === 'antes'
-      ? 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect width="100%" height="100%" fill="%231e293b"/><text x="50%" y="45%" fill="%23ef4444" font-size="20" font-weight="bold" font-family="sans-serif" text-anchor="middle">REGISTRO: ANTES DA TROCA</text><text x="50%" y="60%" fill="%2394a3b8" font-size="14" font-family="sans-serif" text-anchor="middle">Equipamento Retirado com Avaria/Vencimento</text></svg>'
-      : 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect width="100%" height="100%" fill="%230f172a"/><text x="50%" y="45%" fill="%2310b981" font-size="20" font-weight="bold" font-family="sans-serif" text-anchor="middle">REGISTRO: DEPOIS DA TROCA</text><text x="50%" y="60%" fill="%2394a3b8" font-size="14" font-family="sans-serif" text-anchor="middle">Substituto Instalado no Suporte e Sinalizado</text></svg>';
+  // Processamento e compressão de imagem no cliente (Canvas Redimensionado 1280px)
+  const processImageFile = async (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const img = new window.Image();
+        img.onload = () => {
+          const maxDim = 1280;
+          let width = img.width;
+          let height = img.height;
 
-    if (field === 'antes') setFotoAntes(sample);
-    else setFotoDepois(sample);
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) {
+            resolve(e.target?.result as string);
+            return;
+          }
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressed = canvas.toDataURL('image/jpeg', 0.82);
+          resolve(compressed);
+        };
+        img.onerror = () => reject(new Error('Erro ao decodificar imagem.'));
+        img.src = e.target?.result as string;
+      };
+      reader.onerror = () => reject(new Error('Erro ao ler arquivo local.'));
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'antes' | 'depois') => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validação básica de tipo
+    if (!file.type.startsWith('image/')) {
+      setErrorMsg('O arquivo selecionado deve ser uma imagem (JPG, PNG, WEBP).');
+      soundNotificationService.playCriticalAlert();
+      return;
+    }
+
+    setProcessingPhoto(field);
+    setErrorMsg(null);
+
+    try {
+      const compressedDataUrl = await processImageFile(file);
+      if (field === 'antes') {
+        setFotoAntes(compressedDataUrl);
+      } else {
+        setFotoDepois(compressedDataUrl);
+      }
+      soundNotificationService.playSuccessChime();
+    } catch (err: any) {
+      console.error('[AssetSwapModal] Erro ao carregar foto:', err);
+      soundNotificationService.playCriticalAlert();
+      setErrorMsg('Falha ao processar a foto. Tente novamente ou use outro arquivo.');
+    } finally {
+      setProcessingPhoto(null);
+      e.target.value = '';
+    }
   };
 
   const handleSubmitSwap = async () => {
@@ -781,63 +856,225 @@ export default function AssetSwapModal({
 
                 {/* Evidências Fotográficas Antes e Depois */}
                 <div>
-                  <label className="block text-xs font-black uppercase tracking-wider text-slate-950 dark:text-slate-100 mb-2">
-                    Evidências Fotográficas (Auditoria NBR):
-                  </label>
+                  {/* Inputs invisíveis para Câmera Direta e Galeria */}
+                  <input
+                    type="file"
+                    ref={cameraInputAntesRef}
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => handleFileInputChange(e, 'antes')}
+                  />
+                  <input
+                    type="file"
+                    ref={galleryInputAntesRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileInputChange(e, 'antes')}
+                  />
+                  <input
+                    type="file"
+                    ref={cameraInputDepoisRef}
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => handleFileInputChange(e, 'depois')}
+                  />
+                  <input
+                    type="file"
+                    ref={galleryInputDepoisRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => handleFileInputChange(e, 'depois')}
+                  />
+
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="block text-xs font-black uppercase tracking-wider text-slate-950 dark:text-slate-100">
+                      Evidências Fotográficas (Auditoria NBR):
+                    </label>
+                    <span className="text-[10px] text-slate-500 font-bold">
+                      Fotos reais para laudo e conformidade
+                    </span>
+                  </div>
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {/* Foto Antes */}
-                    <div className="p-3.5 rounded-2xl border-2 border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center text-center">
-                      <span className="text-xs font-black text-slate-950 dark:text-slate-100 mb-1.5">
-                        1. Extintor Retirado (Avaria / Vencimento)
-                      </span>
-                      {fotoAntes ? (
-                        <div className="relative group w-full">
-                          <img src={fotoAntes} alt="Antes" className="h-28 w-full object-contain rounded-xl border-2 border-slate-300 dark:border-slate-800" />
-                          <button
-                            type="button"
-                            onClick={() => setFotoAntes('')}
-                            className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                    <div className="p-3.5 rounded-2xl border-2 border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col justify-between text-center min-h-[170px] shadow-2xs">
+                      <div>
+                        <span className="text-xs font-black text-slate-950 dark:text-slate-100 block mb-1.5">
+                          1. Extintor Retirado (Avaria / Vencimento)
+                        </span>
+                      </div>
+
+                      {processingPhoto === 'antes' ? (
+                        <div className="py-8 flex flex-col items-center justify-center gap-2 text-red-600">
+                          <Loader2 className="w-7 h-7 animate-spin" />
+                          <span className="text-xs font-bold font-mono">Comprimindo foto...</span>
+                        </div>
+                      ) : fotoAntes ? (
+                        <div className="space-y-2">
+                          <div className="relative group w-full h-32 rounded-xl overflow-hidden border-2 border-red-500/40 bg-black/5 shadow-inner">
+                            <img
+                              src={fotoAntes}
+                              alt="Foto do Extintor Retirado"
+                              className="w-full h-full object-cover"
+                            />
+                            {/* Overlay de Ações */}
+                            <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setZoomPhotoUrl(fotoAntes)}
+                                className="p-2 rounded-lg bg-white/90 text-slate-900 hover:bg-white transition cursor-pointer shadow-sm"
+                                title="Ampliar Foto"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => cameraInputAntesRef.current?.click()}
+                                className="p-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition cursor-pointer shadow-sm"
+                                title="Tirar Outra Foto"
+                              >
+                                <Camera className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFotoAntes('')}
+                                className="p-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition cursor-pointer shadow-sm"
+                                title="Excluir Foto"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between px-1 text-[10px]">
+                            <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Foto Anexada
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setFotoAntes('')}
+                              className="text-red-600 hover:underline font-bold cursor-pointer"
+                            >
+                              Remover
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleSimulatePhotoUpload('antes')}
-                          className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 hover:border-red-600 text-slate-900 dark:text-slate-100 font-black text-xs flex items-center gap-1.5 transition cursor-pointer mt-1 shadow-2xs"
-                        >
-                          <Camera className="w-4 h-4 text-red-600" />
-                          <span>Capturar Foto do Retirado</span>
-                        </button>
+                        <div className="space-y-2 py-2">
+                          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                            <button
+                              type="button"
+                              onClick={() => cameraInputAntesRef.current?.click()}
+                              className="flex-1 px-3 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95"
+                            >
+                              <Camera className="w-4 h-4" />
+                              <span>Tirar Foto</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => galleryInputAntesRef.current?.click()}
+                              className="flex-1 px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 hover:border-slate-400 text-slate-800 dark:text-slate-200 font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
+                            >
+                              <Upload className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                              <span>Galeria</span>
+                            </button>
+                          </div>
+                          <span className="block text-[10px] text-slate-500 font-medium">
+                            Fotografe o extintor no suporte ou o motivo da troca
+                          </span>
+                        </div>
                       )}
                     </div>
 
                     {/* Foto Depois */}
-                    <div className="p-3.5 rounded-2xl border-2 border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center text-center">
-                      <span className="text-xs font-black text-slate-950 dark:text-slate-100 mb-1.5">
-                        2. Extintor Substituto Instalado
-                      </span>
-                      {fotoDepois ? (
-                        <div className="relative group w-full">
-                          <img src={fotoDepois} alt="Depois" className="h-28 w-full object-contain rounded-xl border-2 border-slate-300 dark:border-slate-800" />
-                          <button
-                            type="button"
-                            onClick={() => setFotoDepois('')}
-                            className="absolute top-1 right-1 p-1 bg-red-600 text-white rounded-lg opacity-0 group-hover:opacity-100 transition cursor-pointer"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
+                    <div className="p-3.5 rounded-2xl border-2 border-slate-300 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col justify-between text-center min-h-[170px] shadow-2xs">
+                      <div>
+                        <span className="text-xs font-black text-slate-950 dark:text-slate-100 block mb-1.5">
+                          2. Extintor Substituto Instalado
+                        </span>
+                      </div>
+
+                      {processingPhoto === 'depois' ? (
+                        <div className="py-8 flex flex-col items-center justify-center gap-2 text-emerald-600">
+                          <Loader2 className="w-7 h-7 animate-spin" />
+                          <span className="text-xs font-bold font-mono">Comprimindo foto...</span>
+                        </div>
+                      ) : fotoDepois ? (
+                        <div className="space-y-2">
+                          <div className="relative group w-full h-32 rounded-xl overflow-hidden border-2 border-emerald-500/40 bg-black/5 shadow-inner">
+                            <img
+                              src={fotoDepois}
+                              alt="Foto do Extintor Instalado"
+                              className="w-full h-full object-cover"
+                            />
+                            {/* Overlay de Ações */}
+                            <div className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setZoomPhotoUrl(fotoDepois)}
+                                className="p-2 rounded-lg bg-white/90 text-slate-900 hover:bg-white transition cursor-pointer shadow-sm"
+                                title="Ampliar Foto"
+                              >
+                                <Eye className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => cameraInputDepoisRef.current?.click()}
+                                className="p-2 rounded-lg bg-amber-500 text-white hover:bg-amber-600 transition cursor-pointer shadow-sm"
+                                title="Tirar Outra Foto"
+                              >
+                                <Camera className="w-4 h-4" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setFotoDepois('')}
+                                className="p-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition cursor-pointer shadow-sm"
+                                title="Excluir Foto"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          </div>
+                          <div className="flex items-center justify-between px-1 text-[10px]">
+                            <span className="text-emerald-700 dark:text-emerald-400 font-bold flex items-center gap-1">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                              Foto Anexada
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setFotoDepois('')}
+                              className="text-red-600 hover:underline font-bold cursor-pointer"
+                            >
+                              Remover
+                            </button>
+                          </div>
                         </div>
                       ) : (
-                        <button
-                          type="button"
-                          onClick={() => handleSimulatePhotoUpload('depois')}
-                          className="px-3.5 py-2 rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 hover:border-emerald-600 text-slate-900 dark:text-slate-100 font-black text-xs flex items-center gap-1.5 transition cursor-pointer mt-1 shadow-2xs"
-                        >
-                          <Camera className="w-4 h-4 text-emerald-600" />
-                          <span>Capturar Foto do Instalado</span>
-                        </button>
+                        <div className="space-y-2 py-2">
+                          <div className="flex flex-col sm:flex-row gap-2 justify-center">
+                            <button
+                              type="button"
+                              onClick={() => cameraInputDepoisRef.current?.click()}
+                              className="flex-1 px-3 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-95"
+                            >
+                              <Camera className="w-4 h-4" />
+                              <span>Tirar Foto</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => galleryInputDepoisRef.current?.click()}
+                              className="flex-1 px-3 py-2.5 rounded-xl bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-700 hover:border-slate-400 text-slate-800 dark:text-slate-200 font-black text-xs flex items-center justify-center gap-1.5 transition cursor-pointer shadow-2xs active:scale-95"
+                            >
+                              <Upload className="w-4 h-4 text-slate-600 dark:text-slate-400" />
+                              <span>Galeria</span>
+                            </button>
+                          </div>
+                          <span className="block text-[10px] text-slate-500 font-medium">
+                            Fotografe o extintor substituto instalado no ponto operacional
+                          </span>
+                        </div>
                       )}
                     </div>
                   </div>
@@ -923,6 +1160,56 @@ export default function AssetSwapModal({
                       <strong className="text-slate-700 dark:text-slate-300 font-extrabold">Técnico Executor:</strong>{' '}
                       <span className="text-slate-950 dark:text-slate-100 font-black">{currentUserName}</span>
                     </div>
+
+                    {/* Evidências Fotográficas no Resumo */}
+                    {(fotoAntes || fotoDepois) && (
+                      <div className="pt-2.5 mt-2.5 border-t border-slate-200 dark:border-slate-800">
+                        <span className="text-[10.5px] font-black uppercase tracking-wider text-slate-950 dark:text-slate-100 block mb-2">
+                          Evidências Fotográficas Anexadas:
+                        </span>
+                        <div className="grid grid-cols-2 gap-2.5">
+                          {fotoAntes ? (
+                            <div 
+                              onClick={() => setZoomPhotoUrl(fotoAntes)}
+                              className="relative group rounded-xl overflow-hidden border-2 border-red-400 dark:border-red-900/60 h-24 bg-black/5 cursor-pointer shadow-2xs"
+                              title="Clique para ampliar"
+                            >
+                              <img src={fotoAntes} alt="Extintor Retirado" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <Eye className="w-4 h-4" />
+                              </div>
+                              <span className="absolute bottom-1 left-1 bg-red-900/90 text-white text-[8.5px] font-black px-1.5 py-0.5 rounded">
+                                1. Retirado
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-800 h-24 flex items-center justify-center text-[10px] text-slate-400 font-semibold text-center p-2">
+                              Sem foto do extintor retirado
+                            </div>
+                          )}
+
+                          {fotoDepois ? (
+                            <div 
+                              onClick={() => setZoomPhotoUrl(fotoDepois)}
+                              className="relative group rounded-xl overflow-hidden border-2 border-emerald-400 dark:border-emerald-900/60 h-24 bg-black/5 cursor-pointer shadow-2xs"
+                              title="Clique para ampliar"
+                            >
+                              <img src={fotoDepois} alt="Extintor Substituto" className="w-full h-full object-cover" />
+                              <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white">
+                                <Eye className="w-4 h-4" />
+                              </div>
+                              <span className="absolute bottom-1 left-1 bg-emerald-900/90 text-white text-[8.5px] font-black px-1.5 py-0.5 rounded">
+                                2. Substituto
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-800 h-24 flex items-center justify-center text-[10px] text-slate-400 font-semibold text-center p-2">
+                              Sem foto do extintor substituto
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -961,6 +1248,33 @@ export default function AssetSwapModal({
           </div>
         )}
       </div>
+
+      {/* Lightbox / Zoom de Foto em Alta Definição */}
+      {zoomPhotoUrl && (
+        <div
+          className="fixed inset-0 z-[200] bg-black/90 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in"
+          onClick={() => setZoomPhotoUrl(null)}
+        >
+          <div
+            className="relative max-w-2xl max-h-[85vh] w-full flex flex-col items-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={zoomPhotoUrl}
+              alt="Evidência Fotográfica Ampliada"
+              className="max-h-[75vh] w-auto max-w-full rounded-2xl border-2 border-white/20 shadow-2xl object-contain"
+            />
+            <button
+              type="button"
+              onClick={() => setZoomPhotoUrl(null)}
+              className="mt-4 px-5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white font-bold text-xs flex items-center gap-2 transition cursor-pointer border border-white/30 shadow-md"
+            >
+              <X className="w-4 h-4" />
+              <span>Fechar Visualização</span>
+            </button>
+          </div>
+        </div>
+      )}
     </WindowModal>
   );
 }
