@@ -234,29 +234,38 @@ export async function processAssetSwapAction(
 
     // Anexa o snapshot completo da troca nos detalhes do ativo retirado
     updatedRetiradoDetails.swap_record = trocaRecord;
-    updatedSubstitutoDetails.swap_record = trocaRecord;
+    updatedRetiradoDetails.status_estoque = 'ESTOQUE MANUTENÇÃO';
+    updatedRetiradoDetails.tipo_movimentacao = 'estoque_ag_manut';
+    updatedRetiradoDetails.location = 'ALMOXARIFADO / ESTOQUE';
+    updatedRetiradoDetails.sub_location = 'AGUARDANDO MANUTENÇÃO';
 
-    // Atualiza ativo retirado
+    updatedSubstitutoDetails.swap_record = trocaRecord;
+    updatedSubstitutoDetails.status_estoque = 'NA ÁREA (APLICADO)';
+    updatedSubstitutoDetails.tipo_movimentacao = 'na_area_aplicado';
+    updatedSubstitutoDetails.location = setorFinal;
+    updatedSubstitutoDetails.sub_location = subLocalFinal;
+
+    // Atualiza ativo retirado na tabela assets
     await supabase
       .from('assets')
       .update({
         status_estoque: 'ESTOQUE MANUTENÇÃO',
-        tipo_movimentacao: 'RECOLHIDO_PARA_MANUTENCAO',
-        status: 'inativo',
-        location: 'Oficina / Depósito de Manutenção',
-        sub_location: 'Aguardando Triagem',
+        tipo_movimentacao: 'estoque_ag_manut',
+        status: 'Em Manutenção',
+        location: 'ALMOXARIFADO / ESTOQUE',
+        sub_location: 'AGUARDANDO MANUTENÇÃO',
         details: updatedRetiradoDetails,
         updated_at: nowIso,
       })
       .eq('id', retirado.id);
 
-    // Atualiza ativo substituto
+    // Atualiza ativo substituto na tabela assets (status_estoque é null no enum de estoque pois está em uso na área)
     await supabase
       .from('assets')
       .update({
-        status_estoque: 'NA ÁREA (APLICADO)',
-        tipo_movimentacao: 'INSTALADO_EM_SUBSTITUICAO',
-        status: 'ativo',
+        status_estoque: null,
+        tipo_movimentacao: 'na_area_aplicado',
+        status: 'Conforme',
         location: setorFinal,
         sub_location: subLocalFinal,
         latitude: latFinal,
@@ -265,6 +274,60 @@ export async function processAssetSwapAction(
         updated_at: nowIso,
       })
       .eq('id', substituto.id);
+
+    // 4.1 ATUALIZAÇÃO SIMULTÂNEA NA TABELA RELACIONAL ativos_extintores (Alimenta vw_extintores_publico)
+    try {
+      const { data: extAtivos } = await supabase
+        .from('ativos_extintores')
+        .select('*')
+        .in('numero_patrimonio', [
+          retirado.id_ativo || retirado.patrimonio,
+          substituto.id_ativo || substituto.patrimonio,
+        ]);
+
+      const relRetirado = extAtivos?.find(
+        (e) =>
+          e.numero_patrimonio === (retirado.id_ativo || retirado.patrimonio) ||
+          e.id === retirado.id
+      );
+      const relSubstituto = extAtivos?.find(
+        (e) =>
+          e.numero_patrimonio === (substituto.id_ativo || substituto.patrimonio) ||
+          e.id === substituto.id
+      );
+
+      const almoxLocalId = '0f75ea4d-3e47-4803-b218-62a4a73b949e'; // ALMOXARIFADO / ESTOQUE
+      const almoxSubLocalId = '495af5a5-4a53-4a0d-b666-e0668d7e4144'; // AGUARDANDO MANUTENÇÃO
+
+      if (relRetirado) {
+        await supabase
+          .from('ativos_extintores')
+          .update({
+            local_id: almoxLocalId,
+            sub_local_id: almoxSubLocalId,
+            updated_at: nowIso,
+          })
+          .eq('id', relRetirado.id);
+      }
+
+      if (relSubstituto) {
+        const targetLocalId = relRetirado?.local_id || almoxLocalId;
+        const targetSubLocalId = relRetirado?.sub_local_id || null;
+
+        await supabase
+          .from('ativos_extintores')
+          .update({
+            local_id: targetLocalId,
+            sub_local_id: targetSubLocalId,
+            latitude: latFinal,
+            longitude: lngFinal,
+            updated_at: nowIso,
+          })
+          .eq('id', relSubstituto.id);
+      }
+    } catch (relErr) {
+      console.warn('[assetSwapActions] Falha não impeditiva ao sincronizar ativos_extintores:', relErr);
+    }
 
     // 5. REGISTRO NA TABELA DEDICADA (SE EXISTIR)
     try {

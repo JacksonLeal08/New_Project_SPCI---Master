@@ -108,8 +108,25 @@ export async function getAssetStockItemsAction(statusEstoque?: string) {
     }
 
     const assets: AssetStockItemRecord[] = (data || []).map((row: any) => {
-      const stEstoque = (row.status_estoque as StatusEstoqueType) || 'ESTOQUE APLICAÇÃO';
-      const tipoMov = row.tipo_movimentacao || mapStatusEstoqueToTipoMovimentacao(stEstoque);
+      const d = row.details || {};
+      const rawMov = row.tipo_movimentacao || d.tipo_movimentacao;
+      const rawStEstoque = row.status_estoque || d.status_estoque;
+
+      const isNaArea =
+        rawMov === 'na_area_aplicado' ||
+        rawStEstoque === 'NA ÁREA (APLICADO)' ||
+        (!rawStEstoque && row.location && !row.location.toUpperCase().includes('ALMOX') && !row.location.toUpperCase().includes('ESTOQUE') && !row.location.toUpperCase().includes('OFICINA'));
+
+      let stEstoque: StatusEstoqueType = 'ESTOQUE APLICAÇÃO';
+      if (isNaArea) {
+        stEstoque = 'NA ÁREA (APLICADO)';
+      } else if (rawStEstoque) {
+        stEstoque = rawStEstoque as StatusEstoqueType;
+      }
+
+      const tipoMov = isNaArea
+        ? 'na_area_aplicado'
+        : (rawMov || mapStatusEstoqueToTipoMovimentacao(stEstoque));
 
       return {
         id: row.id,

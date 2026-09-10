@@ -716,38 +716,71 @@ export async function getAssetsList(collectionName: string, userSite?: string): 
         extintoresList = (data || []).map(deserializeNewExtintor);
       }
 
-      // Enriquecer com coordenadas salvas na tabela assets
+      // Enriquecer com dados de movimentação, estoque e coordenadas da tabela assets (fonte mestre viva)
       try {
-        const { data: assetsGeo } = await supabase
+        const { data: assetsTable } = await supabase
           .from('assets')
-          .select('id, id_ativo, patrimonio, latitude, longitude, details')
-          .eq('category', 'extintores')
-          .not('latitude', 'is', null);
+          .select('id, id_ativo, patrimonio, status, status_estoque, tipo_movimentacao, location, sub_location, latitude, longitude, details')
+          .eq('category', 'extintores');
 
-        if (assetsGeo && assetsGeo.length > 0) {
-          const geoMap = new Map<string, any>();
-          for (const g of assetsGeo) {
-            if (g.id) geoMap.set(String(g.id).toLowerCase(), g);
-            if (g.id_ativo) geoMap.set(String(g.id_ativo).toLowerCase(), g);
-            if (g.patrimonio) geoMap.set(String(g.patrimonio).toLowerCase(), g);
+        if (assetsTable && assetsTable.length > 0) {
+          const assetsMap = new Map<string, any>();
+          for (const a of assetsTable) {
+            if (a.id) assetsMap.set(String(a.id).toLowerCase(), a);
+            if (a.id_ativo) assetsMap.set(String(a.id_ativo).toLowerCase(), a);
+            if (a.patrimonio) assetsMap.set(String(a.patrimonio).toLowerCase(), a);
           }
 
           for (const ext of extintoresList) {
             const keyId = String(ext.id || '').toLowerCase();
             const keyPat = String(ext.idAtivo || ext.numero_patrimonio || '').toLowerCase();
-            const geo = geoMap.get(keyId) || geoMap.get(keyPat);
-            if (geo && geo.latitude != null && geo.longitude != null) {
-              ext.latitude = Number(geo.latitude);
-              ext.longitude = Number(geo.longitude);
-              ext.geolocation = { lat: ext.latitude, lng: ext.longitude };
-              ext.precisao_gps = geo.details?.precisao_gps || null;
-              ext.origem_localizacao = geo.details?.origem_localizacao || 'EDICAO_MANUAL';
-              ext.data_ultima_localizacao = geo.details?.data_ultima_localizacao || null;
+            const ast = assetsMap.get(keyId) || assetsMap.get(keyPat);
+            if (ast) {
+              // Localização atualizada da tabela assets
+              if (ast.location) ext.location = ast.location;
+              if (ast.sub_location) ext.subLocation = ast.sub_location;
+
+              // Tipo de movimentação e status de estoque atualizados
+              const d = ast.details || {};
+              const rawMov = ast.tipo_movimentacao || d.tipo_movimentacao;
+              const rawStEstoque = ast.status_estoque || d.status_estoque;
+
+              if (rawMov) {
+                ext.tipo_movimentacao = normalizeTipoMovimentacao(rawMov);
+              }
+              if (rawStEstoque) {
+                ext.status_estoque = rawStEstoque;
+              } else if (ext.tipo_movimentacao) {
+                ext.status_estoque = TIPO_MOVIMENTACAO_MAP[ext.tipo_movimentacao]?.label || 'NA ÁREA (APLICADO)';
+              }
+
+              // Status geral do ativo (ex: 'Em Manutenção', 'Conforme', 'Vencido')
+              if (ast.status && ast.status !== 'inativo') {
+                ext.status = ast.status;
+              } else if (ast.status === 'inativo') {
+                ext.status = 'Em Manutenção';
+              }
+
+              // Coordenadas geográficas
+              if (ast.latitude != null && ast.longitude != null) {
+                ext.latitude = Number(ast.latitude);
+                ext.longitude = Number(ast.longitude);
+                ext.geolocation = { lat: ext.latitude, lng: ext.longitude };
+                ext.precisao_gps = d.precisao_gps || null;
+                ext.origem_localizacao = d.origem_localizacao || 'EDICAO_MANUAL';
+                ext.data_ultima_localizacao = d.data_ultima_localizacao || null;
+              }
+
+              // Mescla metadados de rastreabilidade
+              ext.details = {
+                ...(ext.details || {}),
+                ...d
+              };
             }
           }
         }
       } catch (gErr) {
-        console.warn('[getAssetsList] Aviso ao enriquecer coordenadas de extintores:', gErr);
+        console.warn('[getAssetsList] Aviso ao enriquecer extintores da tabela assets:', gErr);
       }
 
       // Segregação estrita por contrato/site

@@ -151,28 +151,69 @@ export default function AssetSwapModal({
     return allAssets.filter((a) => {
       const statusEstoque = (a.status_estoque || '').toUpperCase();
       const tipo = (a.tipo_movimentacao || '').toLowerCase();
+      const loc = (a.location || '').toUpperCase();
+
+      // NUNCA pode ser ativo que já está recolhido em manutenção, almoxarifado ou condenado
+      if (
+        statusEstoque.includes('MANUTENÇÃO') ||
+        statusEstoque.includes('MANUTENCAO') ||
+        statusEstoque.includes('CONDENAD') ||
+        tipo.includes('ag_manut') ||
+        tipo.includes('manutencao') ||
+        tipo.includes('condenad') ||
+        loc.includes('OFICINA') ||
+        (loc.includes('ALMOXARIFADO') && a.sub_location?.toUpperCase().includes('MANUTENÇÃO'))
+      ) {
+        return false;
+      }
+
       return (
         statusEstoque.includes('ÁREA') ||
         statusEstoque.includes('AREA') ||
         statusEstoque.includes('APLICADO') ||
-        tipo.includes('na_area') ||
-        (!statusEstoque.includes('MANUTENÇÃO') && !statusEstoque.includes('CONDENAD') && a.status === 'ativo')
+        tipo === 'na_area_aplicado' ||
+        (!loc.includes('ALMOX') && !loc.includes('ESTOQUE'))
       );
     });
   }, [allAssets]);
 
-  // Ativos de prontidão (candidatos a substitutos)
+  // Ativos de prontidão (candidatos a substitutos do Estoque Pronta-Entrega)
   const substituteAssets = useMemo(() => {
     return allAssets.filter((a) => {
-      const statusEstoque = (a.status_estoque || '').toUpperCase();
-      const tipo = (a.tipo_movimentacao || '').toLowerCase();
-      // Não pode ser o próprio ativo retirado
+      // 1. Não pode ser o próprio ativo retirado
       if (selectedRetirado && a.id === selectedRetirado.id) return false;
 
+      const statusEstoque = (a.status_estoque || '').toUpperCase();
+      const tipo = (a.tipo_movimentacao || '').toLowerCase();
+      const loc = (a.location || '').toUpperCase();
+
+      // 2. NUNCA pode ser ativo já instalado na área operacional
+      const isNaArea =
+        statusEstoque.includes('ÁREA') ||
+        statusEstoque.includes('AREA') ||
+        statusEstoque.includes('NA ÁREA') ||
+        tipo === 'na_area_aplicado' ||
+        (!loc.includes('ALMOX') && !loc.includes('ESTOQUE') && loc.length > 0);
+
+      if (isNaArea) return false;
+
+      // 3. NUNCA pode ser ativo em manutenção ou condenado
+      const isManutOuCondenado =
+        statusEstoque.includes('MANUTENÇÃO') ||
+        statusEstoque.includes('MANUTENCAO') ||
+        statusEstoque.includes('CONDENAD') ||
+        tipo.includes('manut') ||
+        tipo.includes('condenad');
+
+      if (isManutOuCondenado) return false;
+
+      // 4. Deve ser estoque de aplicação/prontidão
       return (
         statusEstoque.includes('APLICAÇÃO') ||
         statusEstoque.includes('APLICACAO') ||
-        tipo.includes('aplicacao')
+        tipo.includes('aplicacao') ||
+        loc.includes('ALMOX') ||
+        loc.includes('ESTOQUE')
       );
     });
   }, [allAssets, selectedRetirado]);
@@ -253,6 +294,10 @@ export default function AssetSwapModal({
 
       setCompletedTroca(res.troca);
       soundNotificationService.playSuccessChime();
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('spci_asset_updated', { detail: res.troca }));
+      }
 
       if (onSuccess) {
         onSuccess(res.troca);

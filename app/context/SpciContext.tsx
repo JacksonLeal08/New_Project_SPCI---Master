@@ -714,6 +714,15 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, [currentUser, syncWithRealDatabase]);
 
+  // Listener para sincronização reativa imediata quando houver trocas ou movimentações
+  useEffect(() => {
+    const handleAssetUpdate = () => {
+      syncWithRealDatabase();
+    };
+    window.addEventListener('spci_asset_updated', handleAssetUpdate);
+    return () => window.removeEventListener('spci_asset_updated', handleAssetUpdate);
+  }, [syncWithRealDatabase]);
+
   // --- SUPABASE REALTIME SUBSCRIPTION FOR AUTO SYNC ---
   useEffect(() => {
     if (!currentUser) return;
