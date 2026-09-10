@@ -16,9 +16,11 @@ import {
   Sparkles,
   ChevronDown,
   Image as ImageIcon,
-  Check
+  Check,
+  CheckCheck
 } from 'lucide-react';
 import { ChecklistItemData } from '@/app/components/ChecklistEditModal';
+import { NBRChecklistButtonGroup } from './NBRChecklistButtonGroup';
 import { compressImage } from '@/lib/imageCompression';
 
 export interface ItemInspectionState {
@@ -219,47 +221,43 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
         className="hidden" 
       />
 
-      {/* Barra Superior: Progresso Visual e Ação Rápida */}
-      <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-        isDark ? 'bg-slate-900/80 border-slate-800 shadow-md' : 'bg-white border-slate-200 shadow-sm'
+      {/* Barra Superior: Progresso Visual e Ação Rápida no padrão Base44 / Clean UI */}
+      <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-sm hover:shadow-md transition-all duration-200 ${
+        isDark ? 'bg-zinc-900/90 border-zinc-800' : 'bg-white border-slate-200/90'
       }`}>
-        <div className="space-y-1.5 flex-grow">
+        <div className="space-y-2 flex-grow">
           <div className="flex items-center justify-between">
-            <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-red-500 flex items-center gap-1.5">
-              <CheckSquare size={13} />
+            <span className="text-[10px] font-bold uppercase tracking-wider font-mono text-red-600 dark:text-red-400 flex items-center gap-1.5">
+              <CheckSquare size={14} />
               Quesitos NBR 12962 / 15808
             </span>
-            <span className={`text-xs font-black font-mono ${progressPercent === 100 ? 'text-emerald-500' : isDark ? 'text-slate-400' : 'text-slate-700'}`}>
-              {checkedCount} de {applicableItems.length} ({progressPercent}%)
+            <span className={`text-xs font-black font-mono transition-all ${progressPercent === 100 ? 'text-emerald-600 dark:text-emerald-400' : isDark ? 'text-zinc-300' : 'text-slate-800'}`}>
+              {checkedCount} de {applicableItems.length} respondidos ({progressPercent}%)
             </span>
           </div>
 
-          {/* Barra de Progresso Animada */}
-          <div className={`w-full h-2 rounded-full overflow-hidden border ${
-            isDark ? 'bg-slate-800/40 border-slate-700/30' : 'bg-slate-200 border-slate-300'
+          {/* Barra de Progresso Segmentada Moderna */}
+          <div className={`w-full h-2 rounded-full overflow-hidden ${
+            isDark ? 'bg-zinc-800' : 'bg-slate-200'
           }`}>
             <div 
               className={`h-full transition-all duration-300 rounded-full ${
-                progressPercent === 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-red-600 to-amber-500'
+                progressPercent === 100 ? 'bg-emerald-500' : 'bg-gradient-to-r from-red-600 via-rose-500 to-emerald-500'
               }`}
               style={{ width: `${progressPercent}%` }}
             />
           </div>
         </div>
 
-        {/* Botão de Preenchimento Rápido */}
+        {/* Botão de Preenchimento Rápido Corporativo */}
         {checkedCount < applicableItems.length && (
           <button
             type="button"
             onClick={handleMarkAllConforme}
-            className={`flex items-center justify-center gap-1.5 px-3 py-2 border rounded-xl text-[10px] font-mono font-bold uppercase tracking-wider transition-all cursor-pointer active:scale-95 shrink-0 ${
-              isDark 
-                ? 'bg-emerald-600/15 hover:bg-emerald-600/25 border-emerald-500/30 text-emerald-450' 
-                : 'bg-emerald-50 hover:bg-emerald-100 border-emerald-300 text-emerald-800 font-black shadow-xs'
-            }`}
+            className="flex items-center justify-center gap-2 py-2 px-4 rounded-xl font-semibold text-xs transition-all cursor-pointer active:scale-98 shrink-0 bg-emerald-50 border border-emerald-300 text-emerald-800 dark:bg-emerald-950/40 dark:border-emerald-800 dark:text-emerald-300 hover:bg-emerald-100 shadow-xs"
           >
-            <Sparkles size={13} />
-            Marcar Restantes Conforme
+            <CheckCheck size={15} className="text-emerald-600 dark:text-emerald-400" />
+            <span>Marcar Restantes Conforme</span>
           </button>
         )}
       </div>
@@ -323,56 +321,12 @@ export const DynamicChecklistRenderer: React.FC<DynamicChecklistRendererProps> =
                 )}
               </div>
 
-              {/* Botões de Ação de 48px na Zona de Toque (Fitts' Law) */}
-              <div className="grid grid-cols-3 gap-2">
-                {/* Conforme */}
-                <button
-                  type="button"
-                  onClick={() => updateItem(item.id, { status: 'Conforme' })}
-                  className={`min-h-[48px] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all border cursor-pointer active:scale-95 ${
-                    isConforme
-                      ? 'bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-900/30 font-black'
-                      : isDark
-                      ? 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-800'
-                      : 'bg-slate-100 border-slate-250 text-slate-800 hover:bg-slate-200 shadow-2xs font-bold'
-                  }`}
-                >
-                  <CheckCircle2 size={16} />
-                  Conforme
-                </button>
-
-                {/* Não Conforme */}
-                <button
-                  type="button"
-                  onClick={() => updateItem(item.id, { status: 'Não Conforme' })}
-                  className={`min-h-[48px] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all border cursor-pointer active:scale-95 ${
-                    isReprovado
-                      ? 'bg-red-600 text-white border-red-500 shadow-md shadow-red-900/30 font-black'
-                      : isDark
-                      ? 'bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-800'
-                      : 'bg-slate-100 border-slate-250 text-slate-800 hover:bg-slate-200 shadow-2xs font-bold'
-                  }`}
-                >
-                  <XCircle size={16} />
-                  Não Conforme
-                </button>
-
-                {/* N/A */}
-                <button
-                  type="button"
-                  onClick={() => updateItem(item.id, { status: 'NA' })}
-                  className={`min-h-[48px] rounded-xl font-mono text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all border cursor-pointer active:scale-95 ${
-                    isNA
-                      ? 'bg-slate-600 text-white border-slate-500 font-bold'
-                      : isDark
-                      ? 'bg-slate-800/80 border-slate-700/60 text-slate-400 hover:bg-slate-800'
-                      : 'bg-slate-100 border-slate-250 text-slate-700 hover:bg-slate-200 shadow-2xs font-bold'
-                  }`}
-                >
-                  <MinusCircle size={16} />
-                  N/A
-                </button>
-              </div>
+              {/* Segmented Control / Action Toggle Group NBR com Háptica */}
+              <NBRChecklistButtonGroup
+                itemId={item.id}
+                status={state.status}
+                onChange={(newStatus) => updateItem(item.id, { status: newStatus })}
+              />
 
               {/* BLOCO DE NÃO CONFORMIDADE (Alto Contraste Mobile e 2 Fotos Obrigatórias) */}
               <AnimatePresence>

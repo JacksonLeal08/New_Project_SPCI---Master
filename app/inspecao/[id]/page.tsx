@@ -847,6 +847,36 @@ function InspecaoOuCadastroContent() {
   const selectBgClass = isDark ? 'bg-slate-955 border-slate-850 text-slate-150 focus:border-red-500' : 'bg-white border-slate-300 hover:border-slate-400 text-slate-950 font-medium placeholder-slate-400 focus:border-red-600 shadow-sm';
   const buttonSecondaryClass = isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-850 text-slate-350' : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-900 font-bold shadow-sm';
 
+  // Validação de expiração de datas de validade (Recarga e Teste Hidrostático)
+  const isDateExpired = (dateStr?: string) => {
+    if (!dateStr || dateStr === 'N/A' || dateStr === '5 Anos') return false;
+    try {
+      let targetDate: Date;
+      const cleanStr = String(dateStr).trim();
+      if (cleanStr.includes('/')) {
+        const parts = cleanStr.split('/');
+        if (parts.length === 3) {
+          targetDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+        } else if (parts.length === 2) {
+          targetDate = new Date(parseInt(parts[1], 10), parseInt(parts[0], 10), 0);
+        } else {
+          return false;
+        }
+      } else if (cleanStr.includes('-')) {
+        targetDate = new Date(cleanStr);
+      } else if (/^\d{4}$/.test(cleanStr)) {
+        targetDate = new Date(parseInt(cleanStr, 10), 11, 31);
+      } else {
+        return false;
+      }
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      return targetDate.getTime() < today.getTime();
+    } catch {
+      return false;
+    }
+  };
+
   if (!mounted) {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center font-mono p-4">
@@ -1539,28 +1569,28 @@ function InspecaoOuCadastroContent() {
               exit={{ opacity: 0 }}
               className="space-y-6"
             >
-              {/* BANNER / AÇÃO DE TROCA IMEDIATA EM CAMPO */}
+              {/* BANNER CALLOUT MODERNO: TROCA & SUBSTITUIÇÃO DE EXTINTOR */}
               {(ativo.category === 'extintores' || targetCategory === 'extintores' || String(ativo.id || '').toUpperCase().startsWith('EXT-') || String(ativo.idAtivo || '').toUpperCase().startsWith('EXT-')) && (
-                <div className={`p-4 rounded-2xl border flex flex-col sm:flex-row items-center justify-between gap-3.5 shadow-xs ${
+                <div className={`p-4 rounded-2xl border border-l-4 border-l-red-600 flex flex-col sm:flex-row items-center justify-between gap-3.5 shadow-sm transition-all ${
                   isDark 
-                    ? 'bg-rose-950/25 border-rose-900/50 text-rose-100' 
-                    : 'bg-rose-50/90 border-rose-200 text-rose-950'
+                    ? 'bg-slate-900/80 border-slate-800 text-slate-100' 
+                    : 'bg-white border-slate-200 text-slate-900'
                 }`}>
-                  <div className="flex items-center gap-3 w-full sm:w-auto">
-                    <div className="p-3 rounded-xl bg-rose-600/15 text-rose-600 border border-rose-500/30 shrink-0">
-                      <ArrowLeftRight size={22} />
+                  <div className="flex items-center gap-3.5 w-full sm:w-auto">
+                    <div className="p-3 rounded-xl bg-red-500/10 text-red-600 border border-red-500/20 shadow-xs shrink-0">
+                      <ArrowLeftRight size={22} className="text-red-600" />
                     </div>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider font-sans text-rose-600">
+                    <div className="space-y-0.5">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="text-xs sm:text-sm font-extrabold uppercase tracking-wider font-sans text-red-600">
                           Troca & Substituição de Extintor
                         </h4>
-                        <span className="px-1.5 py-0.5 rounded text-[8px] font-mono font-bold bg-rose-600/15 text-rose-600 border border-rose-500/30 uppercase">
+                        <span className="px-2 py-0.5 rounded-md text-[9px] font-mono font-bold bg-red-500/10 text-red-600 border border-red-500/20 uppercase tracking-wider">
                           Ação Direta
                         </span>
                       </div>
-                      <p className={`text-[10px] font-sans mt-0.5 leading-snug ${isDark ? 'text-rose-200/80' : 'text-rose-800'}`}>
-                        Extintor avariado, vencido ou despressurizado? Realize a substituição imediata sem precisar preencher o checklist.
+                      <p className={`text-[11px] font-sans leading-snug ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Extintor avariado, vencido ou despressurizado? Realize a substituição imediata e rastreável.
                       </p>
                     </div>
                   </div>
@@ -1568,24 +1598,24 @@ function InspecaoOuCadastroContent() {
                   <button
                     type="button"
                     onClick={() => setIsSwapModalOpen(true)}
-                    className="w-full sm:w-auto px-4 py-2.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white font-mono text-xs uppercase font-bold tracking-wider rounded-xl shadow-xs transition flex items-center justify-center gap-2 cursor-pointer shrink-0"
+                    className="w-full sm:w-auto px-4 py-2.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 active:scale-95 text-white font-sans text-xs uppercase font-bold tracking-wider rounded-xl shadow-md shadow-red-600/20 transition-all flex items-center justify-center gap-2 cursor-pointer shrink-0"
                   >
-                    <ArrowLeftRight size={14} />
+                    <ArrowLeftRight size={15} />
                     <span>Substituir Agora</span>
                   </button>
                 </div>
               )}
 
-              {/* CARD DETALHES DO ATIVO (BENTO GRID MODERNO) */}
-              <section className={`${cardClass} p-5 space-y-4 relative overflow-hidden rounded-2xl`}>
-                {/* Header com Categoria, Modelo, Foto do Ativo e Badge de Status */}
-                <div className={`flex items-start justify-between gap-3 border-b pb-4 ${borderBottomClass}`}>
-                  <div className="flex items-center gap-3 min-w-0">
+              {/* CARD DETALHES DO ATIVO (CLEAN MICRO-SAAS / BASE44 STYLE) */}
+              <section className={`${cardClass} p-4 sm:p-5 space-y-4 relative overflow-hidden rounded-2xl`}>
+                {/* Header: Foto, Categoria, Modelo e Badge de Status */}
+                <div className={`flex items-center justify-between gap-3 border-b pb-4 ${borderBottomClass}`}>
+                  <div className="flex items-center gap-3.5 min-w-0">
                     {/* Imagem do Ativo com Zoom */}
                     {(ativo.foto_url || ativo.fotoUrl || ativo.details?.foto_url) ? (
                       <div 
                         onClick={() => setZoomPhotoUrl(ativo.foto_url || ativo.fotoUrl || ativo.details?.foto_url)}
-                        className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 border-red-500/40 shadow-sm shrink-0 cursor-pointer group hover:scale-105 transition-transform"
+                        className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden border-2 border-red-500/30 shadow-sm shrink-0 cursor-pointer group hover:scale-105 transition-transform"
                         title="Toque para ampliar foto do ativo"
                       >
                         <img 
@@ -1599,136 +1629,197 @@ function InspecaoOuCadastroContent() {
                       </div>
                     ) : (
                       <div className={`w-14 h-14 sm:w-16 sm:h-16 rounded-xl border flex flex-col items-center justify-center shrink-0 ${
-                        isDark ? 'bg-red-500/10 border-red-500/30 text-red-400' : 'bg-red-50 border-red-200 text-red-600'
+                        isDark ? 'bg-red-500/10 border-red-500/25 text-red-400' : 'bg-red-50 border-red-200 text-red-600'
                       }`}>
-                        <Flame size={20} className="mb-0.5" />
-                        <span className="text-[7px] font-mono font-bold uppercase tracking-tight">Sem Foto</span>
+                        <Flame size={22} className="mb-0.5 text-red-600" />
+                        <span className="text-[8px] font-mono font-bold uppercase tracking-tight">Sem Foto</span>
                       </div>
                     )}
 
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-md bg-red-600/15 border border-red-500/30 text-red-500 font-mono text-[9px] font-bold uppercase tracking-wider">
+                        <span className="px-2 py-0.5 rounded-md bg-red-600/10 border border-red-500/20 text-red-600 font-mono text-[9px] font-bold uppercase tracking-wider">
                           {ativo.category || 'EXTINTOR'}
                         </span>
-                        <span className="text-[9px] font-mono text-slate-400">
+                        <span className={`text-[10px] font-mono font-medium ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
                           ID: {ativo.id}
                         </span>
                       </div>
-                      <h3 className={`text-base font-extrabold uppercase tracking-tight font-sans truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
+                      <h3 className={`text-base sm:text-lg font-black uppercase tracking-tight font-sans truncate ${isDark ? 'text-white' : 'text-slate-900'}`}>
                         {ativo.model || 'PQS ABC - 8KG'}
                       </h3>
                     </div>
                   </div>
 
-                  <div className={`text-[10px] font-bold uppercase px-3 py-1.5 border rounded-xl select-none flex items-center gap-1.5 shrink-0 ${
+                  {/* Badge Status Operacional */}
+                  <div className={`text-[10px] font-bold uppercase px-3 py-1.5 border rounded-xl select-none flex items-center gap-2 shrink-0 ${
                     ativo.status === 'Conforme' 
-                      ? 'text-emerald-400 border-emerald-500/40 bg-emerald-950/30' 
-                      : 'text-red-455 border-red-500/40 bg-red-950/30'
+                      ? 'text-emerald-500 border-emerald-500/30 bg-emerald-500/10' 
+                      : 'text-red-500 border-red-500/30 bg-red-500/10'
                   }`}>
-                    <span className={`w-2 h-2 rounded-full ${ativo.status === 'Conforme' ? 'bg-emerald-400' : 'bg-red-500'}`} />
-                    {ativo.status || 'Pendente'}
+                    <span className={`w-2 h-2 rounded-full ${ativo.status === 'Conforme' ? 'bg-emerald-500 shadow-xs shadow-emerald-500/50' : 'bg-red-500 shadow-xs shadow-red-500/50'}`} />
+                    <span>{ativo.status || 'Pendente'}</span>
                   </div>
                 </div>
 
-                {/* Bento Grid 5 Cards (Patrimônio & Chassi Juntos, Capacidade & Selo Inmetro Juntos) */}
+                {/* Micro-Grid em Pílulas (Pill Cards) */}
                 <div className="grid grid-cols-2 gap-2.5 text-xs">
-                  {/* Card 1: Patrimônio & Chassi JUNTOS */}
-                  <div className={`p-3 rounded-xl border flex flex-col justify-between ${
-                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                  {/* Pill 1: Patrimônio */}
+                  <div className={`p-3 rounded-xl border flex flex-col justify-between transition-colors ${
+                    isDark ? 'bg-slate-950/40 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200/90 shadow-2xs hover:border-slate-300'
                   }`}>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-[8.5px] uppercase tracking-wider font-sans font-black ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
-                          Patrimônio
-                        </span>
-                        <span className="text-[7.5px] font-mono px-1.5 py-0.5 rounded bg-red-600/10 text-red-600 font-bold border border-red-500/20">
-                          TAG SPCI
-                        </span>
-                      </div>
-                      <p className="font-extrabold text-base text-red-600 tracking-tight font-mono">
-                        {ativo.idAtivo || ativo.id_ativo || rawId}
-                      </p>
-                    </div>
-                    
-                    {/* Campo do Chassi junto do Patrimônio */}
-                    <div className={`mt-2 pt-2 border-t flex items-center justify-between ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
-                      <span className={`text-[8px] uppercase tracking-wider font-sans font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Nº Chassi:
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className={`text-[9px] uppercase tracking-wider font-sans font-bold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Patrimônio
                       </span>
-                      <span className={`font-mono font-black text-xs ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
-                        {ativo.chassi || ativo.numero_serie || 'NÃO GRAVADO'}
+                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-red-600/10 text-red-600 font-bold border border-red-500/20">
+                        TAG SPCI
                       </span>
                     </div>
+                    <p className="font-extrabold text-base text-red-600 tracking-tight font-mono">
+                      {ativo.idAtivo || ativo.id_ativo || rawId}
+                    </p>
                   </div>
 
-                  {/* Card 2: Capacidade Extintora & Selo Inmetro */}
-                  <div className={`p-3 rounded-xl border flex flex-col justify-between ${
-                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                  {/* Pill 2: Nº Chassi / Série */}
+                  <div className={`p-3 rounded-xl border flex flex-col justify-between transition-colors ${
+                    isDark ? 'bg-slate-950/40 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200/90 shadow-2xs hover:border-slate-300'
                   }`}>
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <span className={`text-[8.5px] uppercase tracking-wider font-sans font-black ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
-                          Capacidade
-                        </span>
-                        <span className="text-[7.5px] font-mono px-1.5 py-0.5 rounded bg-blue-600/10 text-blue-600 font-bold border border-blue-500/20">
-                          CARGA
-                        </span>
-                      </div>
-                      <p className={`font-extrabold text-base tracking-tight font-mono ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
-                        {ativo.capacidadeExtintora || ativo.peso_capacidade || ativo.peso || 'PÓ 6 KG'}
-                      </p>
-                    </div>
-                    
-                    {/* Selo Inmetro */}
-                    <div className={`mt-2 pt-2 border-t flex items-center justify-between ${isDark ? 'border-slate-800/80' : 'border-slate-200'}`}>
-                      <span className={`text-[8px] uppercase tracking-wider font-sans font-bold ${isDark ? 'text-slate-400' : 'text-slate-500'}`}>
-                        Selo Inmetro:
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className={`text-[9px] uppercase tracking-wider font-sans font-bold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Nº Chassi
                       </span>
-                      <span className={`font-mono font-black text-xs truncate max-w-[95px] ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
-                        {ativo.seloInmetro || ativo.inmetro || 'NÃO INFORMADO'}
+                      <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded font-bold border ${isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                        SÉRIE
                       </span>
                     </div>
+                    <p className={`font-mono font-bold text-xs sm:text-sm truncate ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                      {ativo.chassi || ativo.numero_serie || 'NÃO GRAVADO'}
+                    </p>
                   </div>
 
-                  {/* Card 3: Setor & Posição de Instalação */}
-                  <div className={`p-3 rounded-xl border col-span-2 ${
-                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
+                  {/* Pill 3: Capacidade Extintora */}
+                  <div className={`p-3 rounded-xl border flex flex-col justify-between transition-colors ${
+                    isDark ? 'bg-slate-950/40 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200/90 shadow-2xs hover:border-slate-300'
                   }`}>
-                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-black flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
-                      <MapPin size={11} className="text-red-600" />
-                      Setor & Posição de Instalação
-                    </span>
-                    <p className={`font-bold text-xs leading-relaxed font-sans ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className={`text-[9px] uppercase tracking-wider font-sans font-bold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Capacidade
+                      </span>
+                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-blue-600/10 text-blue-600 font-bold border border-blue-500/20">
+                        CARGA
+                      </span>
+                    </div>
+                    <p className={`font-mono font-bold text-xs sm:text-sm ${isDark ? 'text-blue-400' : 'text-blue-700'}`}>
+                      {ativo.capacidadeExtintora || ativo.peso_capacidade || ativo.peso || 'PÓ 6 KG'}
+                    </p>
+                  </div>
+
+                  {/* Pill 4: Selo Inmetro */}
+                  <div className={`p-3 rounded-xl border flex flex-col justify-between transition-colors ${
+                    isDark ? 'bg-slate-950/40 border-slate-800/80 hover:border-slate-700' : 'bg-white border-slate-200/90 shadow-2xs hover:border-slate-300'
+                  }`}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <span className={`text-[9px] uppercase tracking-wider font-sans font-bold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        Selo Inmetro
+                      </span>
+                      <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded font-bold border ${isDark ? 'bg-slate-800 text-slate-300 border-slate-700' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                        LACRE
+                      </span>
+                    </div>
+                    <p className={`font-mono font-bold text-xs sm:text-sm truncate ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
+                      {ativo.seloInmetro || ativo.inmetro || 'NÃO INFORMADO'}
+                    </p>
+                  </div>
+
+                  {/* Pill 5: Setor & Posição de Instalação (Full width) */}
+                  <div className={`p-3 rounded-xl border col-span-2 transition-colors ${
+                    isDark ? 'bg-slate-950/40 border-slate-800/80' : 'bg-white border-slate-200/90 shadow-2xs'
+                  }`}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className={`text-[9px] uppercase tracking-wider font-sans font-bold flex items-center gap-1.5 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                        <MapPin size={12} className="text-red-600" />
+                        Localização / Setor
+                      </span>
+                      <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-emerald-600/10 text-emerald-600 font-bold border border-emerald-500/20">
+                        ÁREA ATIVA
+                      </span>
+                    </div>
+                    <p className={`font-bold text-xs sm:text-sm leading-relaxed font-sans ${isDark ? 'text-slate-200' : 'text-slate-900'}`}>
                       {ativo.location || 'Sem Setor'} {ativo.subLocation ? ` • ${ativo.subLocation}` : ''}
                     </p>
                   </div>
 
-                  {/* Card 4: Validade da Recarga */}
-                  <div className={`p-3 rounded-xl border ${
-                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-                  }`}>
-                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-black flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
-                      <Clock size={11} className={isDark ? 'text-amber-400' : 'text-amber-600'} />
-                      Validade Recarga
-                    </span>
-                    <p className={`font-black text-xs font-mono ${isDark ? 'text-amber-400' : 'text-amber-700'}`}>
-                      {ativo.validadeRecarga || 'N/A'}
-                    </p>
-                  </div>
+                  {/* Pill 6: Validade da Recarga */}
+                  {(() => {
+                    const isRecargaExpired = isDateExpired(ativo.validadeRecarga);
+                    return (
+                      <div className={`p-3 rounded-xl border flex flex-col justify-between transition-colors ${
+                        isRecargaExpired
+                          ? isDark ? 'bg-red-950/20 border-red-900/60 ring-1 ring-red-500/30' : 'bg-red-50/80 border-red-200 ring-1 ring-red-500/30'
+                          : isDark ? 'bg-slate-950/40 border-slate-800/80' : 'bg-white border-slate-200/90 shadow-2xs'
+                      }`}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className={`text-[9px] uppercase tracking-wider font-sans font-bold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                            <Clock size={11} className={isRecargaExpired ? 'text-red-500' : isDark ? 'text-amber-400' : 'text-amber-600'} />
+                            Validade Recarga
+                          </span>
+                          {isRecargaExpired ? (
+                            <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-red-600 text-white font-black animate-pulse uppercase">
+                              Vencido
+                            </span>
+                          ) : (
+                            <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded font-bold border ${isDark ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                              CICLO 1 ANO
+                            </span>
+                          )}
+                        </div>
+                        <p className={`font-black text-xs sm:text-sm font-mono ${
+                          isRecargaExpired 
+                            ? 'text-red-600' 
+                            : isDark ? 'text-amber-400' : 'text-amber-700'
+                        }`}>
+                          {ativo.validadeRecarga || 'N/A'}
+                        </p>
+                      </div>
+                    );
+                  })()}
 
-                  {/* Card 5: Teste Hidrostático */}
-                  <div className={`p-3 rounded-xl border ${
-                    isDark ? 'bg-slate-950/50 border-slate-800' : 'bg-white border-slate-200 shadow-2xs'
-                  }`}>
-                    <span className={`text-[8.5px] uppercase tracking-wider block mb-1 font-sans font-black flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-700'}`}>
-                      <Clock size={11} className={isDark ? 'text-blue-400' : 'text-blue-600'} />
-                      Teste Hidrostático
-                    </span>
-                    <p className={`font-black text-xs font-mono ${isDark ? 'text-blue-400' : 'text-blue-800'}`}>
-                      {ativo.validadeTesteHidro || (ativo.ultimoTesteHidro ? `${parseInt(ativo.ultimoTesteHidro, 10) + 5}` : '5 Anos')}
-                    </p>
-                  </div>
+                  {/* Pill 7: Teste Hidrostático */}
+                  {(() => {
+                    const hydroVal = ativo.validadeTesteHidro || (ativo.ultimoTesteHidro ? `${parseInt(ativo.ultimoTesteHidro, 10) + 5}` : '5 Anos');
+                    const isHydroExpired = isDateExpired(hydroVal);
+                    return (
+                      <div className={`p-3 rounded-xl border flex flex-col justify-between transition-colors ${
+                        isHydroExpired
+                          ? isDark ? 'bg-red-950/20 border-red-900/60 ring-1 ring-red-500/30' : 'bg-red-50/80 border-red-200 ring-1 ring-red-500/30'
+                          : isDark ? 'bg-slate-950/40 border-slate-800/80' : 'bg-white border-slate-200/90 shadow-2xs'
+                      }`}>
+                        <div className="flex items-center justify-between mb-1.5">
+                          <span className={`text-[9px] uppercase tracking-wider font-sans font-bold flex items-center gap-1 ${isDark ? 'text-slate-400' : 'text-slate-600'}`}>
+                            <Clock size={11} className={isHydroExpired ? 'text-red-500' : isDark ? 'text-blue-400' : 'text-blue-600'} />
+                            Teste Hidrostático
+                          </span>
+                          {isHydroExpired ? (
+                            <span className="text-[8px] font-mono px-1.5 py-0.5 rounded bg-red-600 text-white font-black animate-pulse uppercase">
+                              Vencido
+                            </span>
+                          ) : (
+                            <span className={`text-[8px] font-mono px-1.5 py-0.5 rounded font-bold border ${isDark ? 'bg-blue-500/10 text-blue-400 border-blue-500/20' : 'bg-blue-50 text-blue-700 border-blue-200'}`}>
+                              5 ANOS
+                            </span>
+                          )}
+                        </div>
+                        <p className={`font-black text-xs sm:text-sm font-mono ${
+                          isHydroExpired 
+                            ? 'text-red-600' 
+                            : isDark ? 'text-blue-400' : 'text-blue-800'
+                        }`}>
+                          {hydroVal}
+                        </p>
+                      </div>
+                    );
+                  })()}
                 </div>
               </section>
 
@@ -1917,38 +2008,40 @@ function InspecaoOuCadastroContent() {
                   />
                 </section>
 
-                {/* Barra Inferior Fixa na Thumb Zone (48px) com Fundo Sólido / Backdrop */}
-                <div className={`sticky bottom-3 z-30 p-2.5 rounded-2xl border shadow-2xl backdrop-blur-md ${
-                  isDark ? 'bg-slate-900/95 border-slate-800 shadow-black/60' : 'bg-white/95 border-slate-200 shadow-slate-400/30'
+                {/* Barra Inferior Fixa na Thumb Zone (48px) com Fundo Sólido / Backdrop Blur */}
+                <div className={`sticky bottom-3 z-30 p-2 sm:p-2.5 rounded-2xl border shadow-xl backdrop-blur-md transition-all ${
+                  isDark 
+                    ? 'bg-slate-900/95 border-slate-800 shadow-black/60' 
+                    : 'bg-white/95 border-slate-200/90 shadow-slate-300/40'
                 }`}>
-                  <div className="flex gap-3">
+                  <div className="flex gap-2.5 sm:gap-3">
                     <button 
                       type="button"
                       onClick={() => router.push('/inspecao')}
-                      className={`py-3.5 px-4 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer rounded-xl min-h-[48px] ${buttonSecondaryClass}`}
+                      className="py-3.5 px-4 text-xs font-bold uppercase tracking-wider transition-all cursor-pointer rounded-xl min-h-[48px] bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700 active:scale-95 shrink-0"
                     >
                       Cancelar
                     </button>
                     <button 
                       type="submit"
                       disabled={loading || !dynamicChecklistResult.isAllChecked || (dynamicChecklistResult.hasNonConformity && !dynamicChecklistResult.allEvidencesFilled)}
-                      className={`flex-1 min-h-[48px] py-3.5 px-4 text-xs font-bold uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-xl rounded-xl border ${
+                      className={`flex-1 min-h-[48px] py-3.5 px-4 text-xs font-bold uppercase tracking-wider transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer shadow-lg rounded-xl border ${
                         !dynamicChecklistResult.isAllChecked || (dynamicChecklistResult.hasNonConformity && !dynamicChecklistResult.allEvidencesFilled)
-                          ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed opacity-60'
+                          ? 'bg-slate-200 dark:bg-zinc-800 text-slate-400 dark:text-zinc-600 border-transparent cursor-not-allowed opacity-60'
                           : isOnline
-                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-500 shadow-emerald-950/50'
-                          : 'bg-amber-600 hover:bg-amber-700 text-white border-amber-500 shadow-amber-950/50'
+                          ? 'bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:via-rose-500 hover:to-red-600 text-white border-red-500/50 shadow-red-600/30'
+                          : 'bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white border-amber-500/50 shadow-amber-600/30'
                       }`}
                     >
                       {loading ? (
                         <RefreshCw size={16} className="animate-spin" />
                       ) : isOnline ? (
-                        <Wifi size={16} className="text-emerald-200" />
+                        <Wifi size={16} className="text-white shrink-0 animate-pulse" />
                       ) : (
-                        <WifiOff size={16} className="text-amber-200" />
+                        <WifiOff size={16} className="text-amber-200 shrink-0" />
                       )}
-                      <span>
-                        {isOnline ? 'Gravar & Transmitir Inspeção (Online)' : 'Salvar no Dispositivo (Fila Offline)'}
+                      <span className="font-extrabold tracking-wide">
+                        {isOnline ? 'Gravar & Transmitir Inspeção' : 'Salvar no Dispositivo (Offline)'}
                       </span>
                     </button>
                   </div>

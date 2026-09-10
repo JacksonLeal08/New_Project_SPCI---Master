@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 import { useSpci } from '@/app/context/SpciContext';
 import { calculateDaysRemaining } from './GestaoAtivosModal';
+import { ChecklistEditModal } from './ChecklistEditModal';
+import PainelExtintoresOpcaoC from './PainelExtintoresOpcaoC';
 import ExtintorAddModal from './ExtintorAddModal';
 import { TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
 
@@ -923,125 +925,12 @@ export default function ExtintoresManagementDashboard() {
                   ))}
                 </div>
 
-                {/* Tabela de Extintores dentro do Drawer */}
-                <div className="overflow-x-auto rounded-xl border border-slate-200 scrollbar-thin">
-                  <table className="w-full text-left font-mono text-xs border-collapse min-w-[950px]">
-                    <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] tracking-wider font-bold border-b border-slate-200">
-                      <tr>
-                        <th className="py-3 px-4">Identificação / Patrimônio</th>
-                        <th className="py-3 px-4">Localização Setorial</th>
-                        <th className="py-3 px-4">Tipo & Carga</th>
-                        <th className="py-3 px-4 text-center">Manômetro (Pressão)</th>
-                        <th className="py-3 px-4">Validade Carga</th>
-                        <th className="py-3 px-4">Teste Hidrostático</th>
-                        <th className="py-3 px-4 text-center">Acessibilidade</th>
-                        <th className="py-3 px-4 text-center">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-sans text-xs text-slate-800">
-                      {filteredExtintores.length === 0 ? (
-                        <tr>
-                          <td colSpan={8} className="py-12 text-center text-slate-500 font-mono">
-                            Nenhum extintor encontrado com os filtros selecionados.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredExtintores.map((ext: any) => {
-                          const days = calculateDaysRemaining(ext.validadeRecarga || ext.data_vencimento_teste || ext.lastRecarga);
-                          const isExpiredRecarga = days !== null && days <= 0;
-                          const currentYear = new Date().getFullYear();
-                          const anoTeste = parseInt(ext.ano_ultimo_teste_hidro || ext.ultimoTesteHidro || currentYear, 10);
-                          const isExpiredHidro = (currentYear - anoTeste) >= 5;
-                          const isCo2 = (ext.model || '').toUpperCase().includes('CO2') || (ext.model || '').toUpperCase().includes('CO²');
-                          const isObstructed = ext.acessibilidade === 'Obstruído' || ext.status === 'Obstruído';
-                          const isManometroIrregular = !isCo2 && (ext.pressao_manometro === 'Fora da Faixa' || ext.status === 'Pressão Irregular');
-
-                          return (
-                            <tr key={`drawer-${ext.id || ext.idAtivo}`} className="hover:bg-slate-50/80 transition-colors">
-                              <td className="py-3 px-4 font-mono">
-                                <div className="font-black text-slate-900">{ext.idAtivo || ext.patrimonio || 'EXT-SEM-ID'}</div>
-                                <span className="text-[10px] text-slate-500 font-normal block">
-                                  Chassi: {ext.chassi || ext.numero_serie || 'N/A'}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="font-bold text-slate-900">{ext.location || ext.area || 'Setor Geral'}</div>
-                                <span className="text-[10px] text-slate-500 font-sans block">
-                                  {ext.subLocation || 'Posição Padrão'}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 font-mono">
-                                <div className="font-bold text-slate-900 flex items-center gap-1">
-                                  <span>🧯 {ext.model || 'PQS ABC'}</span>
-                                </div>
-                                <span className="text-[10px] text-slate-500 block">
-                                  {ext.peso_capacidade || ext.peso || '6KG'} | Fab: {ext.fabricante || 'Kidde'}
-                                </span>
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                {isCo2 ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-slate-100 text-slate-600 border border-slate-200">
-                                    N/A (CO2)
-                                  </span>
-                                ) : isManometroIrregular ? (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-red-100 text-red-800 border border-red-300 animate-pulse">
-                                    🔴 Fora da Faixa
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                    🟢 OK
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 font-mono">
-                                <div className="font-bold text-slate-900">
-                                  {ext.validadeRecarga || ext.data_vencimento_teste || 'N/D'}
-                                </div>
-                                {days === null ? (
-                                  <span className="text-slate-400 text-[10px]">Indefinido</span>
-                                ) : isExpiredRecarga ? (
-                                  <span className="text-[10px] font-black text-red-600 block">🚨 Vencido</span>
-                                ) : days <= 30 ? (
-                                  <span className="text-[10px] font-black text-amber-700 block">⚠️ {days}d</span>
-                                ) : (
-                                  <span className="text-[10px] font-bold text-emerald-700 block">+{days}d</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 font-mono">
-                                <div className="font-bold text-slate-900">Ano: {anoTeste}</div>
-                                {isExpiredHidro ? (
-                                  <span className="text-[10px] font-black text-red-600 block">🚨 Vencido</span>
-                                ) : (
-                                  <span className="text-[10px] font-bold text-emerald-700 block">Até {anoTeste + 5}</span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                {isObstructed ? (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-100 text-amber-800 border border-amber-300">
-                                    ⚠️ Obstruído
-                                  </span>
-                                ) : (
-                                  <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                    🟢 Desobstruído
-                                  </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4 text-center">
-                                <button
-                                  onClick={() => setSelectedAssetForHistory({ ...ext, category: 'Extintor' })}
-                                  className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-all cursor-pointer border border-slate-200"
-                                  title="Ver Histórico de Auditoria"
-                                >
-                                  <Eye className="w-3.5 h-3.5" />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                {/* Tabela de Extintores com Sticky Header Flutuante (Opção C) */}
+                <PainelExtintoresOpcaoC
+                  extintores={filteredExtintores}
+                  onSelectHistory={(asset) => setSelectedAssetForHistory(asset)}
+                  calculateDaysRemaining={calculateDaysRemaining}
+                />
               </div>
 
               {/* Rodapé do Drawer */}

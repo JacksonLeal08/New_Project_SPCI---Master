@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spci-pwa-cache-v6';
+const CACHE_NAME = 'spci-pwa-cache-v7';
 const ASSETS_TO_CACHE = [
   '/',
   '/favicon.svg',
@@ -15,7 +15,7 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Cache inicial v6 carregado.');
+      console.log('[Service Worker] Cache inicial v7 carregado.');
       return cache.addAll(ASSETS_TO_CACHE);
     }).catch(err => console.warn('[Service Worker] Erro no cache install:', err))
   );
