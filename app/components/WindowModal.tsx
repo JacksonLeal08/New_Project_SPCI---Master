@@ -172,16 +172,16 @@ export default function WindowModal({
               )}
               <div className="truncate">
                 {subtitle && (
-                  <span className="text-[9px] font-black uppercase tracking-widest text-red-600 dark:text-red-400 block font-mono">
+                  <span className="text-[9.5px] font-black uppercase tracking-widest text-red-700 dark:text-red-400 block font-mono">
                     {subtitle}
                   </span>
                 )}
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm sm:text-base font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight font-['Hanken_Grotesk'] truncate">
+                  <h2 className="text-sm sm:text-base font-black text-slate-950 dark:text-slate-50 uppercase tracking-tight font-['Hanken_Grotesk'] truncate">
                     {title}
                   </h2>
                   {badgeStatus && (
-                    <span className="hidden sm:inline-block text-[9.5px] font-bold px-2 py-0.5 rounded-md bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-mono">
+                    <span className="hidden sm:inline-block text-[10px] font-black px-2.5 py-0.5 rounded-lg bg-slate-200/90 dark:bg-slate-800 text-slate-900 dark:text-slate-200 border border-slate-300 dark:border-slate-700 font-mono shadow-2xs">
                       {badgeStatus}
                     </span>
                   )}
@@ -195,7 +195,7 @@ export default function WindowModal({
               <button
                 type="button"
                 onClick={handleMinimize}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition cursor-pointer"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition cursor-pointer"
                 title="Minimizar para bandeja flutuante (_)"
                 aria-label="Minimizar janela"
               >
@@ -206,7 +206,7 @@ export default function WindowModal({
               <button
                 type="button"
                 onClick={toggleMaximize}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition cursor-pointer"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-800 transition cursor-pointer"
                 title={isMaximized ? 'Restaurar tamanho padrão' : 'Maximizar em tela cheia (□)'}
                 aria-label={isMaximized ? 'Restaurar janela' : 'Maximizar janela'}
               >
@@ -217,7 +217,7 @@ export default function WindowModal({
               <button
                 type="button"
                 onClick={handleRequestClose}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/50 transition cursor-pointer ml-1"
+                className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-500 hover:text-red-700 hover:bg-red-50 dark:text-slate-400 dark:hover:text-red-400 dark:hover:bg-red-950/50 transition cursor-pointer ml-1"
                 title="Fechar janela (ESC)"
                 aria-label="Fechar janela"
               >
