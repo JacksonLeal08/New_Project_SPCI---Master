@@ -5,6 +5,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
   Plus,
+  Minus,
+  Maximize2,
+  Minimize2,
   FileSpreadsheet,
   Download,
   Search,
@@ -47,6 +50,9 @@ import BatchManagementBento from './BatchManagementBento';
 import BulkMovementModal from './BulkMovementModal';
 import { idb } from '@/lib/indexedDb';
 import { useSpci } from '@/app/context/SpciContext';
+import { useWindowModal } from '@/app/context/WindowModalContext';
+
+const MODAL_ID = 'modal-gestao-ativos-estoque';
 
 interface GestaoAtivosModalProps {
   isOpen: boolean;
@@ -123,7 +129,40 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     'Jackson Leal';
   const loggedUserEmail = userProfile?.email || currentUser?.email || undefined;
 
+  const {
+    registerWindow,
+    unregisterWindow,
+    setWindowState,
+    getWindowState,
+    bringToFront
+  } = useWindowModal();
+
   const [items, setItems] = useState<AssetStockItemRecord[]>([]);
+
+  // Registra janela no WindowModalContext para suporte a dock inferior
+  useEffect(() => {
+    if (isOpen) {
+      registerWindow(MODAL_ID, {
+        title: 'Gestão de Ativos & Estoque',
+        subtitle: 'Movimentações, vencimento e estoque operacional',
+        iconName: 'boxes',
+        badgeStatus: `${items.length} Ativos`,
+        onClose,
+      });
+    } else {
+      unregisterWindow(MODAL_ID);
+    }
+    return () => {
+      unregisterWindow(MODAL_ID);
+    };
+  }, [isOpen, items.length, registerWindow, unregisterWindow, onClose]);
+
+  const currentState = getWindowState(MODAL_ID);
+  const isMinimized = currentState === 'minimized';
+  const isMaximized = currentState === 'maximized';
+
+  const handleMinimize = () => setWindowState(MODAL_ID, 'minimized');
+  const toggleMaximize = () => setWindowState(MODAL_ID, isMaximized ? 'restored' : 'maximized');
   const [loading, setLoading] = useState<boolean>(true);
   const [activeTab, setActiveTab] = useState<'Todos' | StatusEstoqueType | 'NA ÁREA (APLICADO)'>('Todos');
   const [categoryFilterPill, setCategoryFilterPill] = useState<string>('TODOS');
@@ -450,8 +489,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   };
 
   useEffect(() => {
-    if (isOpen) {
-      loadAssets();
+    if (isOpen && !isMinimized) {
       document.body.style.overflow = 'hidden';
     } else {
       document.body.style.overflow = '';
@@ -459,17 +497,27 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     return () => {
       document.body.style.overflow = '';
     };
+  }, [isOpen, isMinimized]);
+
+  useEffect(() => {
+    if (isOpen) {
+      loadAssets();
+    }
   }, [isOpen]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
+      if (e.key === 'Escape' && isOpen && !isMinimized) {
+        if (isMaximized) {
+          setWindowState(MODAL_ID, 'restored');
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, isMinimized, isMaximized, onClose, setWindowState]);
 
 
 
@@ -727,12 +775,22 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
 
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/85 p-0 sm:p-6 font-mono select-none overflow-hidden">
+    <div
+      style={{ display: isMinimized ? 'none' : 'flex' }}
+      className={`fixed inset-0 z-[100] items-center justify-center bg-slate-950/85 font-mono select-none overflow-hidden transition-all duration-300 ${
+        isMaximized ? 'p-0' : 'p-0 sm:p-4 md:p-6'
+      }`}
+      onClick={() => bringToFront(MODAL_ID)}
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: 10 }}
-        className="w-full max-w-6xl bg-white border-0 sm:border border-slate-200 shadow-2xl sm:rounded-2xl rounded-none flex flex-col h-[100dvh] sm:h-auto sm:max-h-[92vh] overflow-hidden text-slate-900"
+        className={`bg-white border-0 sm:border border-slate-200 shadow-2xl flex flex-col overflow-hidden text-slate-900 transition-all duration-300 ease-in-out ${
+          isMaximized
+            ? 'w-screen h-screen rounded-none max-w-none max-h-none h-full'
+            : 'w-full max-w-6xl sm:rounded-2xl rounded-none h-[100dvh] sm:h-auto sm:max-h-[92vh]'
+        }`}
       >
         {/* CABEÇALHO DO MODAL - TEMA CLARO SPCI RED */}
         <div className="bg-red-700 text-white p-3 sm:p-5 flex items-center justify-between border-b border-red-800 shadow-md shrink-0">
@@ -749,14 +807,40 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="hidden sm:inline-block px-3 py-1 bg-white/10 rounded-lg text-xs font-bold border border-white/20">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <span className="hidden md:inline-block px-3 py-1 bg-white/10 rounded-lg text-xs font-bold border border-white/20">
               Total: {items.length} Ativos
             </span>
+
+            {/* Minimizar */}
             <button
-              onClick={onClose}
+              type="button"
+              onClick={handleMinimize}
               className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer font-bold border border-white/20 active:scale-95"
+              title="Minimizar janela para a barra inferior"
+              aria-label="Minimizar janela"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+
+            {/* Maximizar / Restaurar */}
+            <button
+              type="button"
+              onClick={toggleMaximize}
+              className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer font-bold border border-white/20 active:scale-95"
+              title={isMaximized ? 'Restaurar tamanho padrão' : 'Maximizar janela (Tela Cheia)'}
+              aria-label={isMaximized ? 'Restaurar janela' : 'Maximizar janela'}
+            >
+              {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+
+            {/* Fechar */}
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-8 h-8 rounded-lg bg-white/10 hover:bg-red-600 text-white flex items-center justify-center transition-all cursor-pointer font-bold border border-white/20 active:scale-95 ml-0.5"
               title="Fechar Modal"
+              aria-label="Fechar Modal"
             >
               <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
