@@ -2,6 +2,8 @@ import type { Metadata, Viewport } from 'next';
 import { Hanken_Grotesk, IBM_Plex_Sans, JetBrains_Mono } from 'next/font/google';
 import { SpciProvider } from './context/SpciContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { WindowModalProvider } from './context/WindowModalContext';
+import WindowDockTray from './components/WindowDockTray';
 import InstallPwaBanner from './components/InstallPwaBanner';
 import { SITE_URL, SEO_CONFIG } from '@/config/seo';
 import './globals.css';
@@ -168,8 +170,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body suppressHydrationWarning className="bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 antialiased transition-colors duration-300">
         <ThemeProvider>
           <SpciProvider>
-            {children}
-            <InstallPwaBanner />
+            <WindowModalProvider>
+              {children}
+              <WindowDockTray />
+              <InstallPwaBanner />
+            </WindowModalProvider>
           </SpciProvider>
         </ThemeProvider>
         <script
