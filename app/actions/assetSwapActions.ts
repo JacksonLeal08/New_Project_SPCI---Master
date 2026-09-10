@@ -178,20 +178,13 @@ export async function processAssetSwapAction(
       substituido_por_id: substituto.id,
       substituido_por_codigo: substituto.id_ativo || substituto.patrimonio,
       data_troca: nowIso,
+      swap_id: swapId,
+      motivo_troca: payload.motivo_troca,
+      descricao_motivo: payload.descricao_motivo || '',
+      foto_antes_url: payload.foto_antes_url || '',
+      foto_depois_url: payload.foto_depois_url || '',
+      tecnico_responsavel_nome: payload.tecnico_responsavel_nome,
     };
-
-    await supabase
-      .from('assets')
-      .update({
-        status_estoque: 'ESTOQUE MANUTENÇÃO',
-        tipo_movimentacao: 'RECOLHIDO_PARA_MANUTENCAO',
-        status: 'inativo',
-        location: 'Oficina / Depósito de Manutenção',
-        sub_location: 'Aguardando Triagem',
-        details: updatedRetiradoDetails,
-        updated_at: nowIso,
-      })
-      .eq('id', retirado.id);
 
     // 3. ATUALIZAÇÃO DO ATIVO SUBSTITUTO (assume o ponto na área)
     const substitutoDetails = (substituto.details as any) || {};
@@ -203,24 +196,12 @@ export async function processAssetSwapAction(
       substituiu_codigo: retirado.id_ativo || retirado.patrimonio,
       local_especifico: localEspecificoFinal,
       data_instalacao_troca: nowIso,
+      swap_id: swapId,
+      substituiu_em: nowIso,
+      tecnico_responsavel_nome: payload.tecnico_responsavel_nome,
     };
 
-    await supabase
-      .from('assets')
-      .update({
-        status_estoque: 'NA ÁREA (APLICADO)',
-        tipo_movimentacao: 'INSTALADO_EM_SUBSTITUICAO',
-        status: 'ativo',
-        location: setorFinal,
-        sub_location: subLocalFinal,
-        latitude: latFinal,
-        longitude: lngFinal,
-        details: updatedSubstitutoDetails,
-        updated_at: nowIso,
-      })
-      .eq('id', substituto.id);
-
-    // 4. INSERÇÃO DO REGISTRO DE SUBSTITUIÇÃO BILATERAL
+    // 4. PREPARAÇÃO DO REGISTRO DE SUBSTITUIÇÃO BILATERAL
     const trocaRecord: SubstituicaoAtivoRecord = {
       id: swapId,
       ativo_retirado_id: retirado.id,
@@ -251,77 +232,75 @@ export async function processAssetSwapAction(
       atualizado_em: nowIso,
     };
 
+    // Anexa o snapshot completo da troca nos detalhes do ativo retirado
+    updatedRetiradoDetails.swap_record = trocaRecord;
+    updatedSubstitutoDetails.swap_record = trocaRecord;
+
+    // Atualiza ativo retirado
+    await supabase
+      .from('assets')
+      .update({
+        status_estoque: 'ESTOQUE MANUTENÇÃO',
+        tipo_movimentacao: 'RECOLHIDO_PARA_MANUTENCAO',
+        status: 'inativo',
+        location: 'Oficina / Depósito de Manutenção',
+        sub_location: 'Aguardando Triagem',
+        details: updatedRetiradoDetails,
+        updated_at: nowIso,
+      })
+      .eq('id', retirado.id);
+
+    // Atualiza ativo substituto
+    await supabase
+      .from('assets')
+      .update({
+        status_estoque: 'NA ÁREA (APLICADO)',
+        tipo_movimentacao: 'INSTALADO_EM_SUBSTITUICAO',
+        status: 'ativo',
+        location: setorFinal,
+        sub_location: subLocalFinal,
+        latitude: latFinal,
+        longitude: lngFinal,
+        details: updatedSubstitutoDetails,
+        updated_at: nowIso,
+      })
+      .eq('id', substituto.id);
+
+    // 5. REGISTRO NA TABELA DEDICADA (SE EXISTIR)
     try {
       await supabase.from('substituicoes_ativos').insert(trocaRecord);
     } catch (insertErr) {
-      console.warn('[assetSwapActions] Tabela substituicoes_ativos não aceitou insert direto, registrando via logs:', insertErr);
+      console.warn('[assetSwapActions] Tabela substituicoes_ativos não aceitou insert:', insertErr);
     }
 
-    // 5. REGISTRO PERPÉTUO CRUZADO DE AUDITORIA (Audit Trail)
+    // 6. REGISTRO DE AUDITORIA ROBUSTO NA TABELA ativo_movimentacoes
     try {
-      // Log para o Ativo Retirado
-      await supabase.from('historico_movimentacoes_ativos').insert({
-        asset_id: retirado.id,
-        id_ativo: retirado.id_ativo || retirado.patrimonio || retirado.id,
-        tipo_evento: 'SUBSTITUICAO_BAIXA',
-        status_origem: 'NA ÁREA (APLICADO)',
-        status_destino: 'ESTOQUE MANUTENÇÃO',
-        local_origem: setorFinal,
-        local_destino: 'Oficina / Depósito de Manutenção',
-        usuario_responsavel_nome: payload.tecnico_responsavel_nome,
-        usuario_responsavel_email: payload.tecnico_responsavel_email,
-        observacoes: `Substituído e recolhido. Substituto: ${substituto.id_ativo || substituto.patrimonio}. Motivo: ${payload.motivo_troca}. Descrição: ${payload.descricao_motivo || 'N/A'}.`,
-        metadata: {
-          swap_id: swapId,
-          papel: 'RETIRADO',
-          substituto_id: substituto.id,
-          motivo: payload.motivo_troca,
-        },
-      });
-
-      // Log para o Ativo Substituto
-      await supabase.from('historico_movimentacoes_ativos').insert({
-        asset_id: substituto.id,
-        id_ativo: substituto.id_ativo || substituto.patrimonio || substituto.id,
-        tipo_evento: 'SUBSTITUICAO_INSTALACAO',
-        status_origem: substituto.status_estoque || 'ESTOQUE APLICAÇÃO',
-        status_destino: 'NA ÁREA (APLICADO)',
-        local_origem: 'Estoque Aplicação / Prontidão',
-        local_destino: setorFinal,
-        usuario_responsavel_nome: payload.tecnico_responsavel_nome,
-        usuario_responsavel_email: payload.tecnico_responsavel_email,
-        observacoes: `Instalado na área operacional em substituição ao extintor recolhido ${retirado.id_ativo || retirado.patrimonio}.`,
-        metadata: {
-          swap_id: swapId,
-          papel: 'SUBSTITUTO',
-          retirado_id: retirado.id,
-          setor: setorFinal,
-        },
-      });
-
-      // Registro adicional na tabela ativo_movimentacoes
       await supabase.from('ativo_movimentacoes').insert([
         {
-          ativo_id: retirado.id,
+          asset_id: retirado.id,
           id_ativo: retirado.id_ativo || retirado.patrimonio || retirado.id,
           status_anterior: 'NA ÁREA (APLICADO)',
           status_novo: 'ESTOQUE MANUTENÇÃO',
-          motivo: `Troca por motivo ${payload.motivo_troca}: Substituto ${substituto.id_ativo || substituto.patrimonio}`,
+          motivo_movimentacao: `SUBSTITUICAO_EXTINTOR: ${payload.motivo_troca}`,
+          observacao: JSON.stringify(trocaRecord),
           usuario_nome: payload.tecnico_responsavel_nome,
-          data_movimentacao: nowIso,
+          usuario_email: payload.tecnico_responsavel_email || null,
+          created_at: nowIso,
         },
         {
-          ativo_id: substituto.id,
+          asset_id: substituto.id,
           id_ativo: substituto.id_ativo || substituto.patrimonio || substituto.id,
           status_anterior: substituto.status_estoque || 'ESTOQUE APLICAÇÃO',
           status_novo: 'NA ÁREA (APLICADO)',
-          motivo: `Instalado no setor ${setorFinal} em substituição ao ${retirado.id_ativo || retirado.patrimonio}`,
+          motivo_movimentacao: 'INSTALACAO_SUBSTITUTO',
+          observacao: `Instalado no setor ${setorFinal} em substituição ao extintor ${retirado.id_ativo || retirado.patrimonio}. Swap ID: ${swapId}`,
           usuario_nome: payload.tecnico_responsavel_nome,
-          data_movimentacao: nowIso,
+          usuario_email: payload.tecnico_responsavel_email || null,
+          created_at: nowIso,
         },
       ]);
     } catch (auditErr) {
-      console.warn('[assetSwapActions] Falha não crítica nos logs de auditoria:', auditErr);
+      console.warn('[assetSwapActions] Falha ao registrar em ativo_movimentacoes:', auditErr);
     }
 
     return { success: true, troca: trocaRecord };
@@ -332,7 +311,7 @@ export async function processAssetSwapAction(
 }
 
 /**
- * Consulta a lista de trocas realizadas com filtros
+ * Consulta a lista de trocas realizadas com reconciliação multi-fonte e filtros
  */
 export async function getAssetSwapsAction(filters?: {
   setor?: string;
@@ -341,64 +320,161 @@ export async function getAssetSwapsAction(filters?: {
 }): Promise<{ success: boolean; trocas?: SubstituicaoAtivoRecord[]; error?: string }> {
   try {
     const supabase = getSupabaseAdminClient();
-    await ensureSubstituicoesTable(supabase);
+    const allSwapsMap = new Map<string, SubstituicaoAtivoRecord>();
 
-    let query = supabase
-      .from('substituicoes_ativos')
-      .select('*')
-      .order('criado_em', { ascending: false });
-
-    if (filters?.setor && filters.setor !== 'todos') {
-      query = query.ilike('setor', `%${filters.setor}%`);
-    }
-
-    if (filters?.motivo && filters.motivo !== 'todos') {
-      query = query.eq('motivo_troca', filters.motivo);
-    }
-
-    const { data, error } = await query;
-
-    if (error) {
-      // Se a tabela ainda estiver vazia ou com fallback, recupera dos logs de histórico
-      const { data: logsData } = await supabase
-        .from('historico_movimentacoes_ativos')
+    // 1. TENTA BUSCAR NA TABELA DEDICADA substituicoes_ativos (SE EXISTIR)
+    try {
+      let query = supabase
+        .from('substituicoes_ativos')
         .select('*')
-        .eq('tipo_evento', 'SUBSTITUICAO_BAIXA')
         .order('criado_em', { ascending: false });
 
-      if (logsData && logsData.length > 0) {
-        const mappedTrocas: SubstituicaoAtivoRecord[] = logsData.map((l: any, idx: number) => ({
-          id: (l.metadata as any)?.swap_id || `LOG-${idx}`,
-          ativo_retirado_id: l.asset_id,
-          ativo_retirado_codigo: l.id_ativo,
-          ativo_substituto_id: (l.metadata as any)?.substituto_id || 'N/A',
-          ativo_substituto_codigo: (l.metadata as any)?.substituto_codigo || 'SUBSTITUTO',
-          setor: l.local_origem || 'Área Operacional',
-          motivo_troca: ((l.metadata as any)?.motivo || 'IMPEDITIVO_NBR') as MotivoTrocaType,
-          descricao_motivo: l.observacoes,
-          tecnico_responsavel_nome: l.usuario_responsavel_nome || 'Brigada SPCI',
-          status_troca: 'CONCLUIDA',
-          criado_em: l.criado_em || new Date().toISOString(),
-          atualizado_em: l.criado_em || new Date().toISOString(),
-        }));
-        return { success: true, trocas: mappedTrocas };
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) {
+        data.forEach((t: SubstituicaoAtivoRecord) => {
+          if (t.id) allSwapsMap.set(t.id, t);
+        });
       }
-
-      return { success: true, trocas: [] };
+    } catch (tblErr) {
+      // Tabela não criada ainda, segue para os fallbacks
     }
 
-    let finalData: SubstituicaoAtivoRecord[] = data || [];
+    // 2. BUSCA NA TABELA ativo_movimentacoes (QUE CONTÉM AUDITORIA COM JSON)
+    try {
+      const { data: movData, error: movErr } = await supabase
+        .from('ativo_movimentacoes')
+        .select('*')
+        .ilike('motivo_movimentacao', 'SUBSTITUICAO_%')
+        .order('created_at', { ascending: false });
 
+      if (!movErr && movData && movData.length > 0) {
+        movData.forEach((m: any) => {
+          if (m.observacao && typeof m.observacao === 'string' && m.observacao.includes('ativo_retirado_')) {
+            try {
+              const parsed = JSON.parse(m.observacao) as SubstituicaoAtivoRecord;
+              if (parsed && parsed.id && !allSwapsMap.has(parsed.id)) {
+                allSwapsMap.set(parsed.id, parsed);
+              }
+            } catch (pErr) {
+              // Não era JSON puro
+            }
+          }
+        });
+      }
+    } catch (movErr) {
+      console.warn('[assetSwapActions] Aviso ao consultar ativo_movimentacoes:', movErr);
+    }
+
+    // 3. RECONCILIAÇÃO PERPÉTUA NA TABELA assets (GARANTE QUE TROCAS JÁ FEITAS APAREÇAM)
+    try {
+      const { data: allAssets, error: assetErr } = await supabase
+        .from('assets')
+        .select('*');
+
+      if (!assetErr && allAssets && allAssets.length > 0) {
+        // Encontra ativos marcados como recolhidos ou com histórico de substituto
+        const retirados = allAssets.filter((a) => {
+          const d = (a.details as any) || {};
+          return (
+            d.swap_record ||
+            d.substituido_por_codigo ||
+            d.substituido_por_id ||
+            a.tipo_movimentacao === 'RECOLHIDO_PARA_MANUTENCAO' ||
+            d.tipo_movimentacao === 'RECOLHIDO_PARA_MANUTENCAO'
+          );
+        });
+
+        retirados.forEach((ret) => {
+          const d = (ret.details as any) || {};
+
+          // Se tiver o objeto completo salvo no swap_record
+          if (d.swap_record && d.swap_record.id) {
+            if (!allSwapsMap.has(d.swap_record.id)) {
+              allSwapsMap.set(d.swap_record.id, d.swap_record);
+            }
+            return;
+          }
+
+          // Reconstrói a partir do par retirado/substituto
+          const subId = d.substituido_por_id;
+          const subCod = d.substituido_por_codigo;
+          const subst = allAssets.find(
+            (a) =>
+              (subId && a.id === subId) ||
+              (subCod && (a.id_ativo === subCod || a.patrimonio === subCod))
+          );
+          const subDetails = (subst?.details as any) || {};
+
+          const swapIdKey = d.swap_id || `TRC-${ret.id}-${subId || subCod || 'SUB'}`;
+          if (!allSwapsMap.has(swapIdKey)) {
+            const reconstructedSwap: SubstituicaoAtivoRecord = {
+              id: swapIdKey,
+              ativo_retirado_id: ret.id,
+              ativo_retirado_codigo: ret.id_ativo || ret.patrimonio || ret.id,
+              ativo_retirado_patrimonio: ret.patrimonio || ret.id_ativo,
+              ativo_retirado_chassi: ret.numero_serie || d.serialNumber || 'N/A',
+              ativo_retirado_modelo: ret.model || 'PQS ABC',
+              ativo_retirado_capacidade: ret.peso_capacidade || d.peso_capacidade || '6 kg',
+              ativo_substituto_id: subst?.id || subId || 'N/A',
+              ativo_substituto_codigo: subst?.id_ativo || subst?.patrimonio || subCod || 'SUBSTITUTO',
+              ativo_substituto_patrimonio: subst?.patrimonio || subst?.id_ativo || subCod,
+              ativo_substituto_chassi: subst?.numero_serie || subDetails.serialNumber || 'N/A',
+              ativo_substituto_modelo: subst?.model || 'PQS ABC',
+              ativo_substituto_capacidade: subst?.peso_capacidade || subDetails.peso_capacidade || '6 kg',
+              setor: subst?.location || d.local_origem || ret.location || 'Área Operacional',
+              sub_local: subst?.sub_location || '',
+              local_especifico: d.local_especifico || subDetails.local_especifico || '',
+              motivo_troca: (d.motivo_baixa || d.motivo_troca || 'VENCIDO') as MotivoTrocaType,
+              descricao_motivo:
+                d.descricao_motivo ||
+                `Substituição realizada no ponto. Ativo retirado: ${ret.id_ativo || ret.patrimonio}. Substituto instalado: ${subst?.id_ativo || subst?.patrimonio || subCod}.`,
+              foto_antes_url: d.foto_antes_url || ret.foto_url || d.foto_url || '',
+              foto_depois_url: d.foto_depois_url || subst?.foto_url || subDetails.foto_url || '',
+              tecnico_responsavel_nome: d.tecnico_responsavel_nome || 'Operador SPCI',
+              tecnico_responsavel_email: d.tecnico_responsavel_email || undefined,
+              status_troca: 'CONCLUIDA',
+              criado_em: d.data_troca || ret.updated_at || new Date().toISOString(),
+              atualizado_em: d.data_troca || ret.updated_at || new Date().toISOString(),
+            };
+            allSwapsMap.set(swapIdKey, reconstructedSwap);
+          }
+        });
+      }
+    } catch (recErr) {
+      console.warn('[assetSwapActions] Aviso na reconciliação da tabela assets:', recErr);
+    }
+
+    let finalData: SubstituicaoAtivoRecord[] = Array.from(allSwapsMap.values());
+
+    // Ordenação cronológica decrescente
+    finalData.sort((a, b) => {
+      const timeA = new Date(a.criado_em).getTime();
+      const timeB = new Date(b.criado_em).getTime();
+      return timeB - timeA;
+    });
+
+    // Filtro por setor
+    if (filters?.setor && filters.setor !== 'todos') {
+      const s = filters.setor.toLowerCase();
+      finalData = finalData.filter((t) => (t.setor || '').toLowerCase().includes(s));
+    }
+
+    // Filtro por motivo
+    if (filters?.motivo && filters.motivo !== 'todos') {
+      finalData = finalData.filter((t) => t.motivo_troca === filters.motivo);
+    }
+
+    // Filtro por termo de busca
     if (filters?.termoBusca && filters.termoBusca.trim()) {
       const term = filters.termoBusca.toLowerCase();
       finalData = finalData.filter(
         (t) =>
-          t.ativo_retirado_codigo.toLowerCase().includes(term) ||
-          t.ativo_substituto_codigo.toLowerCase().includes(term) ||
+          (t.ativo_retirado_codigo || '').toLowerCase().includes(term) ||
+          (t.ativo_substituto_codigo || '').toLowerCase().includes(term) ||
           (t.ativo_retirado_chassi || '').toLowerCase().includes(term) ||
           (t.ativo_substituto_chassi || '').toLowerCase().includes(term) ||
-          t.setor.toLowerCase().includes(term) ||
-          t.tecnico_responsavel_nome.toLowerCase().includes(term)
+          (t.setor || '').toLowerCase().includes(term) ||
+          (t.tecnico_responsavel_nome || '').toLowerCase().includes(term)
       );
     }
 
