@@ -20,6 +20,7 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   boxes: <Boxes className="w-3.5 h-3.5 text-red-500" />,
   truck: <Truck className="w-3.5 h-3.5 text-blue-500" />,
   swap: <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-500" />,
+  ArrowLeftRight: <ArrowLeftRight className="w-3.5 h-3.5 text-emerald-500" />,
   flame: <Flame className="w-3.5 h-3.5 text-red-500" />,
   shield: <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />,
   clipboard: <ClipboardList className="w-3.5 h-3.5 text-slate-400" />,

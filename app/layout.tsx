@@ -183,7 +183,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               if ('serviceWorker' in navigator) {
                 window.addEventListener('load', function() {
                   navigator.serviceWorker.register('/sw.js').then(
-                    function(reg) { console.log('PWA Service Worker registrado no escopo:', reg.scope); },
+                    function(reg) {
+                      console.log('PWA Service Worker registrado no escopo:', reg.scope);
+                      reg.update();
+                    },
                     function(err) { console.error('Erro ao registrar PWA Service Worker:', err); }
                   );
                 });

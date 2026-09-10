@@ -1,4 +1,4 @@
-const CACHE_NAME = 'spci-pwa-cache-v3';
+const CACHE_NAME = 'spci-pwa-cache-v4';
 const ASSETS_TO_CACHE = [
   '/',
   '/favicon.svg',
@@ -14,7 +14,7 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Cache inicial v3 carregado.');
+      console.log('[Service Worker] Cache inicial v4 carregado.');
       return cache.addAll(ASSETS_TO_CACHE);
     }).catch(err => console.warn('[Service Worker] Erro no cache install:', err))
   );
@@ -28,14 +28,15 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cache) => {
           if (cache !== CACHE_NAME) {
-            console.log('[Service Worker] Limpando cache antigo:', cache);
+            console.log('[Service Worker] Deletando cache obsoleto:', cache);
             return caches.delete(cache);
           }
         })
       );
+    }).then(() => {
+      return self.clients.claim();
     })
   );
-  self.clients.claim();
 });
 
 // Interceptador de requisições seguro (Network First para rotas dinâmicas do Next.js)
