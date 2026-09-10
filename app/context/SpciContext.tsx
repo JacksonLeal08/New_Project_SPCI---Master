@@ -126,6 +126,8 @@ interface SpciContextType {
   
   showProfileModal: boolean;
   setShowProfileModal: (show: boolean) => void;
+  showChecklistModal: boolean;
+  setShowChecklistModal: (show: boolean) => void;
   profileNameInput: string;
   setProfileNameInput: (name: string) => void;
   profileLogoUrlInput: string;
@@ -363,6 +365,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [premiumAlert, setPremiumAlert] = useState<PremiumAlertInfo | null>(null);
   
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showChecklistModal, setShowChecklistModal] = useState(false);
   const [profileNameInput, setProfileNameInput] = useState('');
   const [profileLogoUrlInput, setProfileLogoUrlInput] = useState('');
 
@@ -1742,6 +1745,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       deleteAsset,
       showProfileModal,
       setShowProfileModal,
+      showChecklistModal,
+      setShowChecklistModal,
       profileNameInput,
       setProfileNameInput,
       profileLogoUrlInput,

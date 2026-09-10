@@ -25,6 +25,7 @@ import AppFooter from '../components/AppFooter';
 import QuickAssetFab from '../components/QuickAssetFab';
 import ChangelogModal from '../components/ChangelogModal';
 import { GestaoAtivosModal } from '../components/GestaoAtivosModal';
+import { ChecklistEditModal } from '../components/ChecklistEditModal';
 import { SYSTEM_VERSION } from '@/config/version';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -65,6 +66,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setPremiumAlert,
     complianceLogs,
     setComplianceLogs,
+    showChecklistModal,
+    setShowChecklistModal,
+    extintorChecklist,
+    setExtintorChecklist,
     handleUpdateLogoAndProfile,
     handleSystemLogout
   } = useSpci();
@@ -773,6 +778,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <SyncStatusPanel />
       <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />
+
+      {/* Modal Global de Edição de Checklist NBR */}
+      <ChecklistEditModal
+        isOpen={showChecklistModal}
+        onClose={() => setShowChecklistModal(false)}
+        items={extintorChecklist}
+        onSaveSuccess={(updated) => setExtintorChecklist(updated)}
+      />
     </div>
   );
 }

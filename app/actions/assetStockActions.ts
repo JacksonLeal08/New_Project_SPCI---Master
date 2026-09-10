@@ -72,12 +72,23 @@ export interface AssetMovementRecord {
 const mapStatusEstoqueToTipoMovimentacao = (status: string | undefined): string => {
   if (!status) return 'estoque_aplicacao';
   const clean = String(status).toUpperCase();
-  if (clean.includes('APLICAÇÃO') || clean.includes('APLICACAO')) return 'estoque_aplicacao';
   if (clean.includes('MANUTENÇÃO') || clean.includes('MANUTENCAO') || clean.includes('AG. MANUT') || clean.includes('AG_MANUT')) return 'estoque_ag_manut';
+  if (clean.includes('APLICAÇÃO') || clean.includes('APLICACAO')) return 'estoque_aplicacao';
   if (clean.includes('CONDENAD')) return 'condenado';
   if (clean.includes('EXTRAVIAD')) return 'extraviado';
   if (clean.includes('ÁREA') || clean.includes('AREA') || clean.includes('APLICADO')) return 'na_area_aplicado';
   return 'estoque_aplicacao';
+};
+
+export const mapStatusEstoqueToStatusOperacional = (status: string | undefined): string => {
+  if (!status) return 'ESTOQUE_APLICACAO';
+  const clean = String(status).toUpperCase();
+  if (clean.includes('MANUTENÇÃO') || clean.includes('MANUTENCAO') || clean.includes('AG. MANUT') || clean.includes('AG_MANUT')) return 'ESTOQUE_MANUTENCAO';
+  if (clean.includes('APLICAÇÃO') || clean.includes('APLICACAO')) return 'ESTOQUE_APLICACAO';
+  if (clean.includes('EM MANUTENÇÃO') || clean.includes('EM MANUTENCAO') || clean === 'EM_MANUTENCAO') return 'EM_MANUTENCAO_EXTERNA';
+  if (clean.includes('CONDENAD')) return 'CONDENADO_DESCARTE';
+  if (clean.includes('ÁREA') || clean.includes('AREA') || clean.includes('APLICADO')) return 'NA_AREA_APLICADO';
+  return 'ESTOQUE_APLICACAO';
 };
 
 /**
@@ -473,15 +484,33 @@ export async function moveAssetStatusAction(
   try {
     const supabaseAdmin = getSupabaseAdminClient();
     const tipoMov = mapStatusEstoqueToTipoMovimentacao(statusNovo);
+    const statusOp = mapStatusEstoqueToStatusOperacional(statusNovo);
+    const isToStock = statusNovo !== 'NA ÁREA (APLICADO)';
 
-    const { error: errUpdate } = await supabaseAdmin
+    const updatePayload: any = {
+      status_estoque: statusNovo === 'NA ÁREA (APLICADO)' ? null : statusNovo,
+      tipo_movimentacao: tipoMov,
+      status_operacional: statusOp,
+      updated_at: new Date().toISOString()
+    };
+
+    if (isToStock) {
+      updatePayload.latitude = null;
+      updatePayload.longitude = null;
+      updatePayload.location = 'Almoxarifado';
+      updatePayload.sub_location = statusNovo === 'ESTOQUE MANUTENÇÃO' ? 'AGUARDANDO MANUTENÇÃO' : 'Estoque';
+    }
+
+    let { error: errUpdate } = await supabaseAdmin
       .from('assets')
-      .update({
-        status_estoque: statusNovo,
-        tipo_movimentacao: tipoMov,
-        updated_at: new Date().toISOString()
-      })
+      .update(updatePayload)
       .eq('id', assetId);
+
+    if (errUpdate && (errUpdate.message?.includes('status_operacional') || errUpdate.code === '42703')) {
+      delete updatePayload.status_operacional;
+      const res = await supabaseAdmin.from('assets').update(updatePayload).eq('id', assetId);
+      errUpdate = res.error;
+    }
 
     if (errUpdate) {
       return { success: false, error: errUpdate.message };
@@ -566,27 +595,45 @@ export async function bulkMoveAssetStatusAction(payload: BulkMovePayload) {
 
     const supabaseAdmin = getSupabaseAdminClient();
     const tipoMov = mapStatusEstoqueToTipoMovimentacao(targetStatus);
+    const statusOp = mapStatusEstoqueToStatusOperacional(targetStatus);
+    const isToStock = targetStatus !== 'NA ÁREA (APLICADO)';
     const nowIso = new Date().toISOString();
 
     // 1. Busca os dados dos ativos para registrar o histórico com status anterior
     const { data: currentAssets, error: fetchErr } = await supabaseAdmin
       .from('assets')
-      .select('id, id_ativo, status_estoque, patrimonio')
+      .select('id, id_ativo, status_estoque, patrimonio, location, sub_location')
       .in('id', assetIds);
 
     if (fetchErr) {
       console.warn('[bulkMoveAssetStatusAction] Aviso ao buscar ativos atuais:', fetchErr.message);
     }
 
-    // 2. Atualiza os ativos em lote
-    const { error: updateErr } = await supabaseAdmin
+    // 2. Atualiza os ativos em lote com desvinculação física atômica
+    const updatePayload: any = {
+      status_estoque: targetStatus === 'NA ÁREA (APLICADO)' ? null : targetStatus,
+      tipo_movimentacao: tipoMov,
+      status_operacional: statusOp,
+      updated_at: nowIso
+    };
+
+    if (isToStock) {
+      updatePayload.latitude = null;
+      updatePayload.longitude = null;
+      updatePayload.location = 'Almoxarifado';
+      updatePayload.sub_location = targetStatus === 'ESTOQUE MANUTENÇÃO' ? 'AGUARDANDO MANUTENÇÃO' : 'Estoque';
+    }
+
+    let { error: updateErr } = await supabaseAdmin
       .from('assets')
-      .update({
-        status_estoque: targetStatus,
-        tipo_movimentacao: tipoMov,
-        updated_at: nowIso
-      })
+      .update(updatePayload)
       .in('id', assetIds);
+
+    if (updateErr && (updateErr.message?.includes('status_operacional') || updateErr.code === '42703')) {
+      delete updatePayload.status_operacional;
+      const res = await supabaseAdmin.from('assets').update(updatePayload).in('id', assetIds);
+      updateErr = res.error;
+    }
 
     if (updateErr) {
       return { success: false, error: `Erro ao atualizar ativos em lote: ${updateErr.message}` };

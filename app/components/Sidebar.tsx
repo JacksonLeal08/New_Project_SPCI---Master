@@ -14,22 +14,25 @@ import {
   Smartphone, 
   Bell, 
   Settings, 
-  Plus,
   History,
   LogOut,
   X,
   Boxes,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Bot,
   Sparkles,
   MapPin,
   ClipboardList,
   Truck,
-  ArrowLeftRight
+  ArrowLeftRight,
+  SlidersHorizontal
 } from 'lucide-react';
 import { SYSTEM_VERSION } from '@/config/version';
 import WhatsNewModal from './WhatsNewModal';
+import { getSwapKpisAction } from '@/app/actions/assetSwapActions';
+import { getMaintenanceKpisAction } from '@/app/actions/maintenanceBatchActions';
 
 interface SidebarProps {
   onProfileClick?: () => void;
@@ -44,13 +47,21 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
   const { 
     userProfile, 
     currentUser, 
-    setShowAddForm, 
-    setSelectedAssetForInspection,
-    setChatOpened
+    setChatOpened,
+    setShowChecklistModal,
+    extintores
   } = useSpci();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [showWhatsNew, setShowWhatsNew] = useState(false);
+  
+  // Estado do Accordion do Módulo Mestre "Extintores"
+  const isExtintoresRoute = pathname.startsWith('/extintores');
+  const [isExtintoresOpen, setIsExtintoresOpen] = useState(true);
+
+  // Indicadores sutilmente carregados em segundo plano para os badges
+  const [swapsCount, setSwapsCount] = useState<number | null>(null);
+  const [pendingBatchesCount, setPendingBatchesCount] = useState<number | null>(null);
 
   useEffect(() => {
     const savedState = localStorage.getItem('spci_sidebar_collapsed');
@@ -60,6 +71,31 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
     }
   }, []);
 
+  // Mantém o accordion aberto se a rota ativa for uma sub-rota de extintores
+  useEffect(() => {
+    if (isExtintoresRoute) {
+      setIsExtintoresOpen(true);
+    }
+  }, [isExtintoresRoute]);
+
+  // Carrega contagens de trocas e lotes para os badges dos sub-itens
+  useEffect(() => {
+    let isMounted = true;
+    getSwapKpisAction().then(res => {
+      if (isMounted && res.success && res.kpis) {
+        setSwapsCount(res.kpis.totalTrocas || 0);
+      }
+    }).catch(() => {});
+
+    getMaintenanceKpisAction().then(res => {
+      if (isMounted && res.success && res.kpis) {
+        setPendingBatchesCount(res.kpis.lotesPendentesConferencia || 0);
+      }
+    }).catch(() => {});
+
+    return () => { isMounted = false; };
+  }, []);
+
   const toggleCollapse = () => {
     const nextState = !isCollapsed;
     setIsCollapsed(nextState);
@@ -67,30 +103,61 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
     if (onCollapseChange) onCollapseChange(nextState);
   };
 
-  const getActiveTab = () => {
-    if (pathname === '/') return 'dashboard';
-    if (pathname.includes('/extintores/trocas')) return 'trocas-extintores';
-    if (pathname.includes('/extintores/historico-inspecoes')) return 'historico-inspecoes';
-    if (pathname.includes('/extintores/retorno-manutencao')) return 'retorno-manutencao';
-    const firstSegment = pathname.split('/')[1];
-    return firstSegment || 'dashboard';
-  };
-
-  const activeTab = getActiveTab();
-
-  const handleRegisterNewAssetClick = () => {
-    setSelectedAssetForInspection(null);
-    setShowAddForm(true);
-  };
-
   const isAdmin = userProfile?.role === 'Administrador' || userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'admin';
 
+  // Sub-itens modulares do ecossistema Extintores
+  const extintoresSubItems = [
+    {
+      id: 'extintores-painel',
+      label: 'Painel & Estoque Operacional',
+      shortLabel: 'Painel & Estoque',
+      icon: <LayoutDashboard className="w-4 h-4 shrink-0" />,
+      path: '/extintores',
+      isActive: pathname === '/extintores'
+    },
+    {
+      id: 'extintores-trocas',
+      label: 'Trocas & Substituições',
+      shortLabel: 'Trocas & Substituições',
+      icon: <ArrowLeftRight className="w-4 h-4 shrink-0" />,
+      path: '/extintores/trocas',
+      isActive: pathname.startsWith('/extintores/trocas'),
+      badge: swapsCount !== null ? swapsCount : undefined
+    },
+    {
+      id: 'extintores-retorno',
+      label: 'Retorno Manutenção',
+      shortLabel: 'Retorno Manutenção',
+      icon: <Truck className="w-4 h-4 shrink-0" />,
+      path: '/extintores/retorno-manutencao',
+      isActive: pathname.startsWith('/extintores/retorno-manutencao'),
+      alertBadge: pendingBatchesCount !== null && pendingBatchesCount > 0 ? pendingBatchesCount : undefined
+    },
+    {
+      id: 'extintores-historico',
+      label: 'Histórico de Vistorias',
+      shortLabel: 'Histórico Vistorias',
+      icon: <ClipboardList className="w-4 h-4 shrink-0" />,
+      path: '/extintores/historico-inspecoes',
+      isActive: pathname.startsWith('/extintores/historico-inspecoes')
+    },
+    {
+      id: 'extintores-checklist',
+      label: 'Edição de Checklist (NBR)',
+      shortLabel: 'Checklist NBR',
+      icon: <SlidersHorizontal className="w-4 h-4 shrink-0" />,
+      isAction: true,
+      onClick: () => {
+        if (setShowChecklistModal) setShowChecklistModal(true);
+        if (onClose) onClose();
+      },
+      badgeTag: 'NBR'
+    }
+  ];
+
+  // Itens da navegação padrão (satélites unificados fora do módulo Extintores)
   const navItems = [
     { id: 'dashboard', label: 'Dashboard / Visão Geral', icon: <LayoutDashboard className="w-5 h-5" />, path: '/dashboard' },
-    { id: 'extintores', label: 'Extintores', icon: <Flame className="w-5 h-5" />, path: '/extintores' },
-    { id: 'trocas-extintores', label: 'Trocas & Substituições', icon: <ArrowLeftRight className="w-5 h-5" />, path: '/extintores/trocas' },
-    { id: 'retorno-manutencao', label: 'Retorno Manutenção', icon: <Truck className="w-5 h-5" />, path: '/extintores/retorno-manutencao' },
-    { id: 'historico-inspecoes', label: 'Histórico de Vistorias', icon: <ClipboardList className="w-5 h-5" />, path: '/extintores/historico-inspecoes' },
     { id: 'hidrantes', label: 'Hidrantes & Abrigos', icon: <Droplet className="w-5 h-5" />, path: '/hidrantes' },
     { id: 'sinalizacao', label: 'Sinalização NBR', icon: <AlertTriangle className="w-5 h-5" />, path: '/sinalizacao' },
     { id: 'iluminacao', label: 'Iluminação Emergência', icon: <Lightbulb className="w-5 h-5" />, path: '/iluminacao' },
@@ -103,26 +170,12 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
     ...(isAdmin ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-5 h-5" />, path: '/configuracoes' }] : [])
   ];
 
-  const filteredNavItems = navItems.filter(item => {
-    if (userProfile?.role === 'Desenvolvedor') return true;
-    if (item.id === 'logs') return false;
-    if (item.id === 'trocas-extintores') return true;
-    if (item.id === 'retorno-manutencao') return true;
-    if (item.id === 'historico-inspecoes') return true;
-    if (item.id === 'gestao-ativo') return true;
-    if (item.id === 'mapa') return true;
-    if (item.id === 'configuracoes') return isAdmin;
-    if (item.id === 'dashboard') return true;
-    if (userProfile?.permissions && userProfile.permissions.length > 0) {
-      return userProfile.permissions.includes(item.id);
-    }
-    return false;
-  });
+  const totalExtintoresCount = extintores?.length || 651;
 
   return (
     <aside 
       className={`bg-white dark:bg-slate-900 text-slate-800 dark:text-slate-100 flex flex-col py-6 shrink-0 shadow-xl border-r border-slate-200 dark:border-slate-800 z-40 h-screen select-none font-sans fixed lg:static inset-y-0 left-0 transform lg:transform-none transition-all duration-300 ${
-        isCollapsed ? 'w-20 px-2' : 'w-72 px-4'
+        isCollapsed ? 'w-20 px-2' : 'w-72 px-3'
       } ${
         isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
       }`}
@@ -150,12 +203,12 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
       </button>
 
       {/* Marca Principal Grupo OMG - Empilhada (Logo + SPCI MASTER abaixo) */}
-      <div className={`flex flex-col items-center justify-center mb-6 pt-1 transition-all shrink-0 ${isCollapsed ? 'px-0' : 'px-2'}`}>
+      <div className={`flex flex-col items-center justify-center mb-5 pt-1 transition-all shrink-0 ${isCollapsed ? 'px-0' : 'px-2'}`}>
         <img 
           src="/logo-omg.png" 
           alt="Logo Grupo OMG" 
           className={`object-contain shrink-0 filter drop-shadow-md transition-all ${
-            isCollapsed ? 'h-8 w-auto max-w-[48px]' : 'h-14 w-auto'
+            isCollapsed ? 'h-8 w-auto max-w-[48px]' : 'h-13 w-auto'
           }`} 
         />
         {!isCollapsed && (
@@ -165,28 +218,241 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
         )}
       </div>
 
-      {/* Links de navegação semânticos com ícones e Tooltips no hover */}
-      <nav className={`flex-grow space-y-1.5 px-1 ${isCollapsed ? 'overflow-visible' : 'overflow-y-auto'}`} aria-label="Navegação do painel">
-        {filteredNavItems.map(item => {
-          const isActive = activeTab === item.id;
+      {/* Links de navegação semânticos com Accordion Hierárquico */}
+      <nav className={`flex-grow space-y-1 px-1 ${isCollapsed ? 'overflow-visible' : 'overflow-y-auto'}`} aria-label="Navegação do painel">
+        
+        {/* 1. Dashboard / Visão Geral */}
+        <div className="relative group">
+          <Link
+            href="/dashboard"
+            onClick={() => { if (onClose) onClose(); }}
+            className={`flex items-center gap-3 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-xl transition-all duration-200 text-left relative ${
+              isCollapsed ? 'justify-center px-0' : 'px-3.5'
+            } ${
+              pathname === '/dashboard' || pathname === '/'
+                ? 'bg-gradient-to-r from-red-700 via-rose-600 to-red-800 font-bold shadow-lg shadow-red-900/30 text-white border border-red-500/30' 
+                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white'
+            }`}
+          >
+            <span className={`inline-flex items-center transition-transform duration-200 group-hover:scale-110 ${
+              pathname === '/dashboard' || pathname === '/' ? 'text-white' : 'text-red-600 dark:text-red-400'
+            }`}>
+              <LayoutDashboard className="w-5 h-5" />
+            </span>
+            {!isCollapsed && (
+              <span className="font-['Hanken_Grotesk'] truncate">
+                Dashboard / Visão Geral
+              </span>
+            )}
+          </Link>
+          {isCollapsed && (
+            <div className="opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none absolute left-full top-1/2 -translate-y-1/2 ml-3 px-3 py-1.5 bg-slate-900 text-white rounded-xl shadow-2xl text-[11px] font-bold uppercase tracking-wider whitespace-nowrap z-50 border border-slate-700">
+              Dashboard / Visão Geral
+            </div>
+          )}
+        </div>
+
+        {/* 2. NÓ PRINCIPAL EXPANSÍVEL: EXTINTORES (Módulo Mestre Cockpit) */}
+        <div className="relative group/extintores pt-0.5">
+          {/* Header do Módulo */}
+          <button
+            type="button"
+            onClick={() => {
+              if (isCollapsed) {
+                // Se estiver colapsado, expande a barra lateral ou abre o módulo
+                toggleCollapse();
+                setIsExtintoresOpen(true);
+              } else {
+                setIsExtintoresOpen(!isExtintoresOpen);
+              }
+            }}
+            className={`w-full flex items-center justify-between py-2.5 text-xs font-semibold uppercase tracking-wider rounded-xl transition-all duration-200 text-left cursor-pointer border ${
+              isCollapsed ? 'justify-center px-0' : 'px-3.5'
+            } ${
+              isExtintoresRoute
+                ? 'bg-slate-100 dark:bg-slate-800/80 border-red-500/40 text-slate-900 dark:text-white shadow-xs font-bold'
+                : 'border-transparent text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800/60 hover:text-slate-900 dark:hover:text-white'
+            }`}
+            title="Módulo Mestre de Extintores"
+            aria-expanded={isExtintoresOpen}
+          >
+            <div className="flex items-center gap-3 min-w-0">
+              <span className={`inline-flex items-center transition-transform duration-200 ${
+                isExtintoresRoute ? 'text-red-600 dark:text-red-500 scale-110' : 'text-red-600 dark:text-red-400 group-hover/extintores:scale-110'
+              }`}>
+                <Flame className="w-5 h-5" />
+              </span>
+              {!isCollapsed && (
+                <span className="font-['Hanken_Grotesk'] font-bold truncate tracking-wider">
+                  Extintores
+                </span>
+              )}
+            </div>
+
+            {!isCollapsed && (
+              <div className="flex items-center gap-2 shrink-0">
+                {/* Badge Global de Inventário */}
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-slate-200 dark:bg-slate-700/60 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-600">
+                  {totalExtintoresCount}
+                </span>
+                {/* Chevron com Rotação Fluida */}
+                <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-200 ${
+                  isExtintoresOpen ? 'rotate-180 text-red-500' : ''
+                }`} />
+              </div>
+            )}
+          </button>
+
+          {/* Submenu Retrátil (Accordion Tree) quando Expandida */}
+          {!isCollapsed && isExtintoresOpen && (
+            <div className="ml-5 pl-2.5 border-l-2 border-slate-200 dark:border-slate-750/80 space-y-1 my-1.5 transition-all">
+              {extintoresSubItems.map(subItem => {
+                if (subItem.isAction) {
+                  return (
+                    <button
+                      key={subItem.id}
+                      type="button"
+                      onClick={subItem.onClick}
+                      className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-medium tracking-wide rounded-lg transition-all text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white cursor-pointer group/sub"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="text-slate-400 dark:text-slate-500 group-hover/sub:text-red-500 transition-colors">
+                          {subItem.icon}
+                        </span>
+                        <span className="truncate">{subItem.label}</span>
+                      </div>
+                      {subItem.badgeTag && (
+                        <span className="text-[8.5px] font-mono font-bold px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-950/50 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/60 shrink-0">
+                          {subItem.badgeTag}
+                        </span>
+                      )}
+                    </button>
+                  );
+                }
+
+                return (
+                  <Link
+                    key={subItem.id}
+                    href={subItem.path!}
+                    onClick={() => { if (onClose) onClose(); }}
+                    className={`flex items-center justify-between px-3 py-2 text-[11px] font-medium tracking-wide rounded-lg transition-all group/sub ${
+                      subItem.isActive
+                        ? 'bg-red-600/10 text-red-600 dark:text-red-400 font-bold border border-red-500/20'
+                        : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/80 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <span className={`transition-colors ${
+                        subItem.isActive ? 'text-red-600 dark:text-red-400' : 'text-slate-400 dark:text-slate-500 group-hover/sub:text-red-500'
+                      }`}>
+                        {subItem.icon}
+                      </span>
+                      <span className="truncate">{subItem.label}</span>
+                    </div>
+
+                    {/* Badges de Status do Sub-item */}
+                    {subItem.alertBadge !== undefined && subItem.alertBadge > 0 && (
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-400 border border-amber-300 dark:border-amber-700/60 animate-pulse shrink-0" title={`${subItem.alertBadge} lote(s) aguardando conferência`}>
+                        {subItem.alertBadge}
+                      </span>
+                    )}
+
+                    {subItem.badge !== undefined && subItem.badge > 0 && (
+                      <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-300 shrink-0" title={`${subItem.badge} substituições registradas`}>
+                        {subItem.badge}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Submenu Popover Flutuante quando a Barra Lateral estiver Recolhida */}
+          {isCollapsed && (
+            <div className="opacity-0 pointer-events-none group-hover/extintores:opacity-100 group-hover/extintores:pointer-events-auto transition-all duration-200 absolute left-full top-0 ml-3 py-2 px-1.5 bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-2xl shadow-2xl z-50 border border-slate-200 dark:border-slate-700 min-w-[240px]">
+              <div className="px-3 py-2 border-b border-slate-100 dark:border-slate-800 mb-1 flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-red-600 dark:text-red-400 flex items-center gap-1.5">
+                  <Flame className="w-3.5 h-3.5" /> Módulo Extintores
+                </span>
+                <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                  {totalExtintoresCount}
+                </span>
+              </div>
+              <div className="space-y-1">
+                {extintoresSubItems.map(subItem => {
+                  if (subItem.isAction) {
+                    return (
+                      <button
+                        key={subItem.id}
+                        type="button"
+                        onClick={subItem.onClick}
+                        className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-medium rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 cursor-pointer text-left"
+                      >
+                        <span className="flex items-center gap-2 truncate">
+                          {subItem.icon}
+                          {subItem.shortLabel}
+                        </span>
+                        {subItem.badgeTag && (
+                          <span className="text-[8px] font-mono font-bold px-1 rounded bg-red-500/10 text-red-500 border border-red-500/20">
+                            {subItem.badgeTag}
+                          </span>
+                        )}
+                      </button>
+                    );
+                  }
+
+                  return (
+                    <Link
+                      key={subItem.id}
+                      href={subItem.path!}
+                      className={`flex items-center justify-between px-3 py-2 text-[11px] font-medium rounded-lg transition-colors ${
+                        subItem.isActive
+                          ? 'bg-red-600/15 text-red-600 dark:text-red-400 font-bold'
+                          : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200'
+                      }`}
+                    >
+                      <span className="flex items-center gap-2 truncate">
+                        {subItem.icon}
+                        {subItem.shortLabel}
+                      </span>
+                      {subItem.alertBadge && (
+                        <span className="text-[8.5px] font-mono font-bold px-1.5 rounded-full bg-amber-500/20 text-amber-500 border border-amber-500/30 animate-pulse">
+                          {subItem.alertBadge}
+                        </span>
+                      )}
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 3. Demais módulos satélites */}
+        {navItems.filter(item => item.id !== 'dashboard').map(item => {
+          const isActive = pathname.startsWith(item.path);
           return (
             <div key={item.id} className="relative group">
               <Link
                 href={item.path}
-                className={`flex items-center gap-3 py-3 text-xs font-semibold uppercase tracking-wider rounded-xl transition-all duration-300 text-left relative ${
-                  isCollapsed ? 'justify-center px-0' : 'px-4'
+                onClick={() => { if (onClose) onClose(); }}
+                className={`flex items-center gap-3 py-2.5 text-xs font-semibold uppercase tracking-wider rounded-xl transition-all duration-200 text-left relative ${
+                  isCollapsed ? 'justify-center px-0' : 'px-3.5'
                 } ${
                   isActive 
                     ? 'bg-gradient-to-r from-red-700 via-rose-600 to-red-800 font-bold shadow-lg shadow-red-900/30 text-white border border-red-500/30' 
-                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-white hover:translate-x-0.5'
+                    : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800/70 hover:text-slate-900 dark:hover:text-white'
                 }`}
                 aria-current={isActive ? 'page' : undefined}
               >
-                <span className={`inline-flex items-center transition-transform duration-300 group-hover:scale-125 group-hover:rotate-3 ${isActive ? 'text-white' : 'text-red-600 dark:text-red-400'}`} aria-hidden="true">
+                <span className={`inline-flex items-center transition-transform duration-200 group-hover:scale-110 ${
+                  isActive ? 'text-white' : 'text-red-600 dark:text-red-400'
+                }`} aria-hidden="true">
                   {item.icon}
                 </span>
                 {!isCollapsed && (
-                  <span className="font-['Hanken_Grotesk'] transition-transform duration-300 truncate">
+                  <span className="font-['Hanken_Grotesk'] transition-transform duration-200 truncate">
                     {item.label}
                   </span>
                 )}
@@ -204,14 +470,14 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
         })}
       </nav>
 
-      {/* Botão 3D Tactile Cyber-Red Inspe IA (Posicionado abaixo de Configurações) */}
-      <div className={`my-3 px-1 ${isCollapsed ? 'flex justify-center' : ''}`}>
+      {/* Botão 3D Tactile Cyber-Red Inspe IA (Assistente Virtual 24h) */}
+      <div className={`my-2.5 px-1 ${isCollapsed ? 'flex justify-center' : ''}`}>
         <div className="relative group w-full">
           <button
             type="button"
             onClick={() => setChatOpened(true)}
             className={`w-full relative flex items-center bg-gradient-to-r from-red-700 via-rose-700 to-slate-900 hover:from-red-600 hover:to-rose-800 text-white rounded-2xl shadow-lg shadow-rose-950/40 hover:shadow-xl hover:shadow-rose-950/60 active:translate-y-0.5 border border-rose-500/30 hover:border-rose-400/50 transition-all duration-200 cursor-pointer overflow-hidden font-sans ${
-              isCollapsed ? 'p-3 justify-center h-12 w-12' : 'p-3.5 gap-3'
+              isCollapsed ? 'p-2.5 justify-center h-12 w-12' : 'p-3 gap-3'
             }`}
             title="Abrir Assistente Virtual Inspe IA SPCI 24h"
             aria-label="Abrir Assistente Virtual Inspe IA 24h"
@@ -219,14 +485,14 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
             {/* Brilho diagonal de reflexo de vidro */}
             <div className="absolute -top-10 -left-10 w-20 h-32 bg-white/10 rotate-45 transform pointer-events-none group-hover:translate-x-48 transition-transform duration-700 ease-in-out" aria-hidden="true" />
 
-            {/* Ícone Robô 3D com Indicador LED Verde Pulsante */}
+            {/* Ícone Robô com LED Verde Pulsante */}
             <div className="relative shrink-0 flex items-center justify-center">
-              <div className="w-8 h-8 rounded-xl bg-red-950/80 border border-red-400/50 flex items-center justify-center shadow-inner text-white group-hover:scale-110 transition-transform">
-                <Bot className="w-5 h-5 text-red-100" />
+              <div className="w-7.5 h-7.5 rounded-xl bg-red-950/80 border border-red-400/50 flex items-center justify-center shadow-inner text-white group-hover:scale-110 transition-transform">
+                <Bot className="w-4.5 h-4.5 text-red-100" />
               </div>
-              <span className="absolute -top-1 -right-1 flex h-3 w-3 pointer-events-none">
+              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 pointer-events-none">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-slate-900"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border-2 border-slate-900"></span>
               </span>
             </div>
 
@@ -260,7 +526,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
 
       {/* Indicador de banco conectado e versão */}
       {!isCollapsed && (
-        <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 p-3 rounded-xl text-center text-xs space-y-1 mb-2 select-none shrink-0">
+        <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 p-2.5 rounded-xl text-center text-xs space-y-1 mb-2 select-none shrink-0">
           <div className="flex items-center justify-between">
             <p className="text-emerald-600 dark:text-emerald-400 font-bold flex items-center gap-1.5 font-['Hanken_Grotesk'] text-[11px]">
               <span aria-hidden="true">🟢</span> Banco SPCI Ativo
@@ -286,7 +552,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
       {onLogoutClick && (
         <button
           onClick={onLogoutClick}
-          className={`mt-2 bg-slate-100 dark:bg-slate-800/50 hover:bg-red-600 border border-slate-200 dark:border-slate-700 hover:border-transparent text-slate-600 dark:text-slate-300 hover:text-white font-['Hanken_Grotesk'] font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer shadow-xs active:scale-[0.98] relative group shrink-0 ${
+          className={`mt-1 bg-slate-100 dark:bg-slate-800/50 hover:bg-red-600 border border-slate-200 dark:border-slate-700 hover:border-transparent text-slate-600 dark:text-slate-300 hover:text-white font-['Hanken_Grotesk'] font-bold text-xs py-2.5 rounded-xl flex items-center justify-center gap-2 transition-all duration-300 cursor-pointer shadow-xs active:scale-[0.98] relative group shrink-0 ${
             isCollapsed ? 'px-0 w-full' : 'px-4 w-full'
           }`}
           title={isCollapsed ? "Sair do Cockpit" : undefined}

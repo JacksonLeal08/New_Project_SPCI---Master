@@ -233,24 +233,58 @@ export default function WizardTrocaModalMobile({
         }
       });
 
-      // 2. Constrói a lista de substitutos em estoque (ESTOQUE APLICAÇÃO)
+      // 2. Constrói a lista estrita de substitutos em estoque (ESTOQUE APLICAÇÃO)
+      // Exigência: status_operacional = 'ESTOQUE_APLICACAO', situacao_vencimento = 'CONFORME', status_condenado = FALSE
       const mappedEstoqueMap = new Map<string, AssetStockItemRecord>();
 
       (resEstoque.assets || []).forEach((a) => {
-        const key = (a.id_ativo || a.patrimonio || a.id || '').toUpperCase();
-        if (key) mappedEstoqueMap.set(key, a);
+        const stOp = (a as any).status_operacional;
+        const isManutencao =
+          stOp === 'ESTOQUE_MANUTENCAO' ||
+          stOp === 'EM_MANUTENCAO_EXTERNA' ||
+          a.status_estoque === 'ESTOQUE MANUTENÇÃO' ||
+          a.status_estoque === 'EM MANUTENÇÃO' ||
+          a.tipo_movimentacao === 'estoque_ag_manut';
+
+        const isArea = stOp === 'NA_AREA_APLICADO' || a.tipo_movimentacao === 'na_area_aplicado';
+        const isCondenado = stOp === 'CONDENADO_DESCARTE' || a.status_estoque === 'CONDENADOS' || a.tipo_movimentacao === 'condenado';
+        const isVencido = a.status === 'Vencido' || a.status === 'Não Conforme';
+
+        // Apenas extintores em ESTOQUE APLICAÇÃO e conformes
+        if (!isManutencao && !isArea && !isCondenado && !isVencido) {
+          const key = (a.id_ativo || a.patrimonio || a.id || '').toUpperCase();
+          if (key) mappedEstoqueMap.set(key, a);
+        }
       });
 
       (allExtintoresLive || []).forEach((ext: any) => {
         const key = String(ext.idAtivo || ext.numero_patrimonio || ext.id || '').toUpperCase();
         if (!key) return;
 
-        const isEstoque =
-          ext.status_estoque === 'ESTOQUE APLICAÇÃO' ||
-          ext.tipo_movimentacao === 'estoque_aplicacao' ||
-          (ext.location && (ext.location.toUpperCase().includes('ALMOXARIFADO') || ext.location.toUpperCase().includes('ESTOQUE')));
+        const isManutencao =
+          ext.status_operacional === 'ESTOQUE_MANUTENCAO' ||
+          ext.status_operacional === 'EM_MANUTENCAO_EXTERNA' ||
+          ext.status_estoque === 'ESTOQUE MANUTENÇÃO' ||
+          ext.status_estoque === 'EM MANUTENÇÃO' ||
+          ext.tipo_movimentacao === 'estoque_ag_manut';
 
-        if (isEstoque && !mappedEstoqueMap.has(key)) {
+        const isArea =
+          ext.status_operacional === 'NA_AREA_APLICADO' ||
+          ext.tipo_movimentacao === 'na_area_aplicado';
+
+        const isCondenado =
+          ext.status_operacional === 'CONDENADO_DESCARTE' ||
+          ext.status_estoque === 'CONDENADOS' ||
+          ext.tipo_movimentacao === 'condenado';
+
+        const isVencido = ext.status === 'Vencido' || ext.status === 'Não Conforme';
+
+        const isEstoqueAplicacao =
+          (ext.status_operacional === 'ESTOQUE_APLICACAO' ||
+           (ext.status_estoque === 'ESTOQUE APLICAÇÃO' && ext.tipo_movimentacao === 'estoque_aplicacao')) &&
+          !isManutencao && !isArea && !isCondenado && !isVencido;
+
+        if (isEstoqueAplicacao && !mappedEstoqueMap.has(key)) {
           mappedEstoqueMap.set(key, {
             id: String(ext.id || key),
             id_ativo: ext.idAtivo || ext.numero_patrimonio || key,
@@ -869,11 +903,30 @@ export default function WizardTrocaModalMobile({
                       </div>
                     </div>
 
-                    {/* Lista com AssetSelectionCard Substituto */}
+                    {/* Lista com AssetSelectionCard Substituto ou Empty State Guardrail */}
                     <div className="space-y-2.5">
-                      {filteredSubstituteAssets.length === 0 ? (
-                        <div className="py-12 text-center text-slate-600 dark:text-zinc-400 border-2 border-dashed border-slate-300 dark:border-zinc-800 rounded-2xl font-semibold p-4">
-                          Nenhum extintor disponível em ESTOQUE APLICAÇÃO.
+                      {substituteAssets.length === 0 ? (
+                        <div className="p-6 rounded-3xl bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-300 dark:border-amber-800/60 shadow-md text-center space-y-3">
+                          <div className="w-12 h-12 rounded-2xl bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-400 mx-auto flex items-center justify-center border border-amber-300 dark:border-amber-700 shadow-xs">
+                            <AlertTriangle className="w-6 h-6" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <h4 className="text-sm font-black uppercase text-amber-950 dark:text-amber-200 tracking-wide font-sans">
+                              Atenção: Nenhum extintor disponível em Estoque Aplicação.
+                            </h4>
+                            <p className="text-xs text-amber-900 dark:text-amber-300 font-semibold max-w-md mx-auto leading-relaxed">
+                              Não existem ativos conformes prontos para alocação neste contrato/unidade. Dê entrada de novos extintores em &quot;Estoque Aplicação&quot; ou conclua o retorno de lotes de manutenção antes de realizar substituições.
+                            </p>
+                          </div>
+                          <div className="pt-1">
+                            <span className="inline-block px-3 py-1 rounded-lg bg-amber-200/70 dark:bg-amber-900/60 text-amber-950 dark:text-amber-200 text-[10px] font-mono font-bold border border-amber-300 dark:border-amber-700">
+                              🔒 Bloqueio de Segurança: Substituição impedida para prevenir ativos fictícios
+                            </span>
+                          </div>
+                        </div>
+                      ) : filteredSubstituteAssets.length === 0 ? (
+                        <div className="py-12 text-center text-slate-700 dark:text-zinc-300 border-2 border-dashed border-slate-300 dark:border-zinc-800 rounded-2xl font-bold p-4">
+                          Nenhum extintor encontrado com os termos de busca digitados.
                         </div>
                       ) : (
                         filteredSubstituteAssets.map((asset) => {
@@ -1315,11 +1368,13 @@ export default function WizardTrocaModalMobile({
                   </button>
                   <button
                     type="button"
-                    disabled={!selectedSubstituto}
+                    disabled={!selectedSubstituto || substituteAssets.length === 0}
                     onClick={() => setStep(3)}
-                    className="flex-1 min-h-[48px] sm:min-h-[52px] rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 shadow-md shadow-red-600/20 active:scale-98"
+                    className="flex-1 min-h-[48px] sm:min-h-[52px] rounded-2xl bg-red-600 hover:bg-red-700 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition flex items-center justify-center gap-2 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed shadow-md shadow-red-600/20 active:scale-98"
                   >
-                    <span>Avançar para Motivo & Fotos</span>
+                    <span>
+                      {substituteAssets.length === 0 ? 'Estoque Esgotado (Avanço Bloqueado)' : 'Avançar para Motivo & Fotos'}
+                    </span>
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>

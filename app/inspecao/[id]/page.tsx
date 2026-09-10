@@ -836,15 +836,16 @@ function InspecaoOuCadastroContent() {
     }
   };
 
+  // Definições de Estilos do Tema Claro/Escuro (Alto Contraste WCAG AA)
   const isDark = theme === 'dark';
-  const bgClass = isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900';
-  const cardClass = isDark ? 'bg-slate-900/60 border-slate-850 hover:border-slate-800' : 'bg-white border-slate-200 hover:border-slate-350 shadow-md';
-  const textMutedClass = isDark ? 'text-slate-400' : 'text-slate-500';
-  const labelMutedClass = isDark ? 'text-slate-500' : 'text-slate-400';
-  const borderBottomClass = isDark ? 'border-slate-900' : 'border-slate-200';
-  const inputBgClass = isDark ? 'bg-slate-955 border-slate-850 text-slate-150 focus:border-red-500' : 'bg-white border-slate-250 text-slate-900 placeholder-slate-400 focus:border-red-600 shadow-sm';
-  const selectBgClass = isDark ? 'bg-slate-955 border-slate-850 text-slate-150 focus:border-red-500' : 'bg-white border-slate-250 text-slate-900 placeholder-slate-400 focus:border-red-600 shadow-sm';
-  const buttonSecondaryClass = isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-850 text-slate-350' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 shadow-sm';
+  const bgClass = isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-950';
+  const cardClass = isDark ? 'bg-slate-900/60 border-slate-850 hover:border-slate-800' : 'bg-white border-slate-300 hover:border-slate-400 shadow-sm';
+  const textMutedClass = isDark ? 'text-slate-400' : 'text-slate-700 font-semibold';
+  const labelMutedClass = isDark ? 'text-slate-400' : 'text-slate-700 font-semibold';
+  const borderBottomClass = isDark ? 'border-slate-800' : 'border-slate-300';
+  const inputBgClass = isDark ? 'bg-slate-955 border-slate-850 text-slate-150 focus:border-red-500' : 'bg-white border-slate-300 hover:border-slate-400 text-slate-950 font-medium placeholder-slate-400 focus:border-red-600 shadow-sm';
+  const selectBgClass = isDark ? 'bg-slate-955 border-slate-850 text-slate-150 focus:border-red-500' : 'bg-white border-slate-300 hover:border-slate-400 text-slate-950 font-medium placeholder-slate-400 focus:border-red-600 shadow-sm';
+  const buttonSecondaryClass = isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-850 text-slate-350' : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-900 font-bold shadow-sm';
 
   if (!mounted) {
     return (
@@ -893,9 +894,11 @@ function InspecaoOuCadastroContent() {
             tabIndex={0}
             title="Voltar para a Fila de Ronda"
           >
-            <div className="w-9 h-9 rounded-xl bg-white text-red-700 font-sans font-black tracking-tighter text-xs flex items-center justify-center shadow-sm shrink-0">
-              SPCI
-            </div>
+            <img 
+              src="/logo-omg-clean.png" 
+              alt="Grupo OMG SPCI Master" 
+              className="max-h-9 w-auto object-contain shrink-0 bg-transparent border-0 ring-0 shadow-none filter drop-shadow-sm" 
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <h1 className="text-xs sm:text-sm font-black uppercase tracking-widest font-sans truncate text-white">

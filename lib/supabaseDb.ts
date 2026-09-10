@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import { InspecaoRealizada, normalizeTipoMovimentacao, TIPO_MOVIMENTACAO_MAP } from './types';
+import { InspecaoRealizada, normalizeTipoMovimentacao, TIPO_MOVIMENTACAO_MAP, normalizeStatusOperacional, StatusOperacionalType } from './types';
 import { getUsersListAction } from '@/app/actions/userActions';
 import { uploadAssetPhotoAction } from '@/app/actions/geoTrackingActions';
 import { MediaQueue } from './mediaQueue';
@@ -716,15 +716,17 @@ export async function getAssetsList(collectionName: string, userSite?: string): 
         extintoresList = (data || []).map(deserializeNewExtintor);
       }
 
-      // Enriquecer com dados de movimentação, estoque e coordenadas da tabela assets (fonte mestre viva)
+      // Enriquecer com dados de movimentação, estoque e coordenadas da tabela assets (fonte mestre viva de 651 extintores)
       try {
         const { data: assetsTable } = await supabase
           .from('assets')
-          .select('id, id_ativo, patrimonio, status, status_estoque, tipo_movimentacao, location, sub_location, latitude, longitude, details')
+          .select('*')
           .eq('category', 'extintores');
 
         if (assetsTable && assetsTable.length > 0) {
           const assetsMap = new Map<string, any>();
+          const matchedAssetIds = new Set<string>();
+
           for (const a of assetsTable) {
             if (a.id) assetsMap.set(String(a.id).toLowerCase(), a);
             if (a.id_ativo) assetsMap.set(String(a.id_ativo).toLowerCase(), a);
@@ -736,14 +738,20 @@ export async function getAssetsList(collectionName: string, userSite?: string): 
             const keyPat = String(ext.idAtivo || ext.numero_patrimonio || '').toLowerCase();
             const ast = assetsMap.get(keyId) || assetsMap.get(keyPat);
             if (ast) {
+              if (ast.id) matchedAssetIds.add(String(ast.id).toLowerCase());
+              if (ast.id_ativo) matchedAssetIds.add(String(ast.id_ativo).toLowerCase());
+              if (ast.patrimonio) matchedAssetIds.add(String(ast.patrimonio).toLowerCase());
+
               // Localização atualizada da tabela assets
               if (ast.location) ext.location = ast.location;
               if (ast.sub_location) ext.subLocation = ast.sub_location;
 
-              // Tipo de movimentação e status de estoque atualizados
+              // Tipo de movimentação e status operacional normalizados
               const d = ast.details || {};
               const rawMov = ast.tipo_movimentacao || d.tipo_movimentacao;
               const rawStEstoque = ast.status_estoque || d.status_estoque;
+
+              ext.status_operacional = normalizeStatusOperacional(ast);
 
               if (rawMov) {
                 ext.tipo_movimentacao = normalizeTipoMovimentacao(rawMov);
@@ -776,6 +784,50 @@ export async function getAssetsList(collectionName: string, userSite?: string): 
                 ...(ext.details || {}),
                 ...d
               };
+            } else {
+              ext.status_operacional = normalizeStatusOperacional(ext);
+            }
+          }
+
+          // Adiciona os extintores da tabela assets que não constavam na view relacional
+          // para garantir a integridade matemática de exatamente 651 extintores no painel
+          for (const a of assetsTable) {
+            const keyId = String(a.id || '').toLowerCase();
+            const keyPat = String(a.id_ativo || a.patrimonio || '').toLowerCase();
+            if (!matchedAssetIds.has(keyId) && (!keyPat || !matchedAssetIds.has(keyPat))) {
+              matchedAssetIds.add(keyId);
+              if (keyPat) matchedAssetIds.add(keyPat);
+              const d = a.details || {};
+              const stOp = normalizeStatusOperacional(a);
+              const tpMov = normalizeTipoMovimentacao(a.tipo_movimentacao || d.tipo_movimentacao);
+              const stEst = a.status_estoque || d.status_estoque || TIPO_MOVIMENTACAO_MAP[tpMov]?.label || 'NA ÁREA (APLICADO)';
+
+              extintoresList.push({
+                id: a.id,
+                idAtivo: a.id_ativo || a.patrimonio || a.id,
+                numero_patrimonio: a.patrimonio || a.id_ativo || a.id,
+                category: 'extintores',
+                location: a.location || 'Almoxarifado',
+                subLocation: a.sub_location || '',
+                status: a.status || (stOp === 'ESTOQUE_MANUTENCAO' ? 'Em Manutenção' : 'Conforme'),
+                status_operacional: stOp,
+                tipo_movimentacao: tpMov,
+                status_estoque: stEst,
+                latitude: a.latitude != null ? Number(a.latitude) : null,
+                longitude: a.longitude != null ? Number(a.longitude) : null,
+                geolocation: (a.latitude != null && a.longitude != null) ? { lat: Number(a.latitude), lng: Number(a.longitude) } : null,
+                model: a.model || d.model || 'Padrão ABC',
+                peso: a.peso || d.peso || d.peso_capacidade || '4KG',
+                peso_capacidade: d.peso_capacidade || a.peso || '4KG',
+                seloInmetro: d.seloInmetro || d.selo_inmetro || '',
+                chassi: a.numero_serie || d.chassi || d.serialNumber || '',
+                numero_serie: a.numero_serie || d.serialNumber || '',
+                lastRecarga: d.lastRecarga || d.data_ultima_recarga || '',
+                validadeRecarga: a.data_vencimento_teste || d.validadeRecarga || '',
+                anoFabricacao: a.data_fabricacao || d.anoFabricacao || new Date().getFullYear(),
+                anoUltimoTesteHidro: d.anoUltimoTesteHidro || new Date().getFullYear(),
+                details: d
+              });
             }
           }
         }

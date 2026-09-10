@@ -20,6 +20,48 @@ export type TipoMovimentacaoType =
   | 'condenado'
   | 'extraviado';
 
+export type StatusOperacionalType =
+  | 'NA_AREA_APLICADO'
+  | 'ESTOQUE_APLICACAO'
+  | 'ESTOQUE_MANUTENCAO'
+  | 'EM_MANUTENCAO_EXTERNA'
+  | 'CONDENADO_DESCARTE';
+
+export const normalizeStatusOperacional = (item: any): StatusOperacionalType => {
+  if (!item) return 'NA_AREA_APLICADO';
+  if (item.status_operacional) {
+    const raw = String(item.status_operacional).toUpperCase().trim();
+    if (
+      raw === 'NA_AREA_APLICADO' ||
+      raw === 'ESTOQUE_APLICACAO' ||
+      raw === 'ESTOQUE_MANUTENCAO' ||
+      raw === 'EM_MANUTENCAO_EXTERNA' ||
+      raw === 'CONDENADO_DESCARTE'
+    ) {
+      return raw as StatusOperacionalType;
+    }
+  }
+  const stEstoque = String(item.status_estoque || item.details?.status_estoque || '').toUpperCase().trim();
+  const tpMov = String(item.tipo_movimentacao || item.details?.tipo_movimentacao || '').toLowerCase().trim();
+
+  if (stEstoque === 'ESTOQUE MANUTENÇÃO' || stEstoque === 'ESTOQUE MANUTENCAO' || tpMov === 'estoque_ag_manut' || tpMov.includes('ag_manut')) {
+    return 'ESTOQUE_MANUTENCAO';
+  }
+  if (
+    (stEstoque === 'ESTOQUE APLICAÇÃO' || stEstoque === 'ESTOQUE APLICACAO' || stEstoque.includes('ESTOQUE')) &&
+    (tpMov === 'estoque_aplicacao' || tpMov.includes('aplicacao') || tpMov === 'estoque')
+  ) {
+    return 'ESTOQUE_APLICACAO';
+  }
+  if (stEstoque === 'EM MANUTENÇÃO' || stEstoque === 'EM MANUTENCAO' || tpMov === 'em_manutencao') {
+    return 'EM_MANUTENCAO_EXTERNA';
+  }
+  if (stEstoque === 'CONDENADOS' || stEstoque === 'CONDENADO' || tpMov === 'condenado') {
+    return 'CONDENADO_DESCARTE';
+  }
+  return 'NA_AREA_APLICADO';
+};
+
 export interface TipoMovimentacaoConfig {
   value: TipoMovimentacaoType;
   label: string;
@@ -108,6 +150,7 @@ export interface BaseAsset {
   location: string;
   subLocation?: string;
   status: string;
+  status_operacional?: StatusOperacionalType;
   tipo_movimentacao?: TipoMovimentacaoType | string;
   data_ultima_inspecao?: string | null;
   status_inspecao_mes?: 'INSPECIONADO' | 'NAO_INSPECIONADO' | 'PENDENTE' | string;

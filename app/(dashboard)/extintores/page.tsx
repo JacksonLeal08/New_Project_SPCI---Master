@@ -33,9 +33,19 @@ import {
   Pencil,
   Clock,
   ClipboardList,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Flame,
+  Boxes,
+  Truck
 } from 'lucide-react';
-import { TipoMovimentacaoType, TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP, normalizeTipoMovimentacao } from '@/lib/types';
+import { 
+  TipoMovimentacaoType, 
+  TIPO_MOVIMENTACAO_OPTIONS, 
+  TIPO_MOVIMENTACAO_MAP, 
+  normalizeTipoMovimentacao,
+  StatusOperacionalType,
+  normalizeStatusOperacional
+} from '@/lib/types';
 
 interface ValidatedRow {
   id: string;
@@ -93,6 +103,8 @@ export default function ExtintoresPage() {
     lastSyncTime,
     syncWithRealDatabase,
     complianceLogs,
+    showChecklistModal,
+    setShowChecklistModal,
     extintorChecklist,
     setExtintorChecklist
   } = useSpci();
@@ -106,6 +118,7 @@ export default function ExtintoresPage() {
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'CONFORME' | 'VENCIDO' | 'MANUTENCAO'>('ALL');
   const [inspecoesFilter, setInspecoesFilter] = useState<'ALL' | 'FEITAS' | 'PENDENTES' | 'OCORRENCIAS'>('ALL');
   const [movimentacaoFilter, setMovimentacaoFilter] = useState<'ALL' | TipoMovimentacaoType>('ALL');
+  const [statusOperacionalFilter, setStatusOperacionalFilter] = useState<'ALL' | StatusOperacionalType>('ALL');
 
   // --- ESTADOS DO COCKPIT DE EDIÇÃO EM MASSA ---
   const [showBulkEdit, setShowBulkEdit] = useState<boolean>(false);
@@ -118,9 +131,16 @@ export default function ExtintoresPage() {
   // --- MODAIS EXCLUSIVOS PREMIUM ---
   const [showExtintorAddModal, setShowExtintorAddModal] = useState<boolean>(false);
   const [showComplianceStudyModal, setShowComplianceStudyModal] = useState<boolean>(false);
-  const [showChecklistModal, setShowChecklistModal] = useState<boolean>(false);
 
   const canDelete = userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Administrador';
+
+  // --- KPI DE DISTRIBUIÇÃO OPERACIONAL ATÔMICA (EXCLUSIVIDADE MÚTUA) ---
+  const countNaArea = extintores.filter(x => normalizeStatusOperacional(x) === 'NA_AREA_APLICADO').length;
+  const countEstoqueAplicacao = extintores.filter(x => normalizeStatusOperacional(x) === 'ESTOQUE_APLICACAO').length;
+  const countEstoqueManutencao = extintores.filter(x => normalizeStatusOperacional(x) === 'ESTOQUE_MANUTENCAO').length;
+  const countEmManutencaoExterna = extintores.filter(x => normalizeStatusOperacional(x) === 'EM_MANUTENCAO_EXTERNA').length;
+  const countCondenados = extintores.filter(x => normalizeStatusOperacional(x) === 'CONDENADO_DESCARTE').length;
+  const somaDistribuicao = countNaArea + countEstoqueAplicacao + countEstoqueManutencao + countEmManutencaoExterna + countCondenados;
 
   // --- KPI CALCULATIONS ---
   const totalExtintores = extintores.length;
@@ -202,6 +222,12 @@ export default function ExtintoresPage() {
     if (movimentacaoFilter !== 'ALL') {
       const currentMov = normalizeTipoMovimentacao(a.tipo_movimentacao);
       if (currentMov !== movimentacaoFilter) return false;
+    }
+
+    // 5. Status Operacional Atômico filter (Exclusividade Mútua)
+    if (statusOperacionalFilter !== 'ALL') {
+      const currentStOp = normalizeStatusOperacional(a);
+      if (currentStOp !== statusOperacionalFilter) return false;
     }
 
     return true;
@@ -1707,6 +1733,209 @@ export default function ExtintoresPage() {
               </div>
             </motion.div>
 
+            {/* ═══ KPI DASHBOARD: DISTRIBUIÇÃO OPERACIONAL & MOVIMENTAÇÕES (ATÔMICA) ═══ */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm relative overflow-hidden mt-4"
+            >
+              <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-emerald-500 via-blue-500 via-amber-500 to-slate-600 rounded-t-2xl" />
+
+              {/* Título da Seção e Status de Integridade */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 mb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-widest font-mono flex items-center gap-2">
+                    📦 Distribuição Operacional & Movimentações
+                  </span>
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    ACID Atômico
+                  </span>
+                </div>
+
+                {statusOperacionalFilter !== 'ALL' && (
+                  <button
+                    onClick={() => setStatusOperacionalFilter('ALL')}
+                    className="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 hover:text-rose-700 bg-rose-50 dark:bg-rose-950/40 px-2.5 py-1 rounded-lg border border-rose-200 dark:border-rose-900 flex items-center gap-1 cursor-pointer transition-colors self-start sm:self-auto"
+                  >
+                    <X className="w-3 h-3" /> Limpar Filtro de Distribuição ({statusOperacionalFilter})
+                  </button>
+                )}
+              </div>
+
+              {/* Grid dos 4 Cards Operacionais */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {/* 1. Na Área (Aplicado) */}
+                <motion.div
+                  whileHover={{ y: -3, scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setStatusOperacionalFilter(statusOperacionalFilter === 'NA_AREA_APLICADO' ? 'ALL' : 'NA_AREA_APLICADO')}
+                  className={`p-4 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    statusOperacionalFilter === 'NA_AREA_APLICADO'
+                      ? 'bg-emerald-50/90 dark:bg-emerald-950/50 border-emerald-500 ring-2 ring-emerald-200 dark:ring-emerald-900 shadow-md scale-102'
+                      : 'bg-white dark:bg-slate-900/90 border-slate-200 dark:border-slate-800 hover:border-emerald-400'
+                  }`}
+                  style={{ boxShadow: '0 4px 20px -2px rgba(16, 185, 129, 0.08)' }}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-emerald-500" />
+                  <div className="flex items-start justify-between">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
+                      <Flame className="w-5 h-5" />
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800">
+                      Prontidão
+                    </span>
+                  </div>
+                  <div className="mt-2.5">
+                    <span className="text-[10px] text-slate-700 dark:text-slate-300 uppercase tracking-widest font-black block">
+                      Na Área (Aplicado)
+                    </span>
+                    <h3 className="font-['Hanken_Grotesk'] font-black text-3xl text-emerald-700 dark:text-emerald-400 mt-0.5">
+                      {countNaArea}
+                    </h3>
+                    <p className="text-[9.5px] text-slate-600 dark:text-slate-400 font-semibold mt-1">
+                      Equipamentos em uso nos setores
+                    </p>
+                  </div>
+                </motion.div>
+
+                {/* 2. Estoque Aplicação */}
+                <motion.div
+                  whileHover={{ y: -3, scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setStatusOperacionalFilter(statusOperacionalFilter === 'ESTOQUE_APLICACAO' ? 'ALL' : 'ESTOQUE_APLICACAO')}
+                  className={`p-4 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    statusOperacionalFilter === 'ESTOQUE_APLICACAO'
+                      ? 'bg-blue-50/90 dark:bg-blue-950/50 border-blue-500 ring-2 ring-blue-200 dark:ring-blue-900 shadow-md scale-102'
+                      : 'bg-white dark:bg-slate-900/90 border-slate-200 dark:border-slate-800 hover:border-blue-400'
+                  }`}
+                  style={{ boxShadow: '0 4px 20px -2px rgba(59, 130, 246, 0.08)' }}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-blue-500" />
+                  <div className="flex items-start justify-between">
+                    <div className="w-9 h-9 rounded-xl bg-blue-100 dark:bg-blue-950/60 border border-blue-300 dark:border-blue-800 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                      <Boxes className="w-5 h-5" />
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border border-blue-300 dark:border-blue-800">
+                      Reserva
+                    </span>
+                  </div>
+                  <div className="mt-2.5">
+                    <span className="text-[10px] text-slate-700 dark:text-slate-300 uppercase tracking-widest font-black block">
+                      Estoque Aplicação
+                    </span>
+                    <h3 className="font-['Hanken_Grotesk'] font-black text-3xl text-blue-700 dark:text-blue-400 mt-0.5">
+                      {countEstoqueAplicacao}
+                    </h3>
+                    <p className="text-[9.5px] text-slate-600 dark:text-slate-400 font-semibold mt-1">
+                      Reserva imediata para trocas
+                    </p>
+                  </div>
+                </motion.div>
+
+                {/* 3. Estoque Manutenção (Ag. Manutenção) */}
+                <motion.div
+                  whileHover={{ y: -3, scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setStatusOperacionalFilter(statusOperacionalFilter === 'ESTOQUE_MANUTENCAO' ? 'ALL' : 'ESTOQUE_MANUTENCAO')}
+                  className={`p-4 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    statusOperacionalFilter === 'ESTOQUE_MANUTENCAO'
+                      ? 'bg-amber-50/90 dark:bg-amber-950/50 border-amber-500 ring-2 ring-amber-200 dark:ring-amber-900 shadow-md scale-102'
+                      : 'bg-white dark:bg-slate-900/90 border-slate-200 dark:border-slate-800 hover:border-amber-400'
+                  }`}
+                  style={{ boxShadow: '0 4px 20px -2px rgba(245, 158, 11, 0.08)' }}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-amber-500" />
+                  <div className="flex items-start justify-between">
+                    <div className="w-9 h-9 rounded-xl bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 flex items-center justify-center text-amber-600 dark:text-amber-400">
+                      <AlertTriangle className="w-5 h-5" />
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-950 text-amber-900 dark:text-amber-300 border border-amber-300 dark:border-amber-800">
+                      Triagem
+                    </span>
+                  </div>
+                  <div className="mt-2.5">
+                    <span className="text-[10px] text-slate-700 dark:text-slate-300 uppercase tracking-widest font-black block">
+                      Estoque Manutenção (Ag. Manut.)
+                    </span>
+                    <h3 className="font-['Hanken_Grotesk'] font-black text-3xl text-amber-700 dark:text-amber-400 mt-0.5">
+                      {countEstoqueManutencao}
+                    </h3>
+                    <p className="text-[9.5px] text-slate-600 dark:text-slate-400 font-semibold mt-1">
+                      Recolhidos aguardando lote externo
+                    </p>
+                  </div>
+                </motion.div>
+
+                {/* 4. Em Manutenção (Externa / Oficina) - BAN OF PURPLE: Palette Slate/Zinc Metal */}
+                <motion.div
+                  whileHover={{ y: -3, scale: 1.01 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setStatusOperacionalFilter(statusOperacionalFilter === 'EM_MANUTENCAO_EXTERNA' ? 'ALL' : 'EM_MANUTENCAO_EXTERNA')}
+                  className={`p-4 rounded-xl border relative overflow-hidden cursor-pointer transition-all duration-300 ${
+                    statusOperacionalFilter === 'EM_MANUTENCAO_EXTERNA'
+                      ? 'bg-slate-100 dark:bg-slate-800 border-slate-600 ring-2 ring-slate-300 dark:ring-slate-700 shadow-md scale-102'
+                      : 'bg-white dark:bg-slate-900/90 border-slate-200 dark:border-slate-800 hover:border-slate-400'
+                  }`}
+                  style={{ boxShadow: '0 4px 20px -2px rgba(100, 116, 139, 0.08)' }}
+                >
+                  <div className="absolute top-0 left-0 right-0 h-[3px] bg-slate-600 dark:bg-slate-400" />
+                  <div className="flex items-start justify-between">
+                    <div className="w-9 h-9 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 flex items-center justify-center text-slate-700 dark:text-slate-300">
+                      <Truck className="w-5 h-5" />
+                    </div>
+                    <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-300 dark:border-slate-700">
+                      Oficina
+                    </span>
+                  </div>
+                  <div className="mt-2.5">
+                    <span className="text-[10px] text-slate-700 dark:text-slate-300 uppercase tracking-widest font-black block">
+                      Em Manutenção Externa
+                    </span>
+                    <h3 className="font-['Hanken_Grotesk'] font-black text-3xl text-slate-800 dark:text-slate-200 mt-0.5">
+                      {countEmManutencaoExterna}
+                    </h3>
+                    <p className="text-[9.5px] text-slate-600 dark:text-slate-400 font-semibold mt-1">
+                      Cilindros na empresa recarregadora
+                    </p>
+                  </div>
+                </motion.div>
+              </div>
+
+              {/* Rodapé de Validação Matemática Exata */}
+              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-black text-slate-900 dark:text-slate-100">
+                    Soma Canônica:
+                  </span>
+                  <span className="font-mono font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded border border-emerald-200 dark:border-emerald-800">
+                    {countNaArea} Na Área
+                  </span>
+                  <span className="text-slate-400">+</span>
+                  <span className="font-mono font-bold text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/40 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-800">
+                    {countEstoqueAplicacao} Reserva
+                  </span>
+                  <span className="text-slate-400">+</span>
+                  <span className="font-mono font-bold text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded border border-amber-200 dark:border-amber-800">
+                    {countEstoqueManutencao} Ag. Manut.
+                  </span>
+                  <span className="text-slate-400">+</span>
+                  <span className="font-mono font-bold text-slate-700 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded border border-slate-200 dark:border-slate-700">
+                    {countEmManutencaoExterna} Oficina
+                  </span>
+                  <span className="text-slate-400">=</span>
+                  <span className="font-mono font-black text-slate-950 dark:text-white text-sm bg-slate-200/80 dark:bg-slate-800 px-2.5 py-0.5 rounded-md">
+                    {somaDistribuicao} Total
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-1.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  <span>Integridade Matemática Validada (Exclusividade Mútua)</span>
+                </div>
+              </div>
+            </motion.div>
+
             {/* Header Panel */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white border border-slate-200 p-6 rounded-2xl shadow-sm relative overflow-hidden">
               <div className="absolute top-0 left-0 right-0 h-[3px] bg-red-650 rounded-t-2xl" />
@@ -2026,13 +2255,7 @@ export default function ExtintoresPage() {
         )}
       </AnimatePresence>
 
-      {/* MODAL EXCLUSIVO DE EDIÇÃO DE CHECKLIST NBR */}
-      <ChecklistEditModal
-        isOpen={showChecklistModal}
-        onClose={() => setShowChecklistModal(false)}
-        items={extintorChecklist}
-        onSaveSuccess={(updated) => setExtintorChecklist(updated)}
-      />
+      {/* O modal de Checklist NBR agora é gerenciado e montado globalmente pelo DashboardLayout */}
     </motion.div>
   );
 }

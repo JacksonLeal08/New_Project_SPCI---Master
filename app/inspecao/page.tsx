@@ -261,15 +261,15 @@ export default function PortalTecnicoPage() {
     setIsHistoryModalOpen(true);
   };
 
-  // Definições de Estilos do Tema Claro/Escuro
+  // Definições de Estilos do Tema Claro/Escuro (Alto Contraste WCAG AA)
   const isDark = theme === 'dark';
-  const bgClass = isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-900';
-  const cardClass = isDark ? 'bg-slate-900/60 border-slate-850 hover:border-slate-800' : 'bg-white border-slate-200 hover:border-slate-300 shadow-sm';
-  const textMutedClass = isDark ? 'text-slate-400' : 'text-slate-500';
-  const labelMutedClass = isDark ? 'text-slate-500' : 'text-slate-400';
-  const borderBottomClass = isDark ? 'border-slate-900' : 'border-slate-100';
-  const searchBgClass = isDark ? 'bg-slate-900 border-slate-850 text-slate-100' : 'bg-white border-slate-200 text-slate-900 shadow-sm';
-  const buttonSecondaryClass = isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-850 text-slate-350' : 'bg-white hover:bg-slate-100 border-slate-200 text-slate-700 shadow-sm';
+  const bgClass = isDark ? 'bg-slate-950 text-slate-100' : 'bg-slate-50 text-slate-950';
+  const cardClass = isDark ? 'bg-slate-900/60 border-slate-850 hover:border-slate-800' : 'bg-white border-slate-300 hover:border-slate-400 shadow-sm';
+  const textMutedClass = isDark ? 'text-slate-400' : 'text-slate-700 font-semibold';
+  const labelMutedClass = isDark ? 'text-slate-400' : 'text-slate-700 font-semibold';
+  const borderBottomClass = isDark ? 'border-slate-800' : 'border-slate-300';
+  const searchBgClass = isDark ? 'bg-slate-900 border-slate-850 text-slate-100' : 'bg-white border-slate-300 hover:border-slate-400 focus:border-red-600 text-slate-950 font-medium shadow-sm';
+  const buttonSecondaryClass = isDark ? 'bg-slate-900 hover:bg-slate-850 border-slate-850 text-slate-350' : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-900 font-bold shadow-sm';
 
   if (!mounted) {
     return (
@@ -311,11 +311,13 @@ export default function PortalTecnicoPage() {
         />
 
         <div className="relative z-10 max-w-lg mx-auto px-4 py-3 sm:py-3.5 flex items-center justify-between gap-2">
-          {/* Título / Marca Institucional */}
+          {/* Título / Marca Institucional com Logo Transparente e Sem Bordas */}
           <div className="flex items-center gap-2.5 select-none min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-white text-red-700 font-sans font-black tracking-tighter text-xs flex items-center justify-center shadow-sm shrink-0">
-              SPCI
-            </div>
+            <img 
+              src="/logo-omg-clean.png" 
+              alt="Grupo OMG SPCI Master" 
+              className="max-h-9 w-auto object-contain shrink-0 bg-transparent border-0 ring-0 shadow-none filter drop-shadow-sm" 
+            />
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
                 <h1 className="text-xs sm:text-sm font-black uppercase tracking-widest font-sans truncate text-white">
@@ -657,12 +659,12 @@ export default function PortalTecnicoPage() {
                         <div className="flex justify-between items-start">
                           <div>
                             <span className={`text-[8.5px] px-2 py-0.5 rounded font-mono font-bold uppercase select-none tracking-wider ${
-                              isDark ? 'bg-slate-800 text-slate-450' : 'bg-slate-100 text-slate-550'
+                              isDark ? 'bg-slate-800 text-slate-300' : 'bg-slate-100 text-slate-900 border border-slate-300 font-extrabold'
                             }`}>
                               Patrimônio: {asset.idAtivo || asset.id_ativo || asset.numero_patrimonio || 'N/A'}
                             </span>
-                            <h4 className={`text-sm font-extrabold mt-1.5 uppercase leading-tight font-sans ${
-                              isDark ? 'text-slate-100' : 'text-slate-800'
+                            <h4 className={`text-sm font-black mt-1.5 uppercase leading-tight font-sans ${
+                              isDark ? 'text-slate-100' : 'text-slate-950'
                             }`}>
                               {asset.model || 'PQS ABC - 8KG'}
                             </h4>
@@ -670,31 +672,31 @@ export default function PortalTecnicoPage() {
                           
                           <span className={`inline-block px-2.5 py-1 text-[8.5px] font-extrabold uppercase border rounded-md select-none ${
                             isAlreadyInspecionado 
-                              ? 'text-emerald-455 border-emerald-900 bg-emerald-950/20' 
-                              : 'text-red-455 border-red-900 bg-red-950/20'
+                              ? 'text-emerald-500 dark:text-emerald-455 border-emerald-500/50 bg-emerald-500/10 dark:bg-emerald-950/20' 
+                              : 'text-red-500 dark:text-red-455 border-red-500/50 bg-red-500/10 dark:bg-red-950/20'
                           }`}>
                             {asset.status || (isAlreadyInspecionado ? 'Conforme' : 'Pendente')}
                           </span>
                         </div>
 
-                        {/* Detalhes do Equipamento */}
+                        {/* Detalhes do Equipamento com Alto Contraste */}
                         <div className={`grid grid-cols-2 gap-y-2 text-[10px] border-t pt-3.5 font-sans ${
-                          isDark ? 'border-slate-850 text-slate-450' : 'border-slate-100 text-slate-600'
+                          isDark ? 'border-slate-800 text-slate-300' : 'border-slate-200 text-slate-800 font-medium'
                         }`}>
                           <p className="col-span-2">
-                            <strong className={isDark ? 'text-slate-500' : 'text-slate-400'}>📍 Setor / Sub-Local:</strong> {asset.location} {asset.subLocation ? ` - ${asset.subLocation}` : ''}
+                            <strong className={isDark ? 'text-slate-400 font-bold' : 'text-slate-700 font-bold'}>📍 Setor / Sub-Local:</strong> {asset.location} {asset.subLocation ? ` - ${asset.subLocation}` : ''}
                           </p>
                           <p>
-                            <strong className={isDark ? 'text-slate-500' : 'text-slate-400'}>🔍 Selo:</strong> {asset.seloInmetro || 'NBR'}
+                            <strong className={isDark ? 'text-slate-400 font-bold' : 'text-slate-700 font-bold'}>🔍 Selo:</strong> {asset.seloInmetro || 'NBR'}
                           </p>
                           <p>
-                            <strong className={isDark ? 'text-slate-500' : 'text-slate-400'}>📌 Chassi:</strong> {asset.chassi || 'N/A'}
+                            <strong className={isDark ? 'text-slate-400 font-bold' : 'text-slate-700 font-bold'}>📌 Chassi:</strong> {asset.chassi || 'N/A'}
                           </p>
 
                           {/* STATUS DO CICLO MENSAL REFINADO */}
                           <div className="col-span-2 flex flex-col gap-1 mt-1 font-mono text-[9px]">
                             <div className="flex items-center gap-1.5">
-                              <strong className={isDark ? 'text-slate-500' : 'text-slate-400'}>VISTORIA MÊS ATUAL:</strong>
+                              <strong className={isDark ? 'text-slate-400 font-bold' : 'text-slate-700 font-bold'}>VISTORIA MÊS ATUAL:</strong>
                               <span className={`font-black px-2 py-0.5 rounded text-[8.5px] uppercase tracking-wide flex items-center gap-1 border ${
                                 isAlreadyInspecionado 
                                   ? 'text-emerald-400 bg-emerald-950/40 border-emerald-800/60 shadow-xs' 

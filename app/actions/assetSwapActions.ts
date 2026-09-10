@@ -251,35 +251,53 @@ export async function processAssetSwapAction(
     updatedSubstitutoDetails.location = setorFinal;
     updatedSubstitutoDetails.sub_location = subLocalFinal;
 
-    // Atualiza ativo retirado na tabela assets
-    await supabase
+    // Atualiza ativo retirado na tabela assets (desvinculando coordenadas de área)
+    const updateRetiradoPayload: any = {
+      status_operacional: 'ESTOQUE_MANUTENCAO',
+      status_estoque: 'ESTOQUE MANUTENÇÃO',
+      tipo_movimentacao: 'estoque_ag_manut',
+      status: 'Em Manutenção',
+      location: 'ALMOXARIFADO / ESTOQUE',
+      sub_location: 'AGUARDANDO MANUTENÇÃO',
+      latitude: null,
+      longitude: null,
+      details: updatedRetiradoDetails,
+      updated_at: nowIso,
+    };
+
+    let { error: errUpdRetirado } = await supabase
       .from('assets')
-      .update({
-        status_estoque: 'ESTOQUE MANUTENÇÃO',
-        tipo_movimentacao: 'estoque_ag_manut',
-        status: 'Em Manutenção',
-        location: 'ALMOXARIFADO / ESTOQUE',
-        sub_location: 'AGUARDANDO MANUTENÇÃO',
-        details: updatedRetiradoDetails,
-        updated_at: nowIso,
-      })
+      .update(updateRetiradoPayload)
       .eq('id', retirado.id);
 
-    // Atualiza ativo substituto na tabela assets (status_estoque é null no enum de estoque pois está em uso na área)
-    await supabase
+    if (errUpdRetirado && (errUpdRetirado.message?.includes('status_operacional') || errUpdRetirado.code === '42703')) {
+      delete updateRetiradoPayload.status_operacional;
+      await supabase.from('assets').update(updateRetiradoPayload).eq('id', retirado.id);
+    }
+
+    // Atualiza ativo substituto na tabela assets (instalado na área)
+    const updateSubstitutoPayload: any = {
+      status_operacional: 'NA_AREA_APLICADO',
+      status_estoque: null,
+      tipo_movimentacao: 'na_area_aplicado',
+      status: 'Conforme',
+      location: setorFinal,
+      sub_location: subLocalFinal,
+      latitude: latFinal,
+      longitude: lngFinal,
+      details: updatedSubstitutoDetails,
+      updated_at: nowIso,
+    };
+
+    let { error: errUpdSubstituto } = await supabase
       .from('assets')
-      .update({
-        status_estoque: null,
-        tipo_movimentacao: 'na_area_aplicado',
-        status: 'Conforme',
-        location: setorFinal,
-        sub_location: subLocalFinal,
-        latitude: latFinal,
-        longitude: lngFinal,
-        details: updatedSubstitutoDetails,
-        updated_at: nowIso,
-      })
+      .update(updateSubstitutoPayload)
       .eq('id', substituto.id);
+
+    if (errUpdSubstituto && (errUpdSubstituto.message?.includes('status_operacional') || errUpdSubstituto.code === '42703')) {
+      delete updateSubstitutoPayload.status_operacional;
+      await supabase.from('assets').update(updateSubstitutoPayload).eq('id', substituto.id);
+    }
 
     // 4.1 ATUALIZAÇÃO SIMULTÂNEA NA TABELA RELACIONAL ativos_extintores (Alimenta vw_extintores_publico)
     try {
