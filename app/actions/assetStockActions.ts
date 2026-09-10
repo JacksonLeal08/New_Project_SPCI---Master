@@ -80,7 +80,7 @@ const mapStatusEstoqueToTipoMovimentacao = (status: string | undefined): string 
   return 'estoque_aplicacao';
 };
 
-export const mapStatusEstoqueToStatusOperacional = (status: string | undefined): string => {
+const mapStatusEstoqueToStatusOperacional = (status: string | undefined): string => {
   if (!status) return 'ESTOQUE_APLICACAO';
   const clean = String(status).toUpperCase();
   if (clean.includes('MANUTENÇÃO') || clean.includes('MANUTENCAO') || clean.includes('AG. MANUT') || clean.includes('AG_MANUT')) return 'ESTOQUE_MANUTENCAO';
