@@ -1542,14 +1542,18 @@ export async function fetchRecentInspecoes(): Promise<InspecaoRealizada[]> {
  */
 export async function fetchAllInspecoes(options?: { site?: string; search?: string; limit?: number }): Promise<InspecaoRealizada[]> {
   try {
+    const siteFilter = options?.site && options.site !== 'TODOS' && options.site !== 'TODOS OS SITES (Acesso Global)' ? options.site.trim().toUpperCase() : null;
+
     let query = supabase
       .from('inspecoes_realizadas')
       .select('*')
       .order('data_inspecao', { ascending: false })
-      .limit(options?.limit || 300);
+      .limit(options?.limit || 350);
 
-    if (options?.site && options.site !== 'TODOS' && options.site !== 'TODOS OS SITES (Acesso Global)') {
-      query = query.eq('site', options.site);
+    if (siteFilter) {
+      try {
+        query = query.or(`site.ilike.%${siteFilter}%,details->>site.ilike.%${siteFilter}%`);
+      } catch (e) {}
     }
 
     if (options?.search && options.search.trim()) {
@@ -1557,10 +1561,18 @@ export async function fetchAllInspecoes(options?: { site?: string; search?: stri
       query = query.or(`asset_patrimonio.ilike.%${s}%,tecnico_nome.ilike.%${s}%,observacoes.ilike.%${s}%`);
     }
 
-    const { data, error } = await query;
-    if (error) throw error;
+    let { data, error } = await query;
+    if (error) {
+      // Fallback sem o filtro OR de coluna caso a coluna site ainda não tenha sido adicionada
+      const fallbackRes = await supabase
+        .from('inspecoes_realizadas')
+        .select('*')
+        .order('data_inspecao', { ascending: false })
+        .limit(options?.limit || 350);
+      data = fallbackRes.data;
+    }
 
-    return (data || []).map((row: any) => ({
+    let list = (data || []).map((row: any) => ({
       id: row.id,
       asset_id: row.asset_id,
       asset_patrimonio: row.asset_patrimonio,
@@ -1577,6 +1589,43 @@ export async function fetchAllInspecoes(options?: { site?: string; search?: stri
       details: row.details || {},
       created_at: row.created_at
     }));
+
+    // DEFESA EM PROFUNDIDADE: Se foi solicitado um site específico (ex: SALOBO)
+    if (siteFilter) {
+      const patrimonios = Array.from(new Set(list.map((i: any) => i.asset_patrimonio).filter(Boolean)));
+      if (patrimonios.length > 0) {
+        const { data: assetsData } = await supabase
+          .from('assets')
+          .select('id, id_ativo, patrimonio, location, sub_location, details')
+          .in('id_ativo', patrimonios);
+
+        const assetMap = new Map<string, string>();
+        (assetsData || []).forEach((a: any) => {
+          const s = String(a.site || a.details?.site || a.details?.contrato || a.location || '').toUpperCase();
+          if (a.id_ativo) assetMap.set(a.id_ativo, s);
+          if (a.patrimonio) assetMap.set(a.patrimonio, s);
+        });
+
+        list = list.filter((item: any) => {
+          const directSite = String(item.site || item.details?.site || '').toUpperCase();
+          if (directSite) {
+            return directSite.includes(siteFilter);
+          }
+          const assetContract = assetMap.get(item.asset_patrimonio) || '';
+          if (assetContract) {
+            return assetContract.includes(siteFilter);
+          }
+          return false; // Não pertence ao contrato ativo
+        });
+      } else {
+        list = list.filter((item: any) => {
+          const directSite = String(item.site || item.details?.site || '').toUpperCase();
+          return directSite.includes(siteFilter);
+        });
+      }
+    }
+
+    return list;
   } catch (error: any) {
     console.error('Erro ao buscar todas as inspeções:', error);
     return [];

@@ -191,6 +191,17 @@ interface SpciContextType {
     cancelText?: string;
     onConfirm: () => void;
   }) => void;
+
+  // Multi-Tenant Isolation & Contrato Ativo
+  activeSite: string;
+  setActiveSite: (site: string) => void;
+  isGlobalScope: boolean;
+  filteredExtintores: any[];
+  filteredHidrantes: any[];
+  filteredSinalizacoes: any[];
+  filteredIluminacoes: any[];
+  filteredBombas: any[];
+  filteredComplianceLogs: any[];
 }
 
 const generateUUID = () => {
@@ -297,50 +308,91 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
 
+  // Estado de Contrato / Site Ativo para Isolamento Multi-Tenant
+  const [activeSite, setActiveSiteState] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('spci_active_contract');
+      if (saved) return saved;
+    }
+    return 'TODOS OS SITES (Acesso Global)';
+  });
+
+  // Determina se o usuário possui permissão global
+  const isGlobalScope = !userProfile?.site || userProfile.site.startsWith('TODOS') || userProfile.role === 'Desenvolvedor';
+
+  // Sincroniza activeSite com o contrato do usuário quando o perfil carrega
+  useEffect(() => {
+    if (userProfile?.site) {
+      if (!isGlobalScope) {
+        // Usuário restrito: força estritamente o contrato fixo dele
+        setActiveSiteState(userProfile.site);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('spci_active_contract', userProfile.site);
+        }
+      } else {
+        const saved = typeof window !== 'undefined' ? localStorage.getItem('spci_active_contract') : null;
+        if (!saved) {
+          setActiveSiteState(userProfile.site);
+        }
+      }
+    }
+  }, [userProfile?.site, isGlobalScope]);
+
+  const setActiveSite = useCallback((newSite: string) => {
+    setActiveSiteState(newSite);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('spci_active_contract', newSite);
+    }
+  }, []);
+
   // Helper de correspondência de Site / Planta para isolamento de dados por colaborador
   const matchesUserSite = useCallback((item: any, site: string | null | undefined) => {
-    if (!site || site.startsWith('TODOS') || userProfile?.role === 'Desenvolvedor') {
+    if (!site || site.startsWith('TODOS')) {
       return true;
     }
     const siteUpper = site.trim().toUpperCase();
-    const loc = (item.location || item.local || item.local_instalacao || '').toUpperCase();
-    const subLoc = (item.subLocation || item.sub_location || '').toUpperCase();
+    const loc = (item.location || item.local || item.local_instalacao || item.setor || '').toUpperCase();
+    const subLoc = (item.subLocation || item.sub_location || item.sub_local || '').toUpperCase();
     const proj = (item.projeto || item.details?.projeto || '').toUpperCase();
-    const itemSite = (item.site || item.details?.site || '').toUpperCase();
+    const itemSite = (item.site || item.details?.site || item.details?.contrato || '').toUpperCase();
     const area = (item.area || item.details?.area || '').toUpperCase();
+
+    // Prioridade máxima para a coluna ou campo explícito de site
+    if (itemSite) {
+      return itemSite.includes(siteUpper);
+    }
 
     return (
       loc.includes(siteUpper) ||
       subLoc.includes(siteUpper) ||
       proj.includes(siteUpper) ||
-      itemSite.includes(siteUpper) ||
       area.includes(siteUpper)
     );
-  }, [userProfile?.role]);
+  }, []);
 
-  // Listas filtradas reativas de acordo com o escopo do usuário ativo
+  // Listas filtradas reativas de acordo com o escopo do contrato ativo
   const filteredExtintores = useMemo(() => {
-    return extintores.filter(x => matchesUserSite(x, userProfile?.site));
-  }, [extintores, userProfile?.site, matchesUserSite]);
+    return extintores.filter(x => matchesUserSite(x, activeSite));
+  }, [extintores, activeSite, matchesUserSite]);
 
   const filteredHidrantes = useMemo(() => {
-    return hidrantes.filter(x => matchesUserSite(x, userProfile?.site));
-  }, [hidrantes, userProfile?.site, matchesUserSite]);
+    return hidrantes.filter(x => matchesUserSite(x, activeSite));
+  }, [hidrantes, activeSite, matchesUserSite]);
 
   const filteredSinalizacoes = useMemo(() => {
-    return sinalizacoes.filter(x => matchesUserSite(x, userProfile?.site));
-  }, [sinalizacoes, userProfile?.site, matchesUserSite]);
+    return sinalizacoes.filter(x => matchesUserSite(x, activeSite));
+  }, [sinalizacoes, activeSite, matchesUserSite]);
 
   const filteredIluminacoes = useMemo(() => {
-    return iluminacoes.filter(x => matchesUserSite(x, userProfile?.site));
-  }, [iluminacoes, userProfile?.site, matchesUserSite]);
+    return iluminacoes.filter(x => matchesUserSite(x, activeSite));
+  }, [iluminacoes, activeSite, matchesUserSite]);
 
   const filteredBombas = useMemo(() => {
-    return bombas.filter(x => matchesUserSite(x, userProfile?.site));
-  }, [bombas, userProfile?.site, matchesUserSite]);
+    return bombas.filter(x => matchesUserSite(x, activeSite));
+  }, [bombas, activeSite, matchesUserSite]);
 
   const filteredComplianceLogs = useMemo(() => {
-    if (!userProfile?.site || userProfile.site.startsWith('TODOS') || userProfile.role === 'Desenvolvedor') {
+    if (!activeSite || activeSite.startsWith('TODOS')) {
       return complianceLogs;
     }
     const validAssetIds = new Set([
@@ -350,8 +402,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ...filteredIluminacoes.map((x: any) => x.idAtivo || x.id),
       ...filteredBombas.map((x: any) => x.code || x.idAtivo || x.id)
     ]);
-    return complianceLogs.filter((log: any) => validAssetIds.has(log.assetId) || matchesUserSite(log, userProfile.site));
-  }, [complianceLogs, userProfile?.site, userProfile?.role, filteredExtintores, filteredHidrantes, filteredSinalizacoes, filteredIluminacoes, filteredBombas, matchesUserSite]);
+    return complianceLogs.filter((log: any) => validAssetIds.has(log.assetId) || matchesUserSite(log, activeSite));
+  }, [complianceLogs, activeSite, filteredExtintores, filteredHidrantes, filteredSinalizacoes, filteredIluminacoes, filteredBombas, matchesUserSite]);
 
   // Notificações
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
@@ -1783,7 +1835,16 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       auditLogs,
       logSystemAction,
       showAlertModal,
-      showConfirmModal
+      showConfirmModal,
+      activeSite,
+      setActiveSite,
+      isGlobalScope,
+      filteredExtintores,
+      filteredHidrantes,
+      filteredSinalizacoes,
+      filteredIluminacoes,
+      filteredBombas,
+      filteredComplianceLogs
     }}>
       {children}
       <CustomAlertDialog

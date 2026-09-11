@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, Suspense } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   History,
@@ -40,7 +40,7 @@ function HistoricoInspecoesContent() {
   const searchParams = useSearchParams();
   const paramAtivo = searchParams?.get('ativo') || '';
 
-  const { userProfile, extintores } = useSpci();
+  const { userProfile, extintores, activeSite, isGlobalScope } = useSpci();
 
   // Estados de dados
   const [inspecoes, setInspecoes] = useState<InspecaoRealizada[]>([]);
@@ -50,7 +50,20 @@ function HistoricoInspecoesContent() {
   // Filtros
   const [searchTerm, setSearchTerm] = useState<string>(paramAtivo);
   const [statusFilter, setStatusFilter] = useState<'TODOS' | 'Conforme' | 'Não Conforme' | 'Cancelada'>('TODOS');
-  const [selectedSite, setSelectedSite] = useState<string>('TODOS');
+
+  // Contrato Efetivo
+  const effectiveSite = useMemo(() => {
+    if (!isGlobalScope && userProfile?.site) {
+      return userProfile.site;
+    }
+    return activeSite || 'TODOS OS SITES (Acesso Global)';
+  }, [isGlobalScope, userProfile?.site, activeSite]);
+
+  const [selectedSite, setSelectedSite] = useState<string>(effectiveSite);
+
+  useEffect(() => {
+    setSelectedSite(effectiveSite);
+  }, [effectiveSite]);
 
   // Modais de Ação
   const [editModalItem, setEditModalItem] = useState<InspecaoRealizada | null>(null);
@@ -68,15 +81,19 @@ function HistoricoInspecoesContent() {
     tecnico_nome: userProfile?.name || 'Técnico SPCI',
     data_inspecao: new Date().toISOString().slice(0, 16),
     observacoes: '',
-    site: 'SALOBO'
+    site: userProfile?.site || 'SALOBO'
   });
   const [savingManual, setSavingManual] = useState<boolean>(false);
 
-  // Carregar inspeções
-  const loadData = async () => {
+  // Carregar inspeções escopadas ao contrato
+  const loadData = useCallback(async () => {
     try {
       setRefreshing(true);
-      const data = await fetchAllInspecoes({ limit: 350 });
+      const querySite = !isGlobalScope ? (userProfile?.site || 'SALOBO') : selectedSite;
+      const data = await fetchAllInspecoes({ 
+        limit: 350,
+        site: querySite
+      });
       setInspecoes(data);
     } catch (err) {
       console.error('Erro ao carregar histórico de inspeções:', err);
@@ -84,18 +101,22 @@ function HistoricoInspecoesContent() {
       setLoading(false);
       setRefreshing(false);
     }
-  };
+  }, [isGlobalScope, userProfile?.site, selectedSite]);
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [loadData]);
 
   // Sincronizar nome do técnico se perfil carregar depois
   useEffect(() => {
     if (userProfile?.name && manualForm.tecnico_nome === 'Técnico SPCI') {
-      setManualForm((prev) => ({ ...prev, tecnico_nome: userProfile.name }));
+      setManualForm((prev) => ({ 
+        ...prev, 
+        tecnico_nome: userProfile.name,
+        site: userProfile.site || prev.site 
+      }));
     }
-  }, [userProfile?.name]);
+  }, [userProfile?.name, userProfile?.site]);
 
   // Se paramAtivo mudar na URL
   useEffect(() => {
@@ -125,9 +146,12 @@ function HistoricoInspecoesContent() {
         }
       }
 
-      // Filtro Site
-      if (selectedSite !== 'TODOS' && selectedSite !== 'TODOS OS SITES (Acesso Global)') {
-        if (item.site && item.site !== selectedSite) return false;
+      // Filtro Site / Contrato
+      const targetSite = !isGlobalScope ? (userProfile?.site || 'SALOBO') : selectedSite;
+      if (targetSite && !targetSite.startsWith('TODOS')) {
+        const sTarget = targetSite.toUpperCase();
+        const itemSite = String(item.site || item.details?.site || '').toUpperCase();
+        if (itemSite && !itemSite.includes(sTarget)) return false;
       }
 
       // Filtro Busca
@@ -144,15 +168,15 @@ function HistoricoInspecoesContent() {
 
       return true;
     });
-  }, [inspecoes, statusFilter, selectedSite, searchTerm]);
+  }, [inspecoes, statusFilter, isGlobalScope, userProfile?.site, selectedSite, searchTerm]);
 
-  // Contadores para os KPIs do topo
+  // Contadores para os KPIs do topo baseados estritamente na lista filtrada do contrato
   const kpis = useMemo(() => {
     let conf = 0;
     let naoConf = 0;
     let canc = 0;
 
-    inspecoes.forEach((i) => {
+    filteredList.forEach((i) => {
       const s = (i.status || '').toLowerCase();
       if (s.includes('cancel')) canc++;
       else if (s.includes('não') || s.includes('nao')) naoConf++;
@@ -160,12 +184,12 @@ function HistoricoInspecoesContent() {
     });
 
     return {
-      total: inspecoes.length,
+      total: filteredList.length,
       conforme: conf,
       naoConforme: naoConf,
       canceladas: canc
     };
-  }, [inspecoes]);
+  }, [filteredList]);
 
   // Handler: Salvar Edição de Notas
   const handleSaveNotes = async () => {
@@ -405,14 +429,23 @@ function HistoricoInspecoesContent() {
 
           {/* Filtro por Contrato/Site */}
           <div className="flex items-center gap-2">
-            <select
-              value={selectedSite}
-              onChange={(e) => setSelectedSite(e.target.value)}
-              className="py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-600"
-            >
-              <option value="TODOS">Todos os Contratos / Sites</option>
-              <option value="SALOBO">Contrato: SALOBO</option>
-            </select>
+            {!isGlobalScope ? (
+              <div className="py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-slate-100 text-xs font-bold flex items-center gap-1.5 shadow-xs">
+                <span className="text-[10px] text-slate-400 font-extrabold uppercase">Contrato:</span>
+                <span className="text-red-600 font-black">{effectiveSite}</span>
+              </div>
+            ) : (
+              <select
+                value={selectedSite}
+                onChange={(e) => setSelectedSite(e.target.value)}
+                className="py-2.5 px-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-red-600 cursor-pointer"
+                aria-label="Filtro de Contratos"
+              >
+                <option value="TODOS">Todos os Contratos / Sites</option>
+                <option value="SALOBO">Contrato: SALOBO</option>
+                <option value="ONÇA PUMA">Contrato: ONÇA PUMA</option>
+              </select>
+            )}
           </div>
         </div>
 
@@ -470,10 +503,12 @@ function HistoricoInspecoesContent() {
               <Search className="w-6 h-6" />
             </div>
             <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-              Nenhuma vistoria encontrada
+              Nenhuma vistoria registrada para este contrato
             </h4>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-sm mx-auto">
-              Tente alterar os termos de busca, limpar os filtros ou cadastre uma nova vistoria manual.
+              {effectiveSite && !effectiveSite.startsWith('TODOS')
+                ? `O contrato [${effectiveSite}] não possui vistorias computadas até o momento.`
+                : 'Tente alterar os termos de busca, limpar os filtros ou cadastre uma nova vistoria manual.'}
             </p>
           </div>
         ) : (

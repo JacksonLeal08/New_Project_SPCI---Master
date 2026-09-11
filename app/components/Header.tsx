@@ -11,7 +11,8 @@ import {
   Plus, 
   ClipboardCheck,
   X,
-  Boxes
+  Boxes,
+  Building2
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationItem } from '@/lib/types';
@@ -32,7 +33,10 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick, onGestaoAtivo
     markNotificationAsRead,
     markAllNotificationsAsRead,
     deleteNotification,
-    clearAllNotifications
+    clearAllNotifications,
+    activeSite,
+    setActiveSite,
+    isGlobalScope
   } = useSpci();
 
   const [showNotifs, setShowNotifs] = useState(false);
@@ -61,6 +65,30 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick, onGestaoAtivo
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Indicador / Seletor de Contrato Ativo */}
+        {!isGlobalScope ? (
+          <div className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 shadow-xs">
+            <Building2 className="w-3.5 h-3.5 text-red-600 shrink-0" />
+            <span className="text-[10px] uppercase text-slate-500 font-extrabold tracking-wider">Contrato:</span>
+            <span className="text-red-700 font-black tracking-wide">{userProfile?.site || activeSite}</span>
+          </div>
+        ) : (
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-xl shadow-xs">
+            <Building2 className="w-3.5 h-3.5 text-red-600 shrink-0" />
+            <span className="text-[9px] uppercase text-slate-500 font-extrabold tracking-wider hidden md:inline">Contrato:</span>
+            <select
+              value={activeSite}
+              onChange={(e) => setActiveSite(e.target.value)}
+              className="bg-transparent border-none text-xs font-bold text-slate-800 focus:outline-none cursor-pointer py-1 pr-1"
+              aria-label="Selecionar Contrato Ativo"
+            >
+              <option value="TODOS OS SITES (Acesso Global)" className="text-slate-800 bg-white">TODOS OS SITES (Acesso Global)</option>
+              <option value="SALOBO" className="text-slate-800 bg-white">SALOBO</option>
+              <option value="ONÇA PUMA" className="text-slate-800 bg-white">ONÇA PUMA</option>
+            </select>
+          </div>
+        )}
+
         {/* Alternador de Tema Claro/Escuro (Estilo Telegram) */}
         <ThemeToggle />
 

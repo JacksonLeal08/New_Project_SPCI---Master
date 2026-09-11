@@ -40,7 +40,7 @@ import { useSpci } from '@/app/context/SpciContext';
 
 export default function RetornoManutencaoPage() {
   const router = useRouter();
-  const { currentUser, userProfile, triggerSuccessNotification } = useSpci();
+  const { currentUser, userProfile, triggerSuccessNotification, activeSite, isGlobalScope } = useSpci();
 
   const loggedUserName =
     userProfile?.name ||
@@ -48,6 +48,9 @@ export default function RetornoManutencaoPage() {
     (currentUser?.email ? currentUser.email.split('@')[0] : '') ||
     'Inspetor SPCI';
   const loggedUserEmail = userProfile?.email || currentUser?.email || undefined;
+
+  // Determinar o contrato ativo para isolamento de dados
+  const effectiveSite = (!isGlobalScope && userProfile?.site) ? userProfile.site : (activeSite || 'TODOS');
 
   const [activeMainTab, setActiveMainTab] = useState<'LOTES' | 'ARQUIVO_LAUDOS'>('LOTES');
   const [lotes, setLotes] = useState<LoteManutencaoRecord[]>([]);
@@ -67,27 +70,30 @@ export default function RetornoManutencaoPage() {
   // Modal de Conferência
   const [selectedLoteForTriage, setSelectedLoteForTriage] = useState<string | null>(null);
 
-  // Busca de lotes e KPIs
+  // Busca de lotes e KPIs com barreira de contrato
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [batchesRes, kpisRes] = await Promise.all([
-        getMaintenanceBatchesAction(statusFilter),
-        getMaintenanceKpisAction()
+        getMaintenanceBatchesAction(statusFilter, effectiveSite),
+        getMaintenanceKpisAction(effectiveSite)
       ]);
 
       if (batchesRes.success && batchesRes.lotes) {
         setLotes(batchesRes.lotes);
+      } else {
+        setLotes([]);
       }
       if (kpisRes.success && kpisRes.kpis) {
         setKpis(kpisRes.kpis);
       }
     } catch (err) {
       console.error('Erro ao buscar dados de manutenção:', err);
+      setLotes([]);
     } finally {
       setLoading(false);
     }
-  }, [statusFilter]);
+  }, [statusFilter, effectiveSite]);
 
   useEffect(() => {
     fetchData();
@@ -164,6 +170,11 @@ export default function RetornoManutencaoPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            <Building2 className="w-3 h-3 text-red-500" />
+            <span>Contrato: <strong>{effectiveSite === 'TODOS' ? 'Todos os Contratos' : effectiveSite}</strong></span>
+          </span>
+
           <button
             type="button"
             onClick={fetchData}
@@ -346,9 +357,11 @@ export default function RetornoManutencaoPage() {
           ) : filteredLotes.length === 0 ? (
             <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-slate-500">
               <Boxes className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-              <p className="text-xs font-bold">Nenhum lote de manutenção localizado.</p>
+              <p className="text-xs font-bold">Nenhum lote de manutenção localizado{effectiveSite !== 'TODOS' ? ` no contrato ${effectiveSite}` : ''}.</p>
               <p className="text-[11px] text-slate-400 mt-1">
-                Gere remessas através do painel de "Gestão de Ativos & Estoque" selecionando extintores e clicando em "Mover em Lote".
+                {effectiveSite !== 'TODOS'
+                  ? `Não constam remessas ou lotes de cilindros em manutenção vinculados ao contrato ${effectiveSite}.`
+                  : 'Gere remessas através do painel de "Gestão de Ativos & Estoque" selecionando extintores e clicando em "Mover em Lote".'}
               </p>
             </div>
           ) : (

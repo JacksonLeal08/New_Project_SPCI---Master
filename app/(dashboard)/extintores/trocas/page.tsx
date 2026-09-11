@@ -42,10 +42,13 @@ import { useSpci } from '@/app/context/SpciContext';
 
 export default function GestaoTrocasPage() {
   const router = useRouter();
-  const { currentUser, userProfile } = useSpci();
+  const { currentUser, userProfile, activeSite, isGlobalScope } = useSpci();
 
   const loggedUserName = userProfile?.name || currentUser?.displayName || 'Operador SPCI';
   const loggedUserEmail = userProfile?.email || currentUser?.email || undefined;
+
+  // Determinar o contrato ativo para isolamento de dados
+  const effectiveSite = (!isGlobalScope && userProfile?.site) ? userProfile.site : (activeSite || 'TODOS');
 
   const [trocas, setTrocas] = useState<SubstituicaoAtivoRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -88,24 +91,28 @@ export default function GestaoTrocasPage() {
       const [trocasRes, kpisRes] = await Promise.all([
         getAssetSwapsAction({
           motivo: selectedMotivo,
-          termoBusca: searchTerm
+          termoBusca: searchTerm,
+          site: effectiveSite
         }),
-        getSwapKpisAction()
+        getSwapKpisAction(effectiveSite)
       ]);
 
       if (trocasRes.success && trocasRes.trocas) {
         setTrocas(trocasRes.trocas);
+      } else {
+        setTrocas([]);
       }
       if (kpisRes.success && kpisRes.kpis) {
         setKpis(kpisRes.kpis);
       }
     } catch (err) {
       console.error('Erro ao carregar dados de trocas:', err);
+      setTrocas([]);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedMotivo, searchTerm]);
+  }, [selectedMotivo, searchTerm, effectiveSite]);
 
   useEffect(() => {
     fetchData();
@@ -148,6 +155,12 @@ export default function GestaoTrocasPage() {
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Badge Contrato Ativo */}
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-[11px] font-semibold text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+            <Building2 className="w-3 h-3 text-red-500" />
+            <span>Contrato: <strong>{effectiveSite === 'TODOS' ? 'Todos os Contratos' : effectiveSite}</strong></span>
+          </span>
+
           {/* Toggle Som */}
           <button
             type="button"
@@ -316,7 +329,14 @@ export default function GestaoTrocasPage() {
           </div>
         ) : trocas.length === 0 ? (
           <div className="p-12 text-center text-slate-400 border-t border-dashed border-slate-200 dark:border-slate-800">
-            Nenhuma substituição de extintor encontrada com os filtros selecionados.
+            <p className="text-xs font-bold text-slate-600 dark:text-slate-300">
+              Nenhuma substituição de extintor encontrada{effectiveSite !== 'TODOS' ? ` para o contrato ${effectiveSite}` : ''}.
+            </p>
+            <p className="text-[11px] text-slate-400 mt-1">
+              {effectiveSite !== 'TODOS'
+                ? `Não há histórico de trocas bilaterais registradas para a planta ${effectiveSite}.`
+                : 'Utilize o botão "Nova Substituição" para registrar a troca de um extintor em campo.'}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -95,6 +95,8 @@ export interface LoteManutencaoRecord {
   created_at: string;
   updated_at: string;
   dias_em_manutencao?: number;
+  site?: string;
+  contrato_id?: string;
   itens?: ItemLoteManutencaoRecord[];
 }
 
@@ -122,6 +124,8 @@ export interface ItemLoteManutencaoRecord {
   observacoes_triagem?: string;
   created_at: string;
   updated_at: string;
+  site?: string;
+  contrato_id?: string;
 }
 
 /**
@@ -284,9 +288,9 @@ export async function createMaintenanceBatchAction(payload: CreateBatchPayload) 
 }
 
 /**
- * Busca a lista de lotes de manutenção registrados
+ * Busca a lista de lotes de manutenção registrados com isolamento estrito por contrato
  */
-export async function getMaintenanceBatchesAction(statusFilter?: string) {
+export async function getMaintenanceBatchesAction(statusFilter?: string, site?: string) {
   try {
     const supabase = getSupabaseAdminClient();
     let query = supabase.from('lotes_manutencao').select('*, itens:itens_lote_manutencao(*)');
@@ -302,9 +306,77 @@ export async function getMaintenanceBatchesAction(statusFilter?: string) {
       return { success: false, error: error.message, lotes: [] };
     }
 
+    let lotesFiltrados = data || [];
+
+    // Isolamento estrito por site/contrato
+    const siteFilter = site && !site.toUpperCase().startsWith('TODOS') ? site.trim().toUpperCase() : null;
+    if (siteFilter) {
+      // 1. Coleta IDs de ativos dos lotes para mapeamento multi-fonte
+      const allAssetIds = new Set<string>();
+      lotesFiltrados.forEach((lote: any) => {
+        (lote.itens || []).forEach((it: any) => {
+          if (it.asset_id) allAssetIds.add(it.asset_id);
+          if (it.id_ativo) allAssetIds.add(it.id_ativo);
+        });
+      });
+
+      const assetSiteMap = new Map<string, string>();
+      const { data: matchedAssets } = await supabase
+        .from('assets')
+        .select('id, id_ativo, patrimonio, numero_serie, location, sub_location, details');
+
+      (matchedAssets || []).forEach((a: any) => {
+        const s = String(a.details?.site || a.details?.contrato || a.location || '').toUpperCase();
+        if (a.id) assetSiteMap.set(a.id, s);
+        if (a.id_ativo) assetSiteMap.set(a.id_ativo, s);
+        if (a.patrimonio) assetSiteMap.set(a.patrimonio, s);
+        if (a.numero_serie) assetSiteMap.set(a.numero_serie, s);
+      });
+
+      lotesFiltrados = lotesFiltrados.filter((lote: any) => {
+        // Se o lote possui coluna site explícita
+        const loteSite = String(lote.site || lote.contrato || '').toUpperCase();
+        if (loteSite) {
+          return loteSite.includes(siteFilter);
+        }
+
+        // Inspeção de itens vinculados
+        const items = lote.itens || [];
+        if (items.length === 0) return false;
+
+        let matches = 0;
+        let conflicts = 0;
+        items.forEach((it: any) => {
+          const mappedSite =
+            assetSiteMap.get(it.asset_id) ||
+            assetSiteMap.get(it.id_ativo) ||
+            assetSiteMap.get(it.patrimonio) ||
+            assetSiteMap.get(it.numero_serie) ||
+            '';
+          if (mappedSite) {
+            if (mappedSite.includes(siteFilter)) {
+              matches++;
+            } else {
+              conflicts++;
+            }
+          }
+        });
+
+        if (matches > 0) return true;
+        if (conflicts > 0) return false;
+
+        // Se os itens não têm site explícito (dados legados anteriores à migração):
+        // Pertencem ao contrato legado ONÇA PUMA, NUNCA a Salobo ou outros tenants
+        if (siteFilter.includes('ONÇA') || siteFilter.includes('ONCA')) {
+          return true;
+        }
+        return false;
+      });
+    }
+
     // Calcular dias decorridos em manutenção para cada lote
     const now = new Date().getTime();
-    const lotesCalculados: LoteManutencaoRecord[] = (data || []).map((lote: any) => {
+    const lotesCalculados: LoteManutencaoRecord[] = lotesFiltrados.map((lote: any) => {
       const envioTime = new Date(lote.data_envio).getTime();
       const endTime = lote.data_finalizacao ? new Date(lote.data_finalizacao).getTime() : now;
       const diffDays = Math.max(0, Math.floor((endTime - envioTime) / (1000 * 60 * 60 * 24)));
@@ -708,22 +780,16 @@ export interface MaintenanceKpisResult {
 }
 
 /**
- * Totaliza e consolida métricas executivas em tempo real para o cockpit de Retorno de Manutenção
+ * Totaliza e consolida métricas executivas em tempo real para o cockpit de Retorno de Manutenção respeitando o contrato ativo
  */
-export async function getMaintenanceKpisAction(): Promise<{ success: boolean; kpis?: MaintenanceKpisResult; error?: string }> {
+export async function getMaintenanceKpisAction(site?: string): Promise<{ success: boolean; kpis?: MaintenanceKpisResult; error?: string }> {
   try {
     const supabase = getSupabaseAdminClient();
+    const siteFilter = site && !site.toUpperCase().startsWith('TODOS') ? site.trim().toUpperCase() : null;
 
-    // 1. Lotes de manutenção
-    const { data: lotes, error: lotesError } = await supabase
-      .from('lotes_manutencao')
-      .select('id, status, total_itens, total_aprovados, total_condenados');
-
-    if (lotesError) {
-      console.warn('[getMaintenanceKpisAction] Aviso ao carregar lotes:', lotesError.message);
-    }
-
-    const lotesList = lotes || [];
+    // 1. Busca os lotes já filtrados pelo contrato ativo
+    const batchesRes = await getMaintenanceBatchesAction(undefined, site);
+    const lotesList = batchesRes.lotes || [];
     const lotesEmAndamento = lotesList.filter((l) => l.status === 'EM_ANDAMENTO').length;
     const totalLotes = lotesList.length;
 
@@ -734,17 +800,26 @@ export async function getMaintenanceKpisAction(): Promise<{ success: boolean; kp
       totalCondenados += Number(l.total_condenados || 0);
     }
 
-    // 2. Extintores atualmente com status_estoque = 'EM MANUTENÇÃO'
-    const { count: countEmManutencao } = await supabase
-      .from('assets')
-      .select('id', { count: 'exact', head: true })
-      .or('status_estoque.eq."EM MANUTENÇÃO",tipo_movimentacao.eq."em_manutencao"');
+    // 2. Extintores na base de ativos escopados ao site/contrato
+    let assetsQuery = supabase.from('assets').select('id, status_estoque, tipo_movimentacao, location, sub_location, details');
+    const { data: allAssets } = await assetsQuery;
 
-    // 3. Extintores condenados na base de ativos
-    const { count: countCondenadosAssets } = await supabase
-      .from('assets')
-      .select('id', { count: 'exact', head: true })
-      .or('status_estoque.eq."CONDENADOS",tipo_movimentacao.eq."condenado"');
+    const isAssetInSite = (a: any) => {
+      if (!siteFilter) return true;
+      const s = String(a.site || a.details?.site || a.details?.contrato || '').toUpperCase();
+      const loc = String(a.location || '').toUpperCase();
+      const sub = String(a.sub_location || '').toUpperCase();
+      if (s) return s.includes(siteFilter);
+      return loc.includes(siteFilter) || sub.includes(siteFilter);
+    };
+
+    const scopedAssets = (allAssets || []).filter(isAssetInSite);
+    const countEmManutencao = scopedAssets.filter(
+      (a) => a.status_estoque === 'EM MANUTENÇÃO' || a.tipo_movimentacao === 'em_manutencao'
+    ).length;
+    const countCondenadosAssets = scopedAssets.filter(
+      (a) => a.status_estoque === 'CONDENADOS' || a.tipo_movimentacao === 'condenado'
+    ).length;
 
     const totalCilindrosCondenados = Math.max(totalCondenados, Number(countCondenadosAssets || 0));
     const totalAvaliados = totalAprovados + totalCilindrosCondenados;

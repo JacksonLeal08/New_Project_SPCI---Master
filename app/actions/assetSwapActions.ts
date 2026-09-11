@@ -62,6 +62,8 @@ export interface SubstituicaoAtivoRecord {
   status_troca: 'CONCLUIDA' | 'PENDENTE_ATENDIMENTO';
   criado_em: string;
   atualizado_em: string;
+  site?: string;
+  contrato_id?: string;
 }
 
 export interface ProcessSwapPayload {
@@ -78,6 +80,8 @@ export interface ProcessSwapPayload {
   tecnico_responsavel_email?: string;
   latitude?: number;
   longitude?: number;
+  site?: string;
+  contrato_id?: string;
 }
 
 /**
@@ -121,7 +125,9 @@ async function ensureSubstituicoesTable(supabase: any) {
             longitude NUMERIC,
             status_troca TEXT DEFAULT 'CONCLUIDA',
             criado_em TIMESTAMPTZ DEFAULT NOW(),
-            atualizado_em TIMESTAMPTZ DEFAULT NOW()
+            atualizado_em TIMESTAMPTZ DEFAULT NOW(),
+            site TEXT,
+            contrato_id TEXT
           );
         `,
       });
@@ -236,6 +242,8 @@ export async function processAssetSwapAction(
       status_troca: 'CONCLUIDA',
       criado_em: nowIso,
       atualizado_em: nowIso,
+      site: retirado.site || retiradoDetails.site || substituto.site || substitutoDetails.site || payload.site || 'ONÇA PUMA',
+      contrato_id: retirado.contrato_id || retiradoDetails.contrato_id || substituto.contrato_id || substitutoDetails.contrato_id || payload.contrato_id || undefined,
     };
 
     // Anexa o snapshot completo da troca nos detalhes do ativo retirado
@@ -398,16 +406,33 @@ export async function processAssetSwapAction(
 }
 
 /**
- * Consulta a lista de trocas realizadas com reconciliação multi-fonte e filtros
+ * Consulta a lista de trocas realizadas com reconciliação multi-fonte e filtros por contrato/site
  */
 export async function getAssetSwapsAction(filters?: {
   setor?: string;
   motivo?: string;
   termoBusca?: string;
+  site?: string;
 }): Promise<{ success: boolean; trocas?: SubstituicaoAtivoRecord[]; error?: string }> {
   try {
     const supabase = getSupabaseAdminClient();
     const allSwapsMap = new Map<string, SubstituicaoAtivoRecord>();
+    const siteFilter = filters?.site && !filters.site.toUpperCase().startsWith('TODOS') ? filters.site.trim() : null;
+
+    // Helper rigoroso para verificar se um registro ou ativo pertence ao site informado
+    const matchesSite = (recordOrAsset: any) => {
+      if (!siteFilter) return true;
+      const target = siteFilter.toUpperCase();
+      const s = String(recordOrAsset.site || recordOrAsset.details?.site || recordOrAsset.details?.contrato || '').toUpperCase();
+      const loc = String(recordOrAsset.location || recordOrAsset.setor || '').toUpperCase();
+      const sub = String(recordOrAsset.sub_location || recordOrAsset.sub_local || '').toUpperCase();
+      const proj = String(recordOrAsset.projeto || recordOrAsset.details?.projeto || '').toUpperCase();
+
+      if (s) {
+        return s.includes(target);
+      }
+      return loc.includes(target) || sub.includes(target) || proj.includes(target);
+    };
 
     // 1. TENTA BUSCAR NA TABELA DEDICADA substituicoes_ativos (SE EXISTIR)
     try {
@@ -416,10 +441,14 @@ export async function getAssetSwapsAction(filters?: {
         .select('*')
         .order('criado_em', { ascending: false });
 
+      if (siteFilter) {
+        query = query.or(`site.ilike.%${siteFilter}%,setor.ilike.%${siteFilter}%`);
+      }
+
       const { data, error } = await query;
       if (!error && data && data.length > 0) {
         data.forEach((t: SubstituicaoAtivoRecord) => {
-          if (t.id) allSwapsMap.set(t.id, t);
+          if (t.id && matchesSite(t)) allSwapsMap.set(t.id, t);
         });
       }
     } catch (tblErr) {
@@ -439,7 +468,7 @@ export async function getAssetSwapsAction(filters?: {
           if (m.observacao && typeof m.observacao === 'string' && m.observacao.includes('ativo_retirado_')) {
             try {
               const parsed = JSON.parse(m.observacao) as SubstituicaoAtivoRecord;
-              if (parsed && parsed.id && !allSwapsMap.has(parsed.id)) {
+              if (parsed && parsed.id && matchesSite(parsed) && !allSwapsMap.has(parsed.id)) {
                 allSwapsMap.set(parsed.id, parsed);
               }
             } catch (pErr) {
@@ -452,7 +481,7 @@ export async function getAssetSwapsAction(filters?: {
       console.warn('[assetSwapActions] Aviso ao consultar ativo_movimentacoes:', movErr);
     }
 
-    // 3. RECONCILIAÇÃO PERPÉTUA NA TABELA assets (GARANTE QUE TROCAS JÁ FEITAS APAREÇAM)
+    // 3. RECONCILIAÇÃO PERPÉTUA NA TABELA assets (GARANTE QUE TROCAS JÁ FEITAS APAREÇAM APENAS DO CONTRATO)
     try {
       const { data: allAssets, error: assetErr } = await supabase
         .from('assets')
@@ -461,6 +490,7 @@ export async function getAssetSwapsAction(filters?: {
       if (!assetErr && allAssets && allAssets.length > 0) {
         // Encontra ativos marcados como recolhidos ou com histórico de substituto
         const retirados = allAssets.filter((a) => {
+          if (!matchesSite(a)) return false;
           const d = (a.details as any) || {};
           return (
             d.swap_record ||
@@ -476,8 +506,12 @@ export async function getAssetSwapsAction(filters?: {
 
           // Se tiver o objeto completo salvo no swap_record
           if (d.swap_record && d.swap_record.id) {
-            if (!allSwapsMap.has(d.swap_record.id)) {
-              allSwapsMap.set(d.swap_record.id, d.swap_record);
+            const candidate = {
+              ...d.swap_record,
+              site: d.swap_record.site || ret.site || d.site || 'ONÇA PUMA'
+            };
+            if (matchesSite(candidate) && !allSwapsMap.has(d.swap_record.id)) {
+              allSwapsMap.set(d.swap_record.id, candidate);
             }
             return;
           }
@@ -490,7 +524,9 @@ export async function getAssetSwapsAction(filters?: {
               (subId && a.id === subId) ||
               (subCod && (a.id_ativo === subCod || a.patrimonio === subCod))
           );
-          const subDetails = (subst?.details as any) || {};
+
+          // Se o substituto existir e pertencer a outro contrato, bloqueia a mistura
+          if (subst && !matchesSite(subst)) return;
 
           const swapIdKey = d.swap_id || `TRC-${ret.id}-${subId || subCod || 'SUB'}`;
           if (!allSwapsMap.has(swapIdKey)) {
@@ -505,25 +541,30 @@ export async function getAssetSwapsAction(filters?: {
               ativo_substituto_id: subst?.id || subId || 'N/A',
               ativo_substituto_codigo: subst?.id_ativo || subst?.patrimonio || subCod || 'SUBSTITUTO',
               ativo_substituto_patrimonio: subst?.patrimonio || subst?.id_ativo || subCod,
-              ativo_substituto_chassi: subst?.numero_serie || subDetails.serialNumber || 'N/A',
+              ativo_substituto_chassi: subst?.numero_serie || (subst?.details as any)?.serialNumber || 'N/A',
               ativo_substituto_modelo: subst?.model || 'PQS ABC',
-              ativo_substituto_capacidade: subst?.peso_capacidade || subDetails.peso_capacidade || '6 kg',
+              ativo_substituto_capacidade: subst?.peso_capacidade || (subst?.details as any)?.peso_capacidade || '6 kg',
               setor: subst?.location || d.local_origem || ret.location || 'Área Operacional',
               sub_local: subst?.sub_location || '',
-              local_especifico: d.local_especifico || subDetails.local_especifico || '',
+              local_especifico: d.local_especifico || (subst?.details as any)?.local_especifico || '',
               motivo_troca: (d.motivo_baixa || d.motivo_troca || 'VENCIDO') as MotivoTrocaType,
               descricao_motivo:
                 d.descricao_motivo ||
                 `Substituição realizada no ponto. Ativo retirado: ${ret.id_ativo || ret.patrimonio}. Substituto instalado: ${subst?.id_ativo || subst?.patrimonio || subCod}.`,
               foto_antes_url: d.foto_antes_url || ret.foto_url || d.foto_url || '',
-              foto_depois_url: d.foto_depois_url || subst?.foto_url || subDetails.foto_url || '',
+              foto_depois_url: d.foto_depois_url || subst?.foto_url || (subst?.details as any)?.foto_url || '',
               tecnico_responsavel_nome: d.tecnico_responsavel_nome || 'Operador SPCI',
               tecnico_responsavel_email: d.tecnico_responsavel_email || undefined,
               status_troca: 'CONCLUIDA',
               criado_em: d.data_troca || ret.updated_at || new Date().toISOString(),
               atualizado_em: d.data_troca || ret.updated_at || new Date().toISOString(),
+              site: ret.site || d.site || subst?.site || (subst?.details as any)?.site || 'ONÇA PUMA',
+              contrato_id: ret.contrato_id || d.contrato_id || subst?.contrato_id || undefined,
             };
-            allSwapsMap.set(swapIdKey, reconstructedSwap);
+
+            if (matchesSite(reconstructedSwap)) {
+              allSwapsMap.set(swapIdKey, reconstructedSwap);
+            }
           }
         });
       }
@@ -532,6 +573,11 @@ export async function getAssetSwapsAction(filters?: {
     }
 
     let finalData: SubstituicaoAtivoRecord[] = Array.from(allSwapsMap.values());
+
+    // Barreira final por site
+    if (siteFilter) {
+      finalData = finalData.filter((t) => matchesSite(t));
+    }
 
     // Ordenação cronológica decrescente
     finalData.sort((a, b) => {
@@ -573,9 +619,9 @@ export async function getAssetSwapsAction(filters?: {
 }
 
 /**
- * Retorna os indicadores (KPIs) para o Bento Grid da página de Trocas
+ * Retorna os indicadores (KPIs) para o Bento Grid da página de Trocas respeitando o contrato ativo
  */
-export async function getSwapKpisAction(): Promise<{
+export async function getSwapKpisAction(site?: string): Promise<{
   success: boolean;
   kpis?: {
     totalTrocas: number;
@@ -586,7 +632,7 @@ export async function getSwapKpisAction(): Promise<{
   error?: string;
 }> {
   try {
-    const res = await getAssetSwapsAction();
+    const res = await getAssetSwapsAction({ site });
     const trocas = res.trocas || [];
 
     const totalTrocas = trocas.length;

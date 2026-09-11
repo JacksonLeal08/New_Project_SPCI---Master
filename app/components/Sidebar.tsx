@@ -47,9 +47,12 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
   const { 
     userProfile, 
     currentUser, 
-    setChatOpened,
+    setChatOpened, 
     setShowChecklistModal,
-    extintores
+    extintores,
+    filteredExtintores,
+    activeSite,
+    isGlobalScope
   } = useSpci();
 
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -62,6 +65,9 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
   // Indicadores sutilmente carregados em segundo plano para os badges
   const [swapsCount, setSwapsCount] = useState<number | null>(null);
   const [pendingBatchesCount, setPendingBatchesCount] = useState<number | null>(null);
+
+  // Contrato ativo para isolamento de dados
+  const effectiveSite = (!isGlobalScope && userProfile?.site) ? userProfile.site : (activeSite || 'TODOS');
 
   useEffect(() => {
     const savedState = localStorage.getItem('spci_sidebar_collapsed');
@@ -78,23 +84,23 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
     }
   }, [isExtintoresRoute]);
 
-  // Carrega contagens de trocas e lotes para os badges dos sub-itens
+  // Carrega contagens de trocas e lotes para os badges dos sub-itens isolados por contrato
   useEffect(() => {
     let isMounted = true;
-    getSwapKpisAction().then(res => {
+    getSwapKpisAction(effectiveSite).then(res => {
       if (isMounted && res.success && res.kpis) {
         setSwapsCount(res.kpis.totalTrocas || 0);
       }
     }).catch(() => {});
 
-    getMaintenanceKpisAction().then(res => {
+    getMaintenanceKpisAction(effectiveSite).then(res => {
       if (isMounted && res.success && res.kpis) {
         setPendingBatchesCount(res.kpis.lotesPendentesConferencia || 0);
       }
     }).catch(() => {});
 
     return () => { isMounted = false; };
-  }, []);
+  }, [effectiveSite]);
 
   const toggleCollapse = () => {
     const nextState = !isCollapsed;
@@ -122,7 +128,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
       icon: <ArrowLeftRight className="w-4 h-4 shrink-0" />,
       path: '/extintores/trocas',
       isActive: pathname.startsWith('/extintores/trocas'),
-      badge: swapsCount !== null ? swapsCount : undefined
+      badge: (swapsCount !== null && swapsCount > 0) ? swapsCount : undefined
     },
     {
       id: 'extintores-retorno',
@@ -170,7 +176,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
     ...(isAdmin ? [{ id: 'configuracoes', label: 'Configurações', icon: <Settings className="w-5 h-5" />, path: '/configuracoes' }] : [])
   ];
 
-  const totalExtintoresCount = extintores?.length || 651;
+  const totalExtintoresCount = filteredExtintores ? filteredExtintores.length : (extintores?.length || 0);
 
   return (
     <aside 
