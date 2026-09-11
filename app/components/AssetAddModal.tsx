@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
@@ -192,8 +194,6 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
     }, 0);
     return () => clearTimeout(timer);
   }, [selectedLocalId]);
-
-  if (!isOpen) return null;
 
   const SECTORS_LIST = [
     'MANGANÊS', 'ALMOXARIFADO', 'SALA ELÉTRICA', 'BARRAGEM DO AZUL', 

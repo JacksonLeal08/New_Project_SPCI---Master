@@ -109,8 +109,6 @@ export default function BatchTriageModal({
     loadData();
   }, [isOpen, loteId]);
 
-  if (!isOpen) return null;
-
   const handleUpdateItem = (itemId: string, field: keyof TriageItemResult, value: any) => {
     setTriageMap((prev) => ({
       ...prev,

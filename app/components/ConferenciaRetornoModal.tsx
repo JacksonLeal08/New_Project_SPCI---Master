@@ -148,8 +148,6 @@ export default function ConferenciaRetornoModal({
     };
   }, [isOpen, loteId]);
 
-  if (!isOpen) return null;
-
   // Atualizador de item individual
   const updateItemTriage = (itemId: string, updates: Partial<TriageItemResult>) => {
     setTriageMap((prev) => ({

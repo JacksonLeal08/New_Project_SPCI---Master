@@ -368,9 +368,9 @@ export default function QuickAssetFab() {
                     </div>
                   </div>
                 ) : (
-                  targetCategoryAssets.map((ativo: any) => {
-                    const ativoId = ativo.id || ativo.idAtivo;
-                    const patrimonio = ativo.idAtivo || ativo.patrimonio || ativo.code || ativo.id;
+                  targetCategoryAssets.map((ativo: any, idx: number) => {
+                    const ativoId = ativo.id || ativo.idAtivo || ativo.patrimonio || `asset-${idx}`;
+                    const patrimonio = ativo.idAtivo || ativo.patrimonio || ativo.code || ativo.id || 'SPCI-SEM-ID';
                     const modelo = ativo.model || ativo.tipo || ativo.name || 'Equipamento SPCI';
                     const local = ativo.location || ativo.subLocation || ativo.setor || 'Área Operacional';
                     const status = ativo.status || 'Conforme';
@@ -380,7 +380,7 @@ export default function QuickAssetFab() {
 
                     return (
                       <div
-                        key={ativoId}
+                        key={`${ativoId}-${idx}`}
                         onClick={() => handleStartInspection(ativoId)}
                         className="p-3.5 bg-white hover:bg-emerald-50/50 border border-slate-200 hover:border-emerald-300 rounded-2xl transition-all cursor-pointer flex items-center justify-between gap-3 group shadow-2xs"
                       >

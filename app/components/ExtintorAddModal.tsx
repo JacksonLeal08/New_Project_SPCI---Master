@@ -1,3 +1,5 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
@@ -339,8 +341,6 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       setExpiryYear(expY);
     }
   };
-
-  if (!isOpen) return null;
 
   // Check if CO2 model selected
   const activeModelName = selectedModel === 'CUSTOM' ? customModelName : selectedModel;

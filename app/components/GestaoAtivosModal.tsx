@@ -656,6 +656,37 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
   };
 
+  // Escuta tecla ESC para fechar o modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        e.key === 'Escape' &&
+        isOpen &&
+        !isMinimized &&
+        !isBulkEditModalOpen &&
+        !isBulkMovementModalOpen &&
+        !isBatchCreationModalOpen &&
+        !movingItem &&
+        !historyItem &&
+        !isImportModalOpen
+      ) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [
+    isOpen,
+    isMinimized,
+    isBulkEditModalOpen,
+    isBulkMovementModalOpen,
+    isBatchCreationModalOpen,
+    movingItem,
+    historyItem,
+    isImportModalOpen,
+    onClose
+  ]);
+
   if (!isOpen) return null;
 
   // Executa a atualização em massa via Cockpit (REQUISITO 3)
