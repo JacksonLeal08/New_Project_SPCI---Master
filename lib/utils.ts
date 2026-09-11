@@ -157,3 +157,17 @@ export function formatDateBr(dateStr: string | null | undefined, includeTime: bo
     return String(dateStr);
   }
 }
+
+/**
+ * Validador estrito de contrato/site para segregação multi-tenant de ativos
+ */
+export function matchesUserSite(item: any, userSite?: string): boolean {
+  if (!userSite || userSite.startsWith('TODOS') || userSite === 'GLOBAL') return true;
+  const siteNorm = userSite.trim().toUpperCase();
+  const itemSite = String(item?.site || item?.details?.site || item?.details?.projeto || item?.projeto || '').trim().toUpperCase();
+  if (itemSite) {
+    return itemSite === siteNorm || itemSite.includes(siteNorm) || siteNorm.includes(itemSite);
+  }
+  // Ativos legados sem site pertencem à ONÇA PUMA
+  return siteNorm === 'ONÇA PUMA' || siteNorm === 'ONCA PUMA';
+}

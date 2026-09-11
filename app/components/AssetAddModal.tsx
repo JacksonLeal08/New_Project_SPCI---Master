@@ -12,8 +12,12 @@ import {
   Sliders, 
   Check, 
   X,
+  Minus,
+  Maximize2,
+  Minimize2,
   QrCode
 } from 'lucide-react';
+import { useWindowModal } from '@/app/context/WindowModalContext';
 import QrCameraScanner from './QrCameraScanner';
 import { parseInmetroCode } from '@/lib/utils';
 import AppFooter from './AppFooter';
@@ -535,22 +539,79 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
     triggerSuccessNotification('Equipamento Registrado!', `Ativo ${codePatrimonio} foi cadastrado no banco de dados SPCI.`);
   };
 
+  const MODAL_ID = 'modal-asset-add';
+  const { registerWindow, unregisterWindow, setWindowState, getWindowState, bringToFront, updateWindowMetadata } = useWindowModal();
+
+  useEffect(() => {
+    if (isOpen) {
+      registerWindow(MODAL_ID, {
+        title: 'Cadastrar Novo Ativo',
+        subtitle: `${newAssetType?.toUpperCase() || 'EQUIPAMENTO'} - Cadastro Geral`,
+        iconName: 'boxes',
+        badgeStatus: formPatrimonio ? `#${formPatrimonio}` : 'Novo',
+        onClose,
+      });
+    } else {
+      unregisterWindow(MODAL_ID);
+    }
+    return () => unregisterWindow(MODAL_ID);
+  }, [isOpen, newAssetType, registerWindow, unregisterWindow, onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      updateWindowMetadata(MODAL_ID, {
+        badgeStatus: formPatrimonio ? `#${formPatrimonio}` : 'Novo',
+      });
+    }
+  }, [isOpen, formPatrimonio, updateWindowMetadata]);
+
+  const currentState = getWindowState(MODAL_ID);
+  const isMinimized = currentState === 'minimized';
+  const isMaximized = currentState === 'maximized';
+
+  const handleMinimize = () => setWindowState(MODAL_ID, 'minimized');
+  const toggleMaximize = () => setWindowState(MODAL_ID, isMaximized ? 'restored' : 'maximized');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isMinimized && !isScannerOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isMinimized, isScannerOpen, onClose]);
+
+  if (!isOpen) return null;
+
   return (
-    <motion.div 
-      initial={{ opacity: 0 }} 
-      animate={{ opacity: 1 }} 
-      className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4 overflow-y-auto"
+    <div
+      style={{ display: isMinimized ? 'none' : 'flex' }}
+      className={`fixed inset-0 z-[100] items-center justify-center bg-slate-950/70 backdrop-blur-sm overflow-y-auto cursor-pointer ${
+        isMaximized ? 'p-0' : 'p-2 sm:p-4'
+      }`}
+      onClick={(e) => {
+        bringToFront(MODAL_ID);
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
       <motion.div 
         initial={{ opacity: 0, scale: 0.98, y: 15 }} 
         animate={{ opacity: 1, scale: 1, y: 0 }} 
-        className="w-full max-w-5xl lg:max-w-6xl 2xl:max-w-7xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl rounded-2xl relative my-8 font-mono text-xs text-slate-800 dark:text-slate-100"
+        onClick={(e) => e.stopPropagation()}
+        className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl relative font-mono text-xs text-slate-800 dark:text-slate-100 cursor-default ${
+          isMaximized
+            ? 'w-screen h-screen rounded-none my-0 max-h-screen'
+            : 'w-full max-w-5xl lg:max-w-6xl 2xl:max-w-7xl rounded-2xl my-8 max-h-[92vh] overflow-hidden flex flex-col'
+        }`}
       >
         {/* Accent Top Bar */}
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-650 rounded-t-2xl" aria-hidden="true" />
 
-        {/* Modal Header */}
-        <div className="flex justify-between items-center px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 rounded-t-2xl pt-7">
+        {/* Modal Header com Cockpit Controls */}
+        <div className="flex justify-between items-center px-4 sm:px-6 py-4 sm:py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 rounded-t-2xl pt-6 sm:pt-7 shrink-0">
           <div className="flex flex-col gap-0.5">
             <span className="text-slate-400 dark:text-slate-500 text-[9px] font-bold uppercase tracking-widest">
               CADASTRO DE EQUIPAMENTOS
@@ -559,13 +620,32 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
               ✍️ Cadastrar Novo Ativo no Sistema SPCI
             </h2>
           </div>
-          <button 
-            onClick={onClose} 
-            className="text-slate-400 hover:text-slate-800 border border-slate-200 hover:border-slate-350 bg-white p-2 transition-all rounded-xl cursor-pointer shadow-xs"
-            title="Fechar Modal"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button 
+              type="button"
+              onClick={handleMinimize} 
+              className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 transition-all rounded-xl cursor-pointer shadow-xs"
+              title="Minimizar para a barra inferior"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+            <button 
+              type="button"
+              onClick={toggleMaximize} 
+              className="text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 transition-all rounded-xl cursor-pointer shadow-xs"
+              title={isMaximized ? "Restaurar tamanho" : "Maximizar tela cheia"}
+            >
+              {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+            <button 
+              type="button"
+              onClick={onClose} 
+              className="text-slate-400 hover:text-rose-600 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 transition-all rounded-xl cursor-pointer shadow-xs"
+              title="Fechar Modal (Esc)"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body (Scrollable Form com barra oculta) */}
@@ -961,6 +1041,6 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
           triggerSuccessNotification("Selo Escaneado! 🧯", `Selo INMETRO ${parsed} obtido com sucesso.`);
         }}
       />
-    </motion.div>
+    </div>
   );
 }

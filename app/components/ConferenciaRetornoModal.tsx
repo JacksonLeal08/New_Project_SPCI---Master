@@ -19,8 +19,12 @@ import {
   Search,
   Check,
   Clock,
-  Layers
+  Layers,
+  Minus,
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
+import { useWindowModal } from '@/app/context/WindowModalContext';
 import {
   LoteManutencaoRecord,
   ItemLoteManutencaoRecord,
@@ -56,6 +60,16 @@ export default function ConferenciaRetornoModal({
   currentUserEmail,
   onTriageSuccess
 }: ConferenciaRetornoModalProps) {
+  const MODAL_ID = `modal-conferencia-retorno-${loteId}`;
+  const {
+    registerWindow,
+    updateWindowMetadata,
+    unregisterWindow,
+    setWindowState,
+    getWindowState,
+    bringToFront
+  } = useWindowModal();
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [lote, setLote] = useState<LoteManutencaoRecord | null>(null);
@@ -227,13 +241,73 @@ export default function ConferenciaRetornoModal({
     );
   });
 
+  // Registra janela no WindowModalContext
+  useEffect(() => {
+    if (isOpen) {
+      registerWindow(MODAL_ID, {
+        title: `Retorno Lote ${lote?.numero_lote || loteId}`,
+        subtitle: lote?.fornecedor_nome || 'Conferência NBR',
+        iconName: 'shield',
+        badgeStatus: `${totalAprovados}/${totalItens} OK`,
+        onClose,
+      });
+    } else {
+      unregisterWindow(MODAL_ID);
+    }
+    return () => unregisterWindow(MODAL_ID);
+  }, [isOpen, loteId, registerWindow, unregisterWindow, onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      updateWindowMetadata(MODAL_ID, {
+        badgeStatus: `${totalAprovados}/${totalItens} OK`,
+      });
+    }
+  }, [isOpen, totalAprovados, totalItens, updateWindowMetadata]);
+
+  const currentState = getWindowState(MODAL_ID);
+  const isMinimized = currentState === 'minimized';
+  const isMaximized = currentState === 'maximized';
+
+  const handleMinimize = () => setWindowState(MODAL_ID, 'minimized');
+  const toggleMaximize = () => setWindowState(MODAL_ID, isMaximized ? 'restored' : 'maximized');
+
+  // Escuta tecla ESC para fechar modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isMinimized) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isMinimized, onClose]);
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-sm font-mono select-none">
+    <div
+      style={{ display: isMinimized ? 'none' : 'flex' }}
+      className={`fixed inset-0 z-[100] items-center justify-center bg-slate-950/80 backdrop-blur-sm font-mono select-none cursor-pointer ${
+        isMaximized ? 'p-0' : 'p-2 sm:p-4'
+      }`}
+      onClick={(e) => {
+        bringToFront(MODAL_ID);
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.97, y: 12 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: 12 }}
-        className="relative w-full max-w-5xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]"
+        onClick={(e) => e.stopPropagation()}
+        className={`cursor-default relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ease-in-out ${
+          isMaximized
+            ? 'w-screen h-screen rounded-none max-w-none max-h-none h-full'
+            : 'w-full max-w-5xl rounded-2xl max-h-[95vh]'
+        }`}
       >
         {/* Faixa superior de destaque */}
         <div className="h-1.5 w-full bg-gradient-to-r from-emerald-500 via-blue-600 to-amber-500 shrink-0" />
@@ -265,12 +339,37 @@ export default function ConferenciaRetornoModal({
               </span>
             </div>
 
+            {/* Minimizar */}
+            <button
+              type="button"
+              onClick={handleMinimize}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              title="Minimizar janela para a barra inferior"
+              aria-label="Minimizar janela"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+
+            {/* Maximizar / Restaurar */}
+            <button
+              type="button"
+              onClick={toggleMaximize}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              title={isMaximized ? 'Restaurar tamanho' : 'Maximizar tela cheia'}
+              aria-label={isMaximized ? 'Restaurar janela' : 'Maximizar janela'}
+            >
+              {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+
+            {/* Fechar */}
             <button
               type="button"
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              title="Fechar janela"
+              aria-label="Fechar janela"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4 sm:w-5 sm:h-5" />
             </button>
           </div>
         </div>

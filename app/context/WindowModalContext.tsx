@@ -30,6 +30,15 @@ interface WindowModalContextType {
       onClose?: () => void;
     }
   ) => void;
+  updateWindowMetadata: (
+    id: string,
+    data: {
+      title?: string;
+      subtitle?: string;
+      iconName?: string;
+      badgeStatus?: string;
+    }
+  ) => void;
   unregisterWindow: (id: string) => void;
   setWindowState: (id: string, state: WindowState) => void;
   minimizeWindow: (id: string) => void;
@@ -45,6 +54,7 @@ const WindowModalContext = createContext<WindowModalContextType | undefined>(und
 
 export function WindowModalProvider({ children }: { children: React.ReactNode }) {
   const [windows, setWindows] = useState<Record<string, WindowItem>>({});
+  const [persistedStates, setPersistedStates] = useState<Record<string, WindowState>>({});
   const [activeWindowId, setActiveWindowId] = useState<string | null>(null);
 
   const registerWindow = useCallback(
@@ -61,6 +71,11 @@ export function WindowModalProvider({ children }: { children: React.ReactNode })
     ) => {
       setWindows((prev) => {
         const existing = prev[id];
+        // Preserva o estado ativo anterior (inclusive maximized) mesmo em re-registro
+        const resolvedState = existing
+          ? existing.state
+          : (persistedStates[id] && persistedStates[id] !== 'closed' ? persistedStates[id] : 'restored');
+
         return {
           ...prev,
           [id]: {
@@ -69,7 +84,7 @@ export function WindowModalProvider({ children }: { children: React.ReactNode })
             subtitle: data.subtitle,
             iconName: data.iconName,
             badgeStatus: data.badgeStatus,
-            state: existing ? existing.state : 'restored',
+            state: resolvedState,
             lastActiveAt: Date.now(),
             onRestore: data.onRestore,
             onClose: data.onClose,
@@ -77,6 +92,34 @@ export function WindowModalProvider({ children }: { children: React.ReactNode })
         };
       });
       setActiveWindowId(id);
+    },
+    [persistedStates]
+  );
+
+  const updateWindowMetadata = useCallback(
+    (
+      id: string,
+      data: {
+        title?: string;
+        subtitle?: string;
+        iconName?: string;
+        badgeStatus?: string;
+      }
+    ) => {
+      setWindows((prev) => {
+        const item = prev[id];
+        if (!item) return prev;
+        return {
+          ...prev,
+          [id]: {
+            ...item,
+            ...(data.title !== undefined ? { title: data.title } : {}),
+            ...(data.subtitle !== undefined ? { subtitle: data.subtitle } : {}),
+            ...(data.iconName !== undefined ? { iconName: data.iconName } : {}),
+            ...(data.badgeStatus !== undefined ? { badgeStatus: data.badgeStatus } : {}),
+          },
+        };
+      });
     },
     []
   );
@@ -103,6 +146,10 @@ export function WindowModalProvider({ children }: { children: React.ReactNode })
         },
       };
     });
+    setPersistedStates((prev) => ({
+      ...prev,
+      [id]: state,
+    }));
     if (state !== 'minimized' && state !== 'closed') {
       setActiveWindowId(id);
     }
@@ -140,6 +187,11 @@ export function WindowModalProvider({ children }: { children: React.ReactNode })
         item.onClose();
       }
       setWindowState(id, 'closed');
+      setPersistedStates((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
       unregisterWindow(id);
     },
     [setWindowState, unregisterWindow, windows]
@@ -159,9 +211,9 @@ export function WindowModalProvider({ children }: { children: React.ReactNode })
 
   const getWindowState = useCallback(
     (id: string): WindowState => {
-      return windows[id]?.state || 'closed';
+      return windows[id]?.state || persistedStates[id] || 'closed';
     },
-    [windows]
+    [windows, persistedStates]
   );
 
   const minimizedWindows = useMemo(() => {
@@ -174,6 +226,7 @@ export function WindowModalProvider({ children }: { children: React.ReactNode })
         windows,
         activeWindowId,
         registerWindow,
+        updateWindowMetadata,
         unregisterWindow,
         setWindowState,
         minimizeWindow,

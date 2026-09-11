@@ -4,7 +4,8 @@ import { useSpci } from '@/app/context/SpciContext';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompressor';
 import { MediaQueue } from '@/lib/mediaQueue';
-import { Flame, Check, X, Upload, Shield, Calendar, MapPin, ClipboardList, Info, Plus, QrCode, ArrowRightLeft } from 'lucide-react';
+import { Flame, Check, X, Minus, Maximize2, Minimize2, Upload, Shield, Calendar, MapPin, ClipboardList, Info, Plus, QrCode, ArrowRightLeft } from 'lucide-react';
+import { useWindowModal } from '@/app/context/WindowModalContext';
 import QrCameraScanner from './QrCameraScanner';
 import { parseInmetroCode } from '@/lib/utils';
 import { TipoMovimentacaoType, TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
@@ -706,8 +707,64 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     }
   };
 
+  const MODAL_ID = 'modal-extintor-add';
+  const { registerWindow, unregisterWindow, setWindowState, getWindowState, bringToFront, updateWindowMetadata } = useWindowModal();
+
+  useEffect(() => {
+    if (isOpen) {
+      registerWindow(MODAL_ID, {
+        title: 'Novo Extintor',
+        subtitle: 'Cadastro Técnico SPCI',
+        iconName: 'flame',
+        badgeStatus: formPatrimonio ? `#${formPatrimonio}` : 'Cadastro',
+        onClose,
+      });
+    } else {
+      unregisterWindow(MODAL_ID);
+    }
+    return () => unregisterWindow(MODAL_ID);
+  }, [isOpen, registerWindow, unregisterWindow, onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      updateWindowMetadata(MODAL_ID, {
+        badgeStatus: formPatrimonio ? `#${formPatrimonio}` : 'Cadastro',
+      });
+    }
+  }, [isOpen, formPatrimonio, updateWindowMetadata]);
+
+  const currentState = getWindowState(MODAL_ID);
+  const isMinimized = currentState === 'minimized';
+  const isMaximized = currentState === 'maximized';
+
+  const handleMinimize = () => setWindowState(MODAL_ID, 'minimized');
+  const toggleMaximize = () => setWindowState(MODAL_ID, isMaximized ? 'restored' : 'maximized');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isMinimized && !isScannerOpen && !showSuccessPopup) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isMinimized, isScannerOpen, showSuccessPopup, onClose]);
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4 font-mono select-none">
+    <div
+      style={{ display: isMinimized ? 'none' : 'flex' }}
+      className={`fixed inset-0 z-50 items-center justify-center bg-slate-900/60 backdrop-blur-md font-mono select-none cursor-pointer ${
+        isMaximized ? 'p-0' : 'p-4'
+      }`}
+      onClick={(e) => {
+        bringToFront(MODAL_ID);
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       
       {/* Scrollbar-none CSS */}
       <style dangerouslySetInnerHTML={{__html: `
@@ -724,13 +781,16 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         initial={{ opacity: 0, scale: 0.97, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: 15 }}
-        className="w-full max-w-2xl bg-white border border-slate-200 shadow-2xl rounded-2xl relative overflow-hidden flex flex-col max-h-[92vh] text-slate-800"
+        onClick={(e) => e.stopPropagation()}
+        className={`bg-white border border-slate-200 shadow-2xl relative overflow-hidden flex flex-col text-slate-800 cursor-default ${
+          isMaximized ? 'w-screen h-screen rounded-none max-h-screen' : 'w-full max-w-2xl rounded-2xl max-h-[92vh]'
+        }`}
       >
         {/* SPCI Red Top Line */}
-        <div className="h-1.5 w-full bg-red-600" />
+        <div className="h-1.5 w-full bg-red-600 shrink-0" />
 
-        {/* Modal Header */}
-        <div className="flex justify-between items-center px-6 py-4.5 border-b border-slate-100 bg-slate-50/50">
+        {/* Modal Header com Cockpit Controls */}
+        <div className="flex justify-between items-center px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
           <div className="flex flex-col gap-0.5">
             <span className="text-red-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
               <Flame className="w-4 h-4 animate-pulse" /> SPCI PLANTA CORPORATIVA
@@ -739,14 +799,32 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
               REGISTRO DE NOVO EXTINTOR
             </h2>
           </div>
-          <button 
-            type="button"
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-700 border border-slate-200 bg-white p-2.5 transition-all rounded-xl cursor-pointer"
-            title="Fechar"
-          >
-            <X className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button 
+              type="button"
+              onClick={handleMinimize}
+              className="text-slate-400 hover:text-slate-700 border border-slate-200 bg-white p-2 transition-all rounded-xl cursor-pointer"
+              title="Minimizar para a barra inferior"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+            <button 
+              type="button"
+              onClick={toggleMaximize}
+              className="text-slate-400 hover:text-slate-700 border border-slate-200 bg-white p-2 transition-all rounded-xl cursor-pointer"
+              title={isMaximized ? "Restaurar tamanho" : "Maximizar tela cheia"}
+            >
+              {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+            <button 
+              type="button"
+              onClick={onClose}
+              className="text-slate-400 hover:text-rose-600 border border-slate-200 bg-white p-2 transition-all rounded-xl cursor-pointer"
+              title="Fechar (Esc)"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body */}

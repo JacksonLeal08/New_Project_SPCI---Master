@@ -46,6 +46,7 @@ export default function WindowModal({
 }: WindowModalProps) {
   const {
     registerWindow,
+    updateWindowMetadata,
     unregisterWindow,
     setWindowState,
     getWindowState,
@@ -55,7 +56,7 @@ export default function WindowModal({
 
   const [confirmCloseOpen, setConfirmCloseOpen] = useState(false);
 
-  // Registra a janela no contexto quando abre
+  // Registra a janela no contexto quando abre e desregistra ao fechar
   useEffect(() => {
     if (isOpen) {
       registerWindow(id, {
@@ -75,11 +76,23 @@ export default function WindowModal({
     return () => {
       unregisterWindow(id);
     };
-  }, [id, isOpen, title, subtitle, iconName, badgeStatus, defaultMaximized, registerWindow, unregisterWindow, setWindowState, onClose]);
+  }, [id, isOpen, defaultMaximized, registerWindow, unregisterWindow, setWindowState, onClose]);
+
+  // Sincroniza metadados sem desregistrar nem resetar o estado (preservando maximized)
+  useEffect(() => {
+    if (isOpen) {
+      updateWindowMetadata(id, {
+        title,
+        subtitle,
+        iconName,
+        badgeStatus,
+      });
+    }
+  }, [id, isOpen, title, subtitle, iconName, badgeStatus, updateWindowMetadata]);
 
   const currentState = getWindowState(id);
 
-  // Escuta tecla ESC para atalho de restaurar / fechar
+  // Escuta tecla ESC para fechar o modal com o qual está interagindo
   useEffect(() => {
     if (!isOpen || currentState === 'minimized') return;
 
@@ -89,17 +102,13 @@ export default function WindowModal({
           setConfirmCloseOpen(false);
           return;
         }
-        if (currentState === 'maximized') {
-          setWindowState(id, 'restored');
-        } else {
-          handleRequestClose();
-        }
+        handleRequestClose();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, currentState, confirmCloseOpen, id, setWindowState]);
+  }, [isOpen, currentState, confirmCloseOpen, id, hasUnsavedChanges]);
 
   if (!isOpen) return null;
 
@@ -134,13 +143,14 @@ export default function WindowModal({
       className="fixed inset-0 z-[100] font-sans select-none"
       onClick={() => bringToFront(id)}
     >
-      {/* Backdrop com Blur */}
+      {/* Backdrop com Blur e fechamento ao clicar fora */}
       {!hideBackdrop && (
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
-          className="fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity"
+          onClick={handleRequestClose}
+          className="fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity cursor-pointer pointer-events-auto"
         />
       )}
 
@@ -149,12 +159,18 @@ export default function WindowModal({
         className={`fixed inset-0 flex items-center justify-center pointer-events-none ${
           isMaximized ? 'p-0' : 'p-2 sm:p-4'
         }`}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            handleRequestClose();
+          }
+        }}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.22, ease: 'easeOut' }}
+          onClick={(e) => e.stopPropagation()}
           className={`pointer-events-auto bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
             isMaximized
               ? 'w-screen h-screen rounded-none shadow-none'

@@ -94,7 +94,7 @@ const mapStatusEstoqueToStatusOperacional = (status: string | undefined): string
 /**
  * Busca a lista completa de ativos de estoque registrados no Supabase
  */
-export async function getAssetStockItemsAction(statusEstoque?: string) {
+export async function getAssetStockItemsAction(statusEstoque?: string, site?: string) {
   try {
     // Executa autocorreção e reconciliação atômica de lotes finalizados
     try {
@@ -122,7 +122,30 @@ export async function getAssetStockItemsAction(statusEstoque?: string) {
       return { success: false, error: error.message, assets: [] };
     }
 
-    const assets: AssetStockItemRecord[] = (data || []).map((row: any) => {
+    // Filtragem rigorosa por site / contrato ativo (elimina vazamento cross-contract)
+    let scopedData = data || [];
+    if (site && !site.startsWith('TODOS') && site !== 'GLOBAL') {
+      const siteUpper = site.trim().toUpperCase();
+      scopedData = scopedData.filter((row: any) => {
+        const d = row.details || {};
+        const itemSite = String(row.site || d.site || d.contrato || d.contrato_id || d.projeto || row.projeto || '').trim().toUpperCase();
+        if (itemSite) {
+          return itemSite === siteUpper || itemSite.includes(siteUpper) || siteUpper.includes(itemSite);
+        }
+        const loc = String(row.location || d.location || row.setor || '').trim().toUpperCase();
+        const subLoc = String(row.sub_location || d.sub_location || d.subLocation || '').trim().toUpperCase();
+        const area = String(d.area || row.area || '').trim().toUpperCase();
+
+        if (loc.includes(siteUpper) || subLoc.includes(siteUpper) || area.includes(siteUpper)) {
+          return true;
+        }
+
+        // Ativos legados sem marcação de planta pertencem à base original de ONÇA PUMA
+        return siteUpper === 'ONÇA PUMA';
+      });
+    }
+
+    const assets: AssetStockItemRecord[] = scopedData.map((row: any) => {
       const d = row.details || {};
       const rawMov = row.tipo_movimentacao || d.tipo_movimentacao;
       const rawStEstoque = row.status_estoque || d.status_estoque;

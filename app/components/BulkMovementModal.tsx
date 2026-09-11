@@ -17,6 +17,7 @@ import {
 import { AssetStockItemRecord, StatusEstoqueType, bulkMoveAssetStatusAction } from '@/app/actions/assetStockActions';
 import { createMaintenanceBatchAction } from '@/app/actions/maintenanceBatchActions';
 import { generateBatchRomaneioPDF, calculateTypeAndCapacityBreakdown } from '@/lib/maintenanceBatchReports';
+import WindowModal from './WindowModal';
 
 interface BulkMovementModalProps {
   isOpen: boolean;
@@ -177,42 +178,17 @@ export default function BulkMovementModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm font-mono select-none">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 10 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 10 }}
-        className="relative w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
-      >
-        {/* Faixa superior de destaque */}
-        <div className="h-1.5 w-full bg-gradient-to-r from-red-600 via-amber-500 to-blue-600 shrink-0" />
-
-        {/* Cabeçalho */}
-        <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-start justify-between gap-3 shrink-0">
-          <div>
-            <h3 className="text-sm sm:text-base font-black uppercase tracking-wider text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Boxes className="w-5 h-5 text-red-600" />
-              Despacho & Movimentação em Lote
-            </h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans mt-0.5">
-              Transição de status operacional para{' '}
-              <strong className="text-slate-800 dark:text-slate-200 font-mono font-bold">
-                {count} {count === 1 ? 'ativo selecionado' : 'ativos selecionados'}
-              </strong>
-            </p>
-          </div>
-
-          <button
-            type="button"
-            onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* Corpo do Formulário */}
-        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 flex-grow">
+    <WindowModal
+      id="modal-bulk-movement"
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Despacho & Movimentação em Lote"
+      subtitle={`Transição de status operacional para ${count} ${count === 1 ? 'ativo selecionado' : 'ativos selecionados'}`}
+      iconName="truck"
+      badgeStatus={`${count} Ativos`}
+      maxWidthClass="max-w-2xl"
+    >
+      <div className="space-y-4 font-mono select-none">
           {errorMsg && (
             <div className="p-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-800/40 flex items-start gap-2 text-xs text-red-700 dark:text-red-300">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-red-600" />
@@ -472,8 +448,7 @@ export default function BulkMovementModal({
               </div>
             </form>
           )}
-        </div>
-      </motion.div>
-    </div>
+      </div>
+    </WindowModal>
   );
 }

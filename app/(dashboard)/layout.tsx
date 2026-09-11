@@ -25,6 +25,7 @@ import AppFooter from '../components/AppFooter';
 import QuickAssetFab from '../components/QuickAssetFab';
 import ChangelogModal from '../components/ChangelogModal';
 import { GestaoAtivosModal } from '../components/GestaoAtivosModal';
+import AssetSwapModal from '../components/AssetSwapModal';
 import { ChecklistEditModal } from '../components/ChecklistEditModal';
 import { SYSTEM_VERSION } from '@/config/version';
 
@@ -71,7 +72,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     extintorChecklist,
     setExtintorChecklist,
     handleUpdateLogoAndProfile,
-    handleSystemLogout
+    handleSystemLogout,
+    isSwapModalOpen,
+    closeSwapModal
   } = useSpci();
 
   // --- ESTADOS LOCAIS PARA GESTÃO DO LAYOUT ---
@@ -462,6 +465,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <GestaoAtivosModal
         isOpen={isGestaoAtivosOpen}
         onClose={() => setIsGestaoAtivosOpen(false)}
+      />
+
+      {/* Modal Global de Substituição de Ativos (Persistente no dock em qualquer rota) */}
+      <AssetSwapModal
+        isOpen={isSwapModalOpen}
+        onClose={closeSwapModal}
+        currentUserName={userProfile?.name || currentUser?.displayName || 'Operador SPCI'}
+        currentUserEmail={userProfile?.email || currentUser?.email || undefined}
       />
 
       {/* 1. Modal de Vistoria/Inspeção NBR */}

@@ -13,7 +13,10 @@ import {
   ShieldCheck,
   ClipboardList,
   Layers,
-  FileText
+  FileText,
+  History,
+  SlidersHorizontal,
+  Wrench
 } from 'lucide-react';
 
 const ICON_MAP: Record<string, React.ReactNode> = {
@@ -25,6 +28,9 @@ const ICON_MAP: Record<string, React.ReactNode> = {
   shield: <ShieldCheck className="w-3.5 h-3.5 text-amber-500" />,
   clipboard: <ClipboardList className="w-3.5 h-3.5 text-slate-400" />,
   file: <FileText className="w-3.5 h-3.5 text-blue-400" />,
+  history: <History className="w-3.5 h-3.5 text-blue-400" />,
+  sliders: <SlidersHorizontal className="w-3.5 h-3.5 text-amber-400" />,
+  wrench: <Wrench className="w-3.5 h-3.5 text-emerald-400" />,
 };
 
 export default function WindowDockTray() {
@@ -34,7 +40,7 @@ export default function WindowDockTray() {
 
   return (
     <div
-      className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-[9999] flex flex-col-reverse sm:flex-row items-end sm:items-center gap-2 pointer-events-none select-none font-mono"
+      className="fixed bottom-3 right-3 sm:bottom-4 sm:right-4 z-[9999] flex flex-row-reverse items-center justify-start gap-2.5 max-w-[calc(100vw-32px)] overflow-x-auto scrollbar-none pointer-events-none select-none font-mono"
       aria-label="Bandeja de Janelas Minimizadas"
     >
       <AnimatePresence>

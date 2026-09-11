@@ -4,6 +4,9 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   X,
+  Minus,
+  Maximize2,
+  Minimize2,
   CheckCircle2,
   AlertTriangle,
   Flame,
@@ -18,6 +21,7 @@ import {
   AlertCircle,
   FileText
 } from 'lucide-react';
+import { useWindowModal } from '@/app/context/WindowModalContext';
 import {
   LoteManutencaoRecord,
   ItemLoteManutencaoRecord,
@@ -168,16 +172,76 @@ export default function BatchTriageModal({
   const approvedCount = Object.values(triageMap).filter((i) => i.status_triagem === 'APROVADO').length;
   const condemnedCount = Object.values(triageMap).filter((i) => i.status_triagem === 'CONDENADO').length;
 
+  const MODAL_ID = `modal-batch-triage-${loteId || 'active'}`;
+  const { registerWindow, unregisterWindow, setWindowState, getWindowState, bringToFront, updateWindowMetadata } = useWindowModal();
+
+  useEffect(() => {
+    if (isOpen) {
+      registerWindow(MODAL_ID, {
+        title: `Triagem Lote ${lote?.numero_lote || loteId}`,
+        subtitle: 'Triagem & Selos Inmetro',
+        iconName: 'shield',
+        badgeStatus: `${approvedCount} OK`,
+        onClose,
+      });
+    } else {
+      unregisterWindow(MODAL_ID);
+    }
+    return () => unregisterWindow(MODAL_ID);
+  }, [isOpen, loteId, registerWindow, unregisterWindow, onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      updateWindowMetadata(MODAL_ID, {
+        title: `Triagem Lote ${lote?.numero_lote || loteId}`,
+        badgeStatus: `${approvedCount} OK`,
+      });
+    }
+  }, [isOpen, lote?.numero_lote, loteId, approvedCount, updateWindowMetadata]);
+
+  const currentState = getWindowState(MODAL_ID);
+  const isMinimized = currentState === 'minimized';
+  const isMaximized = currentState === 'maximized';
+
+  const handleMinimize = () => setWindowState(MODAL_ID, 'minimized');
+  const toggleMaximize = () => setWindowState(MODAL_ID, isMaximized ? 'restored' : 'maximized');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isMinimized) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isMinimized, onClose]);
+
+  if (!isOpen) return null;
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-mono select-none">
+    <div
+      style={{ display: isMinimized ? 'none' : 'flex' }}
+      className={`fixed inset-0 z-[100] items-center justify-center bg-slate-950/80 backdrop-blur-sm font-mono select-none cursor-pointer ${
+        isMaximized ? 'p-0' : 'p-2 sm:p-4'
+      }`}
+      onClick={(e) => {
+        bringToFront(MODAL_ID);
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+    >
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[92vh]"
+        onClick={(e) => e.stopPropagation()}
+        className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl overflow-hidden flex flex-col cursor-default ${
+          isMaximized ? 'w-screen h-screen rounded-none max-h-screen' : 'rounded-3xl w-full max-w-4xl max-h-[92vh]'
+        }`}
       >
-        {/* Header da Triagem */}
-        <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
+        {/* Header da Triagem com Cockpit Controls */}
+        <div className="p-4 sm:p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-900/60 flex items-center justify-center text-emerald-600 dark:text-emerald-500 shadow-sm">
               <ShieldCheck className="w-5 h-5" />
@@ -191,12 +255,32 @@ export default function BatchTriageModal({
               </h2>
             </div>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer border-none bg-transparent"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={handleMinimize}
+              title="Minimizar para a barra inferior"
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 transition-all border-none bg-transparent cursor-pointer"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={toggleMaximize}
+              title={isMaximized ? "Restaurar tamanho" : "Maximizar tela cheia"}
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/80 transition-all border-none bg-transparent cursor-pointer"
+            >
+              {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              title="Fechar (Esc)"
+              className="w-8 h-8 flex items-center justify-center rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-all border-none bg-transparent cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Resumo Rápido & Ações em Massa */}

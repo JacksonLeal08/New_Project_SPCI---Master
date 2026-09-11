@@ -37,12 +37,11 @@ import {
   exportSwapsToXLSX
 } from '@/lib/assetSwapReports';
 import { soundNotificationService } from '@/lib/soundNotificationService';
-import AssetSwapModal from '@/app/components/AssetSwapModal';
 import { useSpci } from '@/app/context/SpciContext';
 
 export default function GestaoTrocasPage() {
   const router = useRouter();
-  const { currentUser, userProfile, activeSite, isGlobalScope } = useSpci();
+  const { currentUser, userProfile, activeSite, isGlobalScope, openSwapModal } = useSpci();
 
   const loggedUserName = userProfile?.name || currentUser?.displayName || 'Operador SPCI';
   const loggedUserEmail = userProfile?.email || currentUser?.email || undefined;
@@ -63,9 +62,6 @@ export default function GestaoTrocasPage() {
   // Filtros
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedMotivo, setSelectedMotivo] = useState('todos');
-
-  // Modal de Troca
-  const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
 
   // Som ativo/inativo
   const [soundActive, setSoundActive] = useState(true);
@@ -202,7 +198,7 @@ export default function GestaoTrocasPage() {
           {/* Botão Principal: Nova Troca */}
           <button
             type="button"
-            onClick={() => setIsSwapModalOpen(true)}
+            onClick={openSwapModal}
             className="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold shadow-md shadow-red-600/20 transition flex items-center gap-1.5 cursor-pointer active:scale-95"
           >
             <Plus className="w-4 h-4" />
@@ -432,15 +428,6 @@ export default function GestaoTrocasPage() {
           </div>
         )}
       </div>
-
-      {/* Modal Reutilizável de Troca Rápida */}
-      <AssetSwapModal
-        isOpen={isSwapModalOpen}
-        onClose={() => setIsSwapModalOpen(false)}
-        currentUserName={loggedUserName}
-        currentUserEmail={loggedUserEmail}
-        onSuccess={handleSwapSuccess}
-      />
     </div>
   );
 }

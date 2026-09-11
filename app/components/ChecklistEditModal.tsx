@@ -23,6 +23,7 @@ import {
 import { saveChecklistItemsAction, deleteChecklistItemAction } from '@/app/actions/checklistActions';
 import { useSpci } from '@/app/context/SpciContext';
 import { idb } from '@/lib/indexedDb';
+import WindowModal from './WindowModal';
 
 export interface ChecklistItemData {
   id: string;
@@ -449,36 +450,40 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-md p-4 font-mono select-none">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.96, y: 15 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.96, y: 15 }}
-        className="w-full max-w-5xl bg-white border border-slate-200 shadow-2xl rounded-2xl flex flex-col max-h-[92vh] overflow-hidden text-slate-900"
-      >
-        {/* CABEÇALHO DO MODAL */}
-        <div className="bg-red-700 text-white p-4 sm:p-5 flex items-center justify-between border-b border-red-800 shadow-md">
+    <WindowModal
+      id="modal-checklist-edit"
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Checklist NBR 12962 / 15808"
+      subtitle="Configuração dos quesitos de verificação para vistoria Web e App de Ronda"
+      iconName="sliders"
+      badgeStatus={`${list.length} Quesitos`}
+      maxWidthClass="max-w-5xl"
+      footer={
+        <div className="flex items-center justify-between w-full font-mono text-xs text-slate-700 dark:text-slate-300 font-bold">
+          <span className="text-slate-500 text-[11px]">
+            Total de {list.length} quesitos ({list.filter((x) => x.status === 'Ativado').length} ativados)
+          </span>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center border border-white/20 shadow-inner">
-              <CheckSquare className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h2 className="text-base sm:text-lg font-black uppercase tracking-wider text-white font-['Hanken_Grotesk']">
-                CHECKLIST - EXTINTORES (NBR 12962 / NBR 15808)
-              </h2>
-              <p className="text-[11px] text-red-100 font-sans mt-0.5 font-bold">
-                Configuração dos quesitos de verificação para vistoria Web e App de Ronda
-              </p>
-            </div>
+            <button
+              onClick={onClose}
+              className="px-4 py-2 border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold rounded-xl transition-all shadow-xs cursor-pointer"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleSaveAll}
+              disabled={saving}
+              className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white font-black rounded-xl flex items-center gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer border-none"
+            >
+              <Save className="w-4 h-4" />
+              <span>{saving ? 'Salvando...' : 'Salvar Alterações no Banco de Dados'}</span>
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-all cursor-pointer font-bold border border-white/20"
-            title="Fechar Modal"
-          >
-            <X className="w-5 h-5" />
-          </button>
         </div>
+      }
+    >
+      <div className="flex flex-col h-full font-mono select-none">
 
         {/* BARRA DE AÇÕES E FILTROS */}
         <div className="bg-slate-50 border-b border-slate-200 p-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
@@ -852,32 +857,8 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
           </table>
         </div>
 
-        {/* RODAPÉ DO MODAL DE SALVAMENTO */}
-        <div className="bg-slate-50 border-t border-slate-200 p-4 flex items-center justify-between font-mono text-xs text-slate-700 font-bold">
-          <span className="text-slate-600 text-[11px]">
-            Total de {list.length} quesitos ({list.filter((x) => x.status === 'Ativado').length} ativados)
-          </span>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 border border-slate-300 bg-white hover:bg-slate-100 text-slate-800 font-bold rounded-xl transition-all shadow-xs cursor-pointer"
-            >
-              Cancelar
-            </button>
-            <button
-              onClick={handleSaveAll}
-              disabled={saving}
-              className="px-5 py-2 bg-red-700 hover:bg-red-800 text-white font-black rounded-xl flex items-center gap-2 transition-all shadow-md disabled:opacity-50 cursor-pointer border-none"
-            >
-              <Save className="w-4 h-4" />
-              <span>{saving ? 'Salvando...' : 'Salvar Alterações no Banco de Dados'}</span>
-            </button>
-          </div>
-        </div>
-      </motion.div>
-
-      {/* MODAL POP-UP HUD INFORMATIVO ELEGANTE (SUBSTITUI O ALERT DO NAVEGADOR) */}
-      <AnimatePresence>
+        {/* MODAL POP-UP HUD INFORMATIVO ELEGANTE (SUBSTITUI O ALERT DO NAVEGADOR) */}
+        <AnimatePresence>
         {hudAlert.isOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
             <motion.div
@@ -934,6 +915,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
           </div>
         )}
       </AnimatePresence>
-    </div>
+      </div>
+    </WindowModal>
   );
 };

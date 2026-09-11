@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { getAssetLocationHistoryAction } from '@/app/actions/geoTrackingActions';
 import { LocationHistoryEntry, formatDistance } from '@/lib/geoUtils';
+import WindowModal from './WindowModal';
 
 interface AssetMovementHistoryModalProps {
   isOpen: boolean;
@@ -91,41 +92,17 @@ export default function AssetMovementHistoryModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 md:p-6 bg-slate-950/80 backdrop-blur-md font-mono select-none">
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95, y: 15 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="w-full max-w-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] text-slate-900 dark:text-slate-100"
-      >
-        {/* CABEÇALHO */}
-        <div className="bg-gradient-to-r from-red-750 to-slate-900 px-6 py-4 border-b border-red-700/40 flex items-center justify-between text-white">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-red-600/20 text-red-400 border border-red-500/30">
-              <Navigation size={18} />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase text-white font-sans tracking-wide">
-                  Histórico de Deslocamento & Timeline GPS
-                </span>
-                <span className="px-2 py-0.5 rounded-full bg-white/15 text-red-100 text-[10px] font-bold">
-                  {assetCode}
-                </span>
-              </div>
-              <p className="text-[10px] text-red-200/80 font-sans mt-0.5">
-                {asset.model || 'Equipamento SPCI'} • {asset.location}
-              </p>
-            </div>
-          </div>
-
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer border border-white/10"
-          >
-            <X size={18} />
-          </button>
-        </div>
+    <WindowModal
+      id={`modal-movement-history-${assetCode}`}
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Histórico de Deslocamento & Timeline GPS"
+      subtitle={`${asset.model || 'Equipamento SPCI'} • ${asset.location || 'Local'}`}
+      iconName="history"
+      badgeStatus={assetCode}
+      maxWidthClass="max-w-2xl"
+    >
+      <div className="flex flex-col font-mono select-none">
 
         {/* MÉTRICAS SUPERIORES (BENTO MINI) */}
         <div className="grid grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-950/60 border-b border-slate-200 dark:border-slate-800 text-center">
@@ -291,7 +268,7 @@ export default function AssetMovementHistoryModal({
             Fechar Timeline
           </button>
         </div>
-      </motion.div>
-    </div>
+      </div>
+    </WindowModal>
   );
 }

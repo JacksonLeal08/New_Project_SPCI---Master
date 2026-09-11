@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useWindowModal } from '@/app/context/WindowModalContext';
+import { useSpci } from '@/app/context/SpciContext';
 import {
   AssetStockItemRecord,
   getAssetStockItemsAction
@@ -39,11 +40,12 @@ import {
   Minimize2,
   Sparkles
 } from 'lucide-react';
+import { matchesUserSite } from '@/lib/utils';
 
 export interface WizardTrocaModalMobileProps {
   isOpen: boolean;
   onClose: () => void;
-  currentUserName: string;
+  currentUserName?: string;
   currentUserEmail?: string;
   preSelectedAssetId?: string;
   onSuccess?: (troca: SubstituicaoAtivoRecord) => void;
@@ -105,13 +107,15 @@ const MODAL_ID = 'modal-asset-swap-wizard';
 export default function WizardTrocaModalMobile({
   isOpen,
   onClose,
-  currentUserName,
+  currentUserName = 'Operador SPCI',
   currentUserEmail,
   preSelectedAssetId,
   onSuccess
 }: WizardTrocaModalMobileProps) {
+  const { currentUser, userProfile, activeSite } = useSpci();
   const {
     registerWindow,
+    updateWindowMetadata,
     unregisterWindow,
     setWindowState,
     getWindowState,
@@ -153,7 +157,14 @@ export default function WizardTrocaModalMobile({
   const [completedTroca, setCompletedTroca] = useState<SubstituicaoAtivoRecord | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Registra janela no WindowModalContext
+  const currentState = getWindowState(MODAL_ID);
+  const isMinimized = currentState === 'minimized';
+  const isMaximized = currentState === 'maximized';
+
+  const handleMinimize = () => setWindowState(MODAL_ID, 'minimized');
+  const toggleMaximize = () => setWindowState(MODAL_ID, isMaximized ? 'restored' : 'maximized');
+
+  // Registra janela no WindowModalContext ao abrir/fechar
   useEffect(() => {
     if (isOpen) {
       registerWindow(MODAL_ID, {
@@ -169,27 +180,40 @@ export default function WizardTrocaModalMobile({
     return () => {
       unregisterWindow(MODAL_ID);
     };
-  }, [isOpen, step, registerWindow, unregisterWindow, onClose]);
+  }, [isOpen, registerWindow, unregisterWindow, onClose]);
 
-  const currentState = getWindowState(MODAL_ID);
-  const isMinimized = currentState === 'minimized';
-  const isMaximized = currentState === 'maximized';
+  // Sincroniza metadados sem desregistrar nem resetar estado (mantém maximized entre passos)
+  useEffect(() => {
+    if (isOpen) {
+      updateWindowMetadata(MODAL_ID, {
+        badgeStatus: `Passo ${step} de 4`,
+      });
+    }
+  }, [isOpen, step, updateWindowMetadata]);
 
-  const handleMinimize = () => setWindowState(MODAL_ID, 'minimized');
-  const toggleMaximize = () => setWindowState(MODAL_ID, isMaximized ? 'restored' : 'maximized');
+  // Escuta tecla ESC para fechar modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isMinimized) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isMinimized, onClose]);
 
-  // Carrega inventário de extintores (combina tabela assets e view ao vivo com 602 ativos)
+  // Carrega inventário de extintores estritamente da planta/contrato ativo (elimina vazamento de outros contratos)
   const loadInventory = async () => {
     setLoadingAssets(true);
     setErrorMsg(null);
     try {
       const [allExtintoresLive, resEstoque, resAreaAction] = await Promise.all([
-        getAssetsList('extintores').catch((e) => {
+        getAssetsList('extintores', activeSite).catch((e) => {
           console.warn('[WizardTrocaModalMobile] Falha ao buscar lista de extintores:', e);
           return [] as any[];
         }),
-        getAssetStockItemsAction('ESTOQUE APLICAÇÃO').catch(() => ({ success: false, assets: [] })),
-        getAssetStockItemsAction('NA ÁREA (APLICADO)').catch(() => ({ success: false, assets: [] }))
+        getAssetStockItemsAction('ESTOQUE APLICAÇÃO', activeSite).catch(() => ({ success: false, assets: [] })),
+        getAssetStockItemsAction('NA ÁREA (APLICADO)', activeSite).catch(() => ({ success: false, assets: [] }))
       ]);
 
       // 1. Constrói a lista completa de extintores da área instalados na planta
@@ -197,12 +221,14 @@ export default function WizardTrocaModalMobile({
 
       // Adiciona itens da tabela assets retornados pela action
       (resAreaAction.assets || []).forEach((a) => {
+        if (!matchesUserSite(a, activeSite)) return;
         const key = (a.id_ativo || a.patrimonio || a.id || '').toUpperCase();
         if (key) mappedAreaMap.set(key, a);
       });
 
-      // Adiciona/enriquece com os dados vivos dos 602 extintores da planta
+      // Adiciona/enriquece com os dados vivos dos extintores da planta ativa
       (allExtintoresLive || []).forEach((ext: any) => {
+        if (!matchesUserSite(ext, activeSite)) return;
         const key = String(ext.idAtivo || ext.numero_patrimonio || ext.id || '').toUpperCase();
         if (!key) return;
 
@@ -238,6 +264,7 @@ export default function WizardTrocaModalMobile({
       const mappedEstoqueMap = new Map<string, AssetStockItemRecord>();
 
       (resEstoque.assets || []).forEach((a) => {
+        if (!matchesUserSite(a, activeSite)) return;
         const stOp = (a as any).status_operacional;
         const isManutencao =
           stOp === 'ESTOQUE_MANUTENCAO' ||
@@ -258,6 +285,7 @@ export default function WizardTrocaModalMobile({
       });
 
       (allExtintoresLive || []).forEach((ext: any) => {
+        if (!matchesUserSite(ext, activeSite)) return;
         const key = String(ext.idAtivo || ext.numero_patrimonio || ext.id || '').toUpperCase();
         if (!key) return;
 
@@ -337,7 +365,7 @@ export default function WizardTrocaModalMobile({
       setErrorMsg(null);
       setStep(1);
     }
-  }, [isOpen, preSelectedAssetId]);
+  }, [isOpen, preSelectedAssetId, activeSite]);
 
   // Filtros de ativos
   const filteredAreaAssets = useMemo(() => {
@@ -469,8 +497,8 @@ export default function WizardTrocaModalMobile({
         descricao_motivo: descricao.trim() || undefined,
         foto_antes_url: fotoAntes || undefined,
         foto_depois_url: fotoDepois || undefined,
-        tecnico_responsavel_nome: currentUserName || 'Operador SPCI',
-        tecnico_responsavel_email: currentUserEmail,
+        tecnico_responsavel_nome: currentUserName || userProfile?.name || currentUser?.displayName || 'Operador SPCI',
+        tecnico_responsavel_email: currentUserEmail || userProfile?.email || currentUser?.email || undefined,
       });
 
       if (!res.success || !res.troca) {
@@ -511,12 +539,13 @@ export default function WizardTrocaModalMobile({
       className="fixed inset-0 z-[100] font-sans select-none"
       onClick={() => bringToFront(MODAL_ID)}
     >
-      {/* Backdrop com Blur Profundo */}
+      {/* Backdrop com Blur Profundo e fechamento ao clicar fora */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity"
+        onClick={onClose}
+        className="fixed inset-0 bg-slate-950/80 backdrop-blur-md transition-opacity cursor-pointer pointer-events-auto"
       />
 
       {/* Caixa do Modal Mobile & Desktop */}
@@ -524,12 +553,18 @@ export default function WizardTrocaModalMobile({
         className={`fixed inset-0 flex items-center justify-center pointer-events-none ${
           isMaximized ? 'p-0' : 'p-0 sm:p-4'
         }`}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.96, y: 20 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.96, y: 20 }}
           transition={{ duration: 0.24, ease: 'easeOut' }}
+          onClick={(e) => e.stopPropagation()}
           className={`pointer-events-auto bg-slate-50/95 dark:bg-zinc-950 border border-slate-300/90 dark:border-zinc-800 flex flex-col overflow-hidden transition-all duration-300 ease-in-out ${
             isMaximized
               ? 'w-screen h-screen rounded-none shadow-none'

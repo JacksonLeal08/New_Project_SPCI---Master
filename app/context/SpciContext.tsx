@@ -202,6 +202,12 @@ interface SpciContextType {
   filteredIluminacoes: any[];
   filteredBombas: any[];
   filteredComplianceLogs: any[];
+
+  // Global Swap Modal State (WizardTrocaModalMobile)
+  isSwapModalOpen: boolean;
+  setIsSwapModalOpen: (open: boolean) => void;
+  openSwapModal: () => void;
+  closeSwapModal: () => void;
 }
 
 const generateUUID = () => {
@@ -438,6 +444,11 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [scanCode, setScanCode] = useState('');
 
   const [chatOpened, setChatOpened] = useState(false);
+
+  // Global Swap Modal state
+  const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
+  const openSwapModal = useCallback(() => setIsSwapModalOpen(true), []);
+  const closeSwapModal = useCallback(() => setIsSwapModalOpen(false), []);
   const [chatMessages, setChatMessages] = useState<Array<{ sender: 'user' | 'assistant'; text: string }>>([
     { sender: 'assistant', text: 'Olá Operador! Sou o assistente Inspe IA SPCI. Como posso apoiar você em suas inspeções de NBR de hoje, ou ao redactar alertas de inconformidades?' }
   ]);
@@ -1844,7 +1855,11 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       filteredSinalizacoes,
       filteredIluminacoes,
       filteredBombas,
-      filteredComplianceLogs
+      filteredComplianceLogs,
+      isSwapModalOpen,
+      setIsSwapModalOpen,
+      openSwapModal,
+      closeSwapModal
     }}>
       {children}
       <CustomAlertDialog

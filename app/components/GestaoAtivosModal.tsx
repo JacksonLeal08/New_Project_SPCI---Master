@@ -51,6 +51,7 @@ import BulkMovementModal from './BulkMovementModal';
 import { idb } from '@/lib/indexedDb';
 import { useSpci } from '@/app/context/SpciContext';
 import { useWindowModal } from '@/app/context/WindowModalContext';
+import { matchesUserSite } from '@/lib/utils';
 
 const MODAL_ID = 'modal-gestao-ativos-estoque';
 
@@ -121,7 +122,7 @@ export const calculateDaysRemaining = (expiryDateStr?: string | null): number | 
 };
 
 export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, userProfile } = useSpci();
+  const { currentUser, userProfile, activeSite } = useSpci();
   const loggedUserName =
     userProfile?.name ||
     currentUser?.displayName ||
@@ -131,6 +132,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
 
   const {
     registerWindow,
+    updateWindowMetadata,
     unregisterWindow,
     setWindowState,
     getWindowState,
@@ -155,7 +157,16 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     return () => {
       unregisterWindow(MODAL_ID);
     };
-  }, [isOpen, items.length, registerWindow, unregisterWindow, onClose]);
+  }, [isOpen, registerWindow, unregisterWindow, onClose]);
+
+  // Sincroniza metadados sem desregistrar nem resetar o estado (preserva maximizado)
+  useEffect(() => {
+    if (isOpen) {
+      updateWindowMetadata(MODAL_ID, {
+        badgeStatus: `${items.length} Ativos`,
+      });
+    }
+  }, [isOpen, items.length, updateWindowMetadata]);
 
   const currentState = getWindowState(MODAL_ID);
   const isMinimized = currentState === 'minimized';
@@ -341,10 +352,13 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         sub_location: inlineSubLocal || 'Estoque',
         status: 'Operacional',
         status_estoque: targetStatusEstoque,
+        site: activeSite,
         validadeRecarga: finalValidade,
         ultima_recarga: finalRecarga,
         data_vencimento_teste: finalValidade,
         details: {
+          site: activeSite,
+          contrato_id: activeSite,
           fabricante: inlineFabricante,
           peso_capacidade: inlineCapacidade,
           model: inlineModelo,
@@ -403,7 +417,7 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
 
   const YEARS = Array.from({ length: 21 }, (_, i) => currentYear - 5 + i);
 
-  // Carrega ativos do Supabase e IndexedDB ao abrir
+  // Carrega ativos do Supabase e IndexedDB ao abrir, com segregação por contrato ativo
   const loadAssets = async () => {
     setLoading(true);
     try {
@@ -411,7 +425,8 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
       try {
         const localItems = await idb.getAll('extintores');
         if (localItems && localItems.length > 0) {
-          loaded = localItems.map((row: any) => ({
+          const filteredLocal = localItems.filter((row: any) => matchesUserSite(row, activeSite));
+          loaded = filteredLocal.map((row: any) => ({
             id: row.id,
             id_ativo: row.idAtivo || row.id,
             category: row.category || 'extintores',
@@ -434,8 +449,8 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         console.warn('[GestaoAtivosModal] Aviso ao carregar IndexedDB:', idbErr);
       }
 
-      const res = await getAssetStockItemsAction();
-      if (res.success && res.assets && res.assets.length > 0) {
+      const res = await getAssetStockItemsAction(undefined, activeSite);
+      if (res.success && res.assets) {
         loaded = res.assets;
         setItems(res.assets);
 
@@ -503,21 +518,17 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     if (isOpen) {
       loadAssets();
     }
-  }, [isOpen]);
+  }, [isOpen, activeSite]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen && !isMinimized) {
-        if (isMaximized) {
-          setWindowState(MODAL_ID, 'restored');
-        } else {
-          onClose();
-        }
+        onClose();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isMinimized, isMaximized, onClose, setWindowState]);
+  }, [isOpen, isMinimized, onClose]);
 
 
 
@@ -777,16 +788,22 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   return (
     <div
       style={{ display: isMinimized ? 'none' : 'flex' }}
-      className={`fixed inset-0 z-[100] items-center justify-center bg-slate-950/85 font-mono select-none overflow-hidden transition-all duration-300 ${
+      className={`fixed inset-0 z-[100] items-center justify-center bg-slate-950/85 font-mono select-none overflow-hidden transition-all duration-300 cursor-pointer ${
         isMaximized ? 'p-0' : 'p-0 sm:p-4 md:p-6'
       }`}
-      onClick={() => bringToFront(MODAL_ID)}
+      onClick={(e) => {
+        bringToFront(MODAL_ID);
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.98, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.98, y: 10 }}
-        className={`bg-white border-0 sm:border border-slate-200 shadow-2xl flex flex-col overflow-hidden text-slate-900 transition-all duration-300 ease-in-out ${
+        onClick={(e) => e.stopPropagation()}
+        className={`cursor-default bg-white border-0 sm:border border-slate-200 shadow-2xl flex flex-col overflow-hidden text-slate-900 transition-all duration-300 ease-in-out ${
           isMaximized
             ? 'w-screen h-screen rounded-none max-w-none max-h-none h-full'
             : 'w-full max-w-6xl sm:rounded-2xl rounded-none h-[100dvh] sm:h-auto sm:max-h-[92vh]'

@@ -18,6 +18,7 @@ import {
   MapPin
 } from 'lucide-react';
 import { useSpci } from '../context/SpciContext';
+import { useWindowModal } from '../context/WindowModalContext';
 import { AssetCategory } from '@/lib/types';
 
 interface AssetOption {
@@ -48,6 +49,9 @@ export default function QuickAssetFab() {
     iluminacoes,
     bombas
   } = useSpci();
+
+  const { minimizedWindows } = useWindowModal();
+  const hasMinimized = Boolean(minimizedWindows && minimizedWindows.length > 0);
 
   // Fechar com ESC ou evento global
   useEffect(() => {
@@ -194,7 +198,9 @@ export default function QuickAssetFab() {
   return (
     <>
       <div 
-        className={`fixed bottom-6 z-50 flex flex-col items-end select-none transition-all duration-300 ease-out no-print print:hidden ${
+        className={`fixed z-50 flex flex-col items-end select-none transition-all duration-300 ease-out no-print print:hidden ${
+          hasMinimized ? 'bottom-20 sm:bottom-24' : 'bottom-6'
+        } ${
           chatOpened ? 'right-6 sm:right-[440px] md:right-[475px]' : 'right-6'
         }`}
       >

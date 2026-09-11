@@ -6,6 +6,9 @@ import {
   History, 
   Printer, 
   X, 
+  Minus,
+  Maximize2,
+  Minimize2,
   CheckCircle2, 
   AlertTriangle, 
   MapPin, 
@@ -20,6 +23,7 @@ import {
   Flame,
   Check
 } from 'lucide-react';
+import { useWindowModal } from '@/app/context/WindowModalContext';
 import { fetchInspecoesByAssetId } from '@/lib/supabaseDb';
 import { InspecaoRealizada } from '@/lib/types';
 import { formatDateBr } from '@/lib/utils';
@@ -117,12 +121,68 @@ export default function AssetInspectionHistoryModal({
     window.print();
   };
 
+  const MODAL_ID = `modal-inspection-history-${patrimonio}`;
+  const { registerWindow, unregisterWindow, setWindowState, getWindowState, bringToFront, updateWindowMetadata } = useWindowModal();
+
+  useEffect(() => {
+    if (isOpen) {
+      registerWindow(MODAL_ID, {
+        title: `Histórico ${patrimonio}`,
+        subtitle: `${modelo} - Vistorias`,
+        iconName: 'history',
+        badgeStatus: `${inspecoes.length} Laudos`,
+        onClose,
+      });
+    } else {
+      unregisterWindow(MODAL_ID);
+    }
+    return () => unregisterWindow(MODAL_ID);
+  }, [isOpen, MODAL_ID, patrimonio, modelo, registerWindow, unregisterWindow, onClose]);
+
+  useEffect(() => {
+    if (isOpen) {
+      updateWindowMetadata(MODAL_ID, {
+        badgeStatus: `${inspecoes.length} Laudos`,
+      });
+    }
+  }, [isOpen, inspecoes.length, updateWindowMetadata]);
+
+  const currentState = getWindowState(MODAL_ID);
+  const isMinimized = currentState === 'minimized';
+  const isMaximized = currentState === 'maximized';
+
+  const handleMinimize = () => setWindowState(MODAL_ID, 'minimized');
+  const toggleMaximize = () => setWindowState(MODAL_ID, isMaximized ? 'restored' : 'maximized');
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isMinimized) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isMinimized, onClose]);
+
   const bgModal = isDark ? 'bg-slate-950 border-slate-800 text-slate-100' : 'bg-white border-slate-200 text-slate-900 shadow-2xl';
   const cardBg = isDark ? 'bg-slate-900/80 border-slate-800' : 'bg-slate-50 border-slate-200';
 
+  if (!isOpen) return null;
+
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/80 backdrop-blur-sm overflow-y-auto">
+      <div
+        style={{ display: isMinimized ? 'none' : 'flex' }}
+        className={`fixed inset-0 z-50 items-center justify-center bg-black/80 backdrop-blur-sm overflow-y-auto cursor-pointer ${
+          isMaximized ? 'p-0' : 'p-2 sm:p-4'
+        }`}
+        onClick={(e) => {
+          bringToFront(MODAL_ID);
+          if (e.target === e.currentTarget) {
+            onClose();
+          }
+        }}
+      >
         <style jsx global>{`
           @media print {
             body * {
@@ -155,7 +215,10 @@ export default function AssetInspectionHistoryModal({
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.96 }}
-          className={`w-full max-w-4xl max-h-[92vh] flex flex-col rounded-2xl border overflow-hidden shadow-2xl ${bgModal}`}
+          onClick={(e) => e.stopPropagation()}
+          className={`w-full flex flex-col border overflow-hidden shadow-2xl cursor-default ${
+            isMaximized ? 'w-screen h-screen rounded-none max-h-screen' : 'max-w-4xl max-h-[92vh] rounded-2xl'
+          } ${bgModal}`}
         >
           {/* TOPO DO MODAL (NO-PRINT) */}
           <div className="no-print p-4 sm:p-5 border-b border-slate-800/80 flex items-center justify-between bg-slate-900/50">
@@ -208,8 +271,28 @@ export default function AssetInspectionHistoryModal({
               </button>
 
               <button
+                type="button"
+                onClick={handleMinimize}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border-none bg-transparent cursor-pointer"
+                title="Minimizar para a barra inferior"
+              >
+                <Minus size={18} />
+              </button>
+
+              <button
+                type="button"
+                onClick={toggleMaximize}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors border-none bg-transparent cursor-pointer"
+                title={isMaximized ? "Restaurar tamanho" : "Maximizar tela cheia"}
+              >
+                {isMaximized ? <Minimize2 size={18} /> : <Maximize2 size={18} />}
+              </button>
+
+              <button
+                type="button"
                 onClick={onClose}
-                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors border-none bg-transparent cursor-pointer"
+                title="Fechar (Esc)"
                 aria-label="Fechar"
               >
                 <X size={18} />

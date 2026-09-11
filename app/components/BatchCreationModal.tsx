@@ -24,6 +24,7 @@ import { createMaintenanceBatchAction, CreateBatchItemPayload } from '@/app/acti
 import { generateBatchRomaneioPDF, exportBatchRomaneioXLSX, formatFriendlyPatrimonio, calculateTypeAndCapacityBreakdown } from '@/lib/maintenanceBatchReports';
 import { FornecedorRecord, getSuppliersAction } from '@/app/actions/supplierActions';
 import SupplierFormModal from './SupplierFormModal';
+import WindowModal from './WindowModal';
 
 interface BatchCreationModalProps {
   isOpen: boolean;
@@ -217,38 +218,40 @@ export default function BatchCreationModal({
 
   return (
     <>
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-mono select-none">
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 15 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 15 }}
-          className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[92vh]"
-        >
-          {/* Header Superior com Estilo Bento Glass */}
-          <div className="p-6 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 flex items-center justify-center text-red-600 dark:text-red-500 shadow-sm">
-                <Truck className="w-5 h-5" />
-              </div>
-              <div>
-                <span className="text-[9px] font-black uppercase tracking-widest text-red-600 dark:text-red-500 block">
-                  FLUXO DE EXPEDIÇÃO
-                </span>
-                <h2 className="text-base font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight font-['Hanken_Grotesk']">
-                  Gerar Lote de Manutenção de Extintores
-                </h2>
-              </div>
-            </div>
+      <WindowModal
+        id="modal-batch-creation"
+        isOpen={isOpen}
+        onClose={onClose}
+        title="Gerar Lote de Manutenção de Extintores"
+        subtitle="FLUXO DE EXPEDIÇÃO"
+        icon={<Truck className="w-5 h-5" />}
+        iconName="truck"
+        badgeStatus={`${selectedAssets.length} Ativos`}
+        maxWidthClass="max-w-4xl"
+        footer={
+          <div className="flex items-center justify-end gap-3 w-full">
             <button
+              type="button"
               onClick={onClose}
-              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-all cursor-pointer border-none bg-transparent"
+              disabled={submitting}
+              className="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 text-xs font-bold transition-all cursor-pointer bg-transparent border-none"
             >
-              <X className="w-5 h-5" />
+              Cancelar
+            </button>
+
+            <button
+              type="button"
+              onClick={handleConfirmSubmit}
+              disabled={submitting}
+              className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-red-950/20 flex items-center gap-2 cursor-pointer border-none disabled:opacity-50 active:scale-95"
+            >
+              <span>{submitting ? 'Gerando Lote...' : 'Confirmar Envio do Lote'}</span>
+              <ArrowRight className="w-4 h-4" />
             </button>
           </div>
-
-          {/* Corpo com Bento Layout */}
-          <div className="p-6 overflow-y-auto space-y-6 flex-1 text-xs">
+        }
+      >
+        <div className="space-y-6 text-xs font-mono">
             
             {/* Card Resumo dos Extintores Selecionados */}
             <div className="bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-2xl p-5 space-y-3">
@@ -458,31 +461,7 @@ export default function BatchCreationModal({
             </div>
 
           </div>
-
-          {/* Rodapé com CTA Final */}
-          <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/70 flex items-center justify-end gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={submitting}
-              className="px-5 py-2.5 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 text-xs font-bold transition-all cursor-pointer bg-transparent border-none"
-            >
-              Cancelar
-            </button>
-
-            <button
-              type="button"
-              onClick={handleConfirmSubmit}
-              disabled={submitting}
-              className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-red-950/20 flex items-center gap-2 cursor-pointer border-none disabled:opacity-50 active:scale-95"
-            >
-              <span>{submitting ? 'Gerando Lote...' : 'Confirmar Envio do Lote'}</span>
-              <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-
-        </motion.div>
-      </div>
+      </WindowModal>
 
       {/* Modal Inline para Cadastro Rápido de Novo Prestador */}
       {isNewSupplierModalOpen && (
