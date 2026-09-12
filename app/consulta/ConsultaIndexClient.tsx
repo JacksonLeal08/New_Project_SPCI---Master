@@ -14,7 +14,7 @@ export default function ConsultaIndexClient() {
     e.preventDefault();
     const cleanId = assetId.trim().toUpperCase();
     if (cleanId) {
-      router.push(`/consulta/${encodeURIComponent(cleanId)}`);
+      router.push(`/public/ativo/${encodeURIComponent(cleanId)}`);
     }
   };
 
@@ -65,6 +65,16 @@ export default function ConsultaIndexClient() {
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
+
+          <div className="pt-1">
+            <Link
+              href="/public/ativos"
+              className="w-full py-3 bg-slate-950 hover:bg-slate-800 border border-slate-700/80 hover:border-slate-600 text-slate-200 text-xs font-bold uppercase tracking-wider rounded-xl transition-all flex items-center justify-center gap-2"
+            >
+              <span>Navegar no Catálogo Geral de Ativos</span>
+              <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
 
           {/* Dicas Rápidas */}
           <div className="border-t border-slate-800/80 pt-4 grid grid-cols-3 gap-2 text-center text-[10px] text-slate-400 font-sans">

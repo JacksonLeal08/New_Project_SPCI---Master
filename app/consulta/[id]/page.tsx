@@ -31,7 +31,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
+import { redirect } from 'next/navigation';
+
 export default async function Page({ params }: PageProps) {
   const { id } = await params;
-  return <ConsultaClient assetId={id} />;
+  const cleanId = (id || '').trim();
+  redirect(`/public/ativo/${encodeURIComponent(cleanId)}`);
 }

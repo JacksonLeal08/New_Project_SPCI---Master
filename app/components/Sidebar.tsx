@@ -27,7 +27,8 @@ import {
   ClipboardList,
   Truck,
   ArrowLeftRight,
-  SlidersHorizontal
+  SlidersHorizontal,
+  QrCode
 } from 'lucide-react';
 import { SYSTEM_VERSION } from '@/config/version';
 import WhatsNewModal from './WhatsNewModal';
@@ -201,6 +202,15 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
         if (onClose) onClose();
       },
       badgeTag: 'NBR'
+    },
+    {
+      id: 'extintores-qrcodes',
+      label: 'Gerador de Etiquetas QR',
+      shortLabel: 'Etiquetas QR Code',
+      icon: <QrCode className="w-4 h-4 shrink-0 text-red-400" />,
+      path: '/extintores/gerar-qrcodes',
+      isActive: pathname.startsWith('/extintores/gerar-qrcodes'),
+      badgeTag: 'NOVO'
     }
   ];
 
