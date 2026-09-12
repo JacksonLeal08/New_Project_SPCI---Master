@@ -131,8 +131,17 @@ export default function GerarQrcodesPage() {
     window.print();
   };
 
+  const [currentOrigin, setCurrentOrigin] = useState('');
+  React.useEffect(() => {
+    if (typeof window !== 'undefined' && window.location?.origin) {
+      setCurrentOrigin(window.location.origin);
+    }
+  }, []);
+
+  const activeOrigin = currentOrigin || SITE_URL || 'https://spci-master.vercel.app';
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 font-mono">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-mono transition-colors duration-200">
       
       {/* -------------------------------------------------------------
           PAINEL DE CONTROLES (OCULTO NA IMPRESSÃO)
@@ -140,21 +149,21 @@ export default function GerarQrcodesPage() {
       <div className="no-print print:hidden p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
         
         {/* Top Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-slate-200 dark:border-slate-800">
           <div className="space-y-1">
             <Link
               href="/extintores"
-              className="text-xs text-slate-400 hover:text-white uppercase tracking-wider inline-flex items-center gap-1.5 transition-colors mb-1"
+              className="text-xs text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white uppercase tracking-wider inline-flex items-center gap-1.5 transition-colors mb-1"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Voltar para Extintores</span>
             </Link>
-            <h1 className="text-2xl sm:text-3xl font-black uppercase text-white font-['Hanken_Grotesk'] tracking-tight flex items-center gap-3">
-              <QrCode className="w-7 h-7 text-red-500" />
+            <h1 className="text-2xl sm:text-3xl font-black uppercase text-slate-900 dark:text-white font-['Hanken_Grotesk'] tracking-tight flex items-center gap-3">
+              <QrCode className="w-7 h-7 text-red-600 dark:text-red-500" />
               <span>Gerador e Emissor de Etiquetas QR Code</span>
             </h1>
-            <p className="text-xs text-slate-400 font-sans max-w-xl">
-              Gere etiquetas com QR Code Universal (<strong className="text-slate-200">/scan/[ID]</strong>) prontas para impressão direta em folha A4 adesiva ou bobina térmica.
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-sans max-w-xl">
+              Gere etiquetas com QR Code Universal (<strong className="text-red-600 dark:text-slate-200 font-mono">/scan/[ID]</strong>) prontas para impressão direta em folha A4 adesiva ou bobina térmica.
             </p>
           </div>
 
@@ -163,7 +172,7 @@ export default function GerarQrcodesPage() {
               type="button"
               onClick={handlePrint}
               disabled={assetsToPrint.length === 0}
-              className="px-6 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-lg shadow-red-950/50 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
+              className="px-6 py-3 bg-red-600 hover:bg-red-500 disabled:opacity-50 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all shadow-md shadow-red-600/20 active:scale-95 flex items-center gap-2 cursor-pointer disabled:cursor-not-allowed"
             >
               <Printer className="w-4 h-4" />
               <span>Imprimir {assetsToPrint.length} Etiqueta(s)</span>
@@ -175,9 +184,9 @@ export default function GerarQrcodesPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           
           {/* Seletor de Formato */}
-          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl space-y-2.5">
-            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
-              <Settings2 className="w-3.5 h-3.5 text-red-500" />
+          <div className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm dark:shadow-none space-y-2.5 transition-colors">
+            <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
+              <Settings2 className="w-3.5 h-3.5 text-red-600 dark:text-red-500" />
               <span>Formato de Impressão</span>
             </label>
             <div className="grid grid-cols-3 gap-2 text-xs font-mono">
@@ -186,12 +195,12 @@ export default function GerarQrcodesPage() {
                 onClick={() => setLabelLayout('a4_sheet')}
                 className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                   labelLayout === 'a4_sheet'
-                    ? 'bg-red-950/70 border-red-600 text-white font-bold'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                    ? 'bg-red-50 border-red-500 text-red-700 dark:bg-red-950/70 dark:border-red-600 dark:text-white font-bold shadow-sm'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
                 <span className="block text-[11px] font-bold">Folha A4</span>
-                <span className="text-[9px] text-slate-500">Grade 24un</span>
+                <span className="text-[9px] text-slate-400 dark:text-slate-500">Grade 24un</span>
               </button>
 
               <button
@@ -199,12 +208,12 @@ export default function GerarQrcodesPage() {
                 onClick={() => setLabelLayout('thermal_50x50')}
                 className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                   labelLayout === 'thermal_50x50'
-                    ? 'bg-red-950/70 border-red-600 text-white font-bold'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                    ? 'bg-red-50 border-red-500 text-red-700 dark:bg-red-950/70 dark:border-red-600 dark:text-white font-bold shadow-sm'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
                 <span className="block text-[11px] font-bold">Térmica</span>
-                <span className="text-[9px] text-slate-500">50x50mm</span>
+                <span className="text-[9px] text-slate-400 dark:text-slate-500">50x50mm</span>
               </button>
 
               <button
@@ -212,20 +221,20 @@ export default function GerarQrcodesPage() {
                 onClick={() => setLabelLayout('thermal_60x40')}
                 className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
                   labelLayout === 'thermal_60x40'
-                    ? 'bg-red-950/70 border-red-600 text-white font-bold'
-                    : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                    ? 'bg-red-50 border-red-500 text-red-700 dark:bg-red-950/70 dark:border-red-600 dark:text-white font-bold shadow-sm'
+                    : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                 }`}
               >
                 <span className="block text-[11px] font-bold">Térmica</span>
-                <span className="text-[9px] text-slate-500">60x40mm</span>
+                <span className="text-[9px] text-slate-400 dark:text-slate-500">60x40mm</span>
               </button>
             </div>
           </div>
 
           {/* Filtro por Categoria */}
-          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl space-y-2.5">
-            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
-              <Filter className="w-3.5 h-3.5 text-sky-500" />
+          <div className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm dark:shadow-none space-y-2.5 transition-colors">
+            <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
+              <Filter className="w-3.5 h-3.5 text-sky-600 dark:text-sky-500" />
               <span>Filtrar por Categoria</span>
             </label>
             <div className="grid grid-cols-4 gap-2 text-xs font-mono">
@@ -241,8 +250,8 @@ export default function GerarQrcodesPage() {
                   onClick={() => setSelectedCategory(c.id as any)}
                   className={`py-2 px-1 rounded-xl border text-center text-[10px] font-bold uppercase transition-all cursor-pointer truncate ${
                     selectedCategory === c.id
-                      ? 'bg-red-950/70 border-red-600 text-white'
-                      : 'bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200'
+                      ? 'bg-red-50 border-red-500 text-red-700 dark:bg-red-950/70 dark:border-red-600 dark:text-white font-bold shadow-sm'
+                      : 'bg-slate-50 border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:bg-slate-950 dark:border-slate-800 dark:text-slate-400 dark:hover:text-slate-200'
                   }`}
                 >
                   {c.label}
@@ -252,37 +261,37 @@ export default function GerarQrcodesPage() {
           </div>
 
           {/* Ajustes Visuais da Etiqueta */}
-          <div className="bg-slate-900/80 border border-slate-800 p-4 rounded-2xl space-y-2.5 flex flex-col justify-between">
-            <label className="text-[10px] uppercase font-bold text-slate-400 tracking-wider flex items-center gap-1.5">
-              <Info className="w-3.5 h-3.5 text-emerald-500" />
+          <div className="bg-white dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm dark:shadow-none space-y-2.5 flex flex-col justify-between transition-colors">
+            <label className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400 tracking-wider flex items-center gap-1.5">
+              <Info className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-500" />
               <span>Opções Visuais da Etiqueta</span>
             </label>
             <div className="flex items-center gap-4 text-xs">
-              <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+              <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={showLogo}
                   onChange={(e) => setShowLogo(e.target.checked)}
                   className="rounded accent-red-600 w-4 h-4 cursor-pointer"
                 />
-                <span className="text-[11px]">Exibir Logo SPCI</span>
+                <span className="text-[11px] font-medium">Exibir Logo SPCI</span>
               </label>
 
-              <label className="flex items-center gap-2 cursor-pointer text-slate-300">
+              <label className="flex items-center gap-2 cursor-pointer text-slate-700 dark:text-slate-300">
                 <input
                   type="checkbox"
                   checked={showBorder}
                   onChange={(e) => setShowBorder(e.target.checked)}
                   className="rounded accent-red-600 w-4 h-4 cursor-pointer"
                 />
-                <span className="text-[11px]">Borda de Corte</span>
+                <span className="text-[11px] font-medium">Borda de Corte</span>
               </label>
             </div>
           </div>
         </div>
 
         {/* Barra de Busca e Seleção Rápida */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-slate-900/60 border border-slate-800 p-3.5 rounded-2xl">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-3.5 rounded-2xl shadow-sm dark:shadow-none transition-colors">
           <div className="relative w-full sm:max-w-md">
             <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
@@ -290,7 +299,7 @@ export default function GerarQrcodesPage() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               placeholder="Buscar por código, setor ou modelo..."
-              className="w-full pl-10 pr-4 py-2 bg-slate-950 border border-slate-800 rounded-xl text-xs uppercase font-mono text-slate-100 placeholder-slate-500 focus:outline-none focus:border-red-600"
+              className="w-full pl-10 pr-4 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs uppercase font-mono text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-none focus:border-red-600 focus:bg-white dark:focus:bg-slate-950 transition-all"
             />
           </div>
 
@@ -298,21 +307,21 @@ export default function GerarQrcodesPage() {
             <button
               type="button"
               onClick={handleToggleSelectAll}
-              className="px-3 py-1.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 rounded-xl text-[11px] font-bold uppercase text-slate-300 flex items-center gap-1.5 cursor-pointer"
+              className="px-3 py-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-950 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-[11px] font-bold uppercase text-slate-700 dark:text-slate-300 flex items-center gap-1.5 cursor-pointer transition-colors"
             >
-              {isAllSelected ? <CheckSquare className="w-4 h-4 text-red-500" /> : <Square className="w-4 h-4 text-slate-400" />}
+              {isAllSelected ? <CheckSquare className="w-4 h-4 text-red-600 dark:text-red-500" /> : <Square className="w-4 h-4 text-slate-400" />}
               <span>{isAllSelected ? 'Desmarcar Todos' : 'Selecionar Todos'}</span>
             </button>
 
-            <span className="text-xs text-slate-400 font-mono">
-              <strong className="text-emerald-400">{selectedIds.length}</strong> de {filteredAssets.length} selecionados
+            <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
+              <strong className="text-emerald-600 dark:text-emerald-400 font-bold">{selectedIds.length}</strong> de {filteredAssets.length} selecionados
             </span>
           </div>
         </div>
 
         {/* Tabela de Seleção Individual */}
-        <div className="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden">
-          <div className="max-h-64 overflow-y-auto divide-y divide-slate-800/80">
+        <div className="bg-white dark:bg-slate-900/70 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm dark:shadow-none transition-colors">
+          <div className="max-h-64 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
             {filteredAssets.map((asset) => {
               const isChecked = selectedIds.includes(asset.id);
               return (
@@ -320,7 +329,7 @@ export default function GerarQrcodesPage() {
                   key={asset.id}
                   onClick={() => handleToggleItem(asset.id)}
                   className={`p-3 sm:px-4 flex items-center justify-between gap-3 text-xs cursor-pointer transition-colors ${
-                    isChecked ? 'bg-red-950/30' : 'hover:bg-slate-800/40'
+                    isChecked ? 'bg-red-50/70 hover:bg-red-50 dark:bg-red-950/30 dark:hover:bg-red-950/40' : 'hover:bg-slate-50 dark:hover:bg-slate-800/40'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0">
@@ -332,18 +341,18 @@ export default function GerarQrcodesPage() {
                     />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <strong className="text-white font-mono uppercase">{asset.idAtivo}</strong>
-                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700">
+                        <strong className="text-slate-900 dark:text-white font-mono uppercase">{asset.idAtivo}</strong>
+                        <span className="px-1.5 py-0.2 rounded text-[9px] font-bold uppercase bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border border-slate-200 dark:border-slate-700">
                           {asset.category}
                         </span>
                       </div>
-                      <p className="text-[11px] text-slate-400 font-sans truncate">{asset.model}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-sans truncate">{asset.model}</p>
                     </div>
                   </div>
 
-                  <div className="text-right shrink-0 font-mono text-[11px] text-slate-400">
-                    <span className="block text-slate-200 uppercase">{asset.location}</span>
-                    <span className="text-[10px] text-slate-500">{asset.subLocation || 'GERAL'}</span>
+                  <div className="text-right shrink-0 font-mono text-[11px] text-slate-500 dark:text-slate-400">
+                    <span className="block text-slate-800 dark:text-slate-200 uppercase font-semibold">{asset.location}</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">{asset.subLocation || 'GERAL'}</span>
                   </div>
                 </div>
               );
@@ -352,8 +361,8 @@ export default function GerarQrcodesPage() {
         </div>
 
         {/* Dica de Impressão */}
-        <div className="p-4 bg-slate-900/60 border border-slate-800 rounded-2xl flex items-center gap-3 text-xs text-slate-400 font-sans">
-          <Info className="w-5 h-5 text-sky-400 shrink-0" />
+        <div className="p-4 bg-sky-50 dark:bg-slate-900/60 border border-sky-100 dark:border-slate-800 rounded-2xl flex items-center gap-3 text-xs text-slate-700 dark:text-slate-400 font-sans transition-colors">
+          <Info className="w-5 h-5 text-sky-600 dark:text-sky-400 shrink-0" />
           <p>
             <strong>Dica de Impressão:</strong> Na caixa de diálogo de impressão do navegador, desmarque a opção <em>&quot;Cabeçalhos e rodapés&quot;</em> e configure as margens como <em>&quot;Nenhuma&quot;</em> para obter o alinhamento perfeito.
           </p>
@@ -363,14 +372,14 @@ export default function GerarQrcodesPage() {
       {/* -------------------------------------------------------------
           ÁREA IMPRESSA / PREVIEW DE ETIQUETAS (PRINT ENGINE)
       ------------------------------------------------------------- */}
-      <div className="p-4 sm:p-8 bg-slate-950 print:bg-white print:p-0 print:m-0 text-slate-900">
+      <div className="p-4 sm:p-8 bg-slate-200/70 dark:bg-slate-950 print:bg-white print:p-0 print:m-0 text-slate-900 border-t border-slate-200 dark:border-slate-800 transition-colors">
         
         {/* LAYOUT 1: FOLHA A4 (Grade de 3 Colunas x 8 Linhas) */}
         {labelLayout === 'a4_sheet' && (
-          <div className="max-w-[210mm] mx-auto bg-white p-[8mm] shadow-2xl rounded-none print:shadow-none print:p-0 print:max-w-none print:w-full">
+          <div className="max-w-[210mm] mx-auto bg-white p-[8mm] shadow-xl border border-slate-200 dark:border-none rounded-none print:shadow-none print:p-0 print:max-w-none print:w-full print:border-none">
             <div className="grid grid-cols-3 gap-x-[3mm] gap-y-[3mm]">
               {assetsToPrint.map((asset, index) => {
-                const scanUrl = `${SITE_URL}/scan/${encodeURIComponent(asset.idAtivo)}`;
+                const scanUrl = `${activeOrigin}/scan/${encodeURIComponent(asset.idAtivo)}`;
                 const qrImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(scanUrl)}`;
 
                 return (
@@ -427,7 +436,7 @@ export default function GerarQrcodesPage() {
         {labelLayout === 'thermal_50x50' && (
           <div className="max-w-[50mm] mx-auto space-y-4 print:space-y-0 print:max-w-none print:w-full">
             {assetsToPrint.map((asset, index) => {
-              const scanUrl = `${SITE_URL}/scan/${encodeURIComponent(asset.idAtivo)}`;
+              const scanUrl = `${activeOrigin}/scan/${encodeURIComponent(asset.idAtivo)}`;
               const qrImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(scanUrl)}`;
 
               return (
@@ -474,7 +483,7 @@ export default function GerarQrcodesPage() {
         {labelLayout === 'thermal_60x40' && (
           <div className="max-w-[60mm] mx-auto space-y-4 print:space-y-0 print:max-w-none print:w-full">
             {assetsToPrint.map((asset, index) => {
-              const scanUrl = `${SITE_URL}/scan/${encodeURIComponent(asset.idAtivo)}`;
+              const scanUrl = `${activeOrigin}/scan/${encodeURIComponent(asset.idAtivo)}`;
               const qrImgSrc = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(scanUrl)}`;
 
               return (

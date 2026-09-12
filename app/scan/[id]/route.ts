@@ -25,7 +25,8 @@ export async function GET(
         c.name.includes('-auth-token') ||
         c.name.startsWith('sb-') ||
         c.name === 'supabase-auth-token' ||
-        c.name === 'spci_session'
+        c.name === 'spci_session' ||
+        c.name === 'spci_session_token'
     );
 
     if (supabaseAuthCookie && supabaseAuthCookie.value) {
