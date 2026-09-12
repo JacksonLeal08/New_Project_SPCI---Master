@@ -122,7 +122,7 @@ export const calculateDaysRemaining = (expiryDateStr?: string | null): number | 
 };
 
 export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, onClose }) => {
-  const { currentUser, userProfile, activeSite } = useSpci();
+  const { currentUser, userProfile, activeSite, isGlobalScope } = useSpci();
   const loggedUserName =
     userProfile?.name ||
     currentUser?.displayName ||
@@ -233,6 +233,19 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
   const [inlineModelo, setInlineModelo] = useState<string>('ABC');
   const [inlineLocal, setInlineLocal] = useState<string>('ALMOXARIFADO');
   const [inlineSubLocal, setInlineSubLocal] = useState<string>('');
+  const [inlineSite, setInlineSite] = useState<string>(() => {
+    if (activeSite && !activeSite.startsWith('TODOS') && activeSite !== 'GLOBAL') {
+      return activeSite;
+    }
+    return userProfile?.site && !userProfile.site.startsWith('TODOS') ? userProfile.site : 'SALOBO';
+  });
+
+  useEffect(() => {
+    if (activeSite && !activeSite.startsWith('TODOS') && activeSite !== 'GLOBAL') {
+      setInlineSite(activeSite);
+    }
+  }, [activeSite]);
+
   const currentYear = new Date().getFullYear();
   const currentMonth = new Date().getMonth() + 1;
   const [inlineRecargaMes, setInlineRecargaMes] = useState<number | ''>('');
@@ -254,6 +267,8 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
     setInlineModelo(item.details?.model || item.model || 'ABC');
     setInlineLocal(item.location || 'ALMOXARIFADO');
     setInlineSubLocal(item.sub_location || item.details?.subLocation || '');
+    const itemSite = item.site || item.details?.site || (activeSite && !activeSite.startsWith('TODOS') ? activeSite : 'SALOBO');
+    setInlineSite(itemSite);
 
     // Vencimento
     const venc = item.validadeRecarga || item.data_vencimento_teste;
@@ -339,6 +354,10 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         ? (inlineCustomPatrimonio.trim() || suggestedPatrimonio)
         : suggestedPatrimonio;
 
+      const targetSite = (activeSite && !activeSite.startsWith('TODOS') && activeSite !== 'GLOBAL')
+        ? activeSite
+        : (inlineSite || (userProfile?.site && !userProfile.site.startsWith('TODOS') ? userProfile.site : 'SALOBO'));
+
       const payload: any = {
         id: editingAssetId || undefined,
         id_ativo: finalPatrimonio,
@@ -352,13 +371,13 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
         sub_location: inlineSubLocal || 'Estoque',
         status: 'Operacional',
         status_estoque: targetStatusEstoque,
-        site: activeSite,
+        site: targetSite,
         validadeRecarga: finalValidade,
         ultima_recarga: finalRecarga,
         data_vencimento_teste: finalValidade,
         details: {
-          site: activeSite,
-          contrato_id: activeSite,
+          site: targetSite,
+          contrato_id: targetSite,
           fabricante: inlineFabricante,
           peso_capacidade: inlineCapacidade,
           model: inlineModelo,
@@ -1295,8 +1314,29 @@ export const GestaoAtivosModal: React.FC<GestaoAtivosModalProps> = ({ isOpen, on
                     className="overflow-hidden border-t border-slate-200 bg-white"
                   >
                     <form onSubmit={handleSaveInlineStockAsset} className="p-4 sm:p-5 space-y-4 font-sans text-xs">
-                      {/* LINHA 1: PATRIMÔNIO / ID, CHASSI / SELO INMETRO, AGENTE EXTINTOR */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+                      {/* LINHA 1: CONTRATO / SITE, PATRIMÔNIO / ID, CHASSI / SELO INMETRO, AGENTE EXTINTOR */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3.5">
+                        <div>
+                          <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
+                            🏢 Contrato / Site *
+                          </label>
+                          {isGlobalScope ? (
+                            <select
+                              value={inlineSite}
+                              onChange={(e) => setInlineSite(e.target.value)}
+                              className="w-full bg-emerald-50 border border-emerald-300 p-2.5 rounded-xl text-xs font-black text-slate-900 focus:outline-none focus:border-emerald-600 cursor-pointer"
+                            >
+                              <option value="SALOBO">🏢 SALOBO</option>
+                              <option value="ONÇA PUMA">🏭 ONÇA PUMA</option>
+                            </select>
+                          ) : (
+                            <div className="flex items-center gap-1.5 p-2.5 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 text-xs font-bold select-none cursor-not-allowed">
+                              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                              <span className="truncate">{userProfile?.site || activeSite || 'SALOBO'}</span>
+                            </div>
+                          )}
+                        </div>
+
                         <div>
                           <label className="font-mono text-slate-700 font-bold uppercase text-[10px] block mb-1">
                             Patrimônio / ID *

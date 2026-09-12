@@ -38,6 +38,8 @@ export interface AssetStockItemRecord {
   id_ativo: string;
   category: string;
   model: string;
+  site?: string;
+  projeto?: string;
   fabricante?: string;
   peso_capacidade?: string;
   validadeRecarga?: string;
@@ -182,6 +184,8 @@ export async function getAssetStockItemsAction(statusEstoque?: string, site?: st
         tipo_movimentacao: tipoMov,
         numero_serie: row.numero_serie || row.details?.serialNumber || '',
         patrimonio: row.patrimonio || row.id_ativo || row.id,
+        site: row.site || row.details?.site || null,
+        projeto: row.projeto || row.details?.projeto || null,
         data_fabricacao: row.data_fabricacao || null,
         data_vencimento_teste: row.data_vencimento_teste || row.validadeRecarga || null,
         details: row.details || {},
@@ -208,6 +212,12 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
     const stEstoque = asset.status_estoque || 'ESTOQUE APLICAÇÃO';
     const tipoMov = (asset as any).tipo_movimentacao || mapStatusEstoqueToTipoMovimentacao(stEstoque);
 
+    const rawSite = String(asset.site || asset.details?.site || '').trim().toUpperCase();
+    let assignedSite = rawSite;
+    if (!assignedSite || assignedSite.startsWith('TODOS') || assignedSite === 'GLOBAL') {
+      assignedSite = 'SALOBO';
+    }
+
     const payload = {
       id: assetId,
       id_ativo: patrimonio,
@@ -215,6 +225,7 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       numero_serie: asset.numero_serie || '',
       category: asset.category || 'extintores',
       model: asset.model || 'Padrão',
+      site: assignedSite,
       location: asset.location || 'Almoxarifado',
       sub_location: asset.sub_location || 'Geral',
       status: asset.status || 'Conforme',
@@ -224,6 +235,8 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       data_vencimento_teste: asset.validadeRecarga || asset.data_vencimento_teste || null,
       details: {
         ...(asset.details || {}),
+        site: assignedSite,
+        contrato_id: assignedSite,
         fabricante: asset.fabricante || 'Kidde',
         peso_capacidade: asset.peso_capacidade || '4KG',
         validadeRecarga: asset.validadeRecarga || null,

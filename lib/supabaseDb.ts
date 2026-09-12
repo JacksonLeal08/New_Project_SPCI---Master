@@ -186,6 +186,8 @@ const serializeAsset = (category: string, id: string, asset: any) => {
     longitude: lng,
     details: {
       ...details,
+      site: asset.site || details?.site || null,
+      contrato_id: asset.site || details?.contrato_id || null,
       fabricante: fabricante || details?.fabricante || '',
       peso_capacidade: peso_capacidade || peso || details?.peso_capacidade || '',
       seloInmetro: seloInmetro || details?.seloInmetro || '',
@@ -898,7 +900,23 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
     }
 
     const category = getNormalizedCategory(collectionName);
-    const assignedSite = String(asset.site || userProfile?.site || 'ONÇA PUMA').trim().toUpperCase();
+    const rawSite = String(asset.site || asset.details?.site || '').trim().toUpperCase();
+    let assignedSite = rawSite;
+    if (!assignedSite || assignedSite.startsWith('TODOS') || assignedSite === 'GLOBAL') {
+      const userSite = String(userProfile?.site || '').trim().toUpperCase();
+      if (userSite && !userSite.startsWith('TODOS') && userSite !== 'GLOBAL') {
+        assignedSite = userSite;
+      } else {
+        const proj = String(asset.projeto || asset.details?.projeto || asset.area || '').toUpperCase();
+        if (proj.includes('SALOBO')) {
+          assignedSite = 'SALOBO';
+        } else if (proj.includes('ONÇA') || proj.includes('ONCA') || proj.includes('PUMA')) {
+          assignedSite = 'ONÇA PUMA';
+        } else {
+          assignedSite = 'SALOBO';
+        }
+      }
+    }
 
     if (category === 'extintores') {
       let localId = asset.local_id;

@@ -196,6 +196,7 @@ interface SpciContextType {
   activeSite: string;
   setActiveSite: (site: string) => void;
   isGlobalScope: boolean;
+  contractAssetCounts: { total: number; salobo: number; oncaPuma: number };
   filteredExtintores: any[];
   filteredHidrantes: any[];
   filteredSinalizacoes: any[];
@@ -323,58 +324,81 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return 'TODOS OS SITES (Acesso Global)';
   });
 
-  // Determina se o usuário possui permissão global
-  const isGlobalScope = !userProfile?.site || userProfile.site.startsWith('TODOS') || userProfile.role === 'Desenvolvedor';
+  // Determina se o usuário possui permissão global (Desenvolvedor ou usuários com acesso explícito a Todos os Sites)
+  const isGlobalScope = !userProfile?.site || String(userProfile.site).toUpperCase().startsWith('TODOS') || userProfile.role === 'Desenvolvedor';
 
   // Sincroniza activeSite com o contrato do usuário quando o perfil carrega
   useEffect(() => {
-    if (userProfile?.site) {
-      if (!isGlobalScope) {
-        // Usuário restrito: força estritamente o contrato fixo dele
+    if (userProfile) {
+      if (!isGlobalScope && userProfile.site) {
+        // Usuário restrito a um contrato específico (ex: SALOBO): força estritamente o contrato dele
         setActiveSiteState(userProfile.site);
         if (typeof window !== 'undefined') {
           localStorage.setItem('spci_active_contract', userProfile.site);
         }
-      } else {
+      } else if (isGlobalScope) {
+        // Perfil Desenvolvedor ou com escopo Global:
+        // Se for Desenvolvedor, garante visão de TODOS os ativos por padrão, evitando herdar restrições salvas
+        const devExplicitChoice = typeof window !== 'undefined' ? localStorage.getItem('spci_dev_contract_selected') : null;
         const saved = typeof window !== 'undefined' ? localStorage.getItem('spci_active_contract') : null;
-        if (!saved) {
-          setActiveSiteState(userProfile.site);
+        if (userProfile.role === 'Desenvolvedor' && !devExplicitChoice) {
+          setActiveSiteState('TODOS OS SITES (Acesso Global)');
+        } else if (saved) {
+          setActiveSiteState(saved);
         }
       }
     }
-  }, [userProfile?.site, isGlobalScope]);
+  }, [userProfile, isGlobalScope]);
 
   const setActiveSite = useCallback((newSite: string) => {
     setActiveSiteState(newSite);
     if (typeof window !== 'undefined') {
       localStorage.setItem('spci_active_contract', newSite);
+      if (userProfile?.role === 'Desenvolvedor') {
+        localStorage.setItem('spci_dev_contract_selected', 'true');
+      }
     }
-  }, []);
+  }, [userProfile?.role]);
 
-  // Helper de correspondência de Site / Planta para isolamento de dados por colaborador
+  // Helper unificado de correspondência de Site / Planta para isolamento de dados por contrato
   const matchesUserSite = useCallback((item: any, site: string | null | undefined) => {
-    if (!site || site.startsWith('TODOS')) {
+    if (!site || site.startsWith('TODOS') || site === 'GLOBAL') {
       return true;
     }
     const siteUpper = site.trim().toUpperCase();
+    const itemSite = String(item.site || item.details?.site || item.details?.contrato || item.details?.projeto || item.projeto || '').trim().toUpperCase();
+    
+    // Prioridade máxima para campo explícito de site/contrato
+    if (itemSite) {
+      return itemSite === siteUpper || itemSite.includes(siteUpper) || siteUpper.includes(itemSite);
+    }
+
     const loc = (item.location || item.local || item.local_instalacao || item.setor || '').toUpperCase();
     const subLoc = (item.subLocation || item.sub_location || item.sub_local || '').toUpperCase();
     const proj = (item.projeto || item.details?.projeto || '').toUpperCase();
-    const itemSite = (item.site || item.details?.site || item.details?.contrato || '').toUpperCase();
     const area = (item.area || item.details?.area || '').toUpperCase();
 
-    // Prioridade máxima para a coluna ou campo explícito de site
-    if (itemSite) {
-      return itemSite.includes(siteUpper);
+    if (loc.includes(siteUpper) || subLoc.includes(siteUpper) || proj.includes(siteUpper) || area.includes(siteUpper)) {
+      return true;
     }
 
-    return (
-      loc.includes(siteUpper) ||
-      subLoc.includes(siteUpper) ||
-      proj.includes(siteUpper) ||
-      area.includes(siteUpper)
-    );
+    // Ativos legados sem marcação de planta pertencem à base original de ONÇA PUMA
+    return siteUpper === 'ONÇA PUMA' || siteUpper === 'ONCA PUMA';
   }, []);
+
+  // Quantitativo de ativos por contrato para os seletores
+  const contractAssetCounts = useMemo(() => {
+    const counts = { total: extintores.length, salobo: 0, oncaPuma: 0 };
+    for (const e of extintores) {
+      const s = String(e.site || e.details?.site || e.details?.contrato || e.details?.projeto || e.projeto || '').toUpperCase();
+      if (s.includes('SALOBO')) {
+        counts.salobo++;
+      } else {
+        counts.oncaPuma++;
+      }
+    }
+    return counts;
+  }, [extintores]);
 
   // Listas filtradas reativas de acordo com o escopo do contrato ativo
   const filteredExtintores = useMemo(() => {
@@ -555,7 +579,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await Promise.all(
           data.map(async (item) => {
             try {
-              await saveAssetToDb(moduleKey, item.id.toString(), item, true);
+              await saveAssetToDb(moduleKey, item.id.toString(), item, true, userProfile);
             } catch (err) {
               // Se falhar o envio de algum ativo individual, enfileira
               console.warn(`Erro na sincronização de item ${item.id}. Enfileirando.`, err);
@@ -583,7 +607,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.warn(`Erro geral de sincronismo local para ${moduleKey}:`, e);
       addConsoleLog(`Erro ao salvar dados locais de ${moduleKey}: ${e.message || e}`, 'ERRO');
     }
-  }, [addConsoleLog, logSystemAction]);
+  }, [addConsoleLog, logSystemAction, userProfile]);
 
 
   // --- INITIAL DATABASE LOAD AND STORAGE MIGRATION ---
@@ -1340,7 +1364,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const updateAsset = useCallback(async (category: string, updatedAsset: any, silent?: boolean) => {
     try {
       localActionRef.current = true;
-      await saveAssetToDb(category, updatedAsset.id.toString(), updatedAsset, silent);
+      await saveAssetToDb(category, updatedAsset.id.toString(), updatedAsset, silent, userProfile);
       
       const normalizedCat = category.trim().toLowerCase();
       if (normalizedCat === 'extintores') {
@@ -1392,7 +1416,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       triggerSuccessNotification('Falha na Atualização ❌', errorMsg || 'Erro de conexão.');
       throw err;
     }
-  }, [triggerSuccessNotification, logSystemAction]);
+  }, [triggerSuccessNotification, logSystemAction, userProfile]);
 
   const deleteAsset = useCallback(async (category: string, assetId: string) => {
     try {
@@ -1665,6 +1689,10 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       document.cookie = `spci_user_expires=; path=/; max-age=0; SameSite=Lax`;
       document.cookie = `spci_user_provider=; path=/; max-age=0; SameSite=Lax`;
       setIsGoogleUser(false);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('spci_active_contract');
+        localStorage.removeItem('spci_dev_contract_selected');
+      }
       addConsoleLog("Sessão finalizada com sucesso.");
       triggerSuccessNotification("Desconectado! ⚪", "Sessão finalizada com sucesso.");
     } catch (err: any) {
@@ -1850,6 +1878,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       activeSite,
       setActiveSite,
       isGlobalScope,
+      contractAssetCounts,
       filteredExtintores,
       filteredHidrantes,
       filteredSinalizacoes,

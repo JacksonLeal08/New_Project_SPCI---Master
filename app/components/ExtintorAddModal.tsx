@@ -70,8 +70,25 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     setExtintores,
     saveAssetsList,
     triggerSuccessNotification,
-    logSystemAction
+    logSystemAction,
+    userProfile,
+    activeSite,
+    isGlobalScope
   } = useSpci();
+
+  // --- CONTRATO / SITE SELECTION (MULTI-TENANT) ---
+  const [selectedSite, setSelectedSite] = useState<string>(() => {
+    if (activeSite && !activeSite.startsWith('TODOS') && activeSite !== 'GLOBAL') {
+      return activeSite;
+    }
+    return userProfile?.site && !userProfile.site.startsWith('TODOS') ? userProfile.site : 'SALOBO';
+  });
+
+  useEffect(() => {
+    if (activeSite && !activeSite.startsWith('TODOS') && activeSite !== 'GLOBAL') {
+      setSelectedSite(activeSite);
+    }
+  }, [activeSite]);
 
   // --- METADADOS SUPABASE ---
   const [locaisList, setLocaisList] = useState<any[]>([]);
@@ -629,10 +646,13 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         finalGps = await capturePosition({ enableHighAccuracy: true });
       }
 
+      const finalSite = !isGlobalScope ? (userProfile?.site || 'SALOBO') : selectedSite;
+
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
         category: 'extintores',
+        site: finalSite,
         location: finalLocalName,
         subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         area: finalAreaName,
@@ -838,7 +858,34 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                 📂 IDENTIFICAÇÃO E SELOS DO ATIVO
               </h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                {/* Contrato / Site */}
+                <div>
+                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5 flex items-center justify-between">
+                    <span>🏢 Contrato / Site *</span>
+                    {!isGlobalScope && <span className="text-[8px] text-emerald-600 font-bold">EXCLUSIVO</span>}
+                  </label>
+                  {isGlobalScope ? (
+                    <select 
+                      value={selectedSite}
+                      onChange={(e) => setSelectedSite(e.target.value)}
+                      className="w-full bg-emerald-50 border border-emerald-300 text-slate-900 focus:border-emerald-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer shadow-xs"
+                    >
+                      <option value="SALOBO">🏢 SALOBO</option>
+                      <option value="ONÇA PUMA">🏭 ONÇA PUMA</option>
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-2 p-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 text-xs font-bold select-none cursor-not-allowed">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                      <span className="truncate">{userProfile?.site || activeSite || 'SALOBO'}</span>
+                      <span className="ml-auto text-[8px] text-slate-400 font-normal shrink-0">(Fixo)</span>
+                    </div>
+                  )}
+                  <span className="text-[8px] text-slate-400 block mt-1">
+                    {isGlobalScope ? 'Contrato de alocação deste ativo' : 'Vinculado ao seu contrato ativo'}
+                  </span>
+                </div>
+
                 {/* Patrimonio */}
                 <div>
                   <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">

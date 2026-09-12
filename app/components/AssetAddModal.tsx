@@ -55,8 +55,25 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
     setBombas,
     saveAssetsList,
     triggerSuccessNotification,
-    logSystemAction
+    logSystemAction,
+    userProfile,
+    activeSite,
+    isGlobalScope
   } = useSpci();
+
+  // --- CONTRATO / SITE SELECTION (MULTI-TENANT) ---
+  const [selectedSite, setSelectedSite] = useState<string>(() => {
+    if (activeSite && !activeSite.startsWith('TODOS') && activeSite !== 'GLOBAL') {
+      return activeSite;
+    }
+    return userProfile?.site && !userProfile.site.startsWith('TODOS') ? userProfile.site : 'SALOBO';
+  });
+
+  useEffect(() => {
+    if (activeSite && !activeSite.startsWith('TODOS') && activeSite !== 'GLOBAL') {
+      setSelectedSite(activeSite);
+    }
+  }, [activeSite]);
 
   // --- ESTADOS PARA METADADOS DO SUPABASE ---
   const [locaisList, setLocaisList] = useState<any[]>([]);
@@ -408,10 +425,13 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       recargaDate.setMonth(recargaDate.getMonth() + validityMonths);
       const validadeRecargaStr = recargaDate.toISOString().substring(0, 10);
 
+      const finalSite = !isGlobalScope ? (userProfile?.site || 'SALOBO') : selectedSite;
+
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
         category: 'extintores',
+        site: finalSite,
         location: finalLocalName,
         subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         status: 'Conforme', // Será recalculado pela View do banco
@@ -443,9 +463,11 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       setExtintores(updated);
       await saveAssetsList('extintores', updated);
     } else if (newAssetType === 'hidrante') {
+      const finalSite = !isGlobalScope ? (userProfile?.site || 'SALOBO') : selectedSite;
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
+        site: finalSite,
         location: finalLocalName,
         subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         components: ['2 Mangueiras (15m)', '1 Esguicho Regulável', '2 Chaves Storz'],
@@ -458,9 +480,11 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       setHidrantes(updated);
       await saveAssetsList('hidrantes', updated);
     } else if (newAssetType === 'sinalizacao') {
+      const finalSite = !isGlobalScope ? (userProfile?.site || 'SALOBO') : selectedSite;
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
+        site: finalSite,
         location: finalLocalName,
         subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         model: multiSelectModels.join(', ') || 'Placa Multi-Direcional - C3',
@@ -472,9 +496,11 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       setSinalizacoes(updated);
       await saveAssetsList('sinalizacoes', updated);
     } else if (newAssetType === 'iluminacao') {
+      const finalSite = !isGlobalScope ? (userProfile?.site || 'SALOBO') : selectedSite;
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
+        site: finalSite,
         location: finalLocalName,
         subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         systemType: formSystemType,
@@ -489,9 +515,11 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       setIluminacoes(updated);
       await saveAssetsList('iluminacao', updated);
     } else if (newAssetType === 'bomba') {
+      const finalSite = !isGlobalScope ? (userProfile?.site || 'SALOBO') : selectedSite;
       const newObj = {
         id: uniqueId,
         idAtivo: codePatrimonio,
+        site: finalSite,
         location: finalLocalName,
         subLocation: finalSubLocalName || formSubLocal || 'GERAL',
         model: formModel || 'Bomba Centrífuga Principal',
@@ -695,6 +723,33 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 
+                {/* Contrato / Site */}
+                <div className="md:col-span-2">
+                  <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2 flex items-center justify-between">
+                    <span>🏢 Contrato / Site de Operação *</span>
+                    {!isGlobalScope && <span className="text-[9px] text-emerald-600 font-bold">VINCULADO AO SEU CONTRATO</span>}
+                  </label>
+                  {isGlobalScope ? (
+                    <select 
+                      value={selectedSite}
+                      onChange={(e) => setSelectedSite(e.target.value)}
+                      className="w-full bg-emerald-50 border border-emerald-300 focus:border-emerald-600 focus:ring-1 focus:ring-emerald-600 rounded-xl p-3 text-xs sm:text-sm text-slate-900 outline-none font-black shadow-xs cursor-pointer"
+                    >
+                      <option value="SALOBO">🏢 SALOBO</option>
+                      <option value="ONÇA PUMA">🏭 ONÇA PUMA</option>
+                    </select>
+                  ) : (
+                    <div className="flex items-center gap-2 p-3 bg-slate-100 border border-slate-200 rounded-xl text-slate-700 text-xs sm:text-sm font-bold select-none cursor-not-allowed">
+                      <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                      <span>{userProfile?.site || activeSite || 'SALOBO'}</span>
+                      <span className="ml-auto text-[10px] text-slate-400 font-normal">(Exclusivo)</span>
+                    </div>
+                  )}
+                  <span className="text-[9px] text-slate-400 block mt-1">
+                    {isGlobalScope ? 'Selecione o contrato ao qual este equipamento será associado' : 'Equipamento será registrado exclusivamente na sua unidade'}
+                  </span>
+                </div>
+
                 {/* Local */}
                 <div>
                   <label className="block text-[10px] sm:text-xs font-bold uppercase text-slate-500 mb-2">Setor da Planta *</label>
