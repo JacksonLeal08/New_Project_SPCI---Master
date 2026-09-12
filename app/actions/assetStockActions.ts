@@ -74,7 +74,8 @@ export interface AssetMovementRecord {
 const mapStatusEstoqueToTipoMovimentacao = (status: string | undefined): string => {
   if (!status) return 'estoque_aplicacao';
   const clean = String(status).toUpperCase();
-  if (clean.includes('MANUTENÇÃO') || clean.includes('MANUTENCAO') || clean.includes('AG. MANUT') || clean.includes('AG_MANUT')) return 'estoque_ag_manut';
+  if (clean.includes('EM MANUTENÇÃO') || clean.includes('EM MANUTENCAO') || clean === 'EM_MANUTENCAO') return 'em_manutencao';
+  if (clean.includes('AG. MANUT') || clean.includes('AG_MANUT') || clean.includes('ESTOQUE MANUTENÇÃO') || clean.includes('ESTOQUE MANUTENCAO')) return 'estoque_ag_manut';
   if (clean.includes('APLICAÇÃO') || clean.includes('APLICACAO')) return 'estoque_aplicacao';
   if (clean.includes('CONDENAD')) return 'condenado';
   if (clean.includes('EXTRAVIAD')) return 'extraviado';
@@ -85,9 +86,9 @@ const mapStatusEstoqueToTipoMovimentacao = (status: string | undefined): string 
 const mapStatusEstoqueToStatusOperacional = (status: string | undefined): string => {
   if (!status) return 'ESTOQUE_APLICACAO';
   const clean = String(status).toUpperCase();
-  if (clean.includes('MANUTENÇÃO') || clean.includes('MANUTENCAO') || clean.includes('AG. MANUT') || clean.includes('AG_MANUT')) return 'ESTOQUE_MANUTENCAO';
-  if (clean.includes('APLICAÇÃO') || clean.includes('APLICACAO')) return 'ESTOQUE_APLICACAO';
   if (clean.includes('EM MANUTENÇÃO') || clean.includes('EM MANUTENCAO') || clean === 'EM_MANUTENCAO') return 'EM_MANUTENCAO_EXTERNA';
+  if (clean.includes('AG. MANUT') || clean.includes('AG_MANUT') || clean.includes('ESTOQUE MANUTENÇÃO') || clean.includes('ESTOQUE MANUTENCAO')) return 'ESTOQUE_MANUTENCAO';
+  if (clean.includes('APLICAÇÃO') || clean.includes('APLICACAO')) return 'ESTOQUE_APLICACAO';
   if (clean.includes('CONDENAD')) return 'CONDENADO_DESCARTE';
   if (clean.includes('ÁREA') || clean.includes('AREA') || clean.includes('APLICADO')) return 'NA_AREA_APLICADO';
   return 'ESTOQUE_APLICACAO';

@@ -168,6 +168,13 @@ const serializeAsset = (category: string, id: string, asset: any) => {
   const dataLoc = asset.data_ultima_localizacao || details?.data_ultima_localizacao || null;
   const origemLoc = asset.origem_localizacao || details?.origem_localizacao || null;
 
+  const statusOp = normalizeStatusOperacional({
+    status_operacional: asset.status_operacional,
+    status_estoque: validStatusEstoque || rawStatusEstoque,
+    tipo_movimentacao: tipoMov,
+    details
+  });
+
   return {
     id: id,
     id_ativo: pat,
@@ -178,6 +185,7 @@ const serializeAsset = (category: string, id: string, asset: any) => {
     location: location || null,
     sub_location: subLocation || null,
     status: status || 'Conforme',
+    status_operacional: statusOp,
     status_estoque: validStatusEstoque,
     tipo_movimentacao: tipoMov,
     data_fabricacao: data_fabricacao || null,
@@ -753,8 +761,6 @@ export async function getAssetsList(collectionName: string, userSite?: string): 
               const rawMov = ast.tipo_movimentacao || d.tipo_movimentacao;
               const rawStEstoque = ast.status_estoque || d.status_estoque;
 
-              ext.status_operacional = normalizeStatusOperacional(ast);
-
               if (rawMov) {
                 ext.tipo_movimentacao = normalizeTipoMovimentacao(rawMov);
               }
@@ -763,6 +769,13 @@ export async function getAssetsList(collectionName: string, userSite?: string): 
               } else if (ext.tipo_movimentacao) {
                 ext.status_estoque = TIPO_MOVIMENTACAO_MAP[ext.tipo_movimentacao]?.label || 'NA ÁREA (APLICADO)';
               }
+
+              ext.status_operacional = normalizeStatusOperacional({
+                ...ast,
+                status_estoque: ext.status_estoque,
+                tipo_movimentacao: ext.tipo_movimentacao,
+                details: d
+              });
 
               // Status geral do ativo (ex: 'Em Manutenção', 'Conforme', 'Vencido')
               if (ast.status && ast.status !== 'inativo') {
@@ -800,9 +813,9 @@ export async function getAssetsList(collectionName: string, userSite?: string): 
               matchedAssetIds.add(keyId);
               if (keyPat) matchedAssetIds.add(keyPat);
               const d = a.details || {};
-              const stOp = normalizeStatusOperacional(a);
               const tpMov = normalizeTipoMovimentacao(a.tipo_movimentacao || d.tipo_movimentacao);
               const stEst = a.status_estoque || d.status_estoque || TIPO_MOVIMENTACAO_MAP[tpMov]?.label || 'NA ÁREA (APLICADO)';
+              const stOp = normalizeStatusOperacional({ ...a, tipo_movimentacao: tpMov, status_estoque: stEst, details: d });
 
               extintoresList.push({
                 id: a.id,

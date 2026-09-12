@@ -29,6 +29,51 @@ export type StatusOperacionalType =
 
 export const normalizeStatusOperacional = (item: any): StatusOperacionalType => {
   if (!item) return 'NA_AREA_APLICADO';
+
+  const stEstoque = String(item.status_estoque || item.details?.status_estoque || '').toUpperCase().trim();
+  const tpMov = String(item.tipo_movimentacao || item.details?.tipo_movimentacao || '').toLowerCase().trim();
+
+  // 1. Detecção explícita por tipo de movimentação ou status de estoque (Reserva / Aplicação)
+  if (
+    stEstoque === 'ESTOQUE APLICAÇÃO' ||
+    stEstoque === 'ESTOQUE APLICACAO' ||
+    tpMov === 'estoque_aplicacao' ||
+    tpMov.includes('aplicacao')
+  ) {
+    return 'ESTOQUE_APLICACAO';
+  }
+
+  // 2. Detecção de aguardando manutenção / oficina interna
+  if (
+    stEstoque === 'ESTOQUE MANUTENÇÃO' ||
+    stEstoque === 'ESTOQUE MANUTENCAO' ||
+    tpMov === 'estoque_ag_manut' ||
+    tpMov.includes('ag_manut')
+  ) {
+    return 'ESTOQUE_MANUTENCAO';
+  }
+
+  // 3. Manutenção externa / oficina
+  if (
+    stEstoque === 'EM MANUTENÇÃO' ||
+    stEstoque === 'EM MANUTENCAO' ||
+    tpMov === 'em_manutencao' ||
+    tpMov.includes('manutencao_externa')
+  ) {
+    return 'EM_MANUTENCAO_EXTERNA';
+  }
+
+  // 4. Condenado / descarte
+  if (
+    stEstoque === 'CONDENADOS' ||
+    stEstoque === 'CONDENADO' ||
+    tpMov === 'condenado' ||
+    tpMov.includes('descarte')
+  ) {
+    return 'CONDENADO_DESCARTE';
+  }
+
+  // 5. Se houver status_operacional explícito e válido
   if (item.status_operacional) {
     const raw = String(item.status_operacional).toUpperCase().trim();
     if (
@@ -41,24 +86,7 @@ export const normalizeStatusOperacional = (item: any): StatusOperacionalType => 
       return raw as StatusOperacionalType;
     }
   }
-  const stEstoque = String(item.status_estoque || item.details?.status_estoque || '').toUpperCase().trim();
-  const tpMov = String(item.tipo_movimentacao || item.details?.tipo_movimentacao || '').toLowerCase().trim();
 
-  if (stEstoque === 'ESTOQUE MANUTENÇÃO' || stEstoque === 'ESTOQUE MANUTENCAO' || tpMov === 'estoque_ag_manut' || tpMov.includes('ag_manut')) {
-    return 'ESTOQUE_MANUTENCAO';
-  }
-  if (
-    (stEstoque === 'ESTOQUE APLICAÇÃO' || stEstoque === 'ESTOQUE APLICACAO' || stEstoque.includes('ESTOQUE')) &&
-    (tpMov === 'estoque_aplicacao' || tpMov.includes('aplicacao') || tpMov === 'estoque')
-  ) {
-    return 'ESTOQUE_APLICACAO';
-  }
-  if (stEstoque === 'EM MANUTENÇÃO' || stEstoque === 'EM MANUTENCAO' || tpMov === 'em_manutencao') {
-    return 'EM_MANUTENCAO_EXTERNA';
-  }
-  if (stEstoque === 'CONDENADOS' || stEstoque === 'CONDENADO' || tpMov === 'condenado') {
-    return 'CONDENADO_DESCARTE';
-  }
   return 'NA_AREA_APLICADO';
 };
 
