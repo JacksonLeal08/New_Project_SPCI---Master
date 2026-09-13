@@ -730,3 +730,79 @@ export async function bulkMoveAssetStatusAction(payload: BulkMovePayload) {
   }
 }
 
+/**
+ * Exclusão definitiva de um ativo do sistema com permissão administrativa (Supabase Admin)
+ * Remove tanto da tabela principal `assets` quanto da tabela especializada `ativos_extintores`
+ */
+export async function deleteAssetPermanentlyAction(
+  category: string,
+  assetIdOrPatrimonio: string,
+  usuarioNome?: string,
+  usuarioEmail?: string
+): Promise<{ success: boolean; error?: string; deletedCount?: number }> {
+  try {
+    const supabaseAdmin = getSupabaseAdminClient();
+    const cleanId = String(assetIdOrPatrimonio || '').trim();
+    if (!cleanId) {
+      return { success: false, error: 'Identificador do ativo não informado.' };
+    }
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanId);
+    let deletedCount = 0;
+
+    // 1. Se for extintores, limpa da tabela relacional ativos_extintores
+    const catNorm = category.trim().toLowerCase();
+    if (catNorm.includes('extintor')) {
+      try {
+        let extQuery = supabaseAdmin.from('ativos_extintores').delete();
+        if (isUuid) {
+          extQuery = extQuery.or(`id.eq.${cleanId},numero_patrimonio.eq.${cleanId}`);
+        } else {
+          extQuery = extQuery.eq('numero_patrimonio', cleanId);
+        }
+        await extQuery;
+      } catch (e: any) {
+        console.warn('[deleteAssetPermanentlyAction] Aviso não fatal em ativos_extintores:', e.message);
+      }
+    }
+
+    // 2. Remove OBRIGATORIAMENTE da tabela mestre assets (onde todos os módulos vivem)
+    let assetQuery = supabaseAdmin.from('assets').delete();
+    if (isUuid) {
+      assetQuery = assetQuery.or(`id.eq.${cleanId},id_ativo.eq.${cleanId},patrimonio.eq.${cleanId}`);
+    } else {
+      assetQuery = assetQuery.or(`id_ativo.eq.${cleanId},patrimonio.eq.${cleanId}`);
+    }
+
+    const { data: delAssets, error: assetErr } = await assetQuery.select('id, id_ativo, patrimonio');
+    if (assetErr) {
+      console.error('[deleteAssetPermanentlyAction] Erro ao deletar de assets:', assetErr);
+      throw new Error(`Falha ao remover ativo da tabela principal: ${assetErr.message}`);
+    }
+
+    deletedCount = delAssets?.length || 1;
+
+    // 3. Registrar log de auditoria corporativo no Supabase se tabela existir
+    try {
+      await supabaseAdmin.from('historico_movimentacoes_ativos').insert({
+        asset_id: isUuid ? cleanId : (delAssets?.[0]?.id || null),
+        id_ativo: delAssets?.[0]?.id_ativo || cleanId,
+        tipo_evento: 'EXCLUSAO_DEFINITIVA',
+        status_origem: 'EXCLUIDO',
+        status_destino: 'REMOVIDO',
+        usuario_responsavel_nome: usuarioNome || 'Operador SPCI',
+        usuario_responsavel_email: usuarioEmail || null,
+        descricao_evento: `Ativo ${cleanId} (${category}) excluído definitivamente do sistema.`,
+        created_at: new Date().toISOString()
+      });
+    } catch (auditErr: any) {
+      console.warn('[deleteAssetPermanentlyAction] Aviso log auditoria:', auditErr?.message);
+    }
+
+    return { success: true, deletedCount };
+  } catch (err: any) {
+    console.error('[deleteAssetPermanentlyAction] Exceção crítica:', err);
+    return { success: false, error: err.message || 'Erro inesperado ao excluir ativo.' };
+  }
+}
+

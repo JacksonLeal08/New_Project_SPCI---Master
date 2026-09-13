@@ -1420,37 +1420,49 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const deleteAsset = useCallback(async (category: string, assetId: string) => {
     try {
-      localActionRef.current = true;
-      await deleteAssetFromDb(category, assetId);
+      const userName = userProfile?.name || currentUser?.displayName || (currentUser?.email ? currentUser.email.split('@')[0] : 'Operador SPCI');
+      const userEmail = userProfile?.email || currentUser?.email || undefined;
+      await deleteAssetFromDb(category, assetId, userName, userEmail);
       
       const normalizedCat = category.trim().toLowerCase();
+      const cleanId = String(assetId || '').trim().toLowerCase();
+
+      const matchId = (a: any) => {
+        if (!a) return false;
+        const idStr = String(a.id || '').toLowerCase();
+        const idAtivoStr = String(a.idAtivo || '').toLowerCase();
+        const numPatStr = String(a.numero_patrimonio || '').toLowerCase();
+        const patStr = String(a.patrimonio || '').toLowerCase();
+        return idStr === cleanId || idAtivoStr === cleanId || numPatStr === cleanId || patStr === cleanId;
+      };
+
       if (normalizedCat === 'extintores') {
         setExtintores((prev: any[]) => {
-          const next = prev.filter(a => a.id !== assetId);
+          const next = prev.filter(a => !matchId(a));
           idb.setAll('extintores', next).catch(console.error);
           return next;
         });
       } else if (normalizedCat === 'hidrantes') {
         setHidrantes((prev: any[]) => {
-          const next = prev.filter(a => a.id !== assetId);
+          const next = prev.filter(a => !matchId(a));
           idb.setAll('hidrantes', next).catch(console.error);
           return next;
         });
       } else if (normalizedCat === 'sinalizacoes' || normalizedCat === 'sinalizacao') {
         setSinalizacoes((prev: any[]) => {
-          const next = prev.filter(a => a.id !== assetId);
+          const next = prev.filter(a => !matchId(a));
           idb.setAll('sinalizacoes', next).catch(console.error);
           return next;
         });
       } else if (normalizedCat === 'iluminacao') {
         setIluminacoes((prev: any[]) => {
-          const next = prev.filter(a => a.id !== assetId);
+          const next = prev.filter(a => !matchId(a));
           idb.setAll('iluminacao', next).catch(console.error);
           return next;
         });
       } else if (normalizedCat === 'bombas') {
         setBombas((prev: any[]) => {
-          const next = prev.filter(a => a.id !== assetId);
+          const next = prev.filter(a => !matchId(a));
           idb.setAll('bombas', next).catch(console.error);
           return next;
         });

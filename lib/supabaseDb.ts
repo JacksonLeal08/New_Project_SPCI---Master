@@ -1433,26 +1433,54 @@ export async function salvarInspecaoNoSupabase(inspecao: InspecaoRealizada & { j
 }
 
 /**
- * Deleta um ativo do Supabase pelo ID e categoria.
+ * Deleta um ativo do Supabase de forma definitiva.
+ * Garante limpeza na tabela mestre `assets` e na tabela relacional `ativos_extintores`.
  */
-export async function deleteAssetFromDb(collectionName: string, id: string): Promise<void> {
+export async function deleteAssetFromDb(collectionName: string, id: string, usuarioNome?: string, usuarioEmail?: string): Promise<void> {
   try {
-    const category = getNormalizedCategory(collectionName);
+    const cleanId = String(id || '').trim();
+    if (!cleanId) return;
 
-    if (category === 'extintores') {
-      const { error } = await supabase
-        .from('ativos_extintores')
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-      return;
+    // 1. Tenta prioritariamente via Server Action com privilégios administrativos
+    try {
+      const { deleteAssetPermanentlyAction } = await import('@/app/actions/assetStockActions');
+      const actionRes = await deleteAssetPermanentlyAction(collectionName, cleanId, usuarioNome, usuarioEmail);
+      if (actionRes.success) {
+        return;
+      }
+      console.warn('[deleteAssetFromDb] Server action retornou erro, acionando fallback local:', actionRes.error);
+    } catch (actErr) {
+      console.warn('[deleteAssetFromDb] Falha ao invocar Server Action, executando fallback direto:', actErr);
     }
 
-    const { error } = await supabase
-      .from('assets')
-      .delete()
-      .eq('id', id);
-    if (error) throw error;
+    // 2. Fallback direto via cliente Supabase (cobre offline/client)
+    const category = getNormalizedCategory(collectionName);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cleanId);
+
+    if (category === 'extintores') {
+      try {
+        let extDel = supabase.from('ativos_extintores').delete();
+        if (isUuid) {
+          extDel = extDel.or(`id.eq.${cleanId},numero_patrimonio.eq.${cleanId}`);
+        } else {
+          extDel = extDel.eq('numero_patrimonio', cleanId);
+        }
+        await extDel;
+      } catch (errExt) {
+        console.warn('[deleteAssetFromDb] Aviso ao deletar de ativos_extintores:', errExt);
+      }
+    }
+
+    // Deletar da tabela mestre assets (onde todos os módulos vivem)
+    let assetDel = supabase.from('assets').delete();
+    if (isUuid) {
+      assetDel = assetDel.or(`id.eq.${cleanId},id_ativo.eq.${cleanId},patrimonio.eq.${cleanId}`);
+    } else {
+      assetDel = assetDel.or(`id_ativo.eq.${cleanId},patrimonio.eq.${cleanId}`);
+    }
+
+    const { error: assetErr } = await assetDel;
+    if (assetErr) throw assetErr;
   } catch (error: any) {
     console.error('Erro ao deletar ativo do Supabase:', {
       message: error?.message || error,
