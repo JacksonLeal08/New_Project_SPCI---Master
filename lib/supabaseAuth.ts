@@ -129,11 +129,17 @@ export const signInWithEmailOrUsername = async (identifier: string, password: st
     });
 
     if (authError) throw authError;
-    if (!authData.user) throw new Error('Não foi possível obter dados do usuário autenticado.');
-
     return mapSupabaseUser(authData.user);
   } catch (error: any) {
     console.error('Erro em signInWithEmailOrUsername:', error);
+    const msg = String(error?.message || '');
+    if (
+      msg.toLowerCase().includes('failed to fetch') ||
+      msg.toLowerCase().includes('fetch failed') ||
+      msg.toLowerCase().includes('networkerror')
+    ) {
+      throw new Error('Não foi possível conectar ao servidor Supabase. O projeto pode estar pausado por inatividade ou sem acesso à rede.');
+    }
     throw error;
   }
 };

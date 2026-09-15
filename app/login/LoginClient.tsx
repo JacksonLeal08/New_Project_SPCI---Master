@@ -119,7 +119,17 @@ export default function LoginClient() {
       }
     } catch (err: any) {
       setLoading(false);
-      setErrorMsg(err.message || 'Erro ao efetuar login.');
+      const raw = String(err?.message || '');
+      if (
+        raw.toLowerCase().includes('failed to fetch') ||
+        raw.toLowerCase().includes('fetch failed') ||
+        raw.toLowerCase().includes('networkerror') ||
+        raw.toLowerCase().includes('enotfound')
+      ) {
+        setErrorMsg('Não foi possível conectar ao servidor Supabase. O banco de dados pode estar pausado por inatividade ou sem acesso à rede.');
+      } else {
+        setErrorMsg(raw || 'Erro ao efetuar login.');
+      }
     }
   };
 
