@@ -154,7 +154,11 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  const response = NextResponse.next();
+  if (isProtectedRoute || path.startsWith('/api') || path === '/acesso-expirado') {
+    response.headers.set('X-Robots-Tag', 'noindex, nofollow');
+  }
+  return response;
 }
 
 // Helper rápido de validação do token compartilhado contra o RPC do Supabase

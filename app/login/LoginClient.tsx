@@ -197,9 +197,9 @@ export default function LoginClient() {
               Conformidade Legal NBR 12962 / 13434 / 13714
             </div>
             <div className="space-y-3">
-              <h2 className="text-3xl lg:text-4xl font-black text-white uppercase tracking-tight leading-tight">
+              <p className="text-3xl lg:text-4xl font-black text-white uppercase tracking-tight leading-tight font-['Hanken_Grotesk']">
                 Gestão & Governança de Combate a Incêndio
-              </h2>
+              </p>
               <p className="text-xs text-slate-200 font-sans leading-relaxed">
                 Centralização de laudos técnicos, vistorias em tempo real, rastreabilidade offline-first de ativos e relatórios executivos para governança predial e industrial.
               </p>

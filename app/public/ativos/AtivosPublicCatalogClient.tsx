@@ -261,10 +261,10 @@ export default function AtivosPublicCatalogClient({ initialAssets }: Props) {
 
       {/* GRID DE RESULTADOS DOS ATIVOS */}
       <main className="px-4 sm:px-8 py-6 max-w-7xl mx-auto w-full flex-1 space-y-4">
-        <div className="flex items-center justify-between text-xs text-slate-400 pb-2 border-b border-slate-800">
-          <span>
-            Exibindo <strong className="text-white font-mono">{filteredAssets.length}</strong> equipamentos
-          </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between text-xs text-slate-400 pb-2 border-b border-slate-800 gap-2">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-300 font-mono">
+            Listagem de Equipamentos Operacionais ({filteredAssets.length})
+          </h2>
           <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">
             Atualização em Tempo Real
           </span>
@@ -330,9 +330,9 @@ export default function AtivosPublicCatalogClient({ initialAssets }: Props) {
                           <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block font-mono">
                             {asset.category}
                           </span>
-                          <h4 className="text-base font-black text-white uppercase font-mono tracking-tight">
+                          <h3 className="text-base font-black text-white uppercase font-mono tracking-tight">
                             {asset.idAtivo}
-                          </h4>
+                          </h3>
                         </div>
                       </div>
 

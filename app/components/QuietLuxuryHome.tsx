@@ -1,9 +1,9 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { 
   Flame, 
   ShieldCheck, 
@@ -17,6 +17,9 @@ import {
   Award, 
   Activity,
   ChevronRight,
+  ChevronDown,
+  HelpCircle,
+  Calendar,
   Sparkles,
   Lock,
   Layers
@@ -26,6 +29,22 @@ import ThemeToggle from './ThemeToggle';
 import { SYSTEM_VERSION, COMPANY_NAME } from '@/config/version';
 
 export default function QuietLuxuryHome() {
+  const [openFaqIndex, setOpenFaqIndex] = useState<number | null>(0);
+
+  const faqItems = [
+    {
+      q: 'Qual é a periodicidade da inspeção de extintores segundo a NBR 12962?',
+      a: 'A inspeção de nível 1 (visual e operacional) deve ser realizada mensalmente, a manutenção de nível 2 (recarga) anualmente e o ensaio hidrostático (nível 3) a cada 5 anos conforme as normas ABNT NBR 12962 e regulamentações do Inmetro.'
+    },
+    {
+      q: 'Como funciona a vistoria técnica offline-first no SISTEMA SPCI?',
+      a: 'O técnico de campo realiza todo o checklist normativo no smartphone mesmo sem sinal de internet. Ao restabelecer a conexão, os dados e fotos são sincronizados automaticamente com a nuvem em conformidade com o AVCB e NBRs.'
+    },
+    {
+      q: 'Quais itens são vistoriados na rede de hidrantes NBR 13714?',
+      a: 'São auditados o estado das mangueiras de incêndio, acoplamentos Storz, esguichos reguláveis, chaves de mangueira, abrigo, desobstrução física e verificação de pressão residual estática e dinâmica da casa de bombas.'
+    }
+  ];
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-mono relative overflow-hidden select-none transition-colors duration-300">
       
@@ -58,7 +77,8 @@ export default function QuietLuxuryHome() {
             <div className="hidden lg:flex items-center gap-6 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
               <a href="#bento-servicos" className="hover:text-red-600 dark:hover:text-white transition-colors">Módulos NBR</a>
               <a href="#metricas" className="hover:text-red-600 dark:hover:text-white transition-colors">Governança</a>
-              <a href="#compliance" className="hover:text-red-600 dark:hover:text-white transition-colors">Conformidade</a>
+              <a href="#prazos-normativos" className="hover:text-red-600 dark:hover:text-white transition-colors">Prazos ABNT</a>
+              <a href="#faq" className="hover:text-red-600 dark:hover:text-white transition-colors">FAQ</a>
             </div>
 
             <ThemeToggle />
@@ -324,6 +344,129 @@ export default function QuietLuxuryHome() {
         </div>
       </section>
 
+      {/* 5.5 SEÇÃO DE TABELA NORMATIVA NBR (GEO / CITATION ENGINE OPTIMIZATION) */}
+      <section id="prazos-normativos" className="py-16 md:py-24 px-6 max-w-7xl mx-auto">
+        <div className="flex flex-col md:flex-row md:items-end justify-between mb-10 border-b border-slate-200 dark:border-slate-800 pb-6">
+          <div className="space-y-2">
+            <span className="text-[10px] font-black uppercase text-red-600 dark:text-red-500 tracking-widest flex items-center gap-2">
+              <Calendar className="w-3.5 h-3.5" /> CONFORMIDADE REGULATÓRIA // ABNT & INMETRO
+            </span>
+            <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight font-['Hanken_Grotesk']">
+              Prazos e Ciclos Normativos de Inspeção SPCI
+            </h2>
+          </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-sans max-w-md mt-2 md:mt-0">
+            Regras de periodicidade técnica padronizadas segundo as normas oficiais brasileiras e portarias de segurança contra incêndio.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-3">
+            <div className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-red-50 dark:bg-red-950/60 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/60">
+              Mensal // Nível 1
+            </div>
+            <h3 className="text-base font-black text-slate-900 dark:text-slate-100 font-['Hanken_Grotesk'] uppercase">
+              Inspeção Visual NBR 12962
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-sans leading-relaxed">
+              Exame visual e operacional do extintor: verificação de lacre, trava, manômetro na faixa verde, desobstrução do acesso e integridade do selo Inmetro.
+            </p>
+          </div>
+
+          <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-3">
+            <div className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/60">
+              Anual // Nível 2
+            </div>
+            <h3 className="text-base font-black text-slate-900 dark:text-slate-100 font-['Hanken_Grotesk'] uppercase">
+              Manutenção e Recarga
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-sans leading-relaxed">
+              Desmontagem em oficina credenciada pelo Inmetro: troca ou pesagem da carga extintora (PQS, CO2, Água), substituição de componentes e novo anel de identificação.
+            </p>
+          </div>
+
+          <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-3">
+            <div className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-purple-50 dark:bg-purple-950/60 text-purple-600 dark:text-purple-400 border border-purple-200 dark:border-purple-900/60">
+              5 Anos // Nível 3
+            </div>
+            <h3 className="text-base font-black text-slate-900 dark:text-slate-100 font-['Hanken_Grotesk'] uppercase">
+              Teste Hidrostático
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-sans leading-relaxed">
+              Ensaio de pressão hidrostática máxima de prova no cilindro para atestar a resistência mecânica e evitar riscos de ruptura estrutural.
+            </p>
+          </div>
+
+          <div className="p-6 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-sm space-y-3">
+            <div className="inline-flex items-center px-2.5 py-1 rounded-md text-[10px] font-black uppercase bg-sky-50 dark:bg-sky-950/60 text-sky-600 dark:text-sky-400 border border-sky-200 dark:border-sky-900/60">
+              Semestral // NBR 13714
+            </div>
+            <h3 className="text-base font-black text-slate-900 dark:text-slate-100 font-['Hanken_Grotesk'] uppercase">
+              Rede de Hidrantes
+            </h3>
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-sans leading-relaxed">
+              Auditoria de mangueiras tipo 1 a 5, teste de vedação de válvulas globo, integridade dos esguichos reguláveis e aferição de pressão dinâmica na casa de bombas.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* 5.6 SEÇÃO VISÍVEL DE PERGUNTAS FREQUENTES (FAQ) - COMPLIANCE GOOGLE RICH RESULTS */}
+      <section id="faq" className="py-16 md:py-20 px-6 max-w-4xl mx-auto">
+        <div className="text-center space-y-3 mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 text-red-700 dark:text-red-400 text-[10px] uppercase font-bold tracking-widest rounded-full">
+            <HelpCircle className="w-3.5 h-3.5" />
+            <span>BASE DE CONHECIMENTO // FAQ TÉCNICO</span>
+          </div>
+          <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-100 uppercase tracking-tight font-['Hanken_Grotesk']">
+            Perguntas Frequentes sobre Governança SPCI
+          </h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-sans max-w-md mx-auto">
+            Respostas técnicas diretas sobre normas de combate a incêndio, laudos e vistorias digitais.
+          </p>
+        </div>
+
+        <div className="space-y-4">
+          {faqItems.map((item, idx) => {
+            const isOpen = openFaqIndex === idx;
+            return (
+              <div 
+                key={idx}
+                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden shadow-sm transition-all"
+              >
+                <button
+                  onClick={() => setOpenFaqIndex(isOpen ? null : idx)}
+                  className="w-full p-6 text-left flex items-center justify-between gap-4 cursor-pointer bg-transparent border-none text-slate-900 dark:text-slate-100"
+                >
+                  <span className="font-bold text-sm md:text-base font-['Hanken_Grotesk'] leading-snug">
+                    {item.q}
+                  </span>
+                  <div className={`p-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 shrink-0 transition-transform duration-200 ${isOpen ? 'rotate-180 text-red-600 dark:text-red-500' : ''}`}>
+                    <ChevronDown className="w-4 h-4" />
+                  </div>
+                </button>
+
+                <AnimatePresence>
+                  {isOpen && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.25 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="px-6 pb-6 pt-1 border-t border-slate-100 dark:border-slate-800/80 text-xs md:text-sm text-slate-600 dark:text-slate-300 font-sans leading-relaxed">
+                        {item.a}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       {/* 6. CALL TO ACTION FINAL */}
       <section className="py-20 md:py-28 px-6 max-w-5xl mx-auto text-center space-y-8">
         <div className="w-16 h-16 rounded-3xl bg-red-50 dark:bg-red-950/50 border border-red-200 dark:border-red-900/60 flex items-center justify-center text-red-600 dark:text-red-500 mx-auto shadow-md">
@@ -346,8 +489,44 @@ export default function QuietLuxuryHome() {
         </div>
       </section>
 
-      {/* 7. RODAPÉ CORPORATIVO */}
-      <AppFooter variant="fixed" />
+      {/* 7. RODAPÉ CORPORATIVO & E-E-A-T */}
+      <footer className="border-t border-slate-200/80 dark:border-slate-800/80 bg-white/40 dark:bg-slate-950/40 backdrop-blur-md pt-12 pb-8 px-6 mt-12">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-8 text-left">
+          <div className="space-y-3 md:col-span-2">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs font-black tracking-widest text-red-600 dark:text-red-500 uppercase">SISTEMA SPCI</span>
+              <span className="text-[10px] px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-mono">Master v2.0</span>
+            </div>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm">
+              Plataforma de inteligência e governança operacional para Sistemas de Proteção Contra Incêndio, assegurando conformidade com normas técnicas e prontidão operacional contínua.
+            </p>
+            <p className="text-[11px] text-slate-600 dark:text-slate-400 font-mono">
+              Referência Normativa: ABNT NBR 12962 • NBR 13714 • NBR 10898 • ITs Corpos de Bombeiros
+            </p>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Acesso Rápido</p>
+            <ul className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <li><Link href="#prazos-normativos" className="hover:text-red-600 dark:hover:text-red-400 transition-colors">Prazos e Normas Técnicas</Link></li>
+              <li><Link href="#faq" className="hover:text-red-600 dark:hover:text-red-400 transition-colors">Perguntas Frequentes (FAQ)</Link></li>
+              <li><Link href="/consulta" className="hover:text-red-600 dark:hover:text-red-400 transition-colors">Consulta Pública de Ativo</Link></li>
+              <li><Link href="/public/ativos" className="hover:text-red-600 dark:hover:text-red-400 transition-colors">Catálogo de Equipamentos</Link></li>
+            </ul>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Segurança & Governança</p>
+            <ul className="space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
+              <li><Link href="/login" className="hover:text-red-600 dark:hover:text-red-400 transition-colors">Cockpit Administrativo</Link></li>
+              <li className="text-[11px] text-slate-600 dark:text-slate-400">Auditoria & Rastreabilidade QR Code</li>
+              <li className="text-[11px] text-slate-600 dark:text-slate-400">Inspeções Nível 1, 2 e 3 (NBR 12962)</li>
+            </ul>
+          </div>
+        </div>
+
+        <AppFooter variant="flow" />
+      </footer>
 
     </div>
   );
