@@ -1,0 +1,25 @@
+name: Supabase Keep-Alive (Prevenção de Pausa)
+
+on:
+  schedule:
+    # Executa todos os dias às 11:00 UTC (08:00 horário de Brasília)
+    - cron: '0 11 * * *'
+  workflow_dispatch: # Permite disparar manualmente pelo GitHub a qualquer momento
+
+jobs:
+  keep-alive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Executar Ping Keep-Alive no Supabase
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: node scripts/keep_alive.mjs
