@@ -1,9 +1,8 @@
-const CACHE_NAME = 'spci-pwa-cache-v8';
+const CACHE_NAME = 'spci-pwa-cache-v9';
 const ASSETS_TO_CACHE = [
   '/',
   '/favicon.svg',
   '/icons/omega-icon.svg',
-  '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
   '/logo-omg.png',
@@ -15,7 +14,7 @@ const ASSETS_TO_CACHE = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[Service Worker] Cache inicial v7 carregado.');
+      console.log('[Service Worker] Cache inicial v9 carregado.');
       return cache.addAll(ASSETS_TO_CACHE);
     }).catch(err => console.warn('[Service Worker] Erro no cache install:', err))
   );
@@ -49,14 +48,8 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(event.request.url);
 
-  // Ignora APIs e rotas internas do Next.js no cache rígido para evitar erros offline no dev/prod
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/')) {
-    event.respondWith(
-      fetch(event.request).catch(async () => {
-        const cached = await caches.match(event.request);
-        return cached || new Response('', { status: 404, statusText: 'Offline' });
-      })
-    );
+  // Ignora APIs, manifest e rotas internas do Next.js no cache rígido para evitar erros offline no dev/prod
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/_next/') || url.pathname.includes('manifest')) {
     return;
   }
 

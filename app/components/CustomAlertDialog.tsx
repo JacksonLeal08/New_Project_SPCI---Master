@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertTriangle, CheckCircle2, XCircle, Info, X } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, XCircle, Info, X, Trash2 } from 'lucide-react';
 
 export type AlertType = 'warning' | 'error' | 'success' | 'info';
 
@@ -40,7 +40,12 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
 
   if (!isOpen || !mounted) return null;
 
+  const isConfirmation = Boolean(showCancelButton || onConfirm);
+
   const getIcon = () => {
+    if (isConfirmation && type === 'error') {
+      return <Trash2 className="w-7 h-7 text-rose-500 animate-pulse" />;
+    }
     switch (type) {
       case 'warning':
         return <AlertTriangle className="w-7 h-7 text-amber-500 animate-pulse" />;
@@ -51,6 +56,21 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
       case 'info':
       default:
         return <Info className="w-7 h-7 text-blue-500" />;
+    }
+  };
+
+  const getBadgeText = () => {
+    if (isConfirmation) {
+      if (type === 'error') return 'CONFIRMAÇÃO DE EXCLUSÃO';
+      if (type === 'warning') return 'CONFIRMAÇÃO NECESSÁRIA';
+      return 'CONFIRMAÇÃO';
+    }
+    switch (type) {
+      case 'warning': return 'AVISO DO SISTEMA';
+      case 'error': return 'ALERTA DO SISTEMA';
+      case 'success': return 'SUCESSO';
+      case 'info':
+      default: return 'INFORMAÇÃO';
     }
   };
 
@@ -125,7 +145,7 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
             </div>
             <div className="pr-6 space-y-1">
               <span className={`text-[9px] font-extrabold uppercase font-mono px-2.5 py-0.5 rounded-md border inline-block ${getBadgeStyle()}`}>
-                {type === 'warning' ? 'AVISO DO SISTEMA' : type === 'error' ? 'ALERTA DE ERRO' : type === 'success' ? 'SUCESSO' : 'INFORMAÇÃO'}
+                {getBadgeText()}
               </span>
               <h3 className="font-['Hanken_Grotesk'] font-black text-lg text-slate-900 leading-tight">
                 {title}
