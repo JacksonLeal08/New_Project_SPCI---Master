@@ -1,13 +1,16 @@
 {
-  "name": "SPCI Master - Grupo OMG",
+  "name": "SPCI Master - Gestão e Inspeção Contra Incêndio",
   "short_name": "SPCI Master",
   "description": "Sistema de Segurança e Conformidade contra Incêndio para Inspeções em Campo",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f172a",
   "theme_color": "#dc2626",
-  "orientation": "portrait-primary",
+  "orientation": "portrait",
   "scope": "/",
+  "lang": "pt-BR",
+  "dir": "ltr",
+  "categories": ["business", "utilities", "productivity"],
   "icons": [
     {
       "src": "/icons/icon-192.png",

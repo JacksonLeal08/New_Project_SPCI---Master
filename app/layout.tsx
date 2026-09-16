@@ -33,6 +33,9 @@ export const viewport: Viewport = {
   themeColor: '#dc2626',
   width: 'device-width',
   initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
 };
 
 export const metadata: Metadata = {
@@ -130,9 +133,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html 
       lang="pt-BR" 
-      className={`light ${hankenGrotesk.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable}`}
+      translate="no"
+      className={`light ${hankenGrotesk.variable} ${ibmPlexSans.variable} ${jetbrainsMono.variable} notranslate`}
     >
       <head>
+        <meta name="google" content="notranslate" />
+        <meta name="mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }}

@@ -46,7 +46,7 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick, onGestaoAtivo
   const unreadCount = (notifications || []).filter(n => !n.read).length;
 
   return (
-    <header className="bg-white text-slate-800 flex justify-between items-center w-full px-6 h-16 shrink-0 shadow-xs border-b border-slate-100 z-30 select-none font-sans relative">
+    <header className="hidden md:flex bg-white dark:bg-zinc-900 text-slate-800 dark:text-slate-200 justify-between items-center w-full px-6 h-16 shrink-0 shadow-xs border-b border-slate-100 dark:border-zinc-800 z-30 select-none font-sans relative">
       <div className="flex items-center gap-3">
         {onMenuClick && (
           <button 

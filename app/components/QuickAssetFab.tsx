@@ -198,10 +198,10 @@ export default function QuickAssetFab() {
   return (
     <>
       <div 
-        className={`fixed z-50 flex flex-col items-end select-none transition-all duration-300 ease-out no-print print:hidden ${
-          hasMinimized ? 'bottom-20 sm:bottom-24' : 'bottom-6'
+        className={`fixed z-40 flex flex-col items-end select-none transition-all duration-300 ease-out no-print print:hidden ${
+          hasMinimized ? 'bottom-28 sm:bottom-24 md:bottom-20' : 'bottom-20 md:bottom-6'
         } ${
-          chatOpened ? 'right-6 sm:right-[440px] md:right-[475px]' : 'right-6'
+          chatOpened ? 'right-4 sm:right-[440px] md:right-[475px]' : 'right-4 sm:right-6'
         }`}
       >
         {/* Backdrop sutil ao abrir menu de ações */}

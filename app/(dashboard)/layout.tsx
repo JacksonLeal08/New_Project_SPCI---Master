@@ -25,6 +25,7 @@ import QuickAssetFab from '../components/QuickAssetFab';
 import ChangelogModal from '../components/ChangelogModal';
 import { GestaoAtivosModal } from '../components/GestaoAtivosModal';
 import AssetSwapModal from '../components/AssetSwapModal';
+import MobileAppShell from '../components/MobileAppShell';
 import { ChecklistEditModal } from '../components/ChecklistEditModal';
 import { SYSTEM_VERSION } from '@/config/version';
 
@@ -438,7 +439,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       {/* Corpo principal do Dashboard */}
       <div className="flex-grow flex flex-col min-w-0 h-screen overflow-hidden">
 
-        {/* Barra superior de buscas e perfil */}
+        {/* Barra superior de buscas e perfil Desktop */}
         <Header
           onScanClick={() => setScanModal(true)}
           onProfileClick={() => setShowProfileModal(true)}
@@ -446,8 +447,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           onGestaoAtivosClick={() => setIsGestaoAtivosOpen(true)}
         />
 
+        {/* Mobile App Shell (Header Compacto + Bottom Navigation Bar na Thumb Zone) */}
+        <MobileAppShell
+          onScanClick={() => setScanModal(true)}
+          onProfileClick={() => setShowProfileModal(true)}
+          onGestaoAtivosClick={() => setIsGestaoAtivosOpen(true)}
+          onLogoutClick={() => setShowLogoutConfirmation(true)}
+        />
+
         {/* Área onde as subpáginas renderizam */}
-        <main className="flex-grow flex flex-col min-h-screen overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 transition-colors duration-300 relative">
+        <main className="flex-grow flex flex-col min-h-screen overflow-y-auto p-3 sm:p-4 md:p-6 pb-24 md:pb-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 transition-colors duration-300 relative">
           <div className="max-w-[1800px] 2xl:max-w-[2100px] mx-auto w-full flex-1 flex flex-col justify-between">
             <div className="pb-6">
               {children}
