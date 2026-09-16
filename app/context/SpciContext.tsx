@@ -28,7 +28,7 @@ import { MediaQueue } from '@/lib/mediaQueue';
 import { NotificationItem } from '@/lib/types';
 import { createUserAction, deleteUserAction, updateUserStatusAction, updateFullUserAction, createLogAction } from '@/app/actions/userActions';
 import { getChecklistItemsAction } from '@/app/actions/checklistActions';
-import { DEFAULT_EXTINTOR_CHECKLIST } from '@/app/components/ChecklistEditModal';
+import { DEFAULT_EXTINTOR_CHECKLIST, deduplicateChecklistItems } from '@/app/components/ChecklistEditModal';
 import { CustomAlertDialog, AlertType } from '@/app/components/CustomAlertDialog';
 
 
@@ -657,7 +657,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.warn('Erro ao carregar notificações do IndexedDB:', err);
         }
 
-        // Carregar checklist de extintores do IndexedDB
+        // Carregar checklist de extintores do IndexedDB com deduplicação defensiva
         try {
           let cachedChecklist = await idb.get('config', 'checklist_extintores');
           if (!cachedChecklist || cachedChecklist.length === 0) {
@@ -665,12 +665,17 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (localStored) {
               try {
                 cachedChecklist = JSON.parse(localStored);
-                await idb.set('config', 'checklist_extintores', cachedChecklist);
               } catch(e) {}
             }
           }
           if (cachedChecklist && cachedChecklist.length > 0) {
-            setExtintorChecklist(cachedChecklist);
+            const cleanChecklist = deduplicateChecklistItems(cachedChecklist);
+            setExtintorChecklist(cleanChecklist);
+            // Sobrescreve caches com lista limpa e deduplicada
+            await idb.set('config', 'checklist_extintores', cleanChecklist);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('spci_checklist_extintores', JSON.stringify(cleanChecklist));
+            }
           }
         } catch (err) {
           console.warn('Erro ao carregar checklist do IndexedDB:', err);
@@ -715,17 +720,22 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await idb.setAll('bombas', bomDb);
       }
       
-      // Sincronizar checklist de extintores configurado no Supabase
+      // Sincronizar checklist de extintores configurado no Supabase (com deduplicação atômica)
       try {
         const chkRes = await getChecklistItemsAction('extintores');
         if (chkRes.success && chkRes.items && chkRes.items.length > 0) {
-          setExtintorChecklist(chkRes.items);
-          await idb.set('config', 'checklist_extintores', chkRes.items);
+          const cleanItems = deduplicateChecklistItems(chkRes.items);
+          setExtintorChecklist(cleanItems);
+          await idb.set('config', 'checklist_extintores', cleanItems);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('spci_checklist_extintores', JSON.stringify(cleanItems));
+          }
         } else {
-          // Fallback: se não há no Supabase, garante preservação do cache local
+          // Fallback: se não há no Supabase, garante preservação do cache local deduplicado
           const localChk = await idb.get('config', 'checklist_extintores');
           if (localChk && localChk.length > 0) {
-            setExtintorChecklist(localChk);
+            const cleanLocal = deduplicateChecklistItems(localChk);
+            setExtintorChecklist(cleanLocal);
           }
         }
       } catch (err) {

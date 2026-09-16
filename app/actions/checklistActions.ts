@@ -55,13 +55,22 @@ export async function getChecklistItemsAction(categoria: string = 'extintores') 
       return { success: false, error: error.message, isTableMissing: isMissing, items: [] };
     }
 
-    const items: ChecklistItemRecord[] = (data || []).map((row: any) => {
+    // Deduplica defensivamente por ID / item
+    const dedupMap = new Map<string, any>();
+    (data || []).forEach((row: any) => {
+      const key = String(row.id || row.item).trim();
+      if (!dedupMap.has(key)) {
+        dedupMap.set(key, row);
+      }
+    });
+
+    const items: ChecklistItemRecord[] = Array.from(dedupMap.values()).map((row: any, idx: number) => {
       const tipos = Array.isArray(row.tipos_aplicaveis) ? row.tipos_aplicaveis : ['Todos'];
       const pesos = Array.isArray(row.pesos_aplicaveis) ? row.pesos_aplicaveis : ['Todos'];
       const isImp = typeof row.is_impeditivo === 'boolean' ? row.is_impeditivo : false;
       return {
-        id: row.id,
-        ordem: row.ordem,
+        id: row.id || `chk-${idx + 1}`,
+        ordem: idx + 1,
         categoria: row.categoria,
         item: row.item,
         tipos_aplicaveis: tipos,
@@ -90,8 +99,17 @@ export async function saveChecklistItemsAction(categoria: string, items: Checkli
   try {
     const supabaseAdmin = getSupabaseAdminClient();
 
-    const payload = items.map((it, idx) => ({
-      id: it.id,
+    // Deduplica antes de salvar
+    const dedupMap = new Map<string, ChecklistItemRecord>();
+    items.forEach((it, idx) => {
+      const key = String(it.id || it.item).trim();
+      if (!dedupMap.has(key)) {
+        dedupMap.set(key, it);
+      }
+    });
+
+    const payload = Array.from(dedupMap.values()).map((it, idx) => ({
+      id: it.id || `chk-${idx + 1}`,
       ordem: idx + 1,
       categoria: categoria,
       item: it.item,
@@ -102,10 +120,16 @@ export async function saveChecklistItemsAction(categoria: string, items: Checkli
       updated_at: new Date().toISOString()
     }));
 
-    // Tenta upsert dos itens
+    // Limpa registros anteriores da categoria para evitar duplicidades
+    await supabaseAdmin
+      .from('checklists_ativos')
+      .delete()
+      .eq('categoria', categoria);
+
+    // Insere lista única e ordenada
     const { error } = await supabaseAdmin
       .from('checklists_ativos')
-      .upsert(payload, { onConflict: 'id' });
+      .insert(payload);
 
     if (error) {
       console.warn('[saveChecklistItemsAction] Aviso ao salvar no banco:', error.message);

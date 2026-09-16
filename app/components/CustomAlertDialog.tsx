@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertTriangle, CheckCircle2, XCircle, Info, X } from 'lucide-react';
 
@@ -31,7 +32,13 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
   onConfirm,
   onClose
 }) => {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  if (!isOpen || !mounted) return null;
 
   const getIcon = () => {
     switch (type) {
@@ -89,9 +96,9 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
     }
   };
 
-  return (
+  const modalContent = (
     <AnimatePresence>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md select-none font-sans">
+      <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md select-none font-sans">
         <motion.div
           initial={{ opacity: 0, scale: 0.92, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
@@ -167,4 +174,6 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
       </div>
     </AnimatePresence>
   );
+
+  return createPortal(modalContent, document.body);
 };

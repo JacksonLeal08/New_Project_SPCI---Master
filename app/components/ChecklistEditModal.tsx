@@ -32,8 +32,11 @@ export interface ChecklistItemData {
   item: string;
   tiposAplicaveis: string[]; // ['Todos', 'CO2', 'PQS', 'AP', 'Espuma', 'K']
   pesosAplicaveis: string[]; // ['Todos', 'Portátil', 'Carreta / Sobre Rodas']
+  tipos_aplicaveis?: string[];
+  pesos_aplicaveis?: string[];
   status: 'Ativado' | 'Desativado';
   isImpeditivo?: boolean;
+  is_impeditivo?: boolean;
 }
 
 export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
@@ -182,6 +185,71 @@ export const DEFAULT_EXTINTOR_CHECKLIST: ChecklistItemData[] = [
 export const OPCOES_TIPOS_AGENTE = ['Todos', 'CO2', 'PQS', 'AP', 'Espuma', 'K'];
 export const OPCOES_PESOS = ['Todos', 'Portátil', 'Carreta / Sobre Rodas'];
 
+/**
+ * Função utilitária defensiva para deduplicação atômica de quesitos NBR.
+ * Garante lista única por ID e por texto do quesito, reordenando de 1 a N.
+ */
+export function deduplicateChecklistItems(items: any[]): ChecklistItemData[] {
+  if (!items || !Array.isArray(items)) return [];
+  const seenIds = new Set<string>();
+  const seenTexts = new Set<string>();
+  const uniqueItems: ChecklistItemData[] = [];
+
+  for (const it of items) {
+    if (!it) continue;
+    const normalizedText = String(it.item || '').trim().toLowerCase();
+    const id = String(it.id || '').trim() || `chk-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    
+    // Ignora se o ID já apareceu ou se o texto exato do quesito já apareceu
+    if (seenIds.has(id) || (normalizedText && seenTexts.has(normalizedText))) {
+      continue;
+    }
+    
+    seenIds.add(id);
+    if (normalizedText) {
+      seenTexts.add(normalizedText);
+    }
+
+    const tipos = Array.isArray(it.tiposAplicaveis)
+      ? it.tiposAplicaveis
+      : Array.isArray(it.tipos_aplicaveis)
+      ? it.tipos_aplicaveis
+      : ['Todos'];
+
+    const pesos = Array.isArray(it.pesosAplicaveis)
+      ? it.pesosAplicaveis
+      : Array.isArray(it.pesos_aplicaveis)
+      ? it.pesos_aplicaveis
+      : ['Todos'];
+
+    const isImp = typeof it.isImpeditivo === 'boolean'
+      ? it.isImpeditivo
+      : typeof it.is_impeditivo === 'boolean'
+      ? it.is_impeditivo
+      : false;
+
+    uniqueItems.push({
+      id,
+      ordem: it.ordem || uniqueItems.length + 1,
+      categoria: it.categoria || 'extintores',
+      item: String(it.item || '').trim(),
+      tiposAplicaveis: tipos,
+      pesosAplicaveis: pesos,
+      tipos_aplicaveis: tipos,
+      pesos_aplicaveis: pesos,
+      status: it.status === 'Desativado' ? 'Desativado' : 'Ativado',
+      isImpeditivo: isImp,
+      is_impeditivo: isImp
+    });
+  }
+
+  // Renumera as ordens sequencialmente de 1 a N
+  return uniqueItems.map((it, idx) => ({
+    ...it,
+    ordem: idx + 1
+  }));
+}
+
 interface ChecklistEditModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -199,6 +267,13 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'Todos' | 'Ativado' | 'Desativado'>('Todos');
   const [saving, setSaving] = useState(false);
+
+  // Modal interno de confirmação de exclusão (sobreposição absoluta imediata)
+  const [itemToDelete, setItemToDelete] = useState<ChecklistItemData | null>(null);
+  const [deletingItem, setDeletingItem] = useState(false);
+
+  // Modal interno de confirmação de restauração padrão NBR
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
 
   // Pop-up HUD Informativo Elegante
   const [hudAlert, setHudAlert] = useState<{
@@ -224,11 +299,9 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
   const [itemImpeditivo, setItemImpeditivo] = useState<boolean>(false);
 
   useEffect(() => {
-    if (initialItems && initialItems.length > 0) {
-      setList(initialItems);
-    } else {
-      setList(DEFAULT_EXTINTOR_CHECKLIST);
-    }
+    const raw = initialItems && initialItems.length > 0 ? initialItems : DEFAULT_EXTINTOR_CHECKLIST;
+    const clean = deduplicateChecklistItems(raw);
+    setList(clean);
   }, [initialItems, isOpen]);
 
   if (!isOpen) return null;
@@ -255,10 +328,11 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
     setList(reordered);
   };
 
-  // Alterar status direto
-  const handleToggleStatus = (id: string) => {
-    const updated = list.map((item) => {
-      if (item.id === id) {
+  // Alterar status direto de um quesito específico pelo índice da lista
+  const handleToggleStatus = (id: string, index?: number) => {
+    const updated = list.map((item, idx) => {
+      const isTarget = index !== undefined ? idx === index : item.id === id;
+      if (isTarget) {
         return {
           ...item,
           status: (item.status === 'Ativado' ? 'Desativado' : 'Ativado') as 'Ativado' | 'Desativado'
@@ -269,45 +343,48 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
     setList(updated);
   };
 
-  const { showConfirmModal } = useSpci();
+  // Confirmar exclusão de quesito (com remoção imediata e garantia no banco)
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    const targetId = itemToDelete.id;
+    setDeletingItem(true);
+    try {
+      const updated = list.filter((item) => item.id !== targetId);
+      const reordered = updated.map((item, idx) => ({ ...item, ordem: idx + 1 }));
+      setList(reordered);
+      setItemToDelete(null);
 
-  // Deletar quesito
-  const handleDelete = async (id: string) => {
-    showConfirmModal({
-      title: 'Excluir Quesito 🗑️',
-      message: 'Tem certeza que deseja excluir este quesito do checklist?',
-      type: 'error',
-      confirmText: 'EXCLUIR QUESITO',
-      cancelText: 'CANCELAR',
-      onConfirm: async () => {
-        const updated = list.filter((item) => item.id !== id);
-        const reordered = updated.map((item, idx) => ({ ...item, ordem: idx + 1 }));
-        setList(reordered);
+      // Persiste imediatamente no IndexedDB para resiliência offline
+      try {
+        await idb.set('config', 'checklist_extintores', reordered);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('spci_checklist_extintores', JSON.stringify(reordered));
+        }
+      } catch (e) {
+        console.warn('Erro ao salvar no IndexedDB após exclusão:', e);
+      }
 
-        // Tentar deletar no servidor se não for ID temporário
-        if (!id.startsWith('new-')) {
-          try {
-            await deleteChecklistItemAction(id);
-          } catch (e) {
-            console.error('Erro ao deletar item no banco:', e);
-          }
+      // Tenta deletar no Supabase se não for ID temporário de novo quesito
+      if (!targetId.startsWith('new-')) {
+        try {
+          await deleteChecklistItemAction(targetId);
+        } catch (e) {
+          console.error('Erro ao deletar item no banco:', e);
         }
       }
-    });
+    } finally {
+      setDeletingItem(false);
+    }
   };
 
   // Restaurar NBR Padrão
   const handleResetDefault = () => {
-    showConfirmModal({
-      title: 'Restaurar Checklist NBR 12962 🔄',
-      message: 'Deseja restaurar o checklist com os 14 itens originais padrão da norma NBR 12962?',
-      type: 'warning',
-      confirmText: 'RESTAURAR PADRÃO',
-      cancelText: 'CANCELAR',
-      onConfirm: () => {
-        setList(DEFAULT_EXTINTOR_CHECKLIST);
-      }
-    });
+    setConfirmResetOpen(true);
+  };
+
+  const handleConfirmReset = () => {
+    setList(DEFAULT_EXTINTOR_CHECKLIST);
+    setConfirmResetOpen(false);
   };
 
   // Iniciar formulário de Adição
@@ -831,7 +908,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                             Editar
                           </button>
                           <button
-                            onClick={() => handleToggleStatus(it.id)}
+                            onClick={() => handleToggleStatus(it.id, idx)}
                             className={`px-2.5 py-1 rounded-lg font-black text-white transition-all shadow-xs cursor-pointer border-none ${
                               it.status === 'Ativado'
                                 ? 'bg-red-600 hover:bg-red-700'
@@ -841,7 +918,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
                             {it.status === 'Ativado' ? 'Desativar' : 'Ativar'}
                           </button>
                           <button
-                            onClick={() => handleDelete(it.id)}
+                            onClick={() => setItemToDelete(it)}
                             className="p-1.5 text-slate-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all border border-slate-200 hover:border-red-200 cursor-pointer"
                             title="Excluir Quesito"
                           >
@@ -857,10 +934,128 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
           </table>
         </div>
 
-        {/* MODAL POP-UP HUD INFORMATIVO ELEGANTE (SUBSTITUI O ALERT DO NAVEGADOR) */}
+        {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO DEDICADO E SOBREPOSTO AO MODAL PRINCIPAL */}
+        <AnimatePresence>
+          {itemToDelete && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 font-sans select-none">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.94, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.94, y: 15 }}
+                transition={{ duration: 0.2 }}
+                className="w-full max-w-md bg-white border border-rose-200 shadow-2xl rounded-3xl p-6 relative overflow-hidden text-center text-slate-900"
+              >
+                {/* Linha de Destaque Superior */}
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-rose-500 to-red-700" />
+
+                {/* Ícone de Lixeira */}
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3.5 bg-rose-50 border border-rose-200 text-rose-600 shadow-inner">
+                  <Trash2 className="w-7 h-7 animate-pulse" />
+                </div>
+
+                <span className="text-[9.5px] font-extrabold uppercase font-mono px-2.5 py-0.5 rounded-md border inline-block bg-rose-50 text-rose-700 border-rose-200 mb-2">
+                  CONFIRMAÇÃO DE EXCLUSÃO
+                </span>
+
+                <h3 className="font-['Hanken_Grotesk'] font-black text-lg text-slate-900 leading-tight">
+                  Excluir Quesito NBR?
+                </h3>
+
+                {/* Caixa informativa do quesito sendo deletado */}
+                <div className="mt-3.5 p-3.5 bg-slate-50 border border-slate-200 rounded-2xl text-left space-y-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono font-bold text-slate-500 uppercase">
+                    <span>Ordem #{itemToDelete.ordem}</span>
+                    <span className="text-red-700">{itemToDelete.categoria}</span>
+                  </div>
+                  <p className="text-xs font-bold text-slate-800 leading-relaxed">
+                    {itemToDelete.item}
+                  </p>
+                </div>
+
+                <p className="text-xs text-slate-600 font-medium leading-relaxed mt-3">
+                  Tem certeza que deseja remover este quesito? Ele deixará de aparecer nas inspeções de campo.
+                </p>
+
+                {/* Ações */}
+                <div className="mt-6 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setItemToDelete(null)}
+                    disabled={deletingItem}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-xs disabled:opacity-50"
+                  >
+                    CANCELAR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmDelete}
+                    disabled={deletingItem}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-mono font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-lg shadow-red-600/30 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>{deletingItem ? 'EXCLUINDO...' : 'EXCLUIR QUESITO'}</span>
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* MODAL DE CONFIRMAÇÃO DE RESTAURAÇÃO NBR PADRÃO */}
+        <AnimatePresence>
+          {confirmResetOpen && (
+            <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 font-sans select-none">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.94, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.94, y: 15 }}
+                transition={{ duration: 0.2 }}
+                className="w-full max-w-md bg-white border border-amber-200 shadow-2xl rounded-3xl p-6 relative overflow-hidden text-center text-slate-900"
+              >
+                <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-amber-500 to-orange-600" />
+
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-3.5 bg-amber-50 border border-amber-200 text-amber-600 shadow-inner">
+                  <RotateCcw className="w-7 h-7" />
+                </div>
+
+                <span className="text-[9.5px] font-extrabold uppercase font-mono px-2.5 py-0.5 rounded-md border inline-block bg-amber-50 text-amber-700 border-amber-200 mb-2">
+                  RESTAURAÇÃO NORMATIVA
+                </span>
+
+                <h3 className="font-['Hanken_Grotesk'] font-black text-lg text-slate-900 leading-tight">
+                  Restaurar NBR 12962 / 15808?
+                </h3>
+
+                <p className="text-xs text-slate-600 font-medium leading-relaxed mt-3">
+                  Deseja restaurar a lista com os 14 quesitos originais e oficiais da norma NBR 12962? Quaisquer quesitos customizados serão redefinidos.
+                </p>
+
+                <div className="mt-6 flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setConfirmResetOpen(false)}
+                    className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-mono font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-xs"
+                  >
+                    CANCELAR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmReset}
+                    className="w-full sm:w-auto px-6 py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-400 hover:to-orange-500 text-slate-950 font-mono font-black text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-lg shadow-amber-500/25 flex items-center justify-center gap-1.5"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>RESTAURAR PADRÃO</span>
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* MODAL POP-UP HUD INFORMATIVO ELEGANTE */}
         <AnimatePresence>
         {hudAlert.isOpen && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-slate-950/85 backdrop-blur-md p-4 font-mono select-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
