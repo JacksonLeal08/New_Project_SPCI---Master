@@ -47,6 +47,7 @@ import { DynamicChecklistRenderer, ItemInspectionState } from '@/app/components/
 import { submitInspectionWithSync, getCachedChecklistItems } from '@/lib/dbSync';
 import { ChecklistItemData } from '@/app/components/ChecklistEditModal';
 import AssetSwapModal from '@/app/components/AssetSwapModal';
+import ErrorBoundary from '@/app/components/ui/ErrorBoundary';
 
 // Tipagem de categorias
 interface CategoriaOpcao {
@@ -1916,13 +1917,18 @@ function InspecaoOuCadastroContent() {
                   </div>
                 </section>
 
-                {/* RENDERIZADOR DINÂMICO DE CHECKLIST NBR */}
-                <DynamicChecklistRenderer 
-                  asset={ativo}
-                  checklistTemplates={checklistTemplates}
-                  isDark={isDark}
-                  onChange={setDynamicChecklistResult}
-                />
+                {/* RENDERIZADOR DINÂMICO DE CHECKLIST NBR BLINDADO */}
+                <ErrorBoundary
+                  fallbackTitle="Instabilidade no Checklist NBR"
+                  fallbackDescription="Ocorreu um erro ao renderizar os itens deste checklist. Você pode tentar recarregar ou prosseguir com a foto e os dados do ativo."
+                >
+                  <DynamicChecklistRenderer 
+                    asset={ativo}
+                    checklistTemplates={checklistTemplates}
+                    isDark={isDark}
+                    onChange={setDynamicChecklistResult}
+                  />
+                </ErrorBoundary>
 
                 {/* Evidência Fotográfica Obrigatória com Geocaptura (Momento 3: Inspeção Periódica) */}
                 <section className={`${cardClass} p-5 space-y-3 rounded-2xl`}>

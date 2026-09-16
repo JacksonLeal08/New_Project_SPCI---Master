@@ -40,6 +40,7 @@ import { useSync } from '@/hooks/useSync';
 import { extractIdOrHashFromUrl, formatDateBr } from '@/lib/utils';
 import { prefetchAndHydrateOfflineData } from '@/lib/dbSync';
 import { useSpci } from '@/app/context/SpciContext';
+import ErrorBoundary from '@/app/components/ui/ErrorBoundary';
 
 // Mapeamento de categorias de ativos
 interface Categoria {
@@ -537,8 +538,13 @@ export default function PortalTecnicoPage() {
           </div>
         </section>
 
-        {/* 3. LISTAGEM DE ATIVOS & CICLO MENSAL */}
-        <section className="space-y-4">
+        {/* 3. LISTAGEM DE ATIVOS & CICLO MENSAL BLINDADO */}
+        <ErrorBoundary
+          fallbackTitle="Instabilidade na Listagem de Ativos"
+          fallbackDescription="Ocorreu uma falha ao renderizar a lista de ativos. Seus dados e laudos gravados no celular continuam preservados."
+          onReset={() => loadCategoryAssets()}
+        >
+          <section className="space-y-4">
           {/* Barra de Status do Ciclo Mensal */}
           <div className={`p-3 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
             isDark ? 'bg-slate-900/60 border-slate-850' : 'bg-white border-slate-200 shadow-sm'
@@ -781,6 +787,7 @@ export default function PortalTecnicoPage() {
             )}
           </AnimatePresence>
         </section>
+      </ErrorBoundary>
 
       </main>
 
