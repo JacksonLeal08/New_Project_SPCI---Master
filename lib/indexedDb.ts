@@ -121,9 +121,19 @@ export const idb = {
       store.clear();
       
       items.forEach((item, index) => {
-        // Se o item tem id corporativo ou id único, usamos como chave, senão index
-        const key = item.id || `item-${index}-${Date.now()}`;
-        store.put(item, key);
+        const idKey = item.id ? String(item.id).toUpperCase() : null;
+        const patKey = (item.numero_patrimonio || item.idAtivo || item.id_ativo || item.patrimonio)
+          ? String(item.numero_patrimonio || item.idAtivo || item.id_ativo || item.patrimonio).toUpperCase()
+          : null;
+
+        // Salva com a chave primária
+        const primaryKey = idKey || `item-${index}-${Date.now()}`;
+        store.put(item, primaryKey);
+
+        // Se o patrimônio for diferente da chave primária, indexa também pelo patrimônio para consulta direta instantânea offline
+        if (patKey && patKey !== primaryKey) {
+          store.put(item, patKey);
+        }
       });
 
       transaction.oncomplete = () => {

@@ -57,10 +57,24 @@ export async function prefetchAndHydrateOfflineData(userSite?: string): Promise<
   try {
     console.log(`[dbSync] Iniciando prefetch e hidratação de dados offline para contrato: ${userSite || 'GLOBAL'}...`);
 
-    // 1. Pré-carga dos ativos de extintores filtrados pelo contrato do usuário
-    const assets = await getAssetsList('extintores', userSite);
-    await idb.setAll('extintores', assets || []);
-    console.log(`[dbSync] ${assets?.length || 0} ativos salvos no cache IndexedDB para [${userSite || 'GLOBAL'}].`);
+    // 1. Pré-carga de todas as categorias operacionais de ativos (extintores, hidrantes, sinalização, iluminação, bombas)
+    const categories = ['extintores', 'hidrantes', 'sinalizacoes', 'iluminacao', 'bombas'];
+    let totalAssets = 0;
+
+    await Promise.allSettled(
+      categories.map(async (cat) => {
+        try {
+          const list = await getAssetsList(cat, userSite);
+          if (list && list.length > 0) {
+            await idb.setAll(cat, list);
+            totalAssets += list.length;
+            console.log(`[dbSync] ${list.length} ativos de [${cat}] salvos no cache local para [${userSite || 'GLOBAL'}].`);
+          }
+        } catch (catErr) {
+          console.warn(`[dbSync] Aviso ao buscar ativos de ${cat}:`, catErr);
+        }
+      })
+    );
 
     // 2. Pré-carga dos templates de checklist ativos
     try {
@@ -95,7 +109,7 @@ export async function prefetchAndHydrateOfflineData(userSite?: string): Promise<
     // 3. Marca timestamp da última hidratação
     await idb.set('config', 'spci_last_prefetch_timestamp', Date.now());
 
-    return { success: true, totalAssets: assets?.length || 0 };
+    return { success: true, totalAssets };
   } catch (error) {
     console.error('[dbSync] Erro durante o prefetch de dados offline:', error);
     return { success: false, totalAssets: 0 };

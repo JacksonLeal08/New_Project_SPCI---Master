@@ -262,8 +262,24 @@ function InspecaoOuCadastroContent() {
           // Atualiza cache local
           await idb.set(data.category || 'extintores', data.id_ativo || data.id, data);
         } else {
-          // Fallback IndexedDB com validação estrita de contrato
-          const localData = await idb.get(targetCategory, idToFetch.toUpperCase());
+          // Fallback IndexedDB com busca inteligente (chave direta ou varredura de patrimônio)
+          const findAssetInLocalCache = async (category: string, idOrPatrimonio: string) => {
+            const searchKey = idOrPatrimonio.toUpperCase().trim();
+            const direct = await idb.get(category, searchKey);
+            if (direct) return direct;
+
+            const all = await idb.getAll(category);
+            const cleanSearch = searchKey.replace(/^(EXT|HID|SIN|LUM|BOM)-/i, '');
+            return all.find((it: any) => {
+              const itId = String(it.id || '').toUpperCase();
+              const itPat = String(it.numero_patrimonio || it.idAtivo || it.id_ativo || it.patrimonio || '').toUpperCase();
+              const itCleanPat = itPat.replace(/^(EXT|HID|SIN|LUM|BOM)-/i, '');
+              const itQr = String(it.qr_code_hash || '').toUpperCase();
+              return itId === searchKey || itPat === searchKey || (cleanSearch && itCleanPat === cleanSearch) || itQr === searchKey;
+            }) || null;
+          };
+
+          const localData = await findAssetInLocalCache(targetCategory, idToFetch);
           if (localData) {
             const userSite = userProfile?.site;
             const isGlobal = !userSite || userSite.toUpperCase().startsWith('TODOS');
@@ -304,7 +320,23 @@ function InspecaoOuCadastroContent() {
         }
       } catch (err: any) {
         if (!navigator.onLine) {
-          const localData = await idb.get(targetCategory, idToFetch.toUpperCase());
+          const findAssetInLocalCache = async (category: string, idOrPatrimonio: string) => {
+            const searchKey = idOrPatrimonio.toUpperCase().trim();
+            const direct = await idb.get(category, searchKey);
+            if (direct) return direct;
+
+            const all = await idb.getAll(category);
+            const cleanSearch = searchKey.replace(/^(EXT|HID|SIN|LUM|BOM)-/i, '');
+            return all.find((it: any) => {
+              const itId = String(it.id || '').toUpperCase();
+              const itPat = String(it.numero_patrimonio || it.idAtivo || it.id_ativo || it.patrimonio || '').toUpperCase();
+              const itCleanPat = itPat.replace(/^(EXT|HID|SIN|LUM|BOM)-/i, '');
+              const itQr = String(it.qr_code_hash || '').toUpperCase();
+              return itId === searchKey || itPat === searchKey || (cleanSearch && itCleanPat === cleanSearch) || itQr === searchKey;
+            }) || null;
+          };
+
+          const localData = await findAssetInLocalCache(targetCategory, idToFetch);
           if (localData) {
             const userSite = userProfile?.site;
             const isGlobal = !userSite || userSite.toUpperCase().startsWith('TODOS');
