@@ -299,7 +299,11 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
   const [itemImpeditivo, setItemImpeditivo] = useState<boolean>(false);
 
   useEffect(() => {
-    const raw = initialItems && initialItems.length > 0 ? initialItems : DEFAULT_EXTINTOR_CHECKLIST;
+    let raw = initialItems && initialItems.length > 0 ? initialItems : DEFAULT_EXTINTOR_CHECKLIST;
+    // Se a lista possui 13 itens e está sem o item 1 normativo (chk-1), restaura os 14 itens oficiais
+    if (raw.length === 13 && !raw.some((x: any) => (x.id === 'chk-1' || String(x.item || '').toLowerCase().includes('projeto de incêndio')))) {
+      raw = DEFAULT_EXTINTOR_CHECKLIST;
+    }
     const clean = deduplicateChecklistItems(raw);
     setList(clean);
   }, [initialItems, isOpen]);

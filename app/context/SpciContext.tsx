@@ -669,7 +669,10 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
           if (cachedChecklist && cachedChecklist.length > 0) {
-            const cleanChecklist = deduplicateChecklistItems(cachedChecklist);
+            let cleanChecklist = deduplicateChecklistItems(cachedChecklist);
+            if (cleanChecklist.length === 13 && !cleanChecklist.some((x: any) => (x.id === 'chk-1' || String(x.item || '').toLowerCase().includes('projeto de incêndio')))) {
+              cleanChecklist = DEFAULT_EXTINTOR_CHECKLIST;
+            }
             setExtintorChecklist(cleanChecklist);
             // Sobrescreve caches com lista limpa e deduplicada
             await idb.set('config', 'checklist_extintores', cleanChecklist);
