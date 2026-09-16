@@ -850,6 +850,16 @@ export async function getAssetsList(collectionName: string, userSite?: string): 
         console.warn('[getAssetsList] Aviso ao enriquecer extintores da tabela assets:', gErr);
       }
 
+      // Deduplicação defensiva por identificador único (ID / Patrimônio)
+      const dedupExtintoresMap = new Map<string, any>();
+      for (const ext of extintoresList) {
+        const uniqueKey = String(ext.numero_patrimonio || ext.idAtivo || ext.id || '').trim().toUpperCase();
+        if (uniqueKey && !dedupExtintoresMap.has(uniqueKey)) {
+          dedupExtintoresMap.set(uniqueKey, ext);
+        }
+      }
+      extintoresList = Array.from(dedupExtintoresMap.values());
+
       // Segregação estrita por contrato/site
       if (userSite && !userSite.startsWith('TODOS') && userSite !== 'GLOBAL') {
         const siteNorm = userSite.trim().toUpperCase();
