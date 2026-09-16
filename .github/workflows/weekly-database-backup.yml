@@ -1,0 +1,41 @@
+name: Backup Semanal Automatizado do Supabase
+
+on:
+  schedule:
+    # Executa todos os domingos às 03:00 UTC (00:00 Horário de Brasília)
+    - cron: '0 3 * * 0'
+  workflow_dispatch: # Permite disparar o backup manualmente no GitHub com 1 clique a qualquer momento
+
+jobs:
+  database-backup:
+    name: Executar Backup & Arquivamento
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: 📥 Checkout do Repositório
+        uses: actions/checkout@v4
+
+      - name: ⚙️ Configurar Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: 🛡️ Executar Exportação das Tabelas do Supabase
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/backup_database.mjs
+
+      - name: 🏷️ Gerar Data para Identificação do Arquivo
+        id: get_date
+        run: echo "date=$(date +'%Y-%m-%d_%Hh%Mm')" >> $GITHUB_OUTPUT
+
+      - name: 📦 Armazenar Backup como Artefato Seguro (Retenção 90 dias)
+        uses: actions/upload-artifact@v4
+        with:
+          name: spci-database-backup-${{ steps.get_date.outputs.date }}
+          path: backups/
+          retention-days: 90
