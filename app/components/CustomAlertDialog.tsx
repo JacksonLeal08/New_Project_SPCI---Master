@@ -91,7 +91,7 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md select-none font-sans">
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-md select-none font-sans">
         <motion.div
           initial={{ opacity: 0, scale: 0.92, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}

@@ -860,7 +860,7 @@ export const ChecklistEditModal: React.FC<ChecklistEditModalProps> = ({
         {/* MODAL POP-UP HUD INFORMATIVO ELEGANTE (SUBSTITUI O ALERT DO NAVEGADOR) */}
         <AnimatePresence>
         {hudAlert.isOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
             <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 10 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
