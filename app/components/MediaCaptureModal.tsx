@@ -2,10 +2,11 @@
 
 import React, { useRef, useState } from 'react';
 import { motion } from 'motion/react';
-import { Camera, Image, X, MapPin, Loader2 } from 'lucide-react';
+import { Camera, Image, X, MapPin, Loader2, Zap } from 'lucide-react';
 import { useGeoCapture } from '@/hooks/useGeoCapture';
 import { GeoCoordinates } from '@/lib/geoUtils';
 import { extractExifGpsFromImage } from '@/lib/exifUtils';
+import { compressImage } from '@/lib/imageCompressor';
 
 interface MediaCaptureModalProps {
   isOpen: boolean;
@@ -26,6 +27,7 @@ export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const { isCapturing, capturePosition } = useGeoCapture();
   const [capturingCoords, setCapturingCoords] = useState(false);
+  const [isCompressing, setIsCompressing] = useState(false);
 
   if (!isOpen) return null;
 
@@ -33,8 +35,9 @@ export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
     const file = e.target.files?.[0];
     if (file) {
       setCapturingCoords(true);
+      setIsCompressing(true);
 
-      // 1. Tentar extrair GPS diretamente da foto (EXIF)
+      // 1. Tentar extrair GPS diretamente da foto (EXIF) antes de qualquer manipulação
       let coords: GeoCoordinates | null = null;
       try {
         const exifGps = await extractExifGpsFromImage(file);
@@ -66,16 +69,27 @@ export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
         }
       }
 
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const result = event.target?.result as string;
-        if (result) {
-          setCapturingCoords(false);
-          onPhotoCaptured(result, coords);
-          onClose();
-        }
-      };
-      reader.readAsDataURL(file);
+      // 3. Compressão Inteligente de Imagem (Mobile & Web)
+      try {
+        const compressed = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
+        setCapturingCoords(false);
+        setIsCompressing(false);
+        onPhotoCaptured(compressed.base64, coords);
+        onClose();
+      } catch (compErr) {
+        console.warn('[MediaCaptureModal] Falha na compressão, usando fallback direto:', compErr);
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const result = event.target?.result as string;
+          if (result) {
+            setCapturingCoords(false);
+            setIsCompressing(false);
+            onPhotoCaptured(result, coords);
+            onClose();
+          }
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -136,6 +150,14 @@ export const MediaCaptureModal: React.FC<MediaCaptureModalProps> = ({
                   <span>Geocaptura Automática Ativa (Precisão Satelital)</span>
                 </>
               )}
+            </div>
+          )}
+
+          {/* INDICADOR DE OTIMIZAÇÃO DE FOTO */}
+          {isCompressing && (
+            <div className="flex items-center justify-center gap-2 py-2 px-4 bg-slate-950 text-emerald-300 rounded-xl text-xs font-mono border border-emerald-500/40 mx-auto w-fit shadow-md animate-pulse">
+              <Zap className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Otimizando imagem para envio rápido...</span>
             </div>
           )}
 

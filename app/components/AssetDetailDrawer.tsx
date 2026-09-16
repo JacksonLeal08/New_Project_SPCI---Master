@@ -28,6 +28,8 @@ import {
 import { TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
 import { processAssetLocationUpdateAction, uploadAssetPhotoAction } from '@/app/actions/geoTrackingActions';
 import { extractExifGpsFromImage } from '@/lib/exifUtils';
+import { compressImage, CompressionResult } from '@/lib/imageCompressor';
+import { ImageCompressionBadge } from '@/app/components/ImageCompressionBadge';
 import { supabase } from '@/lib/supabaseClient';
 import { MediaQueue } from '@/lib/mediaQueue';
 
@@ -69,6 +71,7 @@ export default function AssetDetailDrawer() {
   const [capturingGps, setCapturingGps] = useState(false);
   const [gpsSuccess, setGpsSuccess] = useState<string | null>(null);
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+  const [compressionStats, setCompressionStats] = useState<CompressionResult | null>(null);
 
   // Refs para inputs de câmera nativa e galeria/arquivos
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -127,60 +130,32 @@ export default function AssetDetailDrawer() {
       }
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = async () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const ctx = canvas.getContext('2d');
-          const maxWidth = 1200;
-          let { width, height } = img;
-          if (width > maxWidth) {
-            height = Math.round((height * maxWidth) / width);
-            width = maxWidth;
-          }
-          canvas.width = width;
-          canvas.height = height;
-          let finalDataUrl = '';
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            finalDataUrl = canvas.toDataURL('image/jpeg', 0.82);
-          } else {
-            finalDataUrl = event.target?.result as string;
-          }
+    // 3. Compressão Inteligente de Imagem
+    try {
+      const compResult = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
+      setCompressionStats(compResult);
 
-          // Atualiza visualização local imediata para o operador
-          handleFieldChange('fotoUrl', finalDataUrl);
-          handleFieldChange('foto_url', finalDataUrl);
+      // Atualiza visualização local imediata para o operador com a imagem já comprimida
+      handleFieldChange('fotoUrl', compResult.base64);
+      handleFieldChange('foto_url', compResult.base64);
 
-          // Upload assíncrono para o Supabase Storage via Server Action Admin (gerando URL pública permanente)
-          try {
-            const assetCode = asset?.idAtivo || asset?.numero_patrimonio || asset?.id || 'ext';
-            const upRes = await uploadAssetPhotoAction(assetCode, finalDataUrl);
-            if (upRes.success && upRes.publicUrl) {
-              handleFieldChange('fotoUrl', upRes.publicUrl);
-              handleFieldChange('foto_url', upRes.publicUrl);
-            }
-          } catch (uploadErr) {
-            console.warn('[AssetDetailDrawer] Upload direto ao Storage falhou, será retentado ao salvar:', uploadErr);
-          }
-        } catch {
-          const raw = event.target?.result as string;
-          handleFieldChange('fotoUrl', raw);
-          handleFieldChange('foto_url', raw);
-        } finally {
-          setIsProcessingPhoto(false);
+      // Upload assíncrono para o Supabase Storage via Server Action Admin (gerando URL pública permanente)
+      try {
+        const assetCode = asset?.idAtivo || asset?.numero_patrimonio || asset?.id || 'ext';
+        const upRes = await uploadAssetPhotoAction(assetCode, compResult.base64);
+        if (upRes.success && upRes.publicUrl) {
+          handleFieldChange('fotoUrl', upRes.publicUrl);
+          handleFieldChange('foto_url', upRes.publicUrl);
         }
-      };
-      img.onerror = () => {
-        setIsProcessingPhoto(false);
-      };
-      img.src = event.target?.result as string;
-    };
-    reader.onerror = () => setIsProcessingPhoto(false);
-    reader.readAsDataURL(file);
-    e.target.value = '';
+      } catch (uploadErr) {
+        console.warn('[AssetDetailDrawer] Upload direto ao Storage falhou, será retentado ao salvar:', uploadErr);
+      }
+    } catch (compErr) {
+      console.warn('Erro ao comprimir imagem:', compErr);
+    } finally {
+      setIsProcessingPhoto(false);
+      e.target.value = '';
+    }
   };
 
   const asset = selectedAssetForDetail;
@@ -851,6 +826,11 @@ export default function AssetDetailDrawer() {
                             Trocar do Dispositivo
                           </button>
                         </div>
+                        {compressionStats && (
+                          <div className="flex justify-center pt-1">
+                            <ImageCompressionBadge stats={compressionStats} />
+                          </div>
+                        )}
                         <p className="text-[10px] text-slate-400 text-center font-mono uppercase tracking-wider">
                           📷 Foto principal do ativo {asset?.idAtivo} (Lembre-se de clicar em Salvar Alterações)
                         </p>

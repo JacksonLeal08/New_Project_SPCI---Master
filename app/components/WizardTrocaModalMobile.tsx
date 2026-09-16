@@ -18,6 +18,8 @@ import { formatFriendlyMotivo, generateSwapReportPDF } from '@/lib/assetSwapRepo
 import { soundNotificationService } from '@/lib/soundNotificationService';
 import { getAssetsList } from '@/lib/supabaseDb';
 import AssetSelectionCard from './AssetSelectionCard';
+import { compressImage, CompressionResult } from '@/lib/imageCompressor';
+import { ImageCompressionBadge } from '@/app/components/ImageCompressionBadge';
 import {
   ArrowLeftRight,
   Search,
@@ -143,6 +145,8 @@ export default function WizardTrocaModalMobile({
   // Evidências Fotográficas Reais
   const [fotoAntes, setFotoAntes] = useState<string>('');
   const [fotoDepois, setFotoDepois] = useState<string>('');
+  const [compressionStatsAntes, setCompressionStatsAntes] = useState<CompressionResult | null>(null);
+  const [compressionStatsDepois, setCompressionStatsDepois] = useState<CompressionResult | null>(null);
   const [processingPhoto, setProcessingPhoto] = useState<'antes' | 'depois' | null>(null);
   const [zoomPhotoUrl, setZoomPhotoUrl] = useState<string | null>(null);
 
@@ -405,47 +409,6 @@ export default function WizardTrocaModalMobile({
     }
   };
 
-  // Compressão client-side Canvas 1280px (JPEG 0.82)
-  const processImageFile = async (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const img = new window.Image();
-        img.onload = () => {
-          const maxDim = 1280;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) {
-            resolve(e.target?.result as string);
-            return;
-          }
-          ctx.drawImage(img, 0, 0, width, height);
-          const compressed = canvas.toDataURL('image/jpeg', 0.82);
-          resolve(compressed);
-        };
-        img.onerror = () => reject(new Error('Erro ao decodificar imagem.'));
-        img.src = e.target?.result as string;
-      };
-      reader.onerror = () => reject(new Error('Erro ao ler arquivo.'));
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleFileInputChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'antes' | 'depois') => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -460,15 +423,17 @@ export default function WizardTrocaModalMobile({
     setErrorMsg(null);
 
     try {
-      const compressedDataUrl = await processImageFile(file);
+      const compResult = await compressImage(file, { maxWidth: 1280, maxHeight: 1280, quality: 0.78 });
       if (field === 'antes') {
-        setFotoAntes(compressedDataUrl);
+        setFotoAntes(compResult.base64);
+        setCompressionStatsAntes(compResult);
       } else {
-        setFotoDepois(compressedDataUrl);
+        setFotoDepois(compResult.base64);
+        setCompressionStatsDepois(compResult);
       }
       soundNotificationService.playSuccessChime();
     } catch (err: any) {
-      console.error('[WizardTrocaModalMobile] Erro ao carregar foto:', err);
+      console.error('[WizardTrocaModalMobile] Erro ao processar foto:', err);
       soundNotificationService.playCriticalAlert();
       setErrorMsg('Falha ao processar a foto. Tente novamente.');
     } finally {
@@ -1131,12 +1096,20 @@ export default function WizardTrocaModalMobile({
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => setFotoAntes('')}
+                                  onClick={() => {
+                                    setFotoAntes('');
+                                    setCompressionStatsAntes(null);
+                                  }}
                                   className="text-red-600 hover:underline font-bold cursor-pointer"
                                 >
                                   Remover
                                 </button>
                               </div>
+                              {compressionStatsAntes && (
+                                <div className="flex justify-center pt-0.5">
+                                  <ImageCompressionBadge stats={compressionStatsAntes} />
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div className="space-y-2 py-2">
@@ -1214,12 +1187,20 @@ export default function WizardTrocaModalMobile({
                                 </span>
                                 <button
                                   type="button"
-                                  onClick={() => setFotoDepois('')}
+                                  onClick={() => {
+                                    setFotoDepois('');
+                                    setCompressionStatsDepois(null);
+                                  }}
                                   className="text-red-600 hover:underline font-bold cursor-pointer"
                                 >
                                   Remover
                                 </button>
                               </div>
+                              {compressionStatsDepois && (
+                                <div className="flex justify-center pt-0.5">
+                                  <ImageCompressionBadge stats={compressionStatsDepois} />
+                                </div>
+                              )}
                             </div>
                           ) : (
                             <div className="space-y-2 py-2">
