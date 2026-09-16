@@ -17,6 +17,7 @@ import { formatFriendlyPatrimonio } from '@/lib/maintenanceBatchReports';
 import { formatFriendlyMotivo, generateSwapReportPDF } from '@/lib/assetSwapReports';
 import { soundNotificationService } from '@/lib/soundNotificationService';
 import { getAssetsList } from '@/lib/supabaseDb';
+import { idb } from '@/lib/indexedDb';
 import AssetSelectionCard from './AssetSelectionCard';
 import { compressImage, CompressionResult } from '@/lib/imageCompressor';
 import { ImageCompressionBadge } from '@/app/components/ImageCompressionBadge';
@@ -206,158 +207,200 @@ export default function WizardTrocaModalMobile({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, isMinimized, onClose]);
 
-  // Carrega inventário de extintores estritamente da planta/contrato ativo (elimina vazamento de outros contratos)
-  const loadInventory = async () => {
-    setLoadingAssets(true);
-    setErrorMsg(null);
-    try {
-      const [allExtintoresLive, resEstoque, resAreaAction] = await Promise.all([
-        getAssetsList('extintores', activeSite).catch((e) => {
-          console.warn('[WizardTrocaModalMobile] Falha ao buscar lista de extintores:', e);
-          return [] as any[];
-        }),
-        getAssetStockItemsAction('ESTOQUE APLICAÇÃO', activeSite).catch(() => ({ success: false, assets: [] })),
-        getAssetStockItemsAction('NA ÁREA (APLICADO)', activeSite).catch(() => ({ success: false, assets: [] }))
-      ]);
+  // Construtor auxiliar de inventário bilateral (área vs estoque)
+  const buildExtintoresLists = (
+    allExtintoresLive: any[],
+    resAreaAssets: any[] = [],
+    resEstoqueAssets: any[] = []
+  ) => {
+    const mappedAreaMap = new Map<string, AssetStockItemRecord>();
+    const mappedEstoqueMap = new Map<string, AssetStockItemRecord>();
 
-      // 1. Constrói a lista completa de extintores da área instalados na planta
-      const mappedAreaMap = new Map<string, AssetStockItemRecord>();
+    // 1. Extintores da área retornados pela action
+    (resAreaAssets || []).forEach((a) => {
+      if (!matchesUserSite(a, activeSite)) return;
+      const key = (a.id_ativo || a.patrimonio || a.id || '').toUpperCase();
+      if (key) mappedAreaMap.set(key, a);
+    });
 
-      // Adiciona itens da tabela assets retornados pela action
-      (resAreaAction.assets || []).forEach((a) => {
-        if (!matchesUserSite(a, activeSite)) return;
-        const key = (a.id_ativo || a.patrimonio || a.id || '').toUpperCase();
-        if (key) mappedAreaMap.set(key, a);
-      });
+    // 2. Extintores da área vivos ou do cache local
+    (allExtintoresLive || []).forEach((ext: any) => {
+      if (!matchesUserSite(ext, activeSite)) return;
+      const key = String(ext.idAtivo || ext.numero_patrimonio || ext.id || '').toUpperCase();
+      if (!key) return;
 
-      // Adiciona/enriquece com os dados vivos dos extintores da planta ativa
-      (allExtintoresLive || []).forEach((ext: any) => {
-        if (!matchesUserSite(ext, activeSite)) return;
-        const key = String(ext.idAtivo || ext.numero_patrimonio || ext.id || '').toUpperCase();
-        if (!key) return;
+      const isEstoque =
+        ext.status_estoque === 'ESTOQUE APLICAÇÃO' ||
+        ext.tipo_movimentacao === 'estoque_aplicacao' ||
+        (ext.location && ext.location.toUpperCase().includes('ESTOQUE APLICAÇÃO'));
 
-        const isEstoque =
-          ext.status_estoque === 'ESTOQUE APLICAÇÃO' ||
-          ext.tipo_movimentacao === 'estoque_aplicacao' ||
-          (ext.location && ext.location.toUpperCase().includes('ESTOQUE APLICAÇÃO'));
-
-        if (!isEstoque) {
-          const existing = mappedAreaMap.get(key);
-          mappedAreaMap.set(key, {
-            id: String(ext.id || key),
-            id_ativo: ext.idAtivo || ext.numero_patrimonio || key,
-            patrimonio: ext.numero_patrimonio || ext.idAtivo || key,
-            category: 'extintores',
-            model: ext.model || ext.tipoExtintor || existing?.model || 'ABC',
-            fabricante: ext.fabricante || existing?.fabricante || 'Kidde',
-            peso_capacidade: ext.peso_capacidade || ext.capacidade || ext.peso || existing?.peso_capacidade || '4KG',
-            validadeRecarga: ext.validadeRecarga || ext.data_vencimento_teste || existing?.validadeRecarga || '',
-            location: ext.location || existing?.location || 'Área Operacional',
-            sub_location: ext.subLocation || ext.sub_location || existing?.sub_location || '',
-            status: ext.status || existing?.status || 'Conforme',
-            status_estoque: 'NA ÁREA (APLICADO)',
-            tipo_movimentacao: 'na_area_aplicado',
-            numero_serie: ext.numero_serie || ext.chassi || existing?.numero_serie || '',
-            details: ext
-          });
-        }
-      });
-
-      // 2. Constrói a lista estrita de substitutos em estoque (ESTOQUE APLICAÇÃO)
-      // Exigência: status_operacional = 'ESTOQUE_APLICACAO', situacao_vencimento = 'CONFORME', status_condenado = FALSE
-      const mappedEstoqueMap = new Map<string, AssetStockItemRecord>();
-
-      (resEstoque.assets || []).forEach((a) => {
-        if (!matchesUserSite(a, activeSite)) return;
-        const stOp = (a as any).status_operacional;
-        const isManutencao =
-          stOp === 'ESTOQUE_MANUTENCAO' ||
-          stOp === 'EM_MANUTENCAO_EXTERNA' ||
-          a.status_estoque === 'ESTOQUE MANUTENÇÃO' ||
-          a.status_estoque === 'EM MANUTENÇÃO' ||
-          a.tipo_movimentacao === 'estoque_ag_manut';
-
-        const isArea = stOp === 'NA_AREA_APLICADO' || a.tipo_movimentacao === 'na_area_aplicado';
-        const isCondenado = stOp === 'CONDENADO_DESCARTE' || a.status_estoque === 'CONDENADOS' || a.tipo_movimentacao === 'condenado';
-        const isVencido = a.status === 'Vencido' || a.status === 'Não Conforme';
-
-        // Apenas extintores em ESTOQUE APLICAÇÃO e conformes
-        if (!isManutencao && !isArea && !isCondenado && !isVencido) {
-          const key = (a.id_ativo || a.patrimonio || a.id || '').toUpperCase();
-          if (key) mappedEstoqueMap.set(key, a);
-        }
-      });
-
-      (allExtintoresLive || []).forEach((ext: any) => {
-        if (!matchesUserSite(ext, activeSite)) return;
-        const key = String(ext.idAtivo || ext.numero_patrimonio || ext.id || '').toUpperCase();
-        if (!key) return;
-
-        const isManutencao =
-          ext.status_operacional === 'ESTOQUE_MANUTENCAO' ||
-          ext.status_operacional === 'EM_MANUTENCAO_EXTERNA' ||
-          ext.status_estoque === 'ESTOQUE MANUTENÇÃO' ||
-          ext.status_estoque === 'EM MANUTENÇÃO' ||
-          ext.tipo_movimentacao === 'estoque_ag_manut';
-
-        const isArea =
-          ext.status_operacional === 'NA_AREA_APLICADO' ||
-          ext.tipo_movimentacao === 'na_area_aplicado';
-
-        const isCondenado =
-          ext.status_operacional === 'CONDENADO_DESCARTE' ||
-          ext.status_estoque === 'CONDENADOS' ||
-          ext.tipo_movimentacao === 'condenado';
-
-        const isVencido = ext.status === 'Vencido' || ext.status === 'Não Conforme';
-
-        const isEstoqueAplicacao =
-          (ext.status_operacional === 'ESTOQUE_APLICACAO' ||
-           (ext.status_estoque === 'ESTOQUE APLICAÇÃO' && ext.tipo_movimentacao === 'estoque_aplicacao')) &&
-          !isManutencao && !isArea && !isCondenado && !isVencido;
-
-        if (isEstoqueAplicacao && !mappedEstoqueMap.has(key)) {
-          mappedEstoqueMap.set(key, {
-            id: String(ext.id || key),
-            id_ativo: ext.idAtivo || ext.numero_patrimonio || key,
-            patrimonio: ext.numero_patrimonio || ext.idAtivo || key,
-            category: 'extintores',
-            model: ext.model || ext.tipoExtintor || 'ABC',
-            fabricante: ext.fabricante || 'Kidde',
-            peso_capacidade: ext.peso_capacidade || ext.capacidade || ext.peso || '4KG',
-            validadeRecarga: ext.validadeRecarga || ext.data_vencimento_teste || '',
-            location: ext.location || 'Almoxarifado',
-            sub_location: ext.subLocation || ext.sub_location || 'Estoque Aplicação',
-            status: ext.status || 'Conforme',
-            status_estoque: 'ESTOQUE APLICAÇÃO',
-            tipo_movimentacao: 'estoque_aplicacao',
-            numero_serie: ext.numero_serie || ext.chassi || '',
-            details: ext
-          });
-        }
-      });
-
-      const extintoresArea = Array.from(mappedAreaMap.values());
-      const extintoresEstoque = Array.from(mappedEstoqueMap.values());
-
-      setAreaAssets(extintoresArea);
-      setSubstituteAssets(extintoresEstoque);
-
-      if (preSelectedAssetId) {
-        const match = extintoresArea.find(
-          (a) =>
-            a.id === preSelectedAssetId ||
-            a.id_ativo === preSelectedAssetId ||
-            a.patrimonio === preSelectedAssetId
-        );
-        if (match) {
-          setSelectedRetirado(match);
-        }
+      if (!isEstoque) {
+        const existing = mappedAreaMap.get(key);
+        mappedAreaMap.set(key, {
+          id: String(ext.id || key),
+          id_ativo: ext.idAtivo || ext.numero_patrimonio || key,
+          patrimonio: ext.numero_patrimonio || ext.idAtivo || key,
+          category: 'extintores',
+          model: ext.model || ext.tipoExtintor || existing?.model || 'ABC',
+          fabricante: ext.fabricante || existing?.fabricante || 'Kidde',
+          peso_capacidade: ext.peso_capacidade || ext.capacidade || ext.peso || existing?.peso_capacidade || '4KG',
+          validadeRecarga: ext.validadeRecarga || ext.data_vencimento_teste || existing?.validadeRecarga || '',
+          location: ext.location || existing?.location || 'Área Operacional',
+          sub_location: ext.subLocation || ext.sub_location || existing?.sub_location || '',
+          status: ext.status || existing?.status || 'Conforme',
+          status_estoque: 'NA ÁREA (APLICADO)',
+          tipo_movimentacao: 'na_area_aplicado',
+          numero_serie: ext.numero_serie || ext.chassi || existing?.numero_serie || '',
+          details: ext
+        });
       }
-    } catch (err: any) {
-      console.error('[WizardTrocaModalMobile] Erro ao carregar ativos:', err);
-      setErrorMsg('Falha ao carregar ativos do estoque. Tente novamente.');
-    } finally {
+    });
+
+    // 3. Extintores de estoque retornados pela action
+    (resEstoqueAssets || []).forEach((a) => {
+      if (!matchesUserSite(a, activeSite)) return;
+      const stOp = (a as any).status_operacional;
+      const isManutencao =
+        stOp === 'ESTOQUE_MANUTENCAO' ||
+        stOp === 'EM_MANUTENCAO_EXTERNA' ||
+        a.status_estoque === 'ESTOQUE MANUTENÇÃO' ||
+        a.status_estoque === 'EM MANUTENÇÃO' ||
+        a.tipo_movimentacao === 'estoque_ag_manut';
+
+      const isArea = stOp === 'NA_AREA_APLICADO' || a.tipo_movimentacao === 'na_area_aplicado';
+      const isCondenado = stOp === 'CONDENADO_DESCARTE' || a.status_estoque === 'CONDENADOS' || a.tipo_movimentacao === 'condenado';
+      const isVencido = a.status === 'Vencido' || a.status === 'Não Conforme';
+
+      if (!isManutencao && !isArea && !isCondenado && !isVencido) {
+        const key = (a.id_ativo || a.patrimonio || a.id || '').toUpperCase();
+        if (key) mappedEstoqueMap.set(key, a);
+      }
+    });
+
+    // 4. Extintores de estoque vivos ou do cache local
+    (allExtintoresLive || []).forEach((ext: any) => {
+      if (!matchesUserSite(ext, activeSite)) return;
+      const key = String(ext.idAtivo || ext.numero_patrimonio || ext.id || '').toUpperCase();
+      if (!key) return;
+
+      const isManutencao =
+        ext.status_operacional === 'ESTOQUE_MANUTENCAO' ||
+        ext.status_operacional === 'EM_MANUTENCAO_EXTERNA' ||
+        ext.status_estoque === 'ESTOQUE MANUTENÇÃO' ||
+        ext.status_estoque === 'EM MANUTENÇÃO' ||
+        ext.tipo_movimentacao === 'estoque_ag_manut';
+
+      const isArea =
+        ext.status_operacional === 'NA_AREA_APLICADO' ||
+        ext.tipo_movimentacao === 'na_area_aplicado';
+
+      const isCondenado =
+        ext.status_operacional === 'CONDENADO_DESCARTE' ||
+        ext.status_estoque === 'CONDENADOS' ||
+        ext.tipo_movimentacao === 'condenado';
+
+      const isVencido = ext.status === 'Vencido' || ext.status === 'Não Conforme';
+
+      const isEstoqueAplicacao =
+        (ext.status_operacional === 'ESTOQUE_APLICACAO' ||
+         (ext.status_estoque === 'ESTOQUE APLICAÇÃO' && ext.tipo_movimentacao === 'estoque_aplicacao')) &&
+        !isManutencao && !isArea && !isCondenado && !isVencido;
+
+      if (isEstoqueAplicacao && !mappedEstoqueMap.has(key)) {
+        mappedEstoqueMap.set(key, {
+          id: String(ext.id || key),
+          id_ativo: ext.idAtivo || ext.numero_patrimonio || key,
+          patrimonio: ext.numero_patrimonio || ext.idAtivo || key,
+          category: 'extintores',
+          model: ext.model || ext.tipoExtintor || 'ABC',
+          fabricante: ext.fabricante || 'Kidde',
+          peso_capacidade: ext.peso_capacidade || ext.capacidade || ext.peso || '4KG',
+          validadeRecarga: ext.validadeRecarga || ext.data_vencimento_teste || '',
+          location: ext.location || 'Almoxarifado',
+          sub_location: ext.subLocation || ext.sub_location || 'Estoque Aplicação',
+          status: ext.status || 'Conforme',
+          status_estoque: 'ESTOQUE APLICAÇÃO',
+          tipo_movimentacao: 'estoque_aplicacao',
+          numero_serie: ext.numero_serie || ext.chassi || '',
+          details: ext
+        });
+      }
+    });
+
+    return {
+      area: Array.from(mappedAreaMap.values()),
+      estoque: Array.from(mappedEstoqueMap.values())
+    };
+  };
+
+  // Carrega inventário com estratégia Cache-First (IndexedDB imediato + Revalidação em segundo plano)
+  const loadInventory = async () => {
+    setErrorMsg(null);
+
+    // PASSO 1: Leitura imediata do cache local do aparelho (< 10ms de resposta)
+    try {
+      const cachedExtintores = await idb.getAll('extintores');
+      if (cachedExtintores && cachedExtintores.length > 0) {
+        const { area, estoque } = buildExtintoresLists(cachedExtintores);
+        if (area.length > 0 || estoque.length > 0) {
+          setAreaAssets(area);
+          setSubstituteAssets(estoque);
+          setLoadingAssets(false);
+
+          if (preSelectedAssetId && !selectedRetirado) {
+            const match = area.find(
+              (a) =>
+                a.id === preSelectedAssetId ||
+                a.id_ativo === preSelectedAssetId ||
+                a.patrimonio === preSelectedAssetId
+            );
+            if (match) setSelectedRetirado(match);
+          }
+        }
+      } else {
+        setLoadingAssets(true);
+      }
+    } catch (cacheErr) {
+      console.warn('[WizardTrocaModalMobile] Falha ao ler cache inicial do IndexedDB:', cacheErr);
+      setLoadingAssets(true);
+    }
+
+    // PASSO 2: Revalidação remota em segundo plano se houver conexão
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      try {
+        const [allExtintoresLive, resEstoque, resAreaAction] = await Promise.all([
+          getAssetsList('extintores', activeSite).catch((e) => {
+            console.warn('[WizardTrocaModalMobile] Falha ao buscar lista de extintores:', e);
+            return [] as any[];
+          }),
+          getAssetStockItemsAction('ESTOQUE APLICAÇÃO', activeSite).catch(() => ({ success: false, assets: [] })),
+          getAssetStockItemsAction('NA ÁREA (APLICADO)', activeSite).catch(() => ({ success: false, assets: [] }))
+        ]);
+
+        const { area, estoque } = buildExtintoresLists(
+          allExtintoresLive,
+          resAreaAction.assets || [],
+          resEstoque.assets || []
+        );
+
+        setAreaAssets(area);
+        setSubstituteAssets(estoque);
+
+        if (preSelectedAssetId && !selectedRetirado) {
+          const match = area.find(
+            (a) =>
+              a.id === preSelectedAssetId ||
+              a.id_ativo === preSelectedAssetId ||
+              a.patrimonio === preSelectedAssetId
+          );
+          if (match) setSelectedRetirado(match);
+        }
+      } catch (err: any) {
+        console.warn('[WizardTrocaModalMobile] Erro na revalidação remota de estoque:', err);
+      } finally {
+        setLoadingAssets(false);
+      }
+    } else {
       setLoadingAssets(false);
     }
   };
@@ -472,6 +515,51 @@ export default function WizardTrocaModalMobile({
 
       setCompletedTroca(res.troca);
       soundNotificationService.playSuccessChime();
+
+      // Atualização otimista imediata no IndexedDB local do dispositivo
+      try {
+        const cachedExtintores = await idb.getAll('extintores');
+        if (cachedExtintores && cachedExtintores.length > 0) {
+          const retiradoId = String(selectedRetirado.id || selectedRetirado.id_ativo || selectedRetirado.patrimonio || '').toUpperCase();
+          const substitutoId = String(selectedSubstituto.id || selectedSubstituto.id_ativo || selectedSubstituto.patrimonio || '').toUpperCase();
+
+          const updated = cachedExtintores.map((ext: any) => {
+            const extId = String(ext.id || ext.idAtivo || ext.numero_patrimonio || '').toUpperCase();
+
+            if (extId === retiradoId) {
+              return {
+                ...ext,
+                status_estoque: 'ESTOQUE MANUTENÇÃO',
+                status_operacional: 'ESTOQUE_MANUTENCAO',
+                tipo_movimentacao: 'estoque_ag_manut',
+                location: 'Almoxarifado / Estoque Manutenção',
+                subLocation: 'Aguardando Manutenção',
+                sub_location: 'Aguardando Manutenção',
+                updated_at: new Date().toISOString()
+              };
+            }
+
+            if (extId === substitutoId) {
+              return {
+                ...ext,
+                status_estoque: 'NA ÁREA (APLICADO)',
+                status_operacional: 'NA_AREA_APLICADO',
+                tipo_movimentacao: 'na_area_aplicado',
+                location: selectedRetirado.location,
+                subLocation: selectedRetirado.sub_location,
+                sub_location: selectedRetirado.sub_location,
+                local_especifico: (selectedRetirado.details as any)?.local_especifico,
+                updated_at: new Date().toISOString()
+              };
+            }
+
+            return ext;
+          });
+          await idb.setAll('extintores', updated);
+        }
+      } catch (cacheUpdateErr) {
+        console.warn('[WizardTrocaModalMobile] Falha ao atualizar cache local após troca:', cacheUpdateErr);
+      }
 
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('spci_asset_updated', { detail: res.troca }));

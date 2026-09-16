@@ -140,29 +140,42 @@ export default function PortalTecnicoPage() {
   // Sincronia automática gerenciada pelo hook useSync
 
   const loadCategoryAssets = useCallback(async () => {
-    try {
-      setLoading(true);
-      const userSite = userProfile?.site;
-      const list = await getAssetsList(selectedCategory, userSite);
-      setAssets(list || []);
+    const userSite = userProfile?.site;
+    const isGlobal = !userSite || userSite.toUpperCase().startsWith('TODOS');
 
-      if (list && list.length > 0) {
-        await idb.setAll(selectedCategory, list);
-      }
-    } catch (err) {
-      console.warn('Buscando cache offline do IndexedDB...', err);
-      try {
-        const localList = await idb.getAll(selectedCategory);
-        const userSite = userProfile?.site;
-        const isGlobal = !userSite || userSite.toUpperCase().startsWith('TODOS');
+    // 1. Passo Instantâneo: Carrega do cache local IndexedDB (<10ms)
+    try {
+      const localList = await idb.getAll(selectedCategory);
+      if (localList && localList.length > 0) {
         const filtered = isGlobal 
           ? localList 
           : (localList || []).filter((item: any) => (item.site || item.contrato || '').toUpperCase() === userSite.toUpperCase());
-        setAssets(filtered || []);
-      } catch (dbErr) {
-        console.error('Erro ao ler cache local do IndexedDB:', dbErr);
+        if (filtered.length > 0) {
+          setAssets(filtered);
+          setLoading(false);
+        }
+      } else {
+        setLoading(true);
       }
-    } finally {
+    } catch (dbErr) {
+      console.warn('Erro ao ler cache preliminar do IndexedDB:', dbErr);
+      setLoading(true);
+    }
+
+    // 2. Passo de Rede em Segundo Plano (se online)
+    if (typeof navigator !== 'undefined' && navigator.onLine) {
+      try {
+        const list = await getAssetsList(selectedCategory, userSite);
+        if (list && list.length > 0) {
+          setAssets(list);
+          await idb.setAll(selectedCategory, list);
+        }
+      } catch (err) {
+        console.warn('Falha na revalidação remota de ativos:', err);
+      } finally {
+        setLoading(false);
+      }
+    } else {
       setLoading(false);
     }
   }, [selectedCategory, userProfile?.site]);
