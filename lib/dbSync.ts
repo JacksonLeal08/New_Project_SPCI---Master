@@ -153,12 +153,14 @@ export async function submitInspectionWithSync(
 // Inicializa o listener de reconexão de rede (Online Event) para esvaziar a fila automaticamente
 if (typeof window !== 'undefined') {
   window.addEventListener('online', async () => {
-    console.log('[dbSync] Conexão restabelecida! Iniciando sincronização da fila offline...');
+    console.log('[dbSync] Conexão restabelecida! Iniciando sincronização unificada de todas as filas...');
     try {
-      await SyncQueue.processInspectionQueue((task) => {
-        // Para cada tarefa descarregada com sucesso, despacha o broadcast para o Web Admin
-        if (task.inspecao) {
-          dispatchRealtimeInspectionEvent(task.inspecao);
+      await SyncQueue.processAllQueues({
+        onSuccessInspection: (task) => {
+          // Para cada tarefa descarregada com sucesso, despacha o broadcast para o Web Admin
+          if (task.inspecao) {
+            dispatchRealtimeInspectionEvent(task.inspecao);
+          }
         }
       });
     } catch (err) {

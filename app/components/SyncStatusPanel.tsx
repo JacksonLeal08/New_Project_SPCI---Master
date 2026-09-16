@@ -1,32 +1,54 @@
-import React, { useState, useEffect } from 'react';
+'use client';
+
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SyncQueue, PendingSyncTask, PendingInspectionTask } from '@/lib/syncQueue';
 import { MediaQueue, PendingMediaTask } from '@/lib/mediaQueue';
-import { RefreshCw, Trash2, X, AlertOctagon, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { 
+  RefreshCw, 
+  Trash2, 
+  X, 
+  CheckCircle2, 
+  ShieldAlert, 
+  Wifi, 
+  WifiOff, 
+  Database, 
+  FileCheck, 
+  Camera, 
+  Box, 
+  ChevronUp, 
+  ChevronDown,
+  AlertCircle
+} from 'lucide-react';
 import { useSpci } from '@/app/context/SpciContext';
 
 export default function SyncStatusPanel() {
   const [isOpen, setIsOpen] = useState(false);
+  const [isOnline, setIsOnline] = useState<boolean>(true);
   const [assetQueue, setAssetQueue] = useState<PendingSyncTask[]>([]);
   const [inspectionQueue, setInspectionQueue] = useState<PendingInspectionTask[]>([]);
   const [mediaQueue, setMediaQueue] = useState<PendingMediaTask[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [lastSyncTime, setLastSyncTime] = useState<Date | null>(null);
+  const [showRecentSuccess, setShowRecentSuccess] = useState(false);
+  const [isMinimized, setIsMinimized] = useState(false);
 
-  const loadQueues = async () => {
-    const assets = await SyncQueue.getQueue();
-    const inspections = await SyncQueue.getInspectionQueue();
-    const medias = await MediaQueue.getQueue();
-    setAssetQueue(assets);
-    setInspectionQueue(inspections);
-    setMediaQueue(medias);
-  };
+  const prevTasksCountRef = useRef<number>(0);
+  const { showConfirmModal } = useSpci();
 
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    loadQueues();
-    // Atualiza a cada 5 segundos
-    const interval = setInterval(loadQueues, 5000);
-    return () => clearInterval(interval);
+  const loadQueues = useCallback(async () => {
+    try {
+      const [assets, inspections, medias] = await Promise.all([
+        SyncQueue.getQueue(),
+        SyncQueue.getInspectionQueue(),
+        MediaQueue.getQueue(),
+      ]);
+      setAssetQueue(assets);
+      setInspectionQueue(inspections);
+      setMediaQueue(medias);
+    } catch (err) {
+      console.warn('[SyncStatusPanel] Erro ao carregar filas do IndexedDB:', err);
+    }
   }, []);
 
   const totalTasks = assetQueue.length + inspectionQueue.length + mediaQueue.length;
@@ -34,45 +56,92 @@ export default function SyncStatusPanel() {
     assetQueue.filter(t => t.status === 'failed').length + 
     inspectionQueue.filter(t => t.status === 'failed').length;
 
-  const handleForceSync = async () => {
+  // Processamento unificado de sincronização
+  const handleForceSync = useCallback(async () => {
+    if (typeof window === 'undefined' || !navigator.onLine) {
+      return;
+    }
+
     setIsProcessing(true);
     try {
-      if (typeof window !== 'undefined' && navigator.onLine) {
-        if (totalFailed > 0) {
-          await SyncQueue.resetFailedTasks();
-        }
-        await SyncQueue.processQueue();
-        await SyncQueue.processInspectionQueue();
-        await MediaQueue.processQueue();
-        await loadQueues();
-      } else {
-        alert('Dispositivo ainda offline. Aguardando rede para sincronizar.');
+      if (totalFailed > 0) {
+        await SyncQueue.resetFailedTasks();
       }
+      await SyncQueue.processAllQueues();
+      await loadQueues();
+      setLastSyncTime(new Date());
+      setShowRecentSuccess(true);
+      setTimeout(() => setShowRecentSuccess(false), 4000);
     } catch (e) {
-      console.error(e);
+      console.error('[SyncStatusPanel] Falha na sincronização:', e);
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [totalFailed, loadQueues]);
+
+  // Efeito para monitorar conectividade e eventos da fila
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // Estado inicial de conectividade
+    setIsOnline(navigator.onLine);
+    loadQueues();
+
+    const handleOnline = () => {
+      console.log('[SyncStatusPanel] Conexão detectada. Disparando sincronização automática...');
+      setIsOnline(true);
+      handleForceSync();
+    };
+
+    const handleOffline = () => {
+      console.log('[SyncStatusPanel] Dispositivo desconectado. Modo Offline ativado.');
+      setIsOnline(false);
+    };
+
+    const handleSyncUpdated = () => {
+      loadQueues();
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('spci_sync_updated', handleSyncUpdated);
+
+    // Polling de segurança a cada 5 segundos
+    const interval = setInterval(loadQueues, 5000);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('spci_sync_updated', handleSyncUpdated);
+      clearInterval(interval);
+    };
+  }, [loadQueues, handleForceSync]);
+
+  // Monitora se as tarefas foram esvaziadas após sincronização bem-sucedida
+  useEffect(() => {
+    if (prevTasksCountRef.current > 0 && totalTasks === 0 && isOnline) {
+      setShowRecentSuccess(true);
+      const timer = setTimeout(() => setShowRecentSuccess(false), 4000);
+      return () => clearTimeout(timer);
+    }
+    prevTasksCountRef.current = totalTasks;
+  }, [totalTasks, isOnline]);
 
   const handleResetFailed = async () => {
     await SyncQueue.resetFailedTasks();
     await loadQueues();
   };
 
-  const { showConfirmModal } = useSpci();
-
   const handleClearQueues = async () => {
     showConfirmModal({
       title: 'Limpar Fila de Sincronização 🗑️',
-      message: 'Tem certeza de que deseja limpar e apagar todas as tarefas pendentes de sincronização? Isso apagará vistorias e alterações pendentes.',
+      message: 'Tem certeza de que deseja limpar e apagar todas as tarefas pendentes de sincronização? Isso apagará vistorias e alterações pendentes no dispositivo.',
       type: 'error',
       confirmText: 'LIMPAR TUDO',
       cancelText: 'CANCELAR',
       onConfirm: async () => {
         await SyncQueue.clearQueue();
         await SyncQueue.clearInspectionQueue();
-        // Limpa fila de mídias também
         const db = await import('@/lib/indexedDb').then(m => m.getIndexedDB());
         const transaction = db.transaction('config', 'readwrite');
         transaction.objectStore('config').delete('spci_media_queue');
@@ -81,131 +150,249 @@ export default function SyncStatusPanel() {
     });
   };
 
-  if (totalTasks === 0 && !isOpen) return null;
+  // Render do status em texto para o botão flutuante
+  const getHudBadgeContent = () => {
+    if (isProcessing) {
+      return {
+        bg: 'bg-cyan-500/90 border-cyan-400 text-slate-950 shadow-cyan-950/30',
+        icon: <RefreshCw className="w-3.5 h-3.5 animate-spin" />,
+        text: `SINCRONIZANDO (${totalTasks})`
+      };
+    }
+
+    if (totalFailed > 0) {
+      return {
+        bg: 'bg-red-600/95 border-red-400 text-white shadow-red-950/40 animate-pulse',
+        icon: <ShieldAlert className="w-3.5 h-3.5" />,
+        text: `ERROS: ${totalFailed}`
+      };
+    }
+
+    if (!isOnline) {
+      return {
+        bg: 'bg-amber-500/95 border-amber-400 text-slate-950 shadow-amber-950/30',
+        icon: <WifiOff className="w-3.5 h-3.5" />,
+        text: totalTasks > 0 ? `OFFLINE (${totalTasks})` : 'MODO OFFLINE'
+      };
+    }
+
+    if (totalTasks > 0) {
+      return {
+        bg: 'bg-amber-500/95 border-amber-400 text-slate-950 shadow-amber-950/30',
+        icon: <Database className="w-3.5 h-3.5" />,
+        text: `FILA PENDENTE: ${totalTasks}`
+      };
+    }
+
+    if (showRecentSuccess) {
+      return {
+        bg: 'bg-emerald-500/95 border-emerald-400 text-slate-950 shadow-emerald-950/30',
+        icon: <CheckCircle2 className="w-3.5 h-3.5" />,
+        text: '100% SINCRONIZADO'
+      };
+    }
+
+    // Online e limpo (estado discreto)
+    return {
+      bg: 'bg-slate-900/90 dark:bg-slate-950/90 border-slate-700/80 text-emerald-400 shadow-slate-950/30 hover:border-emerald-500/60',
+      icon: <Wifi className="w-3.5 h-3.5 text-emerald-400" />,
+      text: 'SPCI CONECTADO'
+    };
+  };
+
+  const badge = getHudBadgeContent();
 
   return (
     <>
-      {/* Botão Flutuante Indicador HUD */}
+      {/* Botão Flutuante Indicador HUD (Posicionado no canto inferior esquerdo para não colidir com FABs) */}
       {!isOpen && (
-        <motion.button
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          onClick={() => setIsOpen(true)}
-          className={`fixed bottom-4 right-4 z-40 px-3.5 py-2.5 rounded-xl font-mono text-[10px] font-black tracking-wider flex items-center gap-2 border cursor-pointer shadow-lg active:scale-95 transition-all uppercase no-print print:hidden ${
-            totalFailed > 0
-              ? 'bg-red-600 hover:bg-red-700 border-red-400 text-white animate-pulse'
-              : 'bg-amber-500 hover:bg-amber-600 border-amber-400 text-slate-950 shadow-amber-950/20'
-          }`}
-        >
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-slate-950"></span>
-          </span>
-          {totalFailed > 0 ? `ERROS: ${totalFailed}` : `FILA OFFLINE: ${totalTasks}`}
-        </motion.button>
+        <div className="fixed bottom-4 left-4 sm:bottom-5 sm:left-5 z-40 flex items-center gap-1.5 no-print print:hidden select-none">
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9, y: 10 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setIsOpen(true)}
+            aria-label="Abrir Painel de Sincronização SPCI"
+            className={`px-3 py-2 rounded-xl font-mono text-[10px] font-black tracking-wider flex items-center gap-2 border cursor-pointer backdrop-blur-md shadow-xl transition-all uppercase min-h-[44px] ${badge.bg}`}
+          >
+            <span className="relative flex h-2 w-2">
+              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
+                !isOnline ? 'bg-amber-400' : totalFailed > 0 ? 'bg-red-400' : 'bg-emerald-400'
+              }`} />
+              <span className={`relative inline-flex rounded-full h-2 w-2 ${
+                !isOnline ? 'bg-amber-900' : totalFailed > 0 ? 'bg-red-950' : 'bg-emerald-950'
+              }`} />
+            </span>
+            {badge.icon}
+            <span className="hidden xs:inline">{badge.text}</span>
+            {totalTasks > 0 && (
+              <span className="bg-slate-950/20 px-1.5 py-0.5 rounded text-[9px] font-extrabold">
+                {totalTasks}
+              </span>
+            )}
+          </motion.button>
+        </div>
       )}
 
-      {/* Modal HUD Detalhado */}
+      {/* Modal / Drawer HUD Detalhado */}
       <AnimatePresence>
         {isOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 backdrop-blur-xs p-4 font-mono no-print print:hidden">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-950/75 backdrop-blur-sm p-2 sm:p-4 font-mono no-print print:hidden">
             <motion.div
-              initial={{ opacity: 0, scale: 0.98, y: 10 }}
+              initial={{ opacity: 0, scale: 0.96, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.98, y: 10 }}
-              className="w-full max-w-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl relative overflow-hidden flex flex-col p-6 rounded-2xl text-slate-800 dark:text-slate-300"
+              exit={{ opacity: 0, scale: 0.96, y: 20 }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="w-full max-w-lg border border-slate-700/80 bg-slate-900/98 text-slate-200 shadow-2xl relative overflow-hidden flex flex-col p-5 sm:p-6 rounded-2xl max-h-[88vh]"
             >
-              {/* Accent Line */}
-              <div className={`h-1 absolute top-0 left-0 right-0 ${totalFailed > 0 ? 'bg-red-600' : 'bg-amber-500'}`} />
+              {/* Barra superior de status com cor dinâmica */}
+              <div 
+                className={`h-1.5 absolute top-0 left-0 right-0 ${
+                  totalFailed > 0 
+                    ? 'bg-red-500' 
+                    : !isOnline 
+                    ? 'bg-amber-500' 
+                    : isProcessing 
+                    ? 'bg-cyan-400 animate-pulse' 
+                    : 'bg-emerald-500'
+                }`} 
+              />
 
+              {/* Cabeçalho */}
               <div className="flex justify-between items-start mb-4 pt-1">
                 <div>
-                  <span className="text-[9px] text-slate-500 dark:text-slate-400 uppercase tracking-widest block">HUD_CONSOLE // SYNCHRONIZATION</span>
-                  <h3 className="text-sm font-black text-slate-900 dark:text-slate-100 uppercase tracking-wider mt-0.5">
-                    Fila de Transmissão SPCI
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] text-slate-400 uppercase tracking-widest block">
+                      TELEMETRIA DE SINCRONIZAÇÃO SPCI
+                    </span>
+                    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase ${
+                      isOnline ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                    }`}>
+                      {isOnline ? <Wifi className="w-2.5 h-2.5" /> : <WifiOff className="w-2.5 h-2.5" />}
+                      {isOnline ? 'Online' : 'Offline'}
+                    </span>
+                  </div>
+                  <h3 className="text-sm font-black text-white uppercase tracking-wider mt-1">
+                    Central de Transmissão em Campo
                   </h3>
                 </div>
                 <button
                   onClick={() => setIsOpen(false)}
-                  className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 border border-slate-200 dark:border-slate-800 p-1.5 hover:border-slate-300 bg-slate-50 dark:bg-slate-950 rounded-xl cursor-pointer"
+                  aria-label="Fechar Painel"
+                  className="text-slate-400 hover:text-white border border-slate-700 hover:border-slate-500 bg-slate-800/80 p-2 rounded-xl cursor-pointer transition-all min-h-[44px] min-w-[44px] flex items-center justify-center"
                 >
-                  <X className="w-3.5 h-3.5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
 
-              {/* Informações Gerais */}
-              <div className="grid grid-cols-3 gap-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 p-3 mb-4 text-[10px] text-slate-500 dark:text-slate-400 rounded-xl">
-                <div>
-                  <span className="block text-slate-500">ATIVOS</span>
-                  <span className="text-slate-900 dark:text-slate-100 font-extrabold text-xs">{assetQueue.length}</span>
+              {/* Mensagem Explicativa de Modo Offline (Ronda Segura) */}
+              {!isOnline && (
+                <div className="mb-4 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-[11px] text-amber-300 flex items-start gap-2.5 leading-relaxed">
+                  <WifiOff className="w-4 h-4 shrink-0 text-amber-400 mt-0.5" />
+                  <div>
+                    <strong className="font-black text-amber-200 uppercase block mb-0.5">
+                      Modo Ronda Segura Ativo
+                    </strong>
+                    Você está desconectado da rede. Todas as vistorias, alterações e fotos são salvas localmente no seu dispositivo e serão sincronizadas com o servidor automaticamente quando a conexão for reestabelecida.
+                  </div>
                 </div>
-                <div>
-                  <span className="block text-slate-500">VISTORIAS</span>
-                  <span className="text-slate-900 dark:text-slate-100 font-extrabold text-xs">{inspectionQueue.length}</span>
+              )}
+
+              {/* Bento Cards de Telemetria (3 Colunas) */}
+              <div className="grid grid-cols-3 gap-2.5 bg-slate-950/70 border border-slate-800 p-3 mb-4 rounded-xl text-center">
+                <div className="flex flex-col items-center justify-center p-1.5 bg-slate-900/60 rounded-lg border border-slate-800/60">
+                  <Box className="w-4 h-4 text-blue-400 mb-1" />
+                  <span className="text-[9px] text-slate-400 uppercase">Ativos</span>
+                  <span className="text-white font-extrabold text-sm">{assetQueue.length}</span>
                 </div>
-                <div>
-                  <span className="block text-slate-500">FOTOS</span>
-                  <span className="text-slate-900 dark:text-slate-100 font-extrabold text-xs">{mediaQueue.length}</span>
+                <div className="flex flex-col items-center justify-center p-1.5 bg-slate-900/60 rounded-lg border border-slate-800/60">
+                  <FileCheck className="w-4 h-4 text-emerald-400 mb-1" />
+                  <span className="text-[9px] text-slate-400 uppercase">Vistorias</span>
+                  <span className="text-white font-extrabold text-sm">{inspectionQueue.length}</span>
+                </div>
+                <div className="flex flex-col items-center justify-center p-1.5 bg-slate-900/60 rounded-lg border border-slate-800/60">
+                  <Camera className="w-4 h-4 text-cyan-400 mb-1" />
+                  <span className="text-[9px] text-slate-400 uppercase">Fotos</span>
+                  <span className="text-white font-extrabold text-sm">{mediaQueue.length}</span>
                 </div>
               </div>
 
-              {/* Lista de Itens da Fila */}
-              <div className="flex-1 max-h-[30vh] overflow-y-auto space-y-2 border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950/60 p-3 rounded-xl mb-5 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-800">
+              {/* Lista Detalhada de Tarefas Pendentes */}
+              <div className="flex-1 max-h-[32vh] overflow-y-auto space-y-2 border border-slate-800 bg-slate-950/50 p-3 rounded-xl mb-4 scrollbar-thin scrollbar-thumb-slate-700">
                 {totalTasks === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-6 text-slate-500 text-[10px] gap-1.5">
-                    <CheckCircle2 className="w-6 h-6 text-emerald-600" />
-                    <span>FILA TRANSMISSÃO LIMPA E ATUALIZADA</span>
+                  <div className="flex flex-col items-center justify-center py-6 text-slate-400 text-xs gap-2">
+                    <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                    <span className="font-bold text-slate-300">Fila Vazia • 100% Sincronizado</span>
+                    <span className="text-[10px] text-slate-500 text-center max-w-xs">
+                      Não há itens pendentes de transmissão no armazenamento local.
+                    </span>
                   </div>
                 ) : (
                   <>
                     {/* Ativos */}
                     {assetQueue.map((task) => (
-                      <div key={task.id} className="border-b border-slate-200 dark:border-slate-800/80 pb-2 text-[10px] flex justify-between items-start gap-3">
-                        <div className="min-w-0">
-                          <span className="font-extrabold text-slate-700 dark:text-slate-400 uppercase">ATIVO: {task.assetId}</span>
-                          <span className="block text-slate-500 font-sans mt-0.5 truncate">Modulo: {task.moduleKey} | Tentativas: {task.attempts}</span>
+                      <div key={task.id} className="border-b border-slate-800/80 pb-2 text-[10px] flex justify-between items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-extrabold text-blue-400 uppercase flex items-center gap-1.5">
+                            <Box className="w-3 h-3 text-blue-400 shrink-0" />
+                            ATIVO: {task.assetId}
+                          </span>
+                          <span className="block text-slate-400 font-sans mt-0.5 truncate text-[11px]">
+                            Módulo: {task.moduleKey} | Tentativas: {task.attempts || 0}
+                          </span>
                           {task.error && (
-                            <span className="block text-red-600 dark:text-red-500 font-sans mt-1 bg-red-50 dark:bg-red-950/20 px-1.5 py-0.5 border border-red-200 dark:border-red-900/30 whitespace-pre-wrap">
-                              Erro: {task.error}
+                            <span className="block text-red-400 font-sans mt-1 bg-red-950/40 px-2 py-1 border border-red-900/40 rounded text-[10px]">
+                              {task.error}
                             </span>
                           )}
                         </div>
-                        <span className={`text-[8px] font-bold px-1.5 py-0.5 uppercase shrink-0 rounded ${
+                        <span className={`text-[8px] font-bold px-2 py-1 uppercase shrink-0 rounded ${
                           task.status === 'failed' ? 'bg-red-600 text-white' : 'bg-amber-500 text-slate-950'
                         }`}>
-                          {task.status}
+                          {task.status || 'pendente'}
                         </span>
                       </div>
                     ))}
 
                     {/* Vistorias */}
                     {inspectionQueue.map((task) => (
-                      <div key={task.id} className="border-b border-slate-200 dark:border-slate-800/80 pb-2 text-[10px] flex justify-between items-start gap-3">
-                        <div className="min-w-0">
-                          <span className="font-extrabold text-slate-700 dark:text-slate-400 uppercase">LAUDO: {task.inspecao.asset_patrimonio}</span>
-                          <span className="block text-slate-500 font-sans mt-0.5 truncate">Técnico: {task.inspecao.tecnico_nome} | Status: {task.inspecao.status}</span>
+                      <div key={task.id} className="border-b border-slate-800/80 pb-2 text-[10px] flex justify-between items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-extrabold text-emerald-400 uppercase flex items-center gap-1.5">
+                            <FileCheck className="w-3 h-3 text-emerald-400 shrink-0" />
+                            VISTORIA: {task.inspecao.asset_patrimonio}
+                          </span>
+                          <span className="block text-slate-400 font-sans mt-0.5 truncate text-[11px]">
+                            Técnico: {task.inspecao.tecnico_nome} | Status: {task.inspecao.status}
+                          </span>
                           {task.error && (
-                            <span className="block text-red-600 dark:text-red-500 font-sans mt-1 bg-red-50 dark:bg-red-950/20 px-1.5 py-0.5 border border-red-200 dark:border-red-900/30 whitespace-pre-wrap">
-                              Erro: {task.error}
+                            <span className="block text-red-400 font-sans mt-1 bg-red-950/40 px-2 py-1 border border-red-900/40 rounded text-[10px]">
+                              {task.error}
                             </span>
                           )}
                         </div>
-                        <span className={`text-[8px] font-bold px-1.5 py-0.5 uppercase shrink-0 rounded ${
+                        <span className={`text-[8px] font-bold px-2 py-1 uppercase shrink-0 rounded ${
                           task.status === 'failed' ? 'bg-red-600 text-white' : 'bg-amber-500 text-slate-950'
                         }`}>
-                          {task.status}
+                          {task.status || 'pendente'}
                         </span>
                       </div>
                     ))}
 
-                    {/* Mídias */}
+                    {/* Fotos */}
                     {mediaQueue.map((task) => (
-                      <div key={task.id} className="border-b border-slate-200 dark:border-slate-800/80 pb-2 text-[10px] flex justify-between items-start gap-3">
-                        <div className="min-w-0">
-                          <span className="font-extrabold text-slate-700 dark:text-slate-400 uppercase">FOTO ATIVO: {task.assetId}</span>
-                          <span className="block text-slate-500 font-sans mt-0.5 truncate">Arquivo: {task.fileName}</span>
+                      <div key={task.id} className="border-b border-slate-800/80 pb-2 text-[10px] flex justify-between items-start gap-2">
+                        <div className="min-w-0 flex-1">
+                          <span className="font-extrabold text-cyan-400 uppercase flex items-center gap-1.5">
+                            <Camera className="w-3 h-3 text-cyan-400 shrink-0" />
+                            FOTO: {task.assetId}
+                          </span>
+                          <span className="block text-slate-400 font-sans mt-0.5 truncate text-[11px]">
+                            Arquivo: {task.fileName}
+                          </span>
                         </div>
-                        <span className="text-[8px] font-bold px-1.5 py-0.5 uppercase shrink-0 bg-blue-600 text-white rounded">
+                        <span className="text-[8px] font-bold px-2 py-1 uppercase shrink-0 bg-cyan-600 text-white rounded">
                           pendente
                         </span>
                       </div>
@@ -214,33 +401,34 @@ export default function SyncStatusPanel() {
                 )}
               </div>
 
-              {/* Botões de Comando HUD */}
-              <div className="flex flex-wrap justify-between items-center gap-3 border-t border-slate-200 dark:border-slate-800 pt-4">
-                <div className="flex gap-2">
+              {/* Barra de Ações do HUD */}
+              <div className="flex flex-wrap justify-between items-center gap-2.5 border-t border-slate-800 pt-3">
+                <div className="flex items-center gap-2">
                   <button
                     onClick={handleClearQueues}
                     title="Limpar Fila de Sincronia"
-                    className="p-2.5 border border-slate-200 dark:border-slate-800 hover:border-red-500 bg-slate-50 dark:bg-slate-950 text-slate-500 hover:text-red-600 dark:hover:text-red-500 transition-all rounded-xl cursor-pointer"
+                    className="p-2.5 border border-slate-700 hover:border-red-500/70 bg-slate-800/80 text-slate-400 hover:text-red-400 transition-all rounded-xl cursor-pointer min-h-[44px] min-w-[44px] flex items-center justify-center"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
+                    <Trash2 className="w-4 h-4" />
                   </button>
+
                   {totalFailed > 0 && (
                     <button
                       onClick={handleResetFailed}
-                      className="px-3 py-2 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-700 dark:text-slate-300 text-[9px] font-extrabold tracking-wider transition-all rounded-xl cursor-pointer flex items-center gap-1.5 active:scale-95"
+                      className="px-3 py-2 border border-slate-700 hover:border-slate-500 bg-slate-800/80 text-slate-200 text-[10px] font-extrabold tracking-wider transition-all rounded-xl cursor-pointer flex items-center gap-1.5 active:scale-95 min-h-[44px]"
                     >
-                      <ShieldAlert className="w-3.5 h-3.5 text-amber-500" /> RESETAR FALHAS
+                      <ShieldAlert className="w-3.5 h-3.5 text-amber-400" /> RESETAR FALHAS
                     </button>
                   )}
                 </div>
 
                 <button
                   onClick={handleForceSync}
-                  disabled={isProcessing}
-                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 disabled:opacity-55 text-slate-950 text-[10px] font-black tracking-widest transition-all rounded-xl cursor-pointer flex items-center gap-1.5 active:scale-[0.97]"
+                  disabled={isProcessing || !isOnline}
+                  className="flex-1 sm:flex-initial px-4 py-2.5 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 text-[10px] font-black tracking-widest transition-all rounded-xl cursor-pointer flex items-center justify-center gap-2 active:scale-[0.97] min-h-[44px]"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${isProcessing ? 'animate-spin' : ''}`} /> 
-                  {isProcessing ? 'TRANSMITINDO...' : 'FORÇAR TRANSMISSÃO'}
+                  <RefreshCw className={`w-4 h-4 ${isProcessing ? 'animate-spin' : ''}`} /> 
+                  {isProcessing ? 'TRANSMITINDO...' : !isOnline ? 'AGUARDANDO REDE' : 'FORÇAR TRANSMISSÃO'}
                 </button>
               </div>
             </motion.div>

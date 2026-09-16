@@ -1,6 +1,7 @@
 import { idb } from '@/lib/indexedDb';
 import { saveAssetToDb, salvarInspecaoNoSupabase } from '@/lib/supabaseDb';
 import { InspecaoRealizada } from '@/lib/types';
+import { MediaQueue } from '@/lib/mediaQueue';
 
 export interface PendingSyncTask {
   id: string;
@@ -331,13 +332,46 @@ export class SyncQueue {
       console.error('[SyncQueue] Erro ao resetar tarefas falhas:', e);
     }
   }
+
+  /**
+   * Processa todas as filas pendentes (ativos, inspeções e fotos) de forma unificada e segura.
+   */
+  static async processAllQueues(options?: {
+    onSuccessAsset?: (task: PendingSyncTask) => void;
+    onSuccessInspection?: (task: PendingInspectionTask) => void;
+  }): Promise<{ totalPending: number }> {
+    if (typeof window === 'undefined' || !navigator.onLine) {
+      return { totalPending: 0 };
+    }
+
+    try {
+      await Promise.allSettled([
+        this.processQueue(options?.onSuccessAsset),
+        this.processInspectionQueue(options?.onSuccessInspection),
+        MediaQueue.processQueue()
+      ]);
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('spci_sync_updated'));
+      }
+    } catch (e) {
+      console.error('[SyncQueue] Erro durante processAllQueues:', e);
+    }
+
+    const [assets, inspections, medias] = await Promise.all([
+      this.getQueue(),
+      this.getInspectionQueue(),
+      MediaQueue.getQueue()
+    ]);
+
+    return { totalPending: assets.length + inspections.length + medias.length };
+  }
 }
 
 // Escuta de eventos do navegador para rodar automaticamente ao restabelecer internet
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
-    console.log('[SyncQueue] Rede reestabelecida. Disparando processamento de filas pendentes...');
-    SyncQueue.processQueue();
-    SyncQueue.processInspectionQueue();
+    console.log('[SyncQueue] Rede restabelecida. Disparando sincronização unificada de todas as filas...');
+    SyncQueue.processAllQueues();
   });
 }

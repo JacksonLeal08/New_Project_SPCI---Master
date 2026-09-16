@@ -20,7 +20,6 @@ import SpciChatIa from '../components/SpciChatIa';
 import PremiumHUDAlert from '../components/ui/PremiumHUDAlert';
 import QrCameraScanner from '../components/QrCameraScanner';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
-import SyncStatusPanel from '../components/SyncStatusPanel';
 import AppFooter from '../components/AppFooter';
 import QuickAssetFab from '../components/QuickAssetFab';
 import ChangelogModal from '../components/ChangelogModal';
@@ -787,7 +786,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
       </AnimatePresence>
 
-      <SyncStatusPanel />
       <ChangelogModal isOpen={showChangelog} onClose={() => setShowChangelog(false)} />
 
       {/* Modal Global de Edição de Checklist NBR */}

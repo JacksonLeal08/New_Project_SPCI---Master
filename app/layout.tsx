@@ -5,6 +5,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { WindowModalProvider } from './context/WindowModalContext';
 import WindowDockTray from './components/WindowDockTray';
 import InstallPwaBanner from './components/InstallPwaBanner';
+import SyncStatusPanel from './components/SyncStatusPanel';
 import { SITE_URL, SEO_CONFIG } from '@/config/seo';
 import './globals.css';
 
@@ -144,6 +145,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               {children}
               <WindowDockTray />
               <InstallPwaBanner />
+              <SyncStatusPanel />
             </WindowModalProvider>
           </SpciProvider>
         </ThemeProvider>
