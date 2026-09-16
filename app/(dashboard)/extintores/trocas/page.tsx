@@ -22,7 +22,10 @@ import {
   ChevronRight,
   ExternalLink,
   ShieldCheck,
-  Building2
+  Building2,
+  Tag,
+  Copy,
+  Check
 } from 'lucide-react';
 import {
   getAssetSwapsAction,
@@ -33,6 +36,7 @@ import {
 import { formatFriendlyPatrimonio } from '@/lib/maintenanceBatchReports';
 import {
   formatFriendlyMotivo,
+  formatFriendlyProtocol,
   generateSwapReportPDF,
   exportSwapsToXLSX
 } from '@/lib/assetSwapReports';
@@ -77,6 +81,17 @@ export default function GestaoTrocasPage() {
     if (next) {
       soundNotificationService.playNeutralBlip();
     }
+  };
+
+  // Cópia de protocolo técnico
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopyProtocol = (fullId: string) => {
+    if (!fullId) return;
+    navigator.clipboard.writeText(fullId);
+    setCopiedId(fullId);
+    soundNotificationService.playNeutralBlip();
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   const fetchData = useCallback(async (isManual = false) => {
@@ -339,7 +354,7 @@ export default function GestaoTrocasPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 text-[10px] text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4">Protocolo / Data</th>
+                  <th className="py-3 px-4 w-48 min-w-[190px]">Protocolo / Data</th>
                   <th className="py-3 px-4">Ativo Retirado (Baixa)</th>
                   <th className="py-3 px-4">Ativo Instalado (Substituto)</th>
                   <th className="py-3 px-4">Setor / Ponto</th>
@@ -351,13 +366,38 @@ export default function GestaoTrocasPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
                 {trocas.map((t) => (
                   <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-900 dark:text-slate-100 font-mono text-[11px]">
-                        {t.id}
-                      </div>
-                      <div className="text-[9.5px] text-slate-400">
-                        {new Date(t.criado_em).toLocaleDateString('pt-BR')} • {new Date(t.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-                      </div>
+                    <td className="py-3 px-4 w-48 min-w-[190px]">
+                      {(() => {
+                        const proto = formatFriendlyProtocol(t.id, t.criado_em);
+                        const isCopied = copiedId === t.id;
+                        return (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 font-mono font-bold text-[11px] text-slate-800 dark:text-slate-200 shadow-2xs tracking-tight">
+                                <Tag className="w-3 h-3 text-red-600 dark:text-red-400 shrink-0" />
+                                <span>{proto.shortCode}</span>
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => handleCopyProtocol(t.id)}
+                                title={isCopied ? 'Protocolo copiado!' : 'Copiar UUID técnico completo'}
+                                className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer"
+                              >
+                                {isCopied ? (
+                                  <Check className="w-3.5 h-3.5 text-emerald-500 animate-in fade-in" />
+                                ) : (
+                                  <Copy className="w-3.5 h-3.5" />
+                                )}
+                              </button>
+                            </div>
+                            <div className="text-[9.5px] text-slate-500 dark:text-slate-400 flex items-center gap-1 font-medium">
+                              <span>📅 {proto.dateFormatted}</span>
+                              <span>•</span>
+                              <span>{proto.timeFormatted}</span>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </td>
 
                     <td className="py-3 px-4">

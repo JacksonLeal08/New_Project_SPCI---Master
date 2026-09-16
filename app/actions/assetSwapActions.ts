@@ -599,15 +599,19 @@ export async function getAssetSwapsAction(filters?: {
 
     // Filtro por termo de busca
     if (filters?.termoBusca && filters.termoBusca.trim()) {
-      const term = filters.termoBusca.toLowerCase();
+      const rawTerm = filters.termoBusca.toLowerCase().trim();
+      const cleanTerm = rawTerm.replace('#', '').trim();
       finalData = finalData.filter(
         (t) =>
-          (t.ativo_retirado_codigo || '').toLowerCase().includes(term) ||
-          (t.ativo_substituto_codigo || '').toLowerCase().includes(term) ||
-          (t.ativo_retirado_chassi || '').toLowerCase().includes(term) ||
-          (t.ativo_substituto_chassi || '').toLowerCase().includes(term) ||
-          (t.setor || '').toLowerCase().includes(term) ||
-          (t.tecnico_responsavel_nome || '').toLowerCase().includes(term)
+          (t.id || '').toLowerCase().includes(cleanTerm) ||
+          (t.ativo_retirado_codigo || '').toLowerCase().includes(rawTerm) ||
+          (t.ativo_retirado_patrimonio || '').toLowerCase().includes(rawTerm) ||
+          (t.ativo_substituto_codigo || '').toLowerCase().includes(rawTerm) ||
+          (t.ativo_substituto_patrimonio || '').toLowerCase().includes(rawTerm) ||
+          (t.ativo_retirado_chassi || '').toLowerCase().includes(rawTerm) ||
+          (t.ativo_substituto_chassi || '').toLowerCase().includes(rawTerm) ||
+          (t.setor || '').toLowerCase().includes(rawTerm) ||
+          (t.tecnico_responsavel_nome || '').toLowerCase().includes(rawTerm)
       );
     }
 

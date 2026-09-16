@@ -14,7 +14,7 @@ import {
   SubstituicaoAtivoRecord
 } from '@/app/actions/assetSwapActions';
 import { formatFriendlyPatrimonio } from '@/lib/maintenanceBatchReports';
-import { formatFriendlyMotivo, generateSwapReportPDF } from '@/lib/assetSwapReports';
+import { formatFriendlyMotivo, formatFriendlyProtocol, generateSwapReportPDF } from '@/lib/assetSwapReports';
 import { soundNotificationService } from '@/lib/soundNotificationService';
 import { getAssetsList } from '@/lib/supabaseDb';
 import { idb } from '@/lib/indexedDb';
@@ -41,7 +41,8 @@ import {
   Minus,
   Maximize2,
   Minimize2,
-  Sparkles
+  Sparkles,
+  Tag
 } from 'lucide-react';
 import { matchesUserSite } from '@/lib/utils';
 
@@ -818,10 +819,19 @@ export default function WizardTrocaModalMobile({
                 <div className="w-16 h-16 rounded-full bg-emerald-100 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center mx-auto shadow-md">
                   <CheckCircle2 className="w-9 h-9" />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-2">
                   <h3 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white uppercase tracking-tight">
                     Substituição Homologada com Sucesso!
                   </h3>
+                  {(() => {
+                    const proto = formatFriendlyProtocol(completedTroca.id, completedTroca.criado_em);
+                    return (
+                      <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 font-mono font-bold text-xs border border-slate-200 dark:border-zinc-700 shadow-2xs mx-auto">
+                        <Tag className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+                        <span>Protocolo Oficial: {proto.shortCode}</span>
+                      </div>
+                    );
+                  })()}
                   <p className="text-xs text-slate-600 dark:text-zinc-400 max-w-md mx-auto leading-relaxed">
                     A operação bilateral foi registrada com rastreabilidade atômica perpétua na base SPCI. O inventário operacional foi atualizado em tempo real.
                   </p>

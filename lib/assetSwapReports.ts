@@ -19,6 +19,39 @@ export function formatFriendlyMotivo(motivo: string): string {
 }
 
 /**
+ * Formata um identificador técnico de troca em um protocolo amigável e memorizável
+ * Padrão Rastreabilidade NBR: #TRC-AAMM-HASH (Ex: #TRC-2609-BBB5)
+ */
+export function formatFriendlyProtocol(id: string, dateStr?: string | Date): {
+  shortCode: string;
+  fullId: string;
+  dateFormatted: string;
+  timeFormatted: string;
+} {
+  const fullId = id || '';
+  // Limpa caracteres especiais e extrai os últimos 4 caracteres alfanuméricos em maiúsculas
+  const cleanAlpha = fullId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  const hash = cleanAlpha.length >= 4 ? cleanAlpha.slice(-4) : cleanAlpha.padStart(4, '0');
+
+  const d = dateStr ? new Date(dateStr) : new Date();
+  const validDate = !isNaN(d.getTime()) ? d : new Date();
+
+  const year = String(validDate.getFullYear()).slice(-2);
+  const month = String(validDate.getMonth() + 1).padStart(2, '0');
+  const shortCode = `#TRC-${year}${month}-${hash}`;
+
+  const dateFormatted = validDate.toLocaleDateString('pt-BR');
+  const timeFormatted = validDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  return {
+    shortCode,
+    fullId,
+    dateFormatted,
+    timeFormatted,
+  };
+}
+
+/**
  * Gera e abre o laudo oficial de substituição de extintor para impressão/PDF
  */
 export function generateSwapReportPDF(troca: SubstituicaoAtivoRecord) {
@@ -28,20 +61,15 @@ export function generateSwapReportPDF(troca: SubstituicaoAtivoRecord) {
     return;
   }
 
-  const dataFormatada = new Date(troca.criado_em).toLocaleDateString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const proto = formatFriendlyProtocol(troca.id, troca.criado_em);
+  const dataFormatada = `${proto.dateFormatted} às ${proto.timeFormatted}`;
 
   const html = `
     <!DOCTYPE html>
     <html lang="pt-BR">
     <head>
       <meta charset="UTF-8">
-      <title>Laudo de Substituição - ${troca.id}</title>
+      <title>Laudo de Substituição - ${proto.shortCode}</title>
       <style>
         @page {
           size: A4 portrait;
@@ -84,13 +112,15 @@ export function generateSwapReportPDF(troca: SubstituicaoAtivoRecord) {
         }
         .doc-code {
           font-family: monospace;
-          font-size: 11px;
+          font-size: 12px;
           font-weight: 800;
           background: #f1f5f9;
-          padding: 3px 8px;
-          border-radius: 4px;
+          padding: 4px 10px;
+          border-radius: 6px;
           border: 1px solid #cbd5e1;
           color: #af101a;
+          letter-spacing: 0.5px;
+          display: inline-block;
         }
         .section-title {
           font-size: 10px;
@@ -251,8 +281,9 @@ export function generateSwapReportPDF(troca: SubstituicaoAtivoRecord) {
           <div class="brand-sub">LAUDO TÉCNICO DE TROCA & SUBSTITUIÇÃO DE EXTINTORES • GRUPO OMG</div>
         </div>
         <div style="text-align: right;">
-          <div class="doc-code">${troca.id}</div>
-          <div style="font-size: 9px; color: #64748b; margin-top: 3px;">Emissão: ${dataFormatada}</div>
+          <div class="doc-code">${proto.shortCode}</div>
+          <div style="font-size: 8px; color: #64748b; font-family: monospace; margin-top: 3px;">UUID: ${troca.id}</div>
+          <div style="font-size: 9px; color: #64748b; margin-top: 2px;">Emissão: ${dataFormatada}</div>
         </div>
       </div>
 
@@ -408,7 +439,8 @@ export function exportSwapsToXLSX(trocas: SubstituicaoAtivoRecord[]) {
     [`Data de Geração:`, new Date().toLocaleDateString('pt-BR'), '', `Total de Substituições:`, trocas.length],
     [],
     [
-      'ID Troca',
+      'Protocolo NBR',
+      'UUID Técnico',
       'Data / Hora',
       'Setor',
       'Sub-local',
@@ -427,9 +459,11 @@ export function exportSwapsToXLSX(trocas: SubstituicaoAtivoRecord[]) {
   ];
 
   trocas.forEach((t) => {
+    const proto = formatFriendlyProtocol(t.id, t.criado_em);
     sheetData.push([
+      proto.shortCode,
       t.id,
-      new Date(t.criado_em).toLocaleDateString('pt-BR') + ' ' + new Date(t.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      `${proto.dateFormatted} ${proto.timeFormatted}`,
       t.setor,
       t.sub_local || 'N/A',
       formatFriendlyMotivo(t.motivo_troca),
@@ -449,8 +483,9 @@ export function exportSwapsToXLSX(trocas: SubstituicaoAtivoRecord[]) {
   const worksheet = XLSX.utils.aoa_to_sheet(sheetData);
 
   worksheet['!cols'] = [
-    { wch: 18 }, // ID Troca
-    { wch: 18 }, // Data
+    { wch: 18 }, // Protocolo NBR
+    { wch: 40 }, // UUID Técnico
+    { wch: 18 }, // Data / Hora
     { wch: 18 }, // Setor
     { wch: 16 }, // Sub-local
     { wch: 28 }, // Motivo

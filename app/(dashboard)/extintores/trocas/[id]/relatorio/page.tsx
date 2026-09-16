@@ -12,7 +12,10 @@ import {
   ShieldCheck,
   Building2,
   CheckCircle2,
-  AlertTriangle
+  AlertTriangle,
+  Tag,
+  Copy,
+  Check
 } from 'lucide-react';
 import {
   getAssetSwapsAction,
@@ -21,6 +24,7 @@ import {
 import { formatFriendlyPatrimonio } from '@/lib/maintenanceBatchReports';
 import {
   formatFriendlyMotivo,
+  formatFriendlyProtocol,
   generateSwapReportPDF
 } from '@/lib/assetSwapReports';
 
@@ -31,6 +35,7 @@ export default function RelatorioTrocaDetailPage() {
 
   const [troca, setTroca] = useState<SubstituicaoAtivoRecord | null>(null);
   const [loading, setLoading] = useState(true);
+  const [copied, setCopied] = useState(false);
 
   useEffect(() => {
     async function load() {
@@ -112,13 +117,38 @@ export default function RelatorioTrocaDetailPage() {
             </div>
           </div>
 
-          <div className="text-left sm:text-right shrink-0">
-            <span className="px-3 py-1 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono font-bold text-xs border border-slate-200 dark:border-slate-700">
-              {troca.id}
-            </span>
-            <div className="text-[10px] text-slate-400 mt-2">
-              Data: {new Date(troca.criado_em).toLocaleDateString('pt-BR')} • {new Date(troca.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}
-            </div>
+          <div className="text-left sm:text-right shrink-0 space-y-1.5">
+            {(() => {
+              const proto = formatFriendlyProtocol(troca.id, troca.criado_em);
+              return (
+                <>
+                  <div className="flex items-center sm:justify-end gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-800 dark:text-slate-200 font-mono font-bold text-xs border border-slate-200 dark:border-slate-700 shadow-2xs">
+                      <Tag className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+                      <span>{proto.shortCode}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(troca.id);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      title={copied ? 'Copiado!' : 'Copiar UUID técnico completo'}
+                      className="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer"
+                    >
+                      {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                  <div className="text-[9px] text-slate-400 font-mono">
+                    UUID: {troca.id}
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    Emissão: {proto.dateFormatted} às {proto.timeFormatted}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </div>
 
