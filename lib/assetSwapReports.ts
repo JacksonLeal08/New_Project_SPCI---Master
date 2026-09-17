@@ -19,26 +19,42 @@ export function formatFriendlyMotivo(motivo: string): string {
 }
 
 /**
- * Formata um identificador técnico de troca em um protocolo amigável e memorizável
- * Padrão Rastreabilidade NBR: #TRC-AAMM-HASH (Ex: #TRC-2609-BBB5)
+ * Formata um identificador técnico de troca em um protocolo amigável, semântico e memorizável
+ * Padrão Rastreabilidade NBR / Opção B: SPCI-AAMM-CODIGO (Ex: SPCI-2609-EXT151)
  */
-export function formatFriendlyProtocol(id: string, dateStr?: string | Date): {
+export function formatFriendlyProtocol(
+  id: string,
+  dateStr?: string | Date,
+  ativoRetiradoCodigo?: string
+): {
   shortCode: string;
   fullId: string;
   dateFormatted: string;
   timeFormatted: string;
 } {
   const fullId = id || '';
-  // Limpa caracteres especiais e extrai os últimos 4 caracteres alfanuméricos em maiúsculas
-  const cleanAlpha = fullId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-  const hash = cleanAlpha.length >= 4 ? cleanAlpha.slice(-4) : cleanAlpha.padStart(4, '0');
-
   const d = dateStr ? new Date(dateStr) : new Date();
   const validDate = !isNaN(d.getTime()) ? d : new Date();
 
   const year = String(validDate.getFullYear()).slice(-2);
   const month = String(validDate.getMonth() + 1).padStart(2, '0');
-  const shortCode = `#TRC-${year}${month}-${hash}`;
+
+  // Identificação semântica do ativo retirado (Opção B)
+  let assetPart = '';
+  if (ativoRetiradoCodigo && typeof ativoRetiradoCodigo === 'string') {
+    const clean = ativoRetiradoCodigo.trim().replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    if (clean) {
+      assetPart = clean.startsWith('EXT') ? clean : (/^\d+$/.test(clean) ? `EXT${clean}` : clean);
+    }
+  }
+
+  // Fallback caso não haja ativo informado ou esteja vazio
+  if (!assetPart) {
+    const cleanAlpha = fullId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+    assetPart = cleanAlpha.length >= 4 ? cleanAlpha.slice(-4) : cleanAlpha.padStart(4, '0');
+  }
+
+  const shortCode = `SPCI-${year}${month}-${assetPart}`;
 
   const dateFormatted = validDate.toLocaleDateString('pt-BR');
   const timeFormatted = validDate.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -61,7 +77,11 @@ export function generateSwapReportPDF(troca: SubstituicaoAtivoRecord) {
     return;
   }
 
-  const proto = formatFriendlyProtocol(troca.id, troca.criado_em);
+  const proto = formatFriendlyProtocol(
+    troca.id,
+    troca.criado_em,
+    troca.ativo_retirado_patrimonio || troca.ativo_retirado_codigo
+  );
   const dataFormatada = `${proto.dateFormatted} às ${proto.timeFormatted}`;
 
   const html = `
@@ -459,7 +479,11 @@ export function exportSwapsToXLSX(trocas: SubstituicaoAtivoRecord[]) {
   ];
 
   trocas.forEach((t) => {
-    const proto = formatFriendlyProtocol(t.id, t.criado_em);
+    const proto = formatFriendlyProtocol(
+      t.id,
+      t.criado_em,
+      t.ativo_retirado_patrimonio || t.ativo_retirado_codigo
+    );
     sheetData.push([
       proto.shortCode,
       t.id,

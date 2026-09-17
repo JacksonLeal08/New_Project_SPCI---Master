@@ -119,7 +119,11 @@ export default function RelatorioTrocaDetailPage() {
 
           <div className="text-left sm:text-right shrink-0 space-y-1.5">
             {(() => {
-              const proto = formatFriendlyProtocol(troca.id, troca.criado_em);
+              const proto = formatFriendlyProtocol(
+                troca.id,
+                troca.criado_em,
+                troca.ativo_retirado_patrimonio || troca.ativo_retirado_codigo
+              );
               return (
                 <>
                   <div className="flex items-center sm:justify-end gap-1.5">

@@ -149,7 +149,7 @@ export default function GestaoTrocasPage() {
   };
 
   return (
-    <div className="space-y-6 font-mono select-none">
+    <div className="space-y-6 font-sans select-none">
       {/* Barra de Navegação Superior / Breadcrumb */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-4 rounded-2xl shadow-sm">
         <div className="flex items-center gap-2 text-xs">
@@ -350,122 +350,246 @@ export default function GestaoTrocasPage() {
             </p>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 text-[10px] text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4 w-48 min-w-[190px]">Protocolo NBR / Data</th>
-                  <th className="py-3 px-4">Ativo Retirado (Baixa)</th>
-                  <th className="py-3 px-4">Ativo Instalado (Substituto)</th>
-                  <th className="py-3 px-4">Setor / Ponto</th>
-                  <th className="py-3 px-4">Motivo da Troca</th>
-                  <th className="py-3 px-4">Técnico Executor</th>
-                  <th className="py-3 px-4 text-center">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                {trocas.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
-                    <td className="py-3 px-4 w-48 min-w-[190px]">
-                      {(() => {
-                        const proto = formatFriendlyProtocol(t.id, t.criado_em);
-                        const isCopied = copiedId === t.id;
-                        return (
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 font-mono font-bold text-[11px] text-slate-800 dark:text-slate-200 shadow-2xs tracking-tight">
-                                <Tag className="w-3 h-3 text-red-600 dark:text-red-400 shrink-0" />
-                                <span>{proto.shortCode}</span>
-                              </span>
-                              <button
-                                type="button"
-                                onClick={() => handleCopyProtocol(t.id)}
-                                title={isCopied ? 'Protocolo copiado!' : 'Copiar UUID técnico completo'}
-                                className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer"
-                              >
-                                {isCopied ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-500 animate-in fade-in" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
-                            <div className="text-[9.5px] text-slate-500 dark:text-slate-400 flex items-center gap-1 font-medium">
-                              <span>📅 {proto.dateFormatted}</span>
-                              <span>•</span>
-                              <span>{proto.timeFormatted}</span>
-                            </div>
+          <>
+            {/* Visualização Mobile (Cards) */}
+            <div className="block md:hidden p-3 space-y-3">
+          {trocas.map((t) => {
+            const proto = formatFriendlyProtocol(
+              t.id,
+              t.criado_em,
+              t.ativo_retirado_patrimonio || t.ativo_retirado_codigo
+            );
+            const isCopied = copiedId === t.id;
+            return (
+              <div
+                key={t.id}
+                className="bg-slate-50/70 dark:bg-slate-950/40 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-3.5 space-y-3 shadow-2xs"
+              >
+                {/* Topo do Card: Protocolo & Data */}
+                <div className="flex items-center justify-between gap-2 border-b border-slate-200/60 dark:border-slate-800/80 pb-2.5">
+                  <div className="flex items-center gap-1.5">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono font-bold text-[clamp(10px,2.8vw,11.5px)] text-slate-900 dark:text-slate-100 shadow-2xs">
+                      <Tag className="w-3 h-3 text-red-600 dark:text-red-400 shrink-0" />
+                      <span>{proto.shortCode}</span>
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyProtocol(t.id)}
+                      title={isCopied ? 'Protocolo copiado!' : 'Copiar UUID técnico completo'}
+                      className="p-1.5 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition min-h-[32px] min-w-[32px] flex items-center justify-center cursor-pointer"
+                    >
+                      {isCopied ? (
+                        <Check className="w-3.5 h-3.5 text-emerald-500 animate-in fade-in" />
+                      ) : (
+                        <Copy className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  </div>
+                  <div className="text-[clamp(9px,2.4vw,10.5px)] text-slate-500 dark:text-slate-400 font-mono tabular-nums flex items-center gap-1">
+                    <span>📅 {proto.dateFormatted}</span>
+                    <span>•</span>
+                    <span>{proto.timeFormatted}</span>
+                  </div>
+                </div>
+
+                {/* Grid Bilateral (Retirado vs Substituto) */}
+                <div className="grid grid-cols-2 gap-2 text-left">
+                  <div className="p-2.5 rounded-xl bg-red-50/60 dark:bg-red-950/20 border border-red-200/70 dark:border-red-900/40">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-red-700 dark:text-red-400 block mb-0.5">
+                      Retirado (Baixa)
+                    </span>
+                    <div className="font-black text-[clamp(11px,3vw,13px)] text-red-800 dark:text-red-300 font-mono">
+                      {formatFriendlyPatrimonio(t.ativo_retirado_id, t.ativo_retirado_patrimonio)}
+                    </div>
+                    <div className="text-[9px] text-slate-500 dark:text-slate-400 font-mono truncate mt-0.5">
+                      Chassi: {t.ativo_retirado_chassi || 'S/N'}
+                    </div>
+                    <div className="text-[9px] text-slate-400 font-medium truncate">
+                      {t.ativo_retirado_modelo}
+                    </div>
+                  </div>
+
+                  <div className="p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/70 dark:border-emerald-900/40">
+                    <span className="text-[9px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block mb-0.5">
+                      Instalado (Substituto)
+                    </span>
+                    <div className="font-black text-[clamp(11px,3vw,13px)] text-emerald-800 dark:text-emerald-300 font-mono">
+                      {formatFriendlyPatrimonio(t.ativo_substituto_id, t.ativo_substituto_patrimonio)}
+                    </div>
+                    <div className="text-[9px] text-slate-500 dark:text-slate-400 font-mono truncate mt-0.5">
+                      Chassi: {t.ativo_substituto_chassi || 'S/N'}
+                    </div>
+                    <div className="text-[9px] text-slate-400 font-medium truncate">
+                      {t.ativo_substituto_modelo}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Local e Motivo */}
+                <div className="space-y-1.5 text-[clamp(9.5px,2.5vw,11px)] text-slate-600 dark:text-slate-300">
+                  <div className="flex items-center gap-1 font-bold text-slate-800 dark:text-slate-200">
+                    <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                    <span>{t.setor}</span>
+                    {t.sub_local && <span className="font-normal text-slate-400">• {t.sub_local}</span>}
+                  </div>
+
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1 border-t border-slate-200/50 dark:border-slate-800/60">
+                    <span className={`px-2 py-0.5 rounded-md border text-[9px] font-bold ${getMotivoBadgeColor(t.motivo_troca)}`}>
+                      {formatFriendlyMotivo(t.motivo_troca)}
+                    </span>
+                    <span className="text-[9.5px] text-slate-500 dark:text-slate-400">
+                      Téc: <strong className="text-slate-700 dark:text-slate-300">{t.tecnico_responsavel_nome}</strong>
+                    </span>
+                  </div>
+                </div>
+
+                {/* Ações Mobile com Touch Targets Confortáveis */}
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => generateSwapReportPDF(t)}
+                    className="w-full py-2 px-3 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10.5px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[36px]"
+                  >
+                    <FileText className="w-3.5 h-3.5 text-red-600" />
+                    <span>Imprimir PDF</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => router.push(`/extintores/trocas/${t.id}/relatorio`)}
+                    className="w-full py-2 px-3 rounded-xl bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/50 text-red-700 dark:text-red-300 text-[10.5px] font-bold transition flex items-center justify-center gap-1.5 cursor-pointer min-h-[36px]"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5 text-red-600 dark:text-red-400" />
+                    <span>Ver Laudo</span>
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Visualização Desktop / Tablet (Tabela com Fontes Fluidas Clamp) */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 text-[clamp(9.5px,0.8vw,11px)] text-slate-500 uppercase tracking-wider font-bold">
+                <th className="py-3 px-4 w-48 min-w-[200px]">Protocolo NBR / Data</th>
+                <th className="py-3 px-4">Ativo Retirado (Baixa)</th>
+                <th className="py-3 px-4">Ativo Instalado (Substituto)</th>
+                <th className="py-3 px-4">Setor / Ponto</th>
+                <th className="py-3 px-4">Motivo da Troca</th>
+                <th className="py-3 px-4">Técnico Executor</th>
+                <th className="py-3 px-4 text-center">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
+              {trocas.map((t) => (
+                <tr key={t.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/40 transition">
+                  <td className="py-3 px-4 w-48 min-w-[200px]">
+                    {(() => {
+                      const proto = formatFriendlyProtocol(
+                        t.id,
+                        t.criado_em,
+                        t.ativo_retirado_patrimonio || t.ativo_retirado_codigo
+                      );
+                      const isCopied = copiedId === t.id;
+                      return (
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-slate-100 dark:bg-slate-800/90 border border-slate-200 dark:border-slate-700/80 font-mono font-bold text-[clamp(10px,0.85vw,11.5px)] text-slate-800 dark:text-slate-200 shadow-2xs tracking-tight">
+                              <Tag className="w-3 h-3 text-red-600 dark:text-red-400 shrink-0" />
+                              <span>{proto.shortCode}</span>
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleCopyProtocol(t.id)}
+                              title={isCopied ? 'Protocolo copiado!' : 'Copiar UUID técnico completo'}
+                              className="p-1 rounded-md hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition cursor-pointer"
+                            >
+                              {isCopied ? (
+                                <Check className="w-3.5 h-3.5 text-emerald-500 animate-in fade-in" />
+                              ) : (
+                                <Copy className="w-3.5 h-3.5" />
+                              )}
+                            </button>
                           </div>
-                        );
-                      })()}
-                    </td>
+                          <div className="text-[clamp(9px,0.75vw,10.5px)] text-slate-500 dark:text-slate-400 flex items-center gap-1 font-mono tabular-nums">
+                            <span>📅 {proto.dateFormatted}</span>
+                            <span>•</span>
+                            <span>{proto.timeFormatted}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </td>
 
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5 font-bold text-red-700 dark:text-red-400">
-                        <span>{formatFriendlyPatrimonio(t.ativo_retirado_id, t.ativo_retirado_patrimonio)}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        Chassi: {t.ativo_retirado_chassi || 'S/N'} • {t.ativo_retirado_modelo}
-                      </div>
-                    </td>
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-1.5 font-bold text-[clamp(11px,0.9vw,12.5px)] text-red-700 dark:text-red-400 font-mono">
+                      <span>{formatFriendlyPatrimonio(t.ativo_retirado_id, t.ativo_retirado_patrimonio)}</span>
+                    </div>
+                    <div className="text-[clamp(9px,0.75vw,10px)] text-slate-400 font-mono">
+                      Chassi: {t.ativo_retirado_chassi || 'S/N'} • {t.ativo_retirado_modelo}
+                    </div>
+                  </td>
 
-                    <td className="py-3 px-4">
-                      <div className="flex items-center gap-1.5 font-bold text-emerald-700 dark:text-emerald-400">
-                        <span>{formatFriendlyPatrimonio(t.ativo_substituto_id, t.ativo_substituto_patrimonio)}</span>
-                      </div>
-                      <div className="text-[10px] text-slate-400 font-mono">
-                        Chassi: {t.ativo_substituto_chassi || 'S/N'} • {t.ativo_substituto_modelo}
-                      </div>
-                    </td>
+                  <td className="py-3 px-4">
+                    <div className="flex items-center gap-1.5 font-bold text-[clamp(11px,0.9vw,12.5px)] text-emerald-700 dark:text-emerald-400 font-mono">
+                      <span>{formatFriendlyPatrimonio(t.ativo_substituto_id, t.ativo_substituto_patrimonio)}</span>
+                    </div>
+                    <div className="text-[clamp(9px,0.75vw,10px)] text-slate-400 font-mono">
+                      Chassi: {t.ativo_substituto_chassi || 'S/N'} • {t.ativo_substituto_modelo}
+                    </div>
+                  </td>
 
-                    <td className="py-3 px-4">
-                      <div className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1">
-                        <MapPin className="w-3 h-3 text-red-500 shrink-0" />
-                        <span>{t.setor}</span>
-                      </div>
-                      {t.sub_local && <div className="text-[9.5px] text-slate-400 ml-4">{t.sub_local}</div>}
-                    </td>
+                  <td className="py-3 px-4">
+                    <div className="font-bold text-[clamp(11px,0.88vw,12.5px)] text-slate-800 dark:text-slate-200 flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                      <span>{t.setor}</span>
+                    </div>
+                    {t.sub_local && <div className="text-[clamp(9px,0.75vw,10.5px)] text-slate-400 ml-4">{t.sub_local}</div>}
+                  </td>
 
-                    <td className="py-3 px-4">
-                      <span className={`px-2 py-0.5 rounded border text-[9.5px] font-bold ${getMotivoBadgeColor(t.motivo_troca)}`}>
-                        {formatFriendlyMotivo(t.motivo_troca)}
-                      </span>
-                    </td>
+                  <td className="py-3 px-4">
+                    <span className={`px-2.5 py-0.5 rounded-lg border text-[clamp(9px,0.75vw,10.5px)] font-bold whitespace-nowrap ${getMotivoBadgeColor(t.motivo_troca)}`}>
+                      {formatFriendlyMotivo(t.motivo_troca)}
+                    </span>
+                  </td>
 
-                    <td className="py-3 px-4">
-                      <div className="text-slate-800 dark:text-slate-200 font-medium">
-                        {t.tecnico_responsavel_nome}
-                      </div>
-                    </td>
+                  <td className="py-3 px-4">
+                    <div className="text-slate-800 dark:text-slate-200 font-medium text-[clamp(10.5px,0.85vw,12px)]">
+                      {t.tecnico_responsavel_nome}
+                    </div>
+                  </td>
 
-                    <td className="py-3 px-4 text-center">
-                      <div className="flex items-center justify-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => generateSwapReportPDF(t)}
-                          className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
-                          title="Imprimir Laudo de Troca em PDF"
-                        >
-                          <FileText className="w-3.5 h-3.5 text-red-600" />
-                          <span>PDF</span>
-                        </button>
+                  <td className="py-3 px-4 text-center">
+                    <div className="flex items-center justify-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => generateSwapReportPDF(t)}
+                        className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[clamp(9.5px,0.78vw,11px)] font-bold transition flex items-center gap-1 cursor-pointer"
+                        title="Imprimir Laudo de Troca em PDF"
+                      >
+                        <FileText className="w-3.5 h-3.5 text-red-600" />
+                        <span>PDF</span>
+                      </button>
 
-                        <button
-                          type="button"
-                          onClick={() => router.push(`/extintores/trocas/${t.id}/relatorio`)}
-                          className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold transition flex items-center gap-1 cursor-pointer"
-                          title="Visualizar laudo completo em tela cheia"
-                        >
-                          <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
-                          <span>Ver</span>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/extintores/trocas/${t.id}/relatorio`)}
+                        className="px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[clamp(9.5px,0.78vw,11px)] font-bold transition flex items-center gap-1 cursor-pointer"
+                        title="Visualizar laudo completo em tela cheia"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5 text-blue-600" />
+                        <span>Ver</span>
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        </>
         )}
       </div>
     </div>

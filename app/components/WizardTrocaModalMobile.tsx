@@ -824,7 +824,11 @@ export default function WizardTrocaModalMobile({
                     Substituição Homologada com Sucesso!
                   </h3>
                   {(() => {
-                    const proto = formatFriendlyProtocol(completedTroca.id, completedTroca.criado_em);
+                    const proto = formatFriendlyProtocol(
+                      completedTroca.id,
+                      completedTroca.criado_em,
+                      completedTroca.ativo_retirado_patrimonio || completedTroca.ativo_retirado_codigo
+                    );
                     return (
                       <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-slate-100 dark:bg-zinc-800 text-slate-800 dark:text-zinc-200 font-mono font-bold text-xs border border-slate-200 dark:border-zinc-700 shadow-2xs mx-auto">
                         <Tag className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
