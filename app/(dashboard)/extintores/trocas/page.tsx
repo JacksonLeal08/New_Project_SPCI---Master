@@ -354,7 +354,7 @@ export default function GestaoTrocasPage() {
             <table className="w-full text-left text-xs border-collapse">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-950/60 text-[10px] text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-4 w-48 min-w-[190px]">Protocolo / Data</th>
+                  <th className="py-3 px-4 w-48 min-w-[190px]">Protocolo NBR / Data</th>
                   <th className="py-3 px-4">Ativo Retirado (Baixa)</th>
                   <th className="py-3 px-4">Ativo Instalado (Substituto)</th>
                   <th className="py-3 px-4">Setor / Ponto</th>
