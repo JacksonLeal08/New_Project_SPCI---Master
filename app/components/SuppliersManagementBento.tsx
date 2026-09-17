@@ -26,6 +26,7 @@ import {
   toggleSupplierStatusAction
 } from '@/app/actions/supplierActions';
 import SupplierFormModal from './SupplierFormModal';
+import SupplierDeleteModal from './SupplierDeleteModal';
 
 export default function SuppliersManagementBento() {
   const [suppliers, setSuppliers] = useState<FornecedorRecord[]>([]);
@@ -35,6 +36,10 @@ export default function SuppliersManagementBento() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingSupplier, setEditingSupplier] = useState<FornecedorRecord | null>(null);
+
+  // Estado para exclusão elegante
+  const [supplierToDelete, setSupplierToDelete] = useState<FornecedorRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const fetchSuppliers = useCallback(async () => {
     try {
@@ -68,15 +73,18 @@ export default function SuppliersManagementBento() {
     }
   };
 
-  const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`Deseja realmente remover o prestador "${name}"?`)) return;
+  const handleConfirmDelete = async (id: string) => {
     try {
+      setIsDeleting(true);
       const res = await deleteSupplierAction(id);
       if (res.success) {
         setSuppliers((prev) => prev.filter((s) => s.id !== id));
+        setSupplierToDelete(null);
       }
     } catch (err) {
-      console.error(err);
+      console.error('Erro ao excluir fornecedor:', err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -332,7 +340,7 @@ export default function SuppliersManagementBento() {
 
                     <button
                       type="button"
-                      onClick={() => handleDelete(supplier.id, supplier.nome_fantasia || supplier.razao_social)}
+                      onClick={() => setSupplierToDelete(supplier)}
                       className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-all cursor-pointer border-none bg-transparent"
                       title="Excluir Fornecedor"
                     >
@@ -360,6 +368,15 @@ export default function SuppliersManagementBento() {
           }}
         />
       )}
+
+      {/* Modal Executivo de Exclusão de Fornecedor */}
+      <SupplierDeleteModal
+        isOpen={Boolean(supplierToDelete)}
+        onClose={() => setSupplierToDelete(null)}
+        supplier={supplierToDelete}
+        onConfirm={handleConfirmDelete}
+        isDeleting={isDeleting}
+      />
 
     </div>
   );
