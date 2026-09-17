@@ -17,6 +17,7 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { NotificationItem } from '@/lib/types';
 import ThemeToggle from './ThemeToggle';
+import NetworkSyncIndicator from './NetworkSyncIndicator';
 
 interface HeaderProps {
   onScanClick: () => void;
@@ -120,6 +121,9 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick, onGestaoAtivo
           <Search className="w-3.5 h-3.5 text-slate-500" />
           <span className="hidden sm:inline">Scan / Buscar</span>
         </button>
+
+        {/* Indicador Elegante de Rede / Sincronização SPCI (Opção B) */}
+        <NetworkSyncIndicator />
 
         {/* Sino de Notificações */}
         {currentUser && (

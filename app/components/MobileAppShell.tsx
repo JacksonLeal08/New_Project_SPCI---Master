@@ -25,6 +25,7 @@ import {
 import { useTheme } from '../context/ThemeContext';
 import { useSpci } from '../context/SpciContext';
 import BottomSheet from './ui/BottomSheet';
+import NetworkSyncIndicator from './NetworkSyncIndicator';
 
 export interface MobileAppShellProps {
   onScanClick?: () => void;
@@ -99,6 +100,9 @@ export default function MobileAppShell({
               <Building2 size={12} className="text-red-600" />
               <span className="max-w-[85px] truncate uppercase">{userSite}</span>
             </div>
+
+            {/* Indicador de Rede / Sincronização Mobile */}
+            <NetworkSyncIndicator isMobile />
 
             {/* Alternador de Tema */}
             <button

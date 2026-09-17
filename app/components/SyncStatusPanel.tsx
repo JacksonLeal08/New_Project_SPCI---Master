@@ -102,9 +102,14 @@ export default function SyncStatusPanel() {
       loadQueues();
     };
 
+    const handleOpenPanel = () => {
+      setIsOpen(true);
+    };
+
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     window.addEventListener('spci_sync_updated', handleSyncUpdated);
+    window.addEventListener('spci-open-sync-panel', handleOpenPanel);
 
     // Polling de segurança a cada 5 segundos
     const interval = setInterval(loadQueues, 5000);
@@ -113,6 +118,7 @@ export default function SyncStatusPanel() {
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('spci_sync_updated', handleSyncUpdated);
+      window.removeEventListener('spci-open-sync-panel', handleOpenPanel);
       clearInterval(interval);
     };
   }, [loadQueues, handleForceSync]);
@@ -150,90 +156,41 @@ export default function SyncStatusPanel() {
     });
   };
 
-  // Render do status em texto para o botão flutuante
-  const getHudBadgeContent = () => {
-    if (isProcessing) {
-      return {
-        bg: 'bg-cyan-500/90 border-cyan-400 text-slate-950 shadow-cyan-950/30',
-        icon: <RefreshCw className="w-3.5 h-3.5 animate-spin" />,
-        text: `SINCRONIZANDO (${totalTasks})`
-      };
-    }
-
-    if (totalFailed > 0) {
-      return {
-        bg: 'bg-red-600/95 border-red-400 text-white shadow-red-950/40 animate-pulse',
-        icon: <ShieldAlert className="w-3.5 h-3.5" />,
-        text: `ERROS: ${totalFailed}`
-      };
-    }
-
-    if (!isOnline) {
-      return {
-        bg: 'bg-amber-500/95 border-amber-400 text-slate-950 shadow-amber-950/30',
-        icon: <WifiOff className="w-3.5 h-3.5" />,
-        text: totalTasks > 0 ? `OFFLINE (${totalTasks})` : 'MODO OFFLINE'
-      };
-    }
-
-    if (totalTasks > 0) {
-      return {
-        bg: 'bg-amber-500/95 border-amber-400 text-slate-950 shadow-amber-950/30',
-        icon: <Database className="w-3.5 h-3.5" />,
-        text: `FILA PENDENTE: ${totalTasks}`
-      };
-    }
-
-    if (showRecentSuccess) {
-      return {
-        bg: 'bg-emerald-500/95 border-emerald-400 text-slate-950 shadow-emerald-950/30',
-        icon: <CheckCircle2 className="w-3.5 h-3.5" />,
-        text: '100% SINCRONIZADO'
-      };
-    }
-
-    // Online e limpo (estado discreto)
-    return {
-      bg: 'bg-slate-900/90 dark:bg-slate-950/90 border-slate-700/80 text-emerald-400 shadow-slate-950/30 hover:border-emerald-500/60',
-      icon: <Wifi className="w-3.5 h-3.5 text-emerald-400" />,
-      text: 'SPCI CONECTADO'
-    };
-  };
-
-  const badge = getHudBadgeContent();
-
   return (
     <>
-      {/* Botão Flutuante Indicador HUD (Posicionado no canto inferior esquerdo para não colidir com FABs) */}
-      {!isOpen && (
-        <div className="fixed bottom-4 left-4 sm:bottom-5 sm:left-5 z-40 flex items-center gap-1.5 no-print print:hidden select-none">
-          <motion.button
-            initial={{ opacity: 0, scale: 0.9, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.96 }}
-            onClick={() => setIsOpen(true)}
-            aria-label="Abrir Painel de Sincronização SPCI"
-            className={`px-3 py-2 rounded-xl font-mono text-[10px] font-black tracking-wider flex items-center gap-2 border cursor-pointer backdrop-blur-md shadow-xl transition-all uppercase min-h-[44px] ${badge.bg}`}
-          >
-            <span className="relative flex h-2 w-2">
-              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                !isOnline ? 'bg-amber-400' : totalFailed > 0 ? 'bg-red-400' : 'bg-emerald-400'
-              }`} />
-              <span className={`relative inline-flex rounded-full h-2 w-2 ${
-                !isOnline ? 'bg-amber-900' : totalFailed > 0 ? 'bg-red-950' : 'bg-emerald-950'
-              }`} />
-            </span>
-            {badge.icon}
-            <span className="hidden xs:inline">{badge.text}</span>
-            {totalTasks > 0 && (
-              <span className="bg-slate-950/20 px-1.5 py-0.5 rounded text-[9px] font-extrabold">
-                {totalTasks}
+      {/* Alerta Discreto de Topo por Exceção (Aparece apenas quando offline ou em caso de erro, deixando o logout 100% livre) */}
+      <AnimatePresence>
+        {!isOpen && (!isOnline || totalFailed > 0) && (
+          <div className="fixed top-3 left-1/2 -translate-x-1/2 z-40 no-print print:hidden select-none pointer-events-auto">
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9, y: -20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: -20 }}
+              whileHover={{ scale: 1.03 }}
+              whileTap={{ scale: 0.96 }}
+              onClick={() => setIsOpen(true)}
+              aria-label="Abrir Painel de Sincronização SPCI"
+              className={`px-3.5 py-1.5 rounded-full font-mono text-[10px] font-black tracking-wider flex items-center gap-2 border cursor-pointer backdrop-blur-md shadow-xl transition-all uppercase min-h-[36px] ${
+                !isOnline 
+                  ? 'bg-amber-500/95 border-amber-400 text-slate-950 shadow-amber-950/20' 
+                  : 'bg-red-600/95 border-red-400 text-white shadow-red-950/30'
+              }`}
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 bg-current" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-current" />
               </span>
-            )}
-          </motion.button>
-        </div>
-      )}
+              {!isOnline ? <WifiOff className="w-3.5 h-3.5" /> : <ShieldAlert className="w-3.5 h-3.5" />}
+              <span>{!isOnline ? 'Modo Offline Ativo' : `${totalFailed} Erro(s) de Sincronização`}</span>
+              {totalTasks > 0 && (
+                <span className="bg-slate-950/20 px-1.5 py-0.5 rounded text-[9px] font-extrabold">
+                  {totalTasks}
+                </span>
+              )}
+            </motion.button>
+          </div>
+        )}
+      </AnimatePresence>
 
       {/* Modal / Drawer HUD Detalhado */}
       <AnimatePresence>
