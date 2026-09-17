@@ -19,7 +19,10 @@ import {
   ChevronRight,
   ShieldCheck,
   Package,
-  ArrowRightLeft
+  ArrowRightLeft,
+  FileSpreadsheet,
+  Sparkles,
+  Building2
 } from 'lucide-react';
 
 export default function GestaoAtivoPage() {
@@ -179,83 +182,94 @@ export default function GestaoAtivoPage() {
           </div>
         </motion.div>
 
-        {/* Card 1: Setores da Planta (Ciano, col-span-2) */}
+        {/* Card Nobre Unificado: Catálogo de Localizações Operacionais (SSOT) (col-span-3) */}
         <motion.div 
           variants={itemVariants}
-          onClick={() => router.push('/gestao-ativo/setores')}
-          className="lg:col-span-2 group bg-white/65 backdrop-blur-md border border-slate-200/50 p-6 rounded-2xl shadow-xs transition-all duration-300 hover:shadow-lg hover:border-cyan-400/50 hover:bg-white/80 flex flex-col justify-between cursor-pointer relative overflow-hidden"
+          onClick={() => router.push('/gestao-ativo/localizacoes')}
+          className="md:col-span-2 lg:col-span-3 group bg-white/75 backdrop-blur-md border border-cyan-200/60 p-6 rounded-2xl shadow-xs transition-all duration-300 hover:shadow-xl hover:border-cyan-500/60 hover:bg-white/90 flex flex-col justify-between cursor-pointer relative overflow-hidden"
         >
-          {/* Efeito Glow Neon no Hover */}
-          <div className="absolute -inset-px bg-gradient-to-r from-cyan-500/0 via-cyan-500/5 to-cyan-500/0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          {/* Efeito Glow Ciano/Esmeralda no Hover */}
+          <div className="absolute -inset-px bg-gradient-to-r from-cyan-500/0 via-cyan-500/10 to-emerald-500/5 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
           
           <div className="relative">
-            <div className="flex justify-between items-start">
-              <div className="w-12 h-12 bg-cyan-500/10 text-cyan-600 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-                <MapPin className="w-6 h-6" />
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 bg-cyan-500/10 text-cyan-600 border border-cyan-400/20 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
+                  <Building2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 bg-cyan-500/15 text-cyan-700 border border-cyan-400/30 rounded-md flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-cyan-600" />
+                      Fonte Única da Verdade (SSOT)
+                    </span>
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 bg-emerald-500/15 text-emerald-700 border border-emerald-400/30 rounded-md">
+                      Padrão Vale 8 Colunas
+                    </span>
+                  </div>
+                  <h3 className="text-base font-extrabold uppercase text-slate-850 tracking-wide mt-1.5 flex items-center gap-2">
+                    Catálogo de Localizações Operacionais
+                    <FileSpreadsheet className="w-4 h-4 text-cyan-600" />
+                  </h3>
+                </div>
               </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-cyan-500/10 text-cyan-700 rounded-md">
-                Auxiliar
-              </span>
+
+              <div className="flex items-center gap-4 bg-slate-50 border border-slate-200/70 px-4 py-2 rounded-xl">
+                <div className="text-left sm:text-right">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Setores Mapeados</p>
+                  <p className="text-lg font-black font-mono text-slate-800">{allLocations.length}</p>
+                </div>
+                <div className="h-7 w-px bg-slate-200" />
+                <div className="text-left sm:text-right">
+                  <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Sub-Locais Físicos</p>
+                  <p className="text-lg font-black font-mono text-cyan-700">{allSubLocations.length}</p>
+                </div>
+              </div>
             </div>
-            <h3 className="text-sm font-extrabold uppercase text-slate-800 tracking-wide mt-4">
-              Setores da Planta
-            </h3>
-            <p className="text-[10px] text-slate-500 mt-1">
-              Setores físicos cadastrados onde os ativos de segurança contra incêndio estão alocados.
+
+            <p className="text-xs text-slate-600 mt-3 max-w-3xl leading-relaxed">
+              Unificação arquitetural dos antigos módulos de Setores e Sub-Locais em uma estrutura mestre corporativa. Inclui Cockpit de Importação e Edição em Massa via planilha XLSX da Vale, deduplicação automática de registros e autocompletion inteligente em todos os formulários.
             </p>
-            
-            <div className="mt-4 flex flex-wrap gap-1.5 max-h-16 overflow-hidden">
-              {allLocations.slice(0, 5).map((loc, idx) => (
-                <span key={idx} className="text-[8px] font-mono font-bold uppercase bg-slate-100 text-slate-600 px-2 py-0.5 rounded border border-slate-200/40">
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-bold uppercase text-slate-400 mr-1">Setores Principais:</span>
+              {allLocations.slice(0, 6).map((loc, idx) => (
+                <span key={idx} className="text-[9px] font-mono font-bold uppercase bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200">
                   {loc}
                 </span>
               ))}
-              {allLocations.length > 5 && (
-                <span className="text-[8px] font-mono font-bold uppercase bg-slate-200 text-slate-700 px-2 py-0.5 rounded border border-slate-200/60">
-                  +{allLocations.length - 5}
+              {allLocations.length > 6 && (
+                <span className="text-[9px] font-mono font-bold uppercase bg-cyan-50 text-cyan-800 px-2.5 py-1 rounded-md border border-cyan-200">
+                  +{allLocations.length - 6} outros
                 </span>
               )}
             </div>
           </div>
           
-          <div className="mt-6 pt-4 border-t border-slate-200/60 flex justify-between items-center relative">
-            <span className="text-2xl font-black font-mono tracking-tight text-slate-850">
-              {allLocations.length} <span className="text-xs font-semibold text-slate-500 lowercase">setores cadastrados</span>
-            </span>
-            <ChevronRight className="w-4 h-4 text-slate-400 transition-transform duration-300 group-hover:translate-x-1" />
-          </div>
-        </motion.div>
-
-        {/* Card 2: Sub-Locais (Sky, col-span-1) */}
-        <motion.div 
-          variants={itemVariants}
-          onClick={() => router.push('/gestao-ativo/sub-locais')}
-          className="group bg-white/65 backdrop-blur-md border border-slate-200/50 p-6 rounded-2xl shadow-xs transition-all duration-300 hover:shadow-lg hover:border-sky-400/50 hover:bg-white/80 flex flex-col justify-between cursor-pointer relative overflow-hidden"
-        >
-          <div className="absolute -inset-px bg-gradient-to-r from-sky-500/0 via-sky-500/5 to-sky-500/0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          
-          <div className="relative">
-            <div className="flex justify-between items-start">
-              <div className="w-12 h-12 bg-sky-500/10 text-sky-600 rounded-xl flex items-center justify-center transition-transform duration-300 group-hover:scale-110">
-                <Layers className="w-6 h-6" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 bg-sky-500/10 text-sky-700 rounded-md">
-                Auxiliar
+          <div className="mt-6 pt-4 border-t border-slate-200/80 flex flex-col sm:flex-row justify-between sm:items-center gap-3 relative">
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-mono font-bold text-cyan-800 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-cyan-500 animate-pulse"></span>
+                Acessar Central de Localizações & Cockpit XLSX
               </span>
+              <span className="text-[10px] text-slate-400 hidden sm:inline">|</span>
+              <div className="flex items-center gap-2">
+                <button 
+                  onClick={(e) => { e.stopPropagation(); router.push('/gestao-ativo/setores'); }}
+                  className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 underline bg-transparent border-none cursor-pointer"
+                >
+                  Ver Setores Legados
+                </button>
+                <span className="text-slate-300">•</span>
+                <button 
+                  onClick={(e) => { e.stopPropagation(); router.push('/gestao-ativo/sub-locais'); }}
+                  className="text-[10px] font-semibold text-slate-500 hover:text-slate-800 underline bg-transparent border-none cursor-pointer"
+                >
+                  Ver Sub-Locais Legados
+                </button>
+              </div>
             </div>
-            <h3 className="text-sm font-extrabold uppercase text-slate-800 tracking-wide mt-4">
-              Sub-Locais (Posições Físicas)
-            </h3>
-            <p className="text-[10px] text-slate-500 mt-1">
-              Áreas específicas, corredores e setores internos mapeados para cada setor da planta.
-            </p>
-          </div>
-          
-          <div className="mt-6 pt-4 border-t border-slate-200/60 flex justify-between items-center relative">
-            <span className="text-2xl font-black font-mono tracking-tight text-slate-850">
-              {allSubLocations.length} <span className="text-xs font-semibold text-slate-500 lowercase">posições físicas</span>
-            </span>
-            <ChevronRight className="w-4 h-4 text-slate-400 transition-transform duration-300 group-hover:translate-x-1" />
+            <ChevronRight className="w-5 h-5 text-cyan-600 transition-transform duration-300 group-hover:translate-x-1.5" />
           </div>
         </motion.div>
 

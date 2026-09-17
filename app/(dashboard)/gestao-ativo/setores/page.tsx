@@ -375,6 +375,34 @@ export default function GestaoSetoresPage() {
         </div>
       </div>
 
+      {/* Banner de Migração para Localizações Operacionais (SSOT) */}
+      <div className="bg-gradient-to-r from-cyan-950 via-slate-900 to-cyan-950 border border-cyan-500/40 rounded-2xl p-4 text-white shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <div className="p-2.5 bg-cyan-500/20 text-cyan-400 rounded-xl border border-cyan-400/30 shrink-0">
+            <RefreshCw className="w-5 h-5" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 rounded">
+                Nova Versão Oficial
+              </span>
+              <p className="text-xs font-extrabold uppercase tracking-wide text-white">
+                Catálogo Corporativo de Localizações Operacionais
+              </p>
+            </div>
+            <p className="text-[11px] text-slate-300 mt-1 max-w-2xl leading-relaxed">
+              O gerenciamento isolado de setores foi consolidado no <strong>Catálogo de Localizações Operacionais (SSOT)</strong>, que unifica Setores e Sub-Locais no Padrão Vale (8 colunas) com Cockpit de Importação e Edição em Massa XLSX.
+            </p>
+          </div>
+        </div>
+        <button
+          onClick={() => router.push('/gestao-ativo/localizacoes')}
+          className="px-4 py-2.5 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-md shrink-0 flex items-center gap-2"
+        >
+          Acessar Novo Catálogo →
+        </button>
+      </div>
+
       {/* PAINEL DE TABELA */}
       <div className="bg-white/65 backdrop-blur-md border border-slate-200/50 rounded-2xl shadow-xs p-6 space-y-4">
         
