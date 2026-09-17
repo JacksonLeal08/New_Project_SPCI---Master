@@ -27,6 +27,29 @@ export interface DryRunValidationResult {
   setoresUnicos: number;
 }
 
+export interface VinculoAtivoItem {
+  id: string;
+  patrimonio: string;
+  categoria: string;
+  status: string;
+}
+
+export interface LocalizacaoBloqueada {
+  localizacao: LocalizacaoOperacional;
+  totalAtivos: number;
+  ativos: VinculoAtivoItem[];
+}
+
+export interface ResultadoValidacaoBulkDelete {
+  success: boolean;
+  totalSolicitado: number;
+  totalAptos: number;
+  totalBloqueados: number;
+  aptos: LocalizacaoOperacional[];
+  bloqueados: LocalizacaoBloqueada[];
+  erro?: string;
+}
+
 const CACHE_STORE = 'config';
 const CACHE_KEY = 'spci_localizacoes_cache';
 
@@ -451,5 +474,156 @@ export class LocalizacoesService {
     }
 
     return inserted;
+  }
+
+  /**
+   * Validação preventiva e auditoria de vínculos para exclusão em massa.
+   * Realiza a consulta na API do servidor e cruza com os ativos em memória do contexto.
+   */
+  static async validarExclusaoEmMassa(
+    ids: string[],
+    contratoId?: string,
+    memoryAssets?: any[]
+  ): Promise<ResultadoValidacaoBulkDelete> {
+    if (!ids || ids.length === 0) {
+      return {
+        success: true,
+        totalSolicitado: 0,
+        totalAptos: 0,
+        totalBloqueados: 0,
+        aptos: [],
+        bloqueados: []
+      };
+    }
+
+    try {
+      // 1. Chamada à API Next.js de validação preventiva
+      const response = await fetch('/api/localizacoes/validate-bulk-delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, contrato_id: contratoId })
+      });
+
+      let resData: ResultadoValidacaoBulkDelete;
+      if (response.ok) {
+        resData = await response.json();
+      } else {
+        const errJson = await response.json().catch(() => ({}));
+        throw new Error(errJson.error || `Falha na requisição (${response.status})`);
+      }
+
+      // 2. Dupla checagem com ativos em memória do PWA/Contexto (se fornecidos)
+      if (memoryAssets && memoryAssets.length > 0 && resData.aptos.length > 0) {
+        const novosAptos: LocalizacaoOperacional[] = [];
+        const novosBloqueados = [...resData.bloqueados];
+
+        for (const apto of resData.aptos) {
+          const setor = (apto.setor_planta || '').trim().toUpperCase();
+          const sub = (apto.sub_local || '').trim().toUpperCase();
+
+          const ativosMemoria = memoryAssets.filter((m: any) => {
+            const mLoc = (m.location || m.setor_planta || '').trim().toUpperCase();
+            const mSub = (m.subLocation || m.sub_location || m.sub_local || '').trim().toUpperCase();
+            const mStatus = String(m.status_operacional || m.status || '').toUpperCase();
+            if (mStatus.includes('CONDENADO') || mStatus.includes('DESCARTE')) return false;
+            return mLoc === setor && mSub === sub;
+          }).map((m: any) => ({
+            id: m.id || m.idAtivo || 'S/N',
+            patrimonio: m.idAtivo || m.numero_patrimonio || m.patrimonio || 'Ativo',
+            categoria: m.category || 'Ativo de Campo',
+            status: m.status_operacional || m.status || 'Ativo'
+          }));
+
+          if (ativosMemoria.length > 0) {
+            novosBloqueados.push({
+              localizacao: apto,
+              totalAtivos: ativosMemoria.length,
+              ativos: ativosMemoria
+            });
+          } else {
+            novosAptos.push(apto);
+          }
+        }
+
+        resData.aptos = novosAptos;
+        resData.bloqueados = novosBloqueados;
+        resData.totalAptos = novosAptos.length;
+        resData.totalBloqueados = novosBloqueados.length;
+      }
+
+      return resData;
+    } catch (err: any) {
+      console.error('[validarExclusaoEmMassa] Erro:', err);
+      return {
+        success: false,
+        totalSolicitado: ids.length,
+        totalAptos: 0,
+        totalBloqueados: 0,
+        aptos: [],
+        bloqueados: [],
+        erro: err.message
+      };
+    }
+  }
+
+  /**
+   * Executa a exclusão em massa com feedback de progresso e emissão de evento de sincronização.
+   */
+  static async executarExclusaoEmMassaComProgresso(
+    ids: string[],
+    options?: {
+      contratoId?: string;
+      usuarioId?: string;
+      usuarioNome?: string;
+      onProgress?: (current: number, total: number) => void;
+    }
+  ): Promise<{ sucesso: boolean; afetados: number; erro?: string }> {
+    if (!ids || ids.length === 0) {
+      return { sucesso: false, afetados: 0, erro: 'Nenhum item selecionado.' };
+    }
+
+    try {
+      if (options?.onProgress) options.onProgress(0, ids.length);
+
+      // Processa via API com suporte a chunks se a lista for muito grande (>100)
+      const chunkSize = 100;
+      let totalExcluidos = 0;
+
+      for (let i = 0; i < ids.length; i += chunkSize) {
+        const chunk = ids.slice(i, i + chunkSize);
+        
+        const res = await fetch('/api/localizacoes/bulk-delete', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ids: chunk,
+            contrato_id: options?.contratoId,
+            usuario_id: options?.usuarioId,
+            usuario_nome: options?.usuarioNome
+          })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || 'Falha ao excluir lote de localizações.');
+        }
+
+        totalExcluidos += (data.quantidade_excluida || chunk.length);
+        if (options?.onProgress) {
+          options.onProgress(Math.min(i + chunk.length, ids.length), ids.length);
+        }
+      }
+
+      // Notifica o restante do app (autocomplete, listas, etc) para recarregar
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('spci_locations_updated'));
+        window.dispatchEvent(new CustomEvent('spci_localizacoes_updated'));
+      }
+
+      return { sucesso: true, afetados: totalExcluidos };
+    } catch (err: any) {
+      console.error('[executarExclusaoEmMassaComProgresso] Erro:', err);
+      return { sucesso: false, afetados: 0, erro: err.message };
+    }
   }
 }

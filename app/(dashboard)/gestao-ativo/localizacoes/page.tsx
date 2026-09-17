@@ -24,11 +24,30 @@ import {
 } from 'lucide-react';
 import { LocalizacoesService, LocalizacaoOperacional } from '@/lib/localizacoesService';
 import { LocalizacaoImportCockpit } from '@/app/components/LocalizacaoImportCockpit';
+import BulkDeleteLocationModal from '@/app/components/BulkDeleteLocationModal';
 import { useSpci } from '@/app/context/SpciContext';
 
 export default function LocalizacoesOperacionaisPage() {
   const router = useRouter();
-  const { activeSite, triggerSuccessNotification, showConfirmModal, userProfile } = useSpci();
+  const { 
+    activeSite, 
+    triggerSuccessNotification, 
+    userProfile,
+    extintores,
+    hidrantes,
+    sinalizacoes,
+    iluminacoes,
+    bombas
+  } = useSpci();
+
+  // Consolidação de ativos operacionais em memória para checagem dupla defensiva
+  const memoryAssets = useMemo(() => [
+    ...(extintores || []),
+    ...(hidrantes || []),
+    ...(sinalizacoes || []),
+    ...(iluminacoes || []),
+    ...(bombas || [])
+  ], [extintores, hidrantes, sinalizacoes, iluminacoes, bombas]);
 
   const [localizacoes, setLocalizacoes] = useState<LocalizacaoOperacional[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -42,6 +61,10 @@ export default function LocalizacoesOperacionaisPage() {
   const [bulkActionType, setBulkActionType] = useState<'gerencia' | 'diretoria' | 'prancha' | null>(null);
   const [bulkInputValue, setBulkInputValue] = useState<string>('');
   const [isExecutingBulk, setIsExecutingBulk] = useState<boolean>(false);
+
+  // Estados do Modal de Exclusão em Massa Segura
+  const [isBulkDeleteModalOpen, setIsBulkDeleteModalOpen] = useState<boolean>(false);
+  const [bulkDeleteTargetIds, setBulkDeleteTargetIds] = useState<string[]>([]);
 
   // Estados dos Modais
   const [isImportCockpitOpen, setIsImportCockpitOpen] = useState<boolean>(false);
@@ -73,6 +96,9 @@ export default function LocalizacoesOperacionaisPage() {
 
   useEffect(() => {
     carregarDados();
+    const handleUpdated = () => carregarDados();
+    window.addEventListener('spci_locations_updated', handleUpdated);
+    return () => window.removeEventListener('spci_locations_updated', handleUpdated);
   }, [activeSite]);
 
   // Estatísticas de Topo
@@ -167,24 +193,36 @@ export default function LocalizacoesOperacionaisPage() {
 
   const handleBulkDelete = () => {
     if (selectedIds.length === 0) return;
+    setBulkDeleteTargetIds(selectedIds);
+    setIsBulkDeleteModalOpen(true);
+  };
 
-    showConfirmModal({
-      title: 'Excluir Locais Selecionados 🗑️',
-      message: `Tem certeza de que deseja excluir ${selectedIds.length} localizações operacionais? Esta ação não poderá ser desfeita.`,
-      type: 'error',
-      confirmText: 'EXCLUIR DEFINITIVAMENTE',
-      cancelText: 'CANCELAR',
-      onConfirm: async () => {
-        const res = await LocalizacoesService.executarAcoesEmMassa(selectedIds, 'excluir');
-        if (res.sucesso) {
-          triggerSuccessNotification('Exclusão Concluída', `${res.afetados} locais foram removidos.`);
-          setSelectedIds([]);
-          carregarDados();
-        } else {
-          alert('Erro ao excluir: ' + res.erro);
-        }
-      }
-    });
+  const handleDeleteSingle = (id: string) => {
+    setBulkDeleteTargetIds([id]);
+    setIsBulkDeleteModalOpen(true);
+  };
+
+  const handleDeleteEntireSector = (setorNome: string) => {
+    const idsDoSetor = localizacoes
+      .filter(l => l.setor_planta.trim().toUpperCase() === setorNome.trim().toUpperCase())
+      .map(l => l.id!)
+      .filter(Boolean);
+
+    if (idsDoSetor.length === 0) {
+      alert('Nenhum registro encontrado para este setor.');
+      return;
+    }
+    setBulkDeleteTargetIds(idsDoSetor);
+    setIsBulkDeleteModalOpen(true);
+  };
+
+  const handleBulkDeleteSuccess = (excluidosCount: number) => {
+    triggerSuccessNotification(
+      'Exclusão Concluída! 🗑️',
+      `${excluidosCount} localizações operacionais foram removidas com integridade garantida.`
+    );
+    setSelectedIds([]);
+    carregarDados();
   };
 
   const handleSaveManual = async (e: React.FormEvent) => {
@@ -380,6 +418,18 @@ export default function LocalizacoesOperacionaisPage() {
             ))}
           </select>
 
+          {/* Excluir Setor Inteiro (se selecionado) */}
+          {selectedSetorFilter !== 'ALL' && (
+            <button
+              onClick={() => handleDeleteEntireSector(selectedSetorFilter)}
+              className="px-3 py-2 bg-red-600/15 hover:bg-red-600/25 text-red-700 dark:text-red-400 border border-red-500/30 rounded-xl font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1.5"
+              title={`Auditar e excluir todos os sub-locais do setor "${selectedSetorFilter}"`}
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-500" />
+              Excluir Setor Inteiro
+            </button>
+          )}
+
           {/* Filtro por Área */}
           <select
             value={selectedAreaFilter}
@@ -489,6 +539,13 @@ export default function LocalizacoesOperacionaisPage() {
                             title="Editar local"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={() => item.id && handleDeleteSingle(item.id)}
+                            className="p-1.5 hover:bg-red-100 dark:hover:bg-red-950/40 rounded-lg transition-colors text-slate-400 hover:text-red-500 cursor-pointer border-none bg-transparent"
+                            title="Excluir este local (com auditoria de ativos)"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </td>
@@ -747,6 +804,20 @@ export default function LocalizacoesOperacionaisPage() {
         isOpen={isImportCockpitOpen}
         onClose={() => setIsImportCockpitOpen(false)}
         onSuccess={() => carregarDados()}
+      />
+
+      {/* =================================================================== */}
+      {/* 8. COCKPIT DE EXCLUSÃO EM MASSA SEGURA (MODAL EM 3 ETAPAS)          */}
+      {/* =================================================================== */}
+      <BulkDeleteLocationModal
+        isOpen={isBulkDeleteModalOpen}
+        onClose={() => setIsBulkDeleteModalOpen(false)}
+        selectedIds={bulkDeleteTargetIds}
+        contratoId={activeSite}
+        memoryAssets={memoryAssets}
+        usuarioId={userProfile?.id || (userProfile as any)?.uid}
+        usuarioNome={userProfile?.name}
+        onSuccess={handleBulkDeleteSuccess}
       />
     </div>
   );

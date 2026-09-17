@@ -49,9 +49,11 @@ export const LocationAutocomplete: React.FC<LocationAutocompleteProps> = ({
     };
 
     window.addEventListener('spci_localizacoes_updated', handleUpdate);
+    window.addEventListener('spci_locations_updated', handleUpdate);
     return () => {
       isMounted = false;
       window.removeEventListener('spci_localizacoes_updated', handleUpdate);
+      window.removeEventListener('spci_locations_updated', handleUpdate);
     };
   }, [activeSite]);
 
