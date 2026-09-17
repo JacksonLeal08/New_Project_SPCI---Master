@@ -98,7 +98,11 @@ export default function LocalizacoesOperacionaisPage() {
     carregarDados();
     const handleUpdated = () => carregarDados();
     window.addEventListener('spci_locations_updated', handleUpdated);
-    return () => window.removeEventListener('spci_locations_updated', handleUpdated);
+    window.addEventListener('spci_localizacoes_updated', handleUpdated);
+    return () => {
+      window.removeEventListener('spci_locations_updated', handleUpdated);
+      window.removeEventListener('spci_localizacoes_updated', handleUpdated);
+    };
   }, [activeSite]);
 
   // Estatísticas de Topo
@@ -487,8 +491,37 @@ export default function LocalizacoesOperacionaisPage() {
                 </tr>
               ) : filteredData.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="p-8 text-center text-slate-500">
-                    Nenhuma localização encontrada. Utilize o <strong>Cockpit de Carga XLSX</strong> para importar a planilha oficial da Vale.
+                  <td colSpan={8} className="p-10 text-center">
+                    <div className="max-w-md mx-auto space-y-3">
+                      <p className="text-sm font-bold text-slate-700 dark:text-slate-200">
+                        {searchTerm || selectedSetorFilter !== 'ALL' || selectedAreaFilter !== 'ALL'
+                          ? 'Nenhuma localização corresponde aos filtros aplicados.'
+                          : `Nenhuma localização encontrada para o contrato ${activeSite || 'selecionado'}.`}
+                      </p>
+                      <p className="text-xs text-slate-500 leading-relaxed">
+                        Utilize o <strong>Cockpit de Carga XLSX</strong> para importar a planilha de 8 colunas da Vale, cadastre manualmente ou limpe os filtros de busca.
+                      </p>
+                      <div className="pt-2 flex flex-wrap justify-center gap-2">
+                        {(searchTerm || selectedSetorFilter !== 'ALL' || selectedAreaFilter !== 'ALL') && (
+                          <button
+                            onClick={() => {
+                              setSearchTerm('');
+                              setSelectedSetorFilter('ALL');
+                              setSelectedAreaFilter('ALL');
+                            }}
+                            className="px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-200 cursor-pointer border border-slate-200 dark:border-slate-700"
+                          >
+                            Limpar Filtros
+                          </button>
+                        )}
+                        <button
+                          onClick={() => setIsImportCockpitOpen(true)}
+                          className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-bold shadow-xs cursor-pointer border-none"
+                        >
+                          Abrir Cockpit XLSX
+                        </button>
+                      </div>
+                    </div>
                   </td>
                 </tr>
               ) : (

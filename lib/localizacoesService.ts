@@ -300,29 +300,63 @@ export class LocalizacoesService {
           );
 
         if (error) {
-          // Se falhar por constraint de schema cache ou outra razão, tenta salvar individualmente
-          console.warn('[LocalizacoesService] Upsert em bloco retornou erro, tentando fallback:', error.message);
+          // Fallback resiliente: busca existentes pelo contrato e setor/sub_local
           for (const item of chunk) {
-            const { error: singleErr } = await supabase
-              .from('localizacoes_operacionais')
-              .upsert({
-                contrato_id: item.contrato_id,
-                projeto_site: item.projeto_site,
-                setor_planta: item.setor_planta,
-                sub_local: item.sub_local,
-                prancha_projeto: item.prancha_projeto,
-                area_operacional: item.area_operacional,
-                codigo_instalacao_vale: item.codigo_instalacao_vale,
-                gerencia_responsavel: item.gerencia_responsavel,
-                diretoria_responsavel: item.diretoria_responsavel,
-                is_ativo: true,
-                updated_at: new Date().toISOString()
-              });
-            if (singleErr) {
+            try {
+              const { data: existing } = await supabase
+                .from('localizacoes_operacionais')
+                .select('id')
+                .eq('contrato_id', item.contrato_id)
+                .ilike('setor_planta', item.setor_planta.trim())
+                .ilike('sub_local', item.sub_local.trim())
+                .maybeSingle();
+
+              if (existing?.id) {
+                const { error: updErr } = await supabase
+                  .from('localizacoes_operacionais')
+                  .update({
+                    projeto_site: item.projeto_site,
+                    prancha_projeto: item.prancha_projeto,
+                    area_operacional: item.area_operacional,
+                    codigo_instalacao_vale: item.codigo_instalacao_vale,
+                    gerencia_responsavel: item.gerencia_responsavel,
+                    diretoria_responsavel: item.diretoria_responsavel,
+                    is_ativo: true,
+                    updated_at: new Date().toISOString()
+                  })
+                  .eq('id', existing.id);
+                if (updErr) {
+                  falhas++;
+                  erros.push(`${item.setor_planta} - ${item.sub_local}: ${updErr.message}`);
+                } else {
+                  sucessos++;
+                }
+              } else {
+                const { error: insErr } = await supabase
+                  .from('localizacoes_operacionais')
+                  .insert({
+                    contrato_id: item.contrato_id,
+                    projeto_site: item.projeto_site,
+                    setor_planta: item.setor_planta,
+                    sub_local: item.sub_local,
+                    prancha_projeto: item.prancha_projeto,
+                    area_operacional: item.area_operacional,
+                    codigo_instalacao_vale: item.codigo_instalacao_vale,
+                    gerencia_responsavel: item.gerencia_responsavel,
+                    diretoria_responsavel: item.diretoria_responsavel,
+                    is_ativo: true,
+                    updated_at: new Date().toISOString()
+                  });
+                if (insErr) {
+                  falhas++;
+                  erros.push(`${item.setor_planta} - ${item.sub_local}: ${insErr.message}`);
+                } else {
+                  sucessos++;
+                }
+              }
+            } catch (singleCatchErr: any) {
               falhas++;
-              erros.push(`${item.setor_planta} - ${item.sub_local}: ${singleErr.message}`);
-            } else {
-              sucessos++;
+              erros.push(`${item.setor_planta} - ${item.sub_local}: ${singleCatchErr.message}`);
             }
           }
         } else {
@@ -340,18 +374,68 @@ export class LocalizacoesService {
       }
     }
 
-    // Atualiza o cache local
+    // Atualiza o cache local e emite eventos unificados
     try {
       const atualizados = await this.listarTodas();
       await idb.set(CACHE_STORE, CACHE_KEY, atualizados);
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('spci_localizacoes_updated'));
+        window.dispatchEvent(new CustomEvent('spci_locations_updated'));
       }
     } catch (e) {
       console.warn('[LocalizacoesService] Erro ao sincronizar cache local:', e);
     }
 
     return { sucessos, falhas, erros };
+  }
+
+  /**
+   * Sincroniza e cadastra automaticamente localizações extraídas de ativos existentes (extintores, hidrantes, etc.).
+   */
+  static async sincronizarLocaisDeAtivos(
+    ativos: { location?: string; subLocation?: string; sub_location?: string; site?: string }[],
+    contratoPadrao: string = 'ONÇA PUMA'
+  ): Promise<{ inseridos: number; totalMapeados: number }> {
+    const mapa = new Map<string, LocalizacaoOperacional>();
+
+    ativos.forEach(a => {
+      const setor = (a.location || '').trim().toUpperCase();
+      const sub = (a.subLocation || a.sub_location || '').trim().toUpperCase();
+      const contrato = (a.site || contratoPadrao).trim();
+
+      if (setor && sub) {
+        const key = `${contrato.toLowerCase()}|${setor.toLowerCase()}|${sub.toLowerCase()}`;
+        if (!mapa.has(key)) {
+          mapa.set(key, {
+            contrato_id: contrato,
+            projeto_site: contrato,
+            setor_planta: setor,
+            sub_local: sub,
+            is_ativo: true
+          });
+        }
+      }
+    });
+
+    const itensParaSalvar = Array.from(mapa.values());
+    if (itensParaSalvar.length === 0) {
+      return { inseridos: 0, totalMapeados: 0 };
+    }
+
+    const { error } = await supabase
+      .from('localizacoes_operacionais')
+      .insert(itensParaSalvar);
+
+    if (error) {
+      console.warn('Erro ao sincronizar locais de ativos:', error.message);
+    }
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('spci_localizacoes_updated'));
+      window.dispatchEvent(new CustomEvent('spci_locations_updated'));
+    }
+
+    return { inseridos: itensParaSalvar.length, totalMapeados: itensParaSalvar.length };
   }
 
   /**

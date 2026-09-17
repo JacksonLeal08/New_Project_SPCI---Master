@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
+import { LocalizacoesService, LocalizacaoOperacional } from '@/lib/localizacoesService';
 import GestaoAtivosModal from '@/app/components/GestaoAtivosModal';
 import { 
   Boxes, 
@@ -29,6 +30,7 @@ export default function GestaoAtivoPage() {
   const router = useRouter();
   const { 
     userProfile, 
+    activeSite,
     extintores, 
     hidrantes, 
     sinalizacoes, 
@@ -37,6 +39,37 @@ export default function GestaoAtivoPage() {
   } = useSpci();
 
   const [isStockModalOpen, setIsStockModalOpen] = useState(false);
+  const [locaisOficiais, setLocaisOficiais] = useState<LocalizacaoOperacional[]>([]);
+  const [loadingLocais, setLoadingLocais] = useState<boolean>(true);
+
+  // Sincronização em tempo real das localizações oficiais com a tabela mestre (SSOT)
+  useEffect(() => {
+    let isMounted = true;
+    async function carregarLocaisOficiais() {
+      try {
+        setLoadingLocais(true);
+        const data = await LocalizacoesService.listarTodas(activeSite);
+        if (isMounted) {
+          setLocaisOficiais(data);
+        }
+      } catch (err) {
+        console.error('[GestaoAtivoPage] Erro ao carregar localizações oficiais:', err);
+      } finally {
+        if (isMounted) setLoadingLocais(false);
+      }
+    }
+
+    carregarLocaisOficiais();
+
+    const handleUpdate = () => carregarLocaisOficiais();
+    window.addEventListener('spci_localizacoes_updated', handleUpdate);
+    window.addEventListener('spci_locations_updated', handleUpdate);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('spci_localizacoes_updated', handleUpdate);
+      window.removeEventListener('spci_locations_updated', handleUpdate);
+    };
+  }, [activeSite]);
 
   // 1. RBAC - Acesso para Administrador e Desenvolvedor
   const canAccess = userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Administrador' || (userProfile as any)?.role === 'admin';
@@ -69,7 +102,14 @@ export default function GestaoAtivoPage() {
     );
   }
 
-  // 2. Cálculo dos contadores em tempo real baseados no contexto
+  // 2. Cálculo dos contadores oficiais da tabela mestre de Localizações Operacionais (SSOT)
+  const setoresOficiais = useMemo(() => {
+    return Array.from(new Set(locaisOficiais.map(l => l.setor_planta).filter(Boolean))).sort();
+  }, [locaisOficiais]);
+
+  const totalSubLocaisOficiais = locaisOficiais.length;
+
+  // Contadores de ativos em memória (para badges de ocorrências e checklist)
   const allLocations = Array.from(new Set([
     ...(extintores || []).map(e => e.location),
     ...(hidrantes || []).map(h => h.location),
@@ -217,12 +257,16 @@ export default function GestaoAtivoPage() {
               <div className="flex items-center gap-4 bg-slate-50 border border-slate-200/70 px-4 py-2 rounded-xl">
                 <div className="text-left sm:text-right">
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Setores Mapeados</p>
-                  <p className="text-lg font-black font-mono text-slate-800">{allLocations.length}</p>
+                  <p className="text-lg font-black font-mono text-slate-800">
+                    {loadingLocais ? '...' : setoresOficiais.length}
+                  </p>
                 </div>
                 <div className="h-7 w-px bg-slate-200" />
                 <div className="text-left sm:text-right">
                   <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Sub-Locais Físicos</p>
-                  <p className="text-lg font-black font-mono text-cyan-700">{allSubLocations.length}</p>
+                  <p className="text-lg font-black font-mono text-cyan-700">
+                    {loadingLocais ? '...' : totalSubLocaisOficiais}
+                  </p>
                 </div>
               </div>
             </div>
@@ -233,14 +277,22 @@ export default function GestaoAtivoPage() {
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <span className="text-[10px] font-bold uppercase text-slate-400 mr-1">Setores Principais:</span>
-              {allLocations.slice(0, 6).map((loc, idx) => (
-                <span key={idx} className="text-[9px] font-mono font-bold uppercase bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200">
-                  {loc}
-                </span>
-              ))}
-              {allLocations.length > 6 && (
-                <span className="text-[9px] font-mono font-bold uppercase bg-cyan-50 text-cyan-800 px-2.5 py-1 rounded-md border border-cyan-200">
-                  +{allLocations.length - 6} outros
+              {setoresOficiais.length > 0 ? (
+                <>
+                  {setoresOficiais.slice(0, 6).map((loc, idx) => (
+                    <span key={idx} className="text-[9px] font-mono font-bold uppercase bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200">
+                      {loc}
+                    </span>
+                  ))}
+                  {setoresOficiais.length > 6 && (
+                    <span className="text-[9px] font-mono font-bold uppercase bg-cyan-50 text-cyan-800 px-2.5 py-1 rounded-md border border-cyan-200">
+                      +{setoresOficiais.length - 6} outros
+                    </span>
+                  )}
+                </>
+              ) : (
+                <span className="text-[10px] text-amber-700 bg-amber-50 px-2.5 py-1 rounded-md border border-amber-200 font-medium">
+                  {loadingLocais ? 'Carregando setores da planta...' : `Nenhum setor cadastrado para ${activeSite || 'o site atual'}. Clique para importar via XLSX.`}
                 </span>
               )}
             </div>
