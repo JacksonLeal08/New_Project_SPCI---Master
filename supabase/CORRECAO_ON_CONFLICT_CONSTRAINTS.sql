@@ -1,10 +1,47 @@
 -- ==============================================================================
--- SPCI MASTER - MIGRAÇÃO DE GOVERNANÇA: CONSTRAINTS UNIQUE PARA ON CONFLICT
+-- SPCI MASTER - MIGRAÇÃO DE GOVERNANÇA: PRIMARY KEYS & CONSTRAINTS UNIQUE
 -- Data: 17/09/2026
--- Descrição: Cria constraints UNIQUE necessárias para suportar operações com 
---            ON CONFLICT (upsert) e garantir integridade referencial estrita.
---            Inclui limpeza preventiva de índices soltos com mesmo nome (42P07).
+-- Descrição: 1. Adiciona PRIMARY KEY (id) para permitir edição/exclusão no Supabase Studio.
+--            2. Cria constraints UNIQUE necessárias para suportar ON CONFLICT e integridade.
+--            3. Inclui limpeza preventiva de índices soltos com mesmo nome (42P07).
 -- ==============================================================================
+
+-- 0. GARANTIR CHAVES PRIMÁRIAS (PRIMARY KEY) - Desbloqueia edição/exclusão no Table Editor
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.assets'::regclass AND contype = 'p') THEN
+        ALTER TABLE public.assets ADD PRIMARY KEY (id);
+        RAISE NOTICE 'Chave primária adicionada em public.assets.';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.ativos_extintores'::regclass AND contype = 'p') THEN
+        ALTER TABLE public.ativos_extintores ADD PRIMARY KEY (id);
+        RAISE NOTICE 'Chave primária adicionada em public.ativos_extintores.';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.locais'::regclass AND contype = 'p') THEN
+        ALTER TABLE public.locais ADD PRIMARY KEY (id);
+        RAISE NOTICE 'Chave primária adicionada em public.locais.';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.modelos_extintores'::regclass AND contype = 'p') THEN
+        ALTER TABLE public.modelos_extintores ADD PRIMARY KEY (id);
+        RAISE NOTICE 'Chave primária adicionada em public.modelos_extintores.';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.sub_locais'::regclass AND contype = 'p') THEN
+        ALTER TABLE public.sub_locais ADD PRIMARY KEY (id);
+        RAISE NOTICE 'Chave primária adicionada em public.sub_locais.';
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conrelid = 'public.logs_auditoria'::regclass AND contype = 'p') THEN
+        ALTER TABLE public.logs_auditoria ADD PRIMARY KEY (id);
+        RAISE NOTICE 'Chave primária adicionada em public.logs_auditoria.';
+    END IF;
+EXCEPTION
+    WHEN duplicate_object OR duplicate_table THEN
+        RAISE NOTICE 'Chaves primárias já existentes.';
+END $$;
 
 -- 1. Tabela 'ativos_extintores' (conflito por numero_patrimonio)
 DO $$
