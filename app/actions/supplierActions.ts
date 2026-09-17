@@ -214,3 +214,95 @@ export async function toggleSupplierStatusAction(id: string, ativo: boolean): Pr
     return { success: false, error: err.message || 'Erro ao atualizar status do fornecedor.' };
   }
 }
+
+/**
+ * Restaura os fornecedores de referência oficiais (Seed Padrão)
+ */
+export async function restoreDefaultSuppliersAction(): Promise<{
+  success: boolean;
+  restoredCount?: number;
+  error?: string;
+}> {
+  try {
+    const supabase = getSupabaseAdminClient();
+    const standardSuppliers = [
+      {
+        razao_social: 'Extinwal Comércio e Manutenção de Equipamentos de Segurança Ltda',
+        nome_fantasia: 'Extinwal Segurança Contra Incêndio',
+        cnpj: '61.458.742/0001-90',
+        registro_inmetro: 'INMETRO 002145/2023',
+        telefone: '(11) 3245-8800',
+        email: 'contato@extinwal.com.br',
+        contato_responsavel: 'Eng. Roberto Silva',
+        cidade_uf: 'São Paulo / SP',
+        ativo: true
+      },
+      {
+        razao_social: 'Bucka Spiero Engenharia e Equipamentos Contra Incêndio Ltda',
+        nome_fantasia: 'Bucka Spiero Equipamentos',
+        cnpj: '52.124.987/0001-33',
+        registro_inmetro: 'INMETRO 004891/2024',
+        telefone: '(11) 4004-9200',
+        email: 'engenharia@bucka.com.br',
+        contato_responsavel: 'Carlos Eduardo',
+        cidade_uf: 'São Paulo / SP',
+        ativo: true
+      },
+      {
+        razao_social: 'Mocelin Extintores & Engenharia de Prevenção Ltda',
+        nome_fantasia: 'Mocelin Extintores',
+        cnpj: '14.982.341/0001-12',
+        registro_inmetro: 'INMETRO 008712/2023',
+        telefone: '(41) 3340-5500',
+        email: 'comercial@mocelin.com.br',
+        contato_responsavel: 'Juliana Ramos',
+        cidade_uf: 'Curitiba / PR',
+        ativo: true
+      },
+      {
+        razao_social: 'Kidde Brasil Manutenções e Soluções de Incêndio Ltda',
+        nome_fantasia: 'Kidde Brasil Manutenções',
+        cnpj: '48.910.231/0001-05',
+        registro_inmetro: 'INMETRO 001923/2025',
+        telefone: '(19) 3887-9000',
+        email: 'suporte@kidde.com.br',
+        contato_responsavel: 'Marcos Vinicius',
+        cidade_uf: 'Campinas / SP',
+        ativo: true
+      },
+      {
+        razao_social: 'Resmat Engenharia e Combate a Incêndio Ltda',
+        nome_fantasia: 'Resmat Engenharia',
+        cnpj: '09.334.812/0001-78',
+        registro_inmetro: 'INMETRO 003450/2024',
+        telefone: '(21) 2590-4400',
+        email: 'tecnico@resmat.com.br',
+        contato_responsavel: 'Fabio Almeida',
+        cidade_uf: 'Rio de Janeiro / RJ',
+        ativo: true
+      }
+    ];
+
+    // Busca fornecedores já cadastrados para evitar duplicidades
+    const { data: existing } = await supabase
+      .from('fornecedores_manutencao')
+      .select('cnpj');
+
+    const existingCnpjs = new Set((existing || []).map((e: any) => e.cnpj));
+    const toInsert = standardSuppliers.filter(s => !existingCnpjs.has(s.cnpj));
+
+    if (toInsert.length > 0) {
+      const { error } = await supabase
+        .from('fornecedores_manutencao')
+        .insert(toInsert);
+
+      if (error) throw error;
+    }
+
+    revalidatePath('/configuracoes');
+    return { success: true, restoredCount: toInsert.length };
+  } catch (err: any) {
+    console.error('[restoreDefaultSuppliersAction] Erro:', err);
+    return { success: false, error: err.message || 'Erro ao restaurar fornecedores padrão.' };
+  }
+}

@@ -23,7 +23,8 @@ import {
   FornecedorRecord,
   getSuppliersAction,
   deleteSupplierAction,
-  toggleSupplierStatusAction
+  toggleSupplierStatusAction,
+  restoreDefaultSuppliersAction
 } from '@/app/actions/supplierActions';
 import SupplierFormModal from './SupplierFormModal';
 import SupplierDeleteModal from './SupplierDeleteModal';
@@ -40,6 +41,7 @@ export default function SuppliersManagementBento() {
   // Estado para exclusão elegante
   const [supplierToDelete, setSupplierToDelete] = useState<FornecedorRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
 
   const fetchSuppliers = useCallback(async () => {
     try {
@@ -54,6 +56,20 @@ export default function SuppliersManagementBento() {
       setLoading(false);
     }
   }, []);
+
+  const handleRestoreDefaults = async () => {
+    try {
+      setIsRestoring(true);
+      const res = await restoreDefaultSuppliersAction();
+      if (res.success) {
+        await fetchSuppliers();
+      }
+    } catch (err) {
+      console.error('Erro ao restaurar fornecedores padrão:', err);
+    } finally {
+      setIsRestoring(false);
+    }
+  };
 
   useEffect(() => {
     fetchSuppliers();
@@ -174,17 +190,32 @@ export default function SuppliersManagementBento() {
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setEditingSupplier(null);
-            setIsModalOpen(true);
-          }}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer border-none active:scale-95 whitespace-nowrap"
-        >
-          <Plus className="w-4 h-4" />
-          <span>Cadastrar Novo Fornecedor</span>
-        </button>
+        <div className="flex items-center gap-2">
+          {suppliers.length < 5 && (
+            <button
+              type="button"
+              onClick={handleRestoreDefaults}
+              disabled={isRestoring}
+              className="px-3 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-all border border-slate-200 dark:border-slate-700 text-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+              title="Inserir prestadores padrão do sistema"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRestoring ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">Restaurar Padrões</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingSupplier(null);
+              setIsModalOpen(true);
+            }}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-md flex items-center gap-1.5 cursor-pointer border-none active:scale-95 whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Cadastrar Novo Fornecedor</span>
+          </button>
+        </div>
       </div>
 
       {/* Grid Bento de Fornecedores */}
@@ -194,16 +225,41 @@ export default function SuppliersManagementBento() {
           <p className="text-[11px] font-bold uppercase tracking-wider">Carregando Fornecedores Cadastrados...</p>
         </div>
       ) : filteredSuppliers.length === 0 ? (
-        <div className="p-12 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl space-y-3">
-          <div className="w-12 h-12 rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center mx-auto text-slate-400">
-            <Building2 className="w-6 h-6" />
+        <div className="p-12 text-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl space-y-4 shadow-xs">
+          <div className="w-14 h-14 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/50 flex items-center justify-center mx-auto text-indigo-600 dark:text-indigo-400">
+            <Building2 className="w-7 h-7" />
           </div>
-          <h3 className="text-sm font-bold text-slate-800 dark:text-slate-200 uppercase">
-            Nenhum Prestador Encontrado
-          </h3>
-          <p className="text-xs text-slate-500 font-sans max-w-sm mx-auto leading-relaxed">
-            Clique no botão acima para cadastrar a primeira empresa prestadora de serviços e recarga.
-          </p>
+          <div className="space-y-1">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 uppercase">
+              Nenhum Prestador Encontrado
+            </h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-sans max-w-sm mx-auto leading-relaxed">
+              Você pode cadastrar um novo fornecedor manualmente ou restaurar a base oficial de empresas credenciadas (INMETRO).
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={handleRestoreDefaults}
+              disabled={isRestoring}
+              className="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-bold rounded-xl transition-all border border-slate-200 dark:border-slate-700 text-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRestoring ? 'animate-spin' : ''}`} />
+              <span>{isRestoring ? 'Restaurando...' : 'Restaurar Prestadores Padrão (Seed Oficial)'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setEditingSupplier(null);
+                setIsModalOpen(true);
+              }}
+              className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all shadow-md text-xs flex items-center gap-1.5 cursor-pointer border-none"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Cadastrar Novo Fornecedor</span>
+            </button>
+          </div>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
