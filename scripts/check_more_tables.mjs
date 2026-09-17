@@ -23,7 +23,10 @@ async function checkAdditionalTables() {
     'modules',
     'permissions',
     'usuarios_permissoes',
-    'locais_planta'
+    'locais_planta',
+    'localizacoes_operacionais',
+    '_bkp_legado_locais',
+    '_bkp_legado_sub_locais'
   ];
 
   console.log('--- TESTANDO TABELAS ADICIONAIS ---');
