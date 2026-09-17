@@ -33,18 +33,25 @@ export async function POST(req: Request) {
       });
 
       if (!rpcErr && rpcData) {
-        if (rpcData.sucesso === false) {
+        if (rpcData.sucesso === true) {
+          return NextResponse.json({
+            success: true,
+            quantidade_excluida: rpcData.quantidade_excluida,
+            ids_excluidos: rpcData.ids_excluidos,
+            via_rpc: true
+          });
+        }
+        
+        // Bloqueio explícito de segurança/integridade com equipamentos alocados
+        if (rpcData.erro && String(rpcData.erro).includes('OPERAÇÃO_BLOQUEADA')) {
           return NextResponse.json(
             { success: false, error: rpcData.erro, detalhes: rpcData },
             { status: 400 }
           );
         }
-        return NextResponse.json({
-          success: true,
-          quantidade_excluida: rpcData.quantidade_excluida,
-          ids_excluidos: rpcData.ids_excluidos,
-          via_rpc: true
-        });
+
+        // Se for erro de SQL interno na RPC do Supabase (ex: coluna inexistente), loga e aciona o fallback server-side
+        console.warn('[bulk-delete] RPC retornou erro de execução SQL, executando fallback server-side:', rpcData.erro);
       }
     } catch (rpcCatch) {
       console.warn('[bulk-delete] RPC falhou ou não instalada, executando fallback com validação server-side:', rpcCatch);
@@ -59,10 +66,12 @@ export async function POST(req: Request) {
 
     if (locErr) throw locErr;
     if (!locs || locs.length === 0) {
-      return NextResponse.json(
-        { success: false, error: 'Nenhum registro encontrado para exclusão.' },
-        { status: 404 }
-      );
+      return NextResponse.json({
+        success: true,
+        quantidade_excluida: 0,
+        ids_excluidos: [],
+        aviso: 'Nenhum registro pendente para exclusão.'
+      });
     }
 
     // B. Revalidação contra concorrência: assegura que NENHUM local a excluir possui ativos operacionais

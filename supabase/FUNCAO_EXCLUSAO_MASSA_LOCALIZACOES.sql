@@ -40,7 +40,7 @@ BEGIN
         FROM public.localizacoes_operacionais loc
         JOIN public.assets ast ON (
             (ast.location ILIKE loc.setor_planta AND ast.sub_location ILIKE loc.sub_local)
-            AND (loc.contrato_id IS NULL OR ast.site IS NULL OR ast.site ILIKE loc.contrato_id)
+            AND (loc.contrato_id IS NULL OR (ast.details->>'site') IS NULL OR (ast.details->>'site') ILIKE loc.contrato_id)
             AND (ast.status IS NULL OR ast.status NOT ILIKE '%CONDENADO%')
         )
         WHERE loc.id = ANY(p_ids)
