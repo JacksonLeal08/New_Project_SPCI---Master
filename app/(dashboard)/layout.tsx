@@ -412,7 +412,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }
 
   return (
-    <div className="flex bg-slate-50 dark:bg-slate-950 min-h-screen text-slate-800 dark:text-slate-200 relative overflow-hidden font-mono">
+    <div className="flex bg-slate-50 dark:bg-slate-950 h-screen h-[100dvh] text-slate-800 dark:text-slate-200 relative overflow-hidden font-mono">
 
       {/* Overlay Backdrop do Mobile Menu */}
       <AnimatePresence>
@@ -437,15 +437,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       />
 
       {/* Corpo principal do Dashboard */}
-      <div className="flex-grow flex flex-col min-w-0 h-screen overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
 
         {/* Barra superior de buscas e perfil Desktop */}
-        <Header
-          onScanClick={() => setScanModal(true)}
-          onProfileClick={() => setShowProfileModal(true)}
-          onMenuClick={() => setIsMobileSidebarOpen(true)}
-          onGestaoAtivosClick={() => setIsGestaoAtivosOpen(true)}
-        />
+        <div className="shrink-0 w-full z-30">
+          <Header
+            onScanClick={() => setScanModal(true)}
+            onProfileClick={() => setShowProfileModal(true)}
+            onMenuClick={() => setIsMobileSidebarOpen(true)}
+            onGestaoAtivosClick={() => setIsGestaoAtivosOpen(true)}
+          />
+        </div>
 
         {/* Mobile App Shell (Header Compacto + Bottom Navigation Bar na Thumb Zone) */}
         <MobileAppShell
@@ -456,7 +458,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         />
 
         {/* Área onde as subpáginas renderizam */}
-        <main className="flex-grow flex flex-col min-h-screen overflow-y-auto p-3 sm:p-4 md:p-6 pb-24 md:pb-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 transition-colors duration-300 relative">
+        <main className="flex-1 min-h-0 flex flex-col overflow-y-auto p-3 sm:p-4 md:p-6 pb-24 md:pb-6 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-200 transition-colors duration-300 relative">
           <div className="max-w-[1800px] 2xl:max-w-[2100px] mx-auto w-full flex-1 flex flex-col justify-between">
             <div className="pb-6">
               {children}

@@ -206,4 +206,18 @@ export class MediaQueue {
     const finalQueue = queue.filter(t => !succeededIds.has(t.id));
     await idb.set('config', this.STORAGE_KEY, finalQueue);
   }
+
+  /**
+   * Limpa integralmente a fila de mídias offline pendentes.
+   */
+  static async clearQueue(): Promise<void> {
+    try {
+      await idb.set('config', this.STORAGE_KEY, []);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('spci_sync_updated'));
+      }
+    } catch (e) {
+      console.error('[MediaQueue] Erro ao limpar fila de mídia:', e);
+    }
+  }
 }

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
@@ -11,6 +11,7 @@ import ConformidadeStudyModal from '@/app/components/ConformidadeStudyModal';
 import { ChecklistEditModal } from '@/app/components/ChecklistEditModal';
 import { DeveloperBulkPurgeModal } from '@/app/components/DeveloperBulkPurgeModal';
 import * as XLSX from 'xlsx';
+import { calculateDaysRemaining } from '@/app/components/GestaoAtivosModal';
 import { 
   Plus, 
   Trash2, 
@@ -153,11 +154,46 @@ export default function ExtintoresPage() {
   const countCondenados = extintores.filter(x => normalizeStatusOperacional(x) === 'CONDENADO_DESCARTE').length;
   const somaDistribuicao = countNaArea + countEstoqueAplicacao + countEstoqueManutencao + countEmManutencaoExterna + countCondenados;
 
-  // --- KPI CALCULATIONS ---
+  // --- HELPER CANÔNICO DE CONFORMIDADE (Harmonizado 100% com o Dashboard Geral) ---
+  const getExtintorComplianceStatus = (ext: any) => {
+    const currentYear = new Date().getFullYear();
+    const days = calculateDaysRemaining(ext.validadeRecarga || ext.data_vencimento_teste || ext.lastRecarga);
+    const isExpiredRecarga = days !== null && days <= 0;
+    
+    const anoTeste = parseInt(ext.ano_ultimo_teste_hidro || ext.ultimoTesteHidro || currentYear, 10);
+    const isExpiredHidro = (currentYear - anoTeste) >= 5;
+
+    const isMaintenance = ext.status_estoque === 'EM MANUTENÇÃO' || ext.status === 'Em Manutenção';
+    const isObstructed = ext.acessibilidade === 'Obstruído' || ext.status === 'Obstruído';
+    
+    const isCo2 = (ext.model || '').toUpperCase().includes('CO2') || (ext.model || '').toUpperCase().includes('CO²');
+    const isManometroIrregular = !isCo2 && (ext.pressao_manometro === 'Fora da Faixa' || ext.status === 'Pressão Irregular');
+
+    const isVencido = isExpiredRecarga || isExpiredHidro || ext.status === 'Vencido' || ext.status === 'VENCIDO';
+    const isAVencer = !isVencido && ((days !== null && days > 0 && days <= 30) || isMaintenance || ext.status === 'A VENCER');
+    const isConforme = !isVencido && !isAVencer && !isObstructed && !isManometroIrregular;
+
+    return { isVencido, isAVencer, isConforme, days };
+  };
+
+  // --- KPI CALCULATIONS (Harmonizados canonicamente com o Dashboard) ---
   const totalExtintores = extintores.length;
-  const conformes = extintores.filter(x => x.status === 'Conforme' || x.status === 'NO PRAZO').length;
-  const vencidos = extintores.filter(x => x.status === 'Vencido' || x.status === 'VENCIDO').length;
-  const manutencao = extintores.filter(x => x.status === 'Em Manutenção' || x.status === 'A VENCER').length;
+  const statusCounts = useMemo(() => {
+    let conf = 0;
+    let venc = 0;
+    let manut = 0;
+    for (const ext of extintores) {
+      const { isVencido, isAVencer, isConforme } = getExtintorComplianceStatus(ext);
+      if (isVencido) venc++;
+      else if (isAVencer) manut++;
+      else if (isConforme) conf++;
+    }
+    return { conf, venc, manut };
+  }, [extintores]);
+
+  const conformes = statusCounts.conf;
+  const vencidos = statusCounts.venc;
+  const manutencao = statusCounts.manut;
   const compliancePercent = totalExtintores > 0 ? Math.round((conformes / totalExtintores) * 100) : 100;
 
   const maxBarValue = Math.max(conformes, vencidos, manutencao, 1);
@@ -215,11 +251,12 @@ export default function ExtintoresPage() {
 
     if (!matchesSearch) return false;
 
-    // 2. Status card filter
+    // 2. Status card filter (Harmonizado com regras canônicas de datas)
     if (statusFilter !== 'ALL') {
-      if (statusFilter === 'CONFORME') return a.status === 'Conforme' || a.status === 'NO PRAZO';
-      if (statusFilter === 'VENCIDO') return a.status === 'Vencido' || a.status === 'VENCIDO';
-      if (statusFilter === 'MANUTENCAO') return a.status === 'Em Manutenção' || a.status === 'A VENCER';
+      const { isVencido, isAVencer, isConforme } = getExtintorComplianceStatus(a);
+      if (statusFilter === 'CONFORME') return isConforme;
+      if (statusFilter === 'VENCIDO') return isVencido;
+      if (statusFilter === 'MANUTENCAO') return isAVencer;
     }
 
     // 3. Inspeções no período card filter

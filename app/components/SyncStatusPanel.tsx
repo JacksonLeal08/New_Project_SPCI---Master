@@ -148,9 +148,7 @@ export default function SyncStatusPanel() {
       onConfirm: async () => {
         await SyncQueue.clearQueue();
         await SyncQueue.clearInspectionQueue();
-        const db = await import('@/lib/indexedDb').then(m => m.getIndexedDB());
-        const transaction = db.transaction('config', 'readwrite');
-        transaction.objectStore('config').delete('spci_media_queue');
+        await MediaQueue.clearQueue();
         await loadQueues();
       }
     });
