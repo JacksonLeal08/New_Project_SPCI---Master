@@ -289,20 +289,38 @@ export async function uploadAssetPhotoAction(
     const ext = mime.includes('png') ? 'png' : 'jpg';
     const fileName = `ext_${cleanCode}_${Date.now()}.${ext}`;
 
-    const { data: uploadData, error: uploadErr } = await supabase.storage
-      .from('fotos_extintores')
+    // Tenta primeiro no bucket fotos-extintores (padrão homologado) e fallback para fotos_extintores
+    let targetBucket = 'fotos-extintores';
+    let { data: uploadData, error: uploadErr } = await supabase.storage
+      .from(targetBucket)
       .upload(fileName, buffer, {
         contentType: mime,
         upsert: true
       });
+
+    if (uploadErr && (uploadErr.message?.includes('Bucket not found') || (uploadErr as any).statusCode === '404' || (uploadErr as any).status === 400)) {
+      targetBucket = 'fotos_extintores';
+      const retryRes = await supabase.storage
+        .from(targetBucket)
+        .upload(fileName, buffer, {
+          contentType: mime,
+          upsert: true
+        });
+      uploadData = retryRes.data;
+      uploadErr = retryRes.error;
+    }
 
     if (uploadErr) {
       console.error('[uploadAssetPhotoAction] Erro no upload:', uploadErr);
       return { success: false, error: uploadErr.message };
     }
 
+    if (!uploadData?.path) {
+      return { success: false, error: 'Caminho de upload não retornado pelo storage.' };
+    }
+
     const { data: { publicUrl } } = supabase.storage
-      .from('fotos_extintores')
+      .from(targetBucket)
       .getPublicUrl(uploadData.path);
 
     return { success: true, publicUrl };
@@ -321,8 +339,8 @@ function normalizePhotoPublicUrl(photoUrl: string | null | undefined, supabaseCl
   if (p.startsWith('http://') || p.startsWith('https://') || p.startsWith('data:image/')) {
     return p;
   }
-  const { data } = supabaseClient.storage.from('fotos_extintores').getPublicUrl(p);
-  return data?.publicUrl || p;
+  const { data: dHyphen } = supabaseClient.storage.from('fotos-extintores').getPublicUrl(p);
+  return dHyphen?.publicUrl || p;
 }
 
 /**

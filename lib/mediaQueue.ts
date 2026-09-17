@@ -47,8 +47,8 @@ export class MediaQueue {
     assetId: string, 
     category: string, 
     fileName: string, 
-    file: File, 
-    bucketName = 'fotos_extintores'
+    file: File | Blob, 
+    bucketName = 'fotos-extintores'
   ): Promise<void> {
     try {
       const base64Data = await this.fileToBase64(file);
@@ -99,19 +99,33 @@ export class MediaQueue {
       try {
         const blob = this.base64ToBlob(task.fileData);
         
-        // 1. Upload para o Supabase Storage
-        const { data: uploadData, error: uploadErr } = await supabase.storage
-          .from(task.bucketName)
+        // 1. Upload para o Supabase Storage com fallback defensivo de bucket
+        let targetBucket = task.bucketName || 'fotos-extintores';
+        let { data: uploadData, error: uploadErr } = await supabase.storage
+          .from(targetBucket)
           .upload(task.fileName, blob, {
             contentType: 'image/jpeg',
             upsert: true
           });
 
+        if (uploadErr && (uploadErr.message?.includes('Bucket not found') || (uploadErr as any).statusCode === '404' || (uploadErr as any).status === 400)) {
+          targetBucket = targetBucket === 'fotos-extintores' ? 'fotos_extintores' : 'fotos-extintores';
+          const retryRes = await supabase.storage
+            .from(targetBucket)
+            .upload(task.fileName, blob, {
+              contentType: 'image/jpeg',
+              upsert: true
+            });
+          uploadData = retryRes.data;
+          uploadErr = retryRes.error;
+        }
+
         if (uploadErr) throw uploadErr;
+        if (!uploadData?.path) throw new Error('Caminho de upload ausente no retorno do Storage.');
 
         // 2. Obter URL pública do arquivo
         const { data: { publicUrl } } = supabase.storage
-          .from(task.bucketName)
+          .from(targetBucket)
           .getPublicUrl(uploadData.path);
 
         // 3. Atualiza o registro correspondente
@@ -128,7 +142,18 @@ export class MediaQueue {
           } else {
             query = query.eq('numero_patrimonio', task.assetId.trim().toUpperCase());
           }
-          await query;
+          const { data: extSaved } = await query.select('id, numero_patrimonio').maybeSingle();
+
+          // Sincroniza também na tabela unificada assets
+          try {
+            const patTarget = extSaved?.numero_patrimonio || task.assetId;
+            await supabase
+              .from('assets')
+              .update({ foto_url: publicUrl, updated_at: new Date().toISOString() })
+              .or(`id.eq.${task.assetId},id.eq.${patTarget},id_ativo.eq.${patTarget},patrimonio.eq.${patTarget}`);
+          } catch (aErr) {
+            console.warn('[MediaQueue] Aviso ao sincronizar foto em assets:', aErr);
+          }
         } else {
           // Merge seguro em details para não sobrescrever dados técnicos existentes
           let existingDetails: Record<string, any> = {};
@@ -153,6 +178,7 @@ export class MediaQueue {
                 ...existingDetails,
                 foto_url: publicUrl
               },
+              foto_url: publicUrl,
               updated_at: new Date().toISOString()
             })
             .eq('id', task.assetId);
@@ -161,6 +187,13 @@ export class MediaQueue {
         console.log(`[MediaQueue] Sucesso no upload offline da imagem do ativo ${task.assetId}. URL: ${publicUrl}`);
         succeededIds.add(task.id);
         
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('spci_asset_updated'));
+          window.dispatchEvent(new CustomEvent('spci_sync_success', {
+            detail: { type: 'asset', id: task.assetId, category: task.category, silent: false }
+          }));
+        }
+
         if (onSuccess) {
           onSuccess(task, publicUrl);
         }

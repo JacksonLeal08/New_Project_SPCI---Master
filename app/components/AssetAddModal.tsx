@@ -392,16 +392,26 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       if (isOnline) {
         setUploadingImage(true);
         try {
-          const { data: uploadData, error: uploadErr } = await supabase.storage
-            .from('fotos_extintores')
+          let targetBucket = 'fotos-extintores';
+          let { data: uploadData, error: uploadErr } = await supabase.storage
+            .from(targetBucket)
             .upload(fileName, selectedFile);
+
+          if (uploadErr && (uploadErr.message?.includes('Bucket not found') || (uploadErr as any).statusCode === '404')) {
+            targetBucket = 'fotos_extintores';
+            const retryRes = await supabase.storage
+              .from(targetBucket)
+              .upload(fileName, selectedFile);
+            uploadData = retryRes.data;
+            uploadErr = retryRes.error;
+          }
 
           if (uploadErr) throw uploadErr;
 
           // Recuperar a URL pública
           const { data: { publicUrl } } = supabase.storage
-            .from('fotos_extintores')
-            .getPublicUrl(uploadData.path);
+            .from(targetBucket)
+            .getPublicUrl(uploadData?.path || fileName);
 
           uploadedFotoUrl = publicUrl;
         } catch (err: any) {
