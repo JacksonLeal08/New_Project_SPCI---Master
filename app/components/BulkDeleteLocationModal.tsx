@@ -16,7 +16,10 @@ import {
   Flame,
   Layers,
   MapPin,
-  RefreshCw
+  RefreshCw,
+  Maximize2,
+  Minimize2,
+  Minus
 } from 'lucide-react';
 import { 
   LocalizacoesService, 
@@ -54,6 +57,10 @@ export default function BulkDeleteLocationModal({
   const [idsParaExcluir, setIdsParaExcluir] = useState<string[]>([]);
   const [expandedLocId, setExpandedLocId] = useState<string | null>(null);
 
+  // Estados de Controle de Janela (Maximizar / Minimizar)
+  const [isMaximized, setIsMaximized] = useState<boolean>(false);
+  const [isMinimized, setIsMinimized] = useState<boolean>(false);
+
   // Estados de Progresso
   const [progressCurrent, setProgressCurrent] = useState<number>(0);
   const [progressTotal, setProgressTotal] = useState<number>(0);
@@ -68,6 +75,7 @@ export default function BulkDeleteLocationModal({
       setErrorMessage(null);
       setExpandedLocId(null);
       setProgressPercent(0);
+      setIsMinimized(false);
 
       LocalizacoesService.validarExclusaoEmMassa(selectedIds, contratoId, memoryAssets)
         .then((res) => {
@@ -147,13 +155,70 @@ export default function BulkDeleteLocationModal({
   const totalAptos = validationResult?.totalAptos || 0;
   const totalBloqueados = validationResult?.totalBloqueados || 0;
 
+  if (isMinimized) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 40, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 40, scale: 0.95 }}
+        className="fixed bottom-5 right-5 z-50 bg-slate-900/95 backdrop-blur-md border border-slate-700 shadow-2xl rounded-2xl p-3 flex items-center gap-3 select-none font-sans text-white"
+      >
+        <div className="p-2 bg-red-600/20 text-red-500 rounded-xl border border-red-500/30">
+          <Trash2 className="w-4 h-4" />
+        </div>
+        <div className="flex flex-col">
+          <div className="flex items-center gap-1.5">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-100">
+              Exclusão em Massa
+            </span>
+            <span className="text-[10px] px-1.5 py-0.2 bg-slate-800 text-slate-300 font-mono rounded border border-slate-700">
+              {selectedIds.length}
+            </span>
+          </div>
+          <span className="text-[10px] text-slate-400">
+            {stage === 'executando' 
+              ? `Progresso: ${progressPercent}%` 
+              : isValidating 
+                ? 'Auditando integridade...' 
+                : `${totalAptos} aptos • ${totalBloqueados} bloqueados`}
+          </span>
+        </div>
+
+        <div className="h-6 w-px bg-slate-800 mx-0.5" />
+
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setIsMinimized(false)}
+            className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-300 hover:text-white transition-colors cursor-pointer border-none bg-transparent"
+            title="Restaurar modal"
+          >
+            <Maximize2 className="w-4 h-4" />
+          </button>
+          {stage !== 'executando' && (
+            <button
+              onClick={onClose}
+              className="p-1.5 hover:bg-slate-800 rounded-lg text-slate-400 hover:text-red-400 transition-colors cursor-pointer border-none bg-transparent"
+              title="Fechar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </motion.div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md select-none font-sans">
+    <div className={`fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md select-none font-sans transition-all duration-300`}>
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 15 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 15 }}
-        className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
+        className={`w-full bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col transition-all duration-300 ${
+          isMaximized 
+            ? 'w-[98vw] h-[95vh] max-w-none max-h-none' 
+            : 'max-w-2xl max-h-[90vh]'
+        }`}
       >
         {/* CABEÇALHO */}
         <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between bg-slate-950/50">
@@ -174,14 +239,36 @@ export default function BulkDeleteLocationModal({
             </div>
           </div>
 
-          {stage !== 'executando' && (
+          <div className="flex items-center gap-1">
+            {/* Botão Minimizar */}
             <button
-              onClick={onClose}
+              onClick={() => setIsMinimized(true)}
               className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors border-none bg-transparent cursor-pointer"
+              title="Minimizar modal para o rodapé"
             >
-              <X className="w-4 h-4" />
+              <Minus className="w-4 h-4" />
             </button>
-          )}
+
+            {/* Botão Maximizar / Restaurar */}
+            <button
+              onClick={() => setIsMaximized(prev => !prev)}
+              className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors border-none bg-transparent cursor-pointer"
+              title={isMaximized ? "Restaurar tamanho padrão" : "Maximizar em tela cheia"}
+            >
+              {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+
+            {/* Botão Fechar */}
+            {stage !== 'executando' && (
+              <button
+                onClick={onClose}
+                className="p-1.5 text-slate-400 hover:text-red-400 rounded-lg hover:bg-slate-800 transition-colors border-none bg-transparent cursor-pointer"
+                title="Fechar modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* INDICADOR DE ETAPAS */}
@@ -273,7 +360,7 @@ export default function BulkDeleteLocationModal({
                       <p className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">
                         Locais com Impedimento ({totalBloqueados}):
                       </p>
-                      <div className="space-y-1.5 max-h-52 overflow-y-auto pr-1">
+                      <div className={`space-y-1.5 overflow-y-auto pr-1 ${isMaximized ? 'max-h-[42vh]' : 'max-h-52'}`}>
                         {validationResult?.bloqueados.map((item, idx) => {
                           const isExpanded = expandedLocId === item.localizacao.id;
                           return (
@@ -340,7 +427,7 @@ export default function BulkDeleteLocationModal({
                       <p className="text-[10px] font-bold uppercase text-emerald-400 tracking-wider">
                         Locais Livres para Exclusão ({totalAptos}):
                       </p>
-                      <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                      <div className={`flex flex-wrap gap-1.5 overflow-y-auto ${isMaximized ? 'max-h-[50vh]' : 'max-h-36'}`}>
                         {validationResult?.aptos.map((a, idx) => (
                           <span
                             key={idx}

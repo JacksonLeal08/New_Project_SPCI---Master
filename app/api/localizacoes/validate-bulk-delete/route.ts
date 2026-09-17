@@ -45,15 +45,23 @@ export async function POST(req: Request) {
 
     // 2. Busca ativos gerais na tabela assets que coincidam com esses setores / sub-locais
     const setorNomes = Array.from(new Set(locs.map(l => l.setor_planta).filter(Boolean)));
-    const { data: assetsDb } = await supabase
+    const { data: assetsDb, error: assetErr } = await supabase
       .from('assets')
-      .select('id, id_ativo, patrimonio, category, status, location, sub_location, site')
+      .select('id, id_ativo, patrimonio, category, status, location, sub_location, details')
       .in('location', setorNomes);
 
+    if (assetErr) {
+      console.warn('[validate-bulk-delete] Aviso ao consultar assets:', assetErr.message);
+    }
+
     // 3. Busca extintores na tabela ativos_extintores que coincidam por nome ou IDs
-    const { data: extDb } = await supabase
+    const { data: extDb, error: extErr } = await supabase
       .from('ativos_extintores')
       .select('id, numero_patrimonio, status_inspecao, status_operacional, setor_planta, sub_local, local_id, sub_local_id');
+
+    if (extErr) {
+      console.warn('[validate-bulk-delete] Aviso ao consultar ativos_extintores:', extErr.message);
+    }
 
     // 4. Triagem e Auditoria de Vínculos
     const aptos: any[] = [];
