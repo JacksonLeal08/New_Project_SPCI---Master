@@ -221,6 +221,20 @@ const generateUUID = () => {
   });
 };
 
+// Função utilitária de deduplicação atômica por patrimônio/identificador único
+export function deduplicateAssetsList(assets: any[]): any[] {
+  if (!Array.isArray(assets)) return [];
+  const map = new Map<string, any>();
+  for (const a of assets) {
+    if (!a) continue;
+    const key = String(a.numero_patrimonio || a.idAtivo || a.patrimonio || a.id || '').trim().toUpperCase();
+    if (key && !map.has(key)) {
+      map.set(key, a);
+    }
+  }
+  return Array.from(map.values());
+}
+
 const SpciContext = createContext<SpciContextType | undefined>(undefined);
 
 export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -386,10 +400,11 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return siteUpper === 'ONÇA PUMA' || siteUpper === 'ONCA PUMA';
   }, []);
 
-  // Quantitativo de ativos por contrato para os seletores
+  // Quantitativo de ativos por contrato para os seletores com deduplicação atômica
   const contractAssetCounts = useMemo(() => {
-    const counts = { total: extintores.length, salobo: 0, oncaPuma: 0 };
-    for (const e of extintores) {
+    const dedupExtintores = deduplicateAssetsList(extintores);
+    const counts = { total: dedupExtintores.length, salobo: 0, oncaPuma: 0 };
+    for (const e of dedupExtintores) {
       const s = String(e.site || e.details?.site || e.details?.contrato || e.details?.projeto || e.projeto || '').toUpperCase();
       if (s.includes('SALOBO')) {
         counts.salobo++;
@@ -640,7 +655,13 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           }
           
-          if (item.store === 'extintores') setExtintores(list);
+          if (item.store === 'extintores') {
+            const cleanExt = deduplicateAssetsList(list);
+            setExtintores(cleanExt);
+            if (cleanExt.length !== list.length) {
+              idb.setAll('extintores', cleanExt).catch(console.error);
+            }
+          }
           else if (item.store === 'hidrantes') setHidrantes(list);
           else if (item.store === 'sinalizacoes') setSinalizacoes(list);
           else if (item.store === 'iluminacao') setIluminacoes(list);
@@ -699,8 +720,9 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const extDb = await getAssetsList('extintores');
       if (extDb && extDb.length > 0) {
-        setExtintores(extDb);
-        await idb.setAll('extintores', extDb);
+        const cleanExtDb = deduplicateAssetsList(extDb);
+        setExtintores(cleanExtDb);
+        await idb.setAll('extintores', cleanExtDb);
       }
       const hidDb = await getAssetsList('hidrantes');
       if (hidDb && hidDb.length > 0) {

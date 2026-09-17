@@ -9,6 +9,7 @@ import DisintegrationOverlay from '@/app/components/DisintegrationOverlay';
 import ExtintorAddModal from '@/app/components/ExtintorAddModal';
 import ConformidadeStudyModal from '@/app/components/ConformidadeStudyModal';
 import { ChecklistEditModal } from '@/app/components/ChecklistEditModal';
+import { DeveloperBulkPurgeModal } from '@/app/components/DeveloperBulkPurgeModal';
 import * as XLSX from 'xlsx';
 import { 
   Plus, 
@@ -106,8 +107,18 @@ export default function ExtintoresPage() {
     showChecklistModal,
     setShowChecklistModal,
     extintorChecklist,
-    setExtintorChecklist
+    setExtintorChecklist,
+    activeSite
   } = useSpci();
+
+  // Permissão exclusiva de Desenvolvedor
+  const isDev = React.useMemo(() => {
+    const role = String(userProfile?.role || '').trim().toUpperCase();
+    return role === 'DESENVOLVEDOR' || role === 'DEVELOPER';
+  }, [userProfile?.role]);
+
+  // Modal de Expurgo em Massa (Hard Delete)
+  const [showPurgeModal, setShowPurgeModal] = useState<boolean>(false);
 
   // --- ESTADOS DO COCKPIT DE IMPORTAÇÃO ---
   const [showBulkImport, setShowBulkImport] = useState<boolean>(false);
@@ -258,10 +269,22 @@ export default function ExtintoresPage() {
     { id: 'history', label: 'Histórico Inspeções', icon: History, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeClass: 'bg-rose-100 text-rose-800' },
     { id: 'manutencao', label: 'Retorno Manutenção', icon: Wrench, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeText: 'Desenvolvimento', badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black' },
     { id: 'laudos', label: 'Certificados/Laudos', icon: FileText, borderClass: 'border-l-4 border-l-teal-500 hover:border-teal-500', iconColor: 'text-teal-600', badgeText: 'Desenvolvimento', badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black' },
+    ...(isDev ? [{
+      id: 'purge_dev',
+      label: 'Expurgo de Dados',
+      icon: Trash2,
+      borderClass: 'border-l-4 border-l-red-600 hover:border-red-600 bg-red-950/25 text-red-600',
+      iconColor: 'text-red-500',
+      badgeText: 'DEV ONLY',
+      badgeClass: 'bg-red-900 text-red-100 border border-red-500 font-black'
+    }] : [])
   ];
 
   const handleToolbarClick = (id: string) => {
     switch (id) {
+      case 'purge_dev':
+        setShowPurgeModal(true);
+        break;
       case 'qr':
         setScanModal(true);
         break;
@@ -2254,6 +2277,15 @@ export default function ExtintoresPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Modal de Expurgo em Massa Definitivo (Restrito ao perfil DESENVOLVEDOR) */}
+      <DeveloperBulkPurgeModal
+        isOpen={showPurgeModal}
+        onClose={() => setShowPurgeModal(false)}
+        category="extintores"
+        activeContrato={activeSite || 'ONÇA PUMA'}
+        availableAssets={extintores}
+      />
 
       {/* O modal de Checklist NBR agora é gerenciado e montado globalmente pelo DashboardLayout */}
     </motion.div>
