@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import { fetchInspecoesByAssetId } from '@/lib/supabaseDb';
@@ -72,6 +73,11 @@ export default function AssetDetailDrawer() {
   const [gpsSuccess, setGpsSuccess] = useState<string | null>(null);
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const [compressionStats, setCompressionStats] = useState<CompressionResult | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   // Refs para inputs de câmera nativa e galeria/arquivos
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -336,27 +342,29 @@ export default function AssetDetailDrawer() {
     } catch { return dateStr; }
   };
 
-  return (
+  if (!mounted) return null;
+
+  return createPortal(
     <AnimatePresence>
       {isOpen && (
         <>
-          {/* Backdrop */}
+          {/* Backdrop (z-[90]) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[60]"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[90]"
             onClick={handleClose}
           />
 
-          {/* Drawer */}
+          {/* Drawer (z-[100]) */}
           <motion.div
             initial={{ x: '100%' }}
             animate={{ x: 0 }}
             exit={{ x: '100%' }}
             transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="fixed right-0 top-0 bottom-0 w-full max-w-[540px] bg-white shadow-2xl z-[61] flex flex-col overflow-hidden border-l border-slate-200"
+            className="fixed right-0 top-0 bottom-0 w-full max-w-[540px] bg-white shadow-2xl z-[100] flex flex-col overflow-hidden border-l border-slate-200"
           >
             {/* Header */}
             <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-5 relative overflow-hidden shrink-0">
@@ -922,7 +930,8 @@ export default function AssetDetailDrawer() {
           </motion.div>
         </>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body
   );
 }
 

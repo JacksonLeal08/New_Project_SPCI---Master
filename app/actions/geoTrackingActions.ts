@@ -146,18 +146,25 @@ export async function processAssetLocationUpdateAction(
         foto_evidencia_url: fotoEvidenciaUrl || existingDetails.foto_evidencia_url || null
       };
 
-      const { error: assetUpdateErr } = await supabase
-        .from('assets')
-        .upsert({
-          id: resolvedId,
-          id_ativo: resolvedPatrimonio,
-          patrimonio: resolvedPatrimonio,
-          category: category || (resolvedPatrimonio.includes('EXT') ? 'extintores' : 'outros'),
-          latitude: latitude,
-          longitude: longitude,
-          details: updatedDetails,
-          updated_at: nowIso
-        }, { onConflict: 'id' });
+      const assetPayload = {
+        id: resolvedId,
+        id_ativo: resolvedPatrimonio,
+        patrimonio: resolvedPatrimonio,
+        category: category || (resolvedPatrimonio.includes('EXT') ? 'extintores' : 'outros'),
+        latitude: latitude,
+        longitude: longitude,
+        details: updatedDetails,
+        updated_at: nowIso
+      };
+
+      let assetUpdateErr = null;
+      if (assetData?.id) {
+        const res = await supabase.from('assets').update(assetPayload).eq('id', resolvedId);
+        assetUpdateErr = res.error;
+      } else {
+        const res = await supabase.from('assets').insert([assetPayload]);
+        assetUpdateErr = res.error;
+      }
 
       if (assetUpdateErr) {
         console.error('[processAssetLocationUpdateAction] Erro ao sincronizar em assets:', assetUpdateErr.message);

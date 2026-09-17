@@ -104,7 +104,7 @@ interface SpciContextType {
   // Modals & UI States
   premiumAlert: PremiumAlertInfo | null;
   setPremiumAlert: React.Dispatch<React.SetStateAction<PremiumAlertInfo | null>>;
-  triggerSuccessNotification: (title: string, message: string) => void;
+  triggerSuccessNotification: (title: string, message: string, type?: 'success' | 'warning' | 'info' | 'critical') => void;
   
   showAddForm: boolean;
   setShowAddForm: (show: boolean) => void;
@@ -508,12 +508,16 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
-  const triggerSuccessNotification = useCallback((title: string, message: string) => {
+  const triggerSuccessNotification = useCallback((
+    title: string, 
+    message: string, 
+    type: 'success' | 'warning' | 'info' | 'critical' = 'success'
+  ) => {
     setPremiumAlert({
       show: true,
       title,
       message,
-      type: 'success'
+      type
     });
   }, []);
 
@@ -1446,9 +1450,19 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         `Ativo do tipo ${normalizedCat} com patrimônio ${updatedAsset.idAtivo || updatedAsset.id} foi atualizado.`
       ).catch(console.error);
     } catch (err: any) {
-      const errorMsg = err.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
-      console.error(`Erro ao atualizar ativo (${category}):`, err, errorMsg);
-      triggerSuccessNotification('Falha na Atualização ❌', errorMsg || 'Erro de conexão.');
+      const rawMsg = err?.message || (typeof err === 'object' ? JSON.stringify(err) : String(err));
+      console.error(`Erro ao atualizar ativo (${category}):`, err, rawMsg);
+      
+      let friendlyMsg = rawMsg;
+      if (rawMsg.includes('ON CONFLICT') || rawMsg.includes('constraint')) {
+        friendlyMsg = 'Não foi possível salvar no banco de dados devido a uma divergência de chave única (ON CONFLICT). A alteração foi protegida em contingência local.';
+      } else if (rawMsg.includes('permission denied') || rawMsg.includes('row-level security') || rawMsg.includes('RLS')) {
+        friendlyMsg = 'Acesso negado: seu perfil não possui permissão para editar este ativo no banco de dados.';
+      } else if (rawMsg.includes('NetworkError') || rawMsg.includes('Failed to fetch')) {
+        friendlyMsg = 'Falha de conexão com a rede. Verifique seu sinal de internet.';
+      }
+
+      triggerSuccessNotification('Falha na Atualização ❌', friendlyMsg, 'critical');
       throw err;
     }
   }, [triggerSuccessNotification, logSystemAction, userProfile]);
@@ -1535,7 +1549,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ).catch(console.error);
     } catch (err: any) {
       console.error(`Erro ao deletar ativo (${category}):`, err);
-      triggerSuccessNotification('Falha na Exclusão ❌', err.message || 'Erro de permissão.');
+      triggerSuccessNotification('Falha na Exclusão ❌', err.message || 'Erro de permissão.', 'critical');
       throw err;
     }
   }, [triggerSuccessNotification, logSystemAction, extintores, hidrantes, sinalizacoes, iluminacoes, bombas]);

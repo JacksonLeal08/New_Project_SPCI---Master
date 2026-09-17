@@ -1,4 +1,5 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 
 interface PremiumHUDAlertProps {
@@ -24,6 +25,12 @@ export default function PremiumHUDAlert({
   dismissLabel = 'FECHAR',
   autoDismissMs
 }: PremiumHUDAlertProps) {
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   // Auto-dismiss para alertas de sucesso e info (4s por padrão)
   useEffect(() => {
     if (!isOpen) return;
@@ -35,7 +42,7 @@ export default function PremiumHUDAlert({
     return () => clearTimeout(timeout);
   }, [isOpen, type, onClose, autoDismissMs]);
 
-  if (!isOpen) return null;
+  if (!mounted || !isOpen) return null;
 
   const colorMap = {
     critical: {
@@ -74,8 +81,8 @@ export default function PremiumHUDAlert({
 
   const style = colorMap[type] || colorMap.info;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 font-mono">
+  const content = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 font-mono select-none">
       <div 
         className={`w-full max-w-md border border-slate-800 bg-slate-900 shadow-2xl rounded-none relative overflow-hidden flex flex-col ${style.accentGlow}`}
         style={{ borderTop: `4px solid var(--border-color)` }}
@@ -130,4 +137,6 @@ export default function PremiumHUDAlert({
       </div>
     </div>
   );
+
+  return createPortal(content, document.body);
 }

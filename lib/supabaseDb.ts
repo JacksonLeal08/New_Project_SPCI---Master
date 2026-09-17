@@ -957,18 +957,27 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         if (locData) {
           localId = locData.id;
         } else {
-          // Insere ou obtém o local se não existir (upsert seguro contra concorrência paralela)
+          // Insere local se não existir de forma segura contra concorrência paralela
           const { data: newLoc, error: locErr } = await supabase
             .from('locais')
-            .upsert({ nome: asset.location.toUpperCase(), site: assignedSite }, { onConflict: 'nome' })
+            .insert([{ nome: asset.location.toUpperCase(), site: assignedSite }])
             .select('id')
-            .single();
+            .maybeSingle();
           if (locErr) {
-            const detailMsg = locErr.message || JSON.stringify(locErr);
-            console.error(`[saveAssetToDb] Erro ao cadastrar local "${asset.location}": ${detailMsg}`, locErr);
-            throw new Error(`Erro ao cadastrar local "${asset.location}": ${detailMsg}`);
-          }
-          if (newLoc) {
+            // Em caso de concorrência ou conflito, busca novamente o registro criado
+            const { data: retryLoc } = await supabase
+              .from('locais')
+              .select('id')
+              .eq('nome', asset.location.toUpperCase())
+              .maybeSingle();
+            if (retryLoc) {
+              localId = retryLoc.id;
+            } else {
+              const detailMsg = locErr.message || JSON.stringify(locErr);
+              console.error(`[saveAssetToDb] Erro ao cadastrar local "${asset.location}": ${detailMsg}`, locErr);
+              throw new Error(`Erro ao cadastrar local "${asset.location}": ${detailMsg}`);
+            }
+          } else if (newLoc) {
             localId = newLoc.id;
           }
         }
@@ -985,18 +994,26 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         if (modData) {
           modeloId = modData.id;
         } else {
-          // Insere ou obtém o modelo se não existir (upsert seguro contra concorrência paralela)
+          // Insere modelo se não existir
           const { data: newMod, error: modErr } = await supabase
             .from('modelos_extintores')
-            .upsert({ nome: asset.model.toUpperCase() }, { onConflict: 'nome' })
+            .insert([{ nome: asset.model.toUpperCase() }])
             .select('id')
-            .single();
+            .maybeSingle();
           if (modErr) {
-            const detailMsg = modErr.message || JSON.stringify(modErr);
-            console.error(`[saveAssetToDb] Erro ao cadastrar modelo "${asset.model}": ${detailMsg}`, modErr);
-            throw new Error(`Erro ao cadastrar modelo "${asset.model}": ${detailMsg}`);
-          }
-          if (newMod) {
+            const { data: retryMod } = await supabase
+              .from('modelos_extintores')
+              .select('id')
+              .eq('nome', asset.model.toUpperCase())
+              .maybeSingle();
+            if (retryMod) {
+              modeloId = retryMod.id;
+            } else {
+              const detailMsg = modErr.message || JSON.stringify(modErr);
+              console.error(`[saveAssetToDb] Erro ao cadastrar modelo "${asset.model}": ${detailMsg}`, modErr);
+              throw new Error(`Erro ao cadastrar modelo "${asset.model}": ${detailMsg}`);
+            }
+          } else if (newMod) {
             modeloId = newMod.id;
           }
         }
@@ -1014,18 +1031,27 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         if (subData) {
           subLocalId = subData.id;
         } else {
-          // Insere ou obtém o sub_local se não existir (upsert seguro contra concorrência paralela)
+          // Insere sub_local se não existir
           const { data: newSub, error: subErr } = await supabase
             .from('sub_locais')
-            .upsert({ local_id: localId, nome: asset.subLocation.toUpperCase() }, { onConflict: 'local_id,nome' })
+            .insert([{ local_id: localId, nome: asset.subLocation.toUpperCase() }])
             .select('id')
-            .single();
+            .maybeSingle();
           if (subErr) {
-            const detailMsg = subErr.message || JSON.stringify(subErr);
-            console.error(`[saveAssetToDb] Erro ao cadastrar sub-local "${asset.subLocation}": ${detailMsg}`, subErr);
-            throw new Error(`Erro ao cadastrar sub-local "${asset.subLocation}": ${detailMsg}`);
-          }
-          if (newSub) {
+            const { data: retrySub } = await supabase
+              .from('sub_locais')
+              .select('id')
+              .eq('local_id', localId)
+              .eq('nome', asset.subLocation.toUpperCase())
+              .maybeSingle();
+            if (retrySub) {
+              subLocalId = retrySub.id;
+            } else {
+              const detailMsg = subErr.message || JSON.stringify(subErr);
+              console.error(`[saveAssetToDb] Erro ao cadastrar sub-local "${asset.subLocation}": ${detailMsg}`, subErr);
+              throw new Error(`Erro ao cadastrar sub-local "${asset.subLocation}": ${detailMsg}`);
+            }
+          } else if (newSub) {
             subLocalId = newSub.id;
           }
         }
@@ -1097,27 +1123,72 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
         payload.id = id;
       }
 
+      // 1. Identificar se o extintor já existe no banco (por ID ou número de patrimônio)
+      let existingRecordId: string | null = null;
+      if (isUuid) {
+        const { data: byId } = await supabase
+          .from('ativos_extintores')
+          .select('id')
+          .eq('id', id)
+          .maybeSingle();
+        if (byId?.id) existingRecordId = byId.id;
+      }
+      if (!existingRecordId && payload.numero_patrimonio) {
+        const { data: byPat } = await supabase
+          .from('ativos_extintores')
+          .select('id')
+          .eq('numero_patrimonio', payload.numero_patrimonio)
+          .maybeSingle();
+        if (byPat?.id) existingRecordId = byPat.id;
+      }
+
       let extSaved = null;
       let extErr = null;
-      const res = await supabase
-        .from('ativos_extintores')
-        .upsert(payload, { onConflict: 'numero_patrimonio' })
-        .select('id, numero_patrimonio')
-        .maybeSingle();
 
-      if (res.error && res.error.message?.includes("'site'")) {
-        // Fallback defensivo se coluna site ainda não foi aplicada no schema cache
-        const { site: _omittedSite, ...safePayload } = payload;
-        const retryRes = await supabase
+      if (existingRecordId) {
+        // OPERAÇÃO UPDATE RESTRITA (Garante persistência sem depender de ON CONFLICT)
+        const res = await supabase
           .from('ativos_extintores')
-          .upsert(safePayload, { onConflict: 'numero_patrimonio' })
+          .update(payload)
+          .eq('id', existingRecordId)
           .select('id, numero_patrimonio')
           .maybeSingle();
-        extSaved = retryRes.data;
-        extErr = retryRes.error;
+
+        if (res.error && res.error.message?.includes("'site'")) {
+          const { site: _omittedSite, ...safePayload } = payload;
+          const retryRes = await supabase
+            .from('ativos_extintores')
+            .update(safePayload)
+            .eq('id', existingRecordId)
+            .select('id, numero_patrimonio')
+            .maybeSingle();
+          extSaved = retryRes.data;
+          extErr = retryRes.error;
+        } else {
+          extSaved = res.data;
+          extErr = res.error;
+        }
       } else {
-        extSaved = res.data;
-        extErr = res.error;
+        // OPERAÇÃO INSERT EXPLÍCITA
+        const res = await supabase
+          .from('ativos_extintores')
+          .insert([payload])
+          .select('id, numero_patrimonio')
+          .maybeSingle();
+
+        if (res.error && res.error.message?.includes("'site'")) {
+          const { site: _omittedSite, ...safePayload } = payload;
+          const retryRes = await supabase
+            .from('ativos_extintores')
+            .insert([safePayload])
+            .select('id, numero_patrimonio')
+            .maybeSingle();
+          extSaved = retryRes.data;
+          extErr = retryRes.error;
+        } else {
+          extSaved = res.data;
+          extErr = res.error;
+        }
       }
 
       if (extErr) throw extErr;
@@ -1147,7 +1218,23 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
             site: assignedSite
           }
         });
-        const { error: aErr } = await supabase.from('assets').upsert(serialized, { onConflict: 'id' });
+
+        // UPDATE ou INSERT seguro na tabela unificada assets (evita ON CONFLICT)
+        const { data: assetInDb } = await supabase
+          .from('assets')
+          .select('id')
+          .eq('id', assetTargetId)
+          .maybeSingle();
+
+        let aErr = null;
+        if (assetInDb?.id) {
+          const res = await supabase.from('assets').update(serialized).eq('id', assetTargetId);
+          aErr = res.error;
+        } else {
+          const res = await supabase.from('assets').insert([serialized]);
+          aErr = res.error;
+        }
+
         if (aErr) {
           console.warn('[saveAssetToDb] Erro ao sincronizar em assets:', aErr.message);
         }
@@ -1170,9 +1257,21 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
       }
     });
     
-    const { error } = await supabase
+    // UPDATE ou INSERT seguro para categorias gerais (hidrantes, iluminação, bombas, sinalização)
+    const { data: existingGenericAsset } = await supabase
       .from('assets')
-      .upsert(serialized);
+      .select('id')
+      .eq('id', id)
+      .maybeSingle();
+
+    let error = null;
+    if (existingGenericAsset?.id) {
+      const res = await supabase.from('assets').update(serialized).eq('id', id);
+      error = res.error;
+    } else {
+      const res = await supabase.from('assets').insert([serialized]);
+      error = res.error;
+    }
 
     if (error) throw error;
     if (typeof window !== 'undefined') {
