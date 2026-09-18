@@ -246,6 +246,29 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       return { success: false, error: error.message };
     }
 
+    // Auto-provisionamento transparente de Setor e Sub-local na tabela de governança
+    if (payload.location && payload.sub_location) {
+      try {
+        const cleanSetor = payload.location.trim().toUpperCase();
+        const cleanSub = payload.sub_location.trim().toUpperCase();
+        if (cleanSetor && cleanSub && !cleanSetor.includes('ALMOX') && !cleanSetor.includes('ESTOQUE')) {
+          await supabaseAdmin.from('localizacoes_operacionais').upsert([{
+            contrato_id: assignedSite,
+            projeto_site: assignedSite,
+            setor_planta: cleanSetor,
+            sub_local: cleanSub,
+            is_ativo: true,
+            updated_at: new Date().toISOString()
+          }], {
+            onConflict: 'contrato_id,setor_planta,sub_local',
+            ignoreDuplicates: false
+          });
+        }
+      } catch (locErr) {
+        console.warn('[saveSingleAssetStockAction] Aviso ao sincronizar localizações:', locErr);
+      }
+    }
+
     return { success: true, assetId };
   } catch (err: any) {
     return { success: false, error: err.message || 'Erro ao salvar ativo.' };
@@ -369,6 +392,40 @@ export async function bulkImportAssetsAction(
     if (errAssets) {
       console.warn('[bulkImportAssetsAction] Erro no upsert de ativos:', errAssets.message);
       return { success: false, error: errAssets.message };
+    }
+
+    // Auto-provisionamento transparente de Setores e Sub-locais na tabela de governança
+    try {
+      const uniqueLocMap = new Map<string, any>();
+      rows.forEach(r => {
+        const setor = (r.location || '').trim().toUpperCase();
+        const subLocal = (r.sub_location || '').trim().toUpperCase();
+        const site = ((r as any).site || 'ONÇA PUMA').trim().toUpperCase();
+
+        if (setor && subLocal && !setor.includes('ALMOX') && !setor.includes('ESTOQUE')) {
+          const key = `${site}|${setor}|${subLocal}`;
+          if (!uniqueLocMap.has(key)) {
+            uniqueLocMap.set(key, {
+              contrato_id: site,
+              projeto_site: site,
+              setor_planta: setor,
+              sub_local: subLocal,
+              is_ativo: true,
+              updated_at: new Date().toISOString()
+            });
+          }
+        }
+      });
+
+      const locsToUpsert = Array.from(uniqueLocMap.values());
+      if (locsToUpsert.length > 0) {
+        await supabaseAdmin.from('localizacoes_operacionais').upsert(locsToUpsert, {
+          onConflict: 'contrato_id,setor_planta,sub_local',
+          ignoreDuplicates: false
+        });
+      }
+    } catch (locErr) {
+      console.warn('[bulkImportAssetsAction] Aviso ao auto-provisionar locais:', locErr);
     }
 
     try {

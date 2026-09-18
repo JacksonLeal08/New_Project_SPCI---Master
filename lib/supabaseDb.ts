@@ -1245,6 +1245,31 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('spci_sync_success', { detail: { type: 'asset', id, category: 'extintores', silent } }));
       }
+
+      // Auto-provisionamento transparente de Setor e Sub-local na tabela de governança
+      try {
+        const setor = String(asset.location || asset.setor || '').trim().toUpperCase();
+        const subLocal = String(asset.subLocation || asset.sub_location || asset.subLocal || '').trim().toUpperCase();
+        const site = String(assignedSite || 'ONÇA PUMA').trim().toUpperCase();
+        if (setor && subLocal && !setor.includes('ALMOX') && !setor.includes('ESTOQUE')) {
+          (async () => {
+            try {
+              const { error: upErr } = await supabase.from('localizacoes_operacionais').upsert([{
+                contrato_id: site,
+                projeto_site: site,
+                setor_planta: setor,
+                sub_local: subLocal,
+                is_ativo: true,
+                updated_at: new Date().toISOString()
+              }], { onConflict: 'contrato_id,setor_planta,sub_local', ignoreDuplicates: false });
+              if (!upErr && typeof window !== 'undefined') {
+                window.dispatchEvent(new CustomEvent('spci_locations_updated'));
+              }
+            } catch {}
+          })();
+        }
+      } catch (lErr) {}
+
       return;
     }
 
@@ -1274,6 +1299,31 @@ export async function saveAssetToDb(collectionName: string, id: string, asset: a
     }
 
     if (error) throw error;
+
+    // Auto-provisionamento transparente para categorias gerais
+    try {
+      const setor = String(asset.location || asset.setor || '').trim().toUpperCase();
+      const subLocal = String(asset.subLocation || asset.sub_location || asset.subLocal || '').trim().toUpperCase();
+      const site = String(assignedSite || 'ONÇA PUMA').trim().toUpperCase();
+      if (setor && subLocal && !setor.includes('ALMOX') && !setor.includes('ESTOQUE')) {
+        (async () => {
+          try {
+            const { error: upErr } = await supabase.from('localizacoes_operacionais').upsert([{
+              contrato_id: site,
+              projeto_site: site,
+              setor_planta: setor,
+              sub_local: subLocal,
+              is_ativo: true,
+              updated_at: new Date().toISOString()
+            }], { onConflict: 'contrato_id,setor_planta,sub_local', ignoreDuplicates: false });
+            if (!upErr && typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('spci_locations_updated'));
+            }
+          } catch {}
+        })();
+      }
+    } catch (lErr) {}
+
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('spci_sync_success', { detail: { type: 'asset', id, category, silent } }));
     }

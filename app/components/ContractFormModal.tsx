@@ -1,9 +1,23 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import ExecutiveWindowModal from './ExecutiveWindowModal';
 import { ContratoSite, createContractAction, updateContractAction } from '@/app/actions/contractActions';
-import { Building2, MapPin, PhoneCall, Image as ImageIcon, Save, AlertCircle } from 'lucide-react';
+import { 
+  Building2, 
+  MapPin, 
+  PhoneCall, 
+  Image as ImageIcon, 
+  Save, 
+  AlertCircle,
+  UploadCloud,
+  FolderOpen,
+  Link as LinkIcon,
+  Trash2,
+  CheckCircle2,
+  RefreshCw
+} from 'lucide-react';
+import { compressImage } from '@/lib/imageCompressor';
 
 interface ContractFormModalProps {
   isOpen: boolean;
@@ -36,6 +50,14 @@ export default function ContractFormModal({
   const [logoUrl, setLogoUrl] = useState('');
   const [status, setStatus] = useState<'ATIVO' | 'EM IMPLANTAÇÃO' | 'ENCERRADO'>('ATIVO');
 
+  // Estado para upload do logotipo do dispositivo
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [logoMode, setLogoMode] = useState<'device' | 'url'>('device');
+  const [compressingLogo, setCompressingLogo] = useState(false);
+  const [logoFileName, setLogoFileName] = useState<string>('');
+  const [logoFileSizeKb, setLogoFileSizeKb] = useState<number | null>(null);
+  const [isDragOver, setIsDragOver] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
@@ -55,6 +77,8 @@ export default function ContractFormModal({
       setWhatsappGestor(contractToEdit.whatsapp_gestor || '');
       setLogoUrl(contractToEdit.logo_url || '');
       setStatus(contractToEdit.status || 'ATIVO');
+      setLogoFileName('');
+      setLogoFileSizeKb(null);
       setIsDirty(false);
     } else {
       setNome('');
@@ -70,6 +94,8 @@ export default function ContractFormModal({
       setWhatsappGestor('');
       setLogoUrl('');
       setStatus('ATIVO');
+      setLogoFileName('');
+      setLogoFileSizeKb(null);
       setIsDirty(false);
     }
     setErrorMsg(null);
@@ -82,6 +108,86 @@ export default function ContractFormModal({
     if (!isEditing) {
       const generated = val.toUpperCase().replace(/\s+/g, '_').replace(/[^A-Z0-9_]/g, '');
       setCodigoSlug(generated);
+    }
+  };
+
+  // Processamento do arquivo de imagem do dispositivo
+  const processImageFile = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      setErrorMsg('Por favor, selecione um arquivo de imagem válido (.png, .jpg, .webp ou .svg).');
+      return;
+    }
+
+    setCompressingLogo(true);
+    setErrorMsg(null);
+    setLogoFileName(file.name);
+
+    try {
+      // Se for SVG, lê como data URL diretamente para preservar os vetores sem rasterização
+      if (file.type === 'image/svg+xml') {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          setLogoUrl(result);
+          setLogoFileSizeKb(Math.round(file.size / 1024));
+          setIsDirty(true);
+          setCompressingLogo(false);
+        };
+        reader.onerror = () => {
+          setErrorMsg('Falha ao processar arquivo vetorial SVG.');
+          setCompressingLogo(false);
+        };
+        reader.readAsDataURL(file);
+        return;
+      }
+
+      // Compacta imagens PNG/JPEG/WebP mantendo nitidez e proporção adequada para logos
+      const result = await compressImage(file, {
+        maxWidth: 500,
+        maxHeight: 500,
+        quality: 0.85
+      });
+
+      setLogoUrl(result.base64);
+      setLogoFileSizeKb(Math.round(result.compressedSizeKb));
+      setIsDirty(true);
+    } catch (err: any) {
+      // Fallback em FileReader direto
+      const reader = new FileReader();
+      reader.onload = () => {
+        setLogoUrl(reader.result as string);
+        setLogoFileSizeKb(Math.round(file.size / 1024));
+        setIsDirty(true);
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      setCompressingLogo(false);
+    }
+  };
+
+  const handleLogoFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      processImageFile(file);
+    }
+  };
+
+  const handleDropImage = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) {
+      processImageFile(file);
+    }
+  };
+
+  const handleRemoveLogo = () => {
+    setLogoUrl('');
+    setLogoFileName('');
+    setLogoFileSizeKb(null);
+    setIsDirty(true);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -179,7 +285,7 @@ export default function ContractFormModal({
       isOpen={isOpen}
       onClose={onClose}
       title={isEditing ? `Editar Contrato: ${contractToEdit?.nome}` : 'Novo Contrato / Site Operacional'}
-      subtitle={isEditing ? 'Atualize contatos, branding e coordenadas da unidade' : 'Cadastre um novo Site raiz para isolamento multi-tenant'}
+      subtitle={isEditing ? 'Atualize contatos, branding do cliente e coordenadas da unidade' : 'Cadastre um novo Site raiz para isolamento multi-tenant'}
       icon={<Building2 size={18} />}
       maxWidth="4xl"
       isDirty={isDirty}
@@ -413,35 +519,150 @@ export default function ContractFormModal({
           </div>
         </div>
 
-        {/* 4. BRANDING & IDENTIDADE VISUAL */}
+        {/* 4. BRANDING & IDENTIDADE VISUAL (UPLOAD DO DISPOSITIVO OU URL) */}
         <div className={cardSectionStyle}>
-          <div className="flex items-center gap-2 pb-2 border-b border-slate-200/80 dark:border-zinc-800">
-            <span className="text-red-600 dark:text-rose-500 font-bold">🎨</span>
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-950 dark:text-zinc-100">
-              Branding do Cliente & Logotipo
-            </h4>
+          {/* Input de arquivo oculto para busca no dispositivo */}
+          <input
+            type="file"
+            ref={fileInputRef}
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            onChange={handleLogoFileInputChange}
+            className="hidden"
+          />
+
+          <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-zinc-800">
+            <div className="flex items-center gap-2">
+              <span className="text-red-600 dark:text-rose-500 font-bold">🎨</span>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-950 dark:text-zinc-100">
+                Logotipo da Empresa & Identidade Visual
+              </h4>
+            </div>
+
+            {/* Alternador entre Upload de Dispositivo e Inserção de URL */}
+            <div className="flex items-center gap-1 text-[10px] font-bold">
+              <button
+                type="button"
+                onClick={() => setLogoMode('device')}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  logoMode === 'device'
+                    ? 'bg-red-500/10 text-red-600 dark:text-rose-400 font-black border border-red-500/30'
+                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                }`}
+              >
+                <FolderOpen size={12} />
+                <span>Do Dispositivo</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setLogoMode('url')}
+                className={`px-2.5 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                  logoMode === 'url'
+                    ? 'bg-red-500/10 text-red-600 dark:text-rose-400 font-black border border-red-500/30'
+                    : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200'
+                }`}
+              >
+                <LinkIcon size={12} />
+                <span>Link / URL</span>
+              </button>
+            </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row items-center gap-4">
-            <div className="w-16 h-16 rounded-2xl border flex items-center justify-center p-2 bg-white shrink-0 overflow-hidden shadow-sm">
-              {logoUrl ? (
-                <img src={logoUrl} alt="Logo" className="w-full h-full object-contain" />
-              ) : (
-                <span className="text-2xl text-slate-400">🏭</span>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 pt-1">
+            {/* Box de Preview da Imagem */}
+            <div className="flex flex-col items-center gap-2 shrink-0">
+              <div
+                onClick={() => fileInputRef.current?.click()}
+                title="Clique para escolher nova imagem"
+                className={`w-24 h-24 rounded-2xl border-2 border-dashed flex items-center justify-center p-2.5 cursor-pointer relative overflow-hidden transition-all group ${
+                  logoUrl
+                    ? 'border-emerald-500/50 bg-white shadow-xs'
+                    : isDragOver
+                    ? 'border-red-600 bg-red-500/10 scale-105'
+                    : 'border-slate-300 dark:border-zinc-700 bg-slate-100/50 dark:bg-zinc-900/50 hover:border-red-500'
+                }`}
+              >
+                {compressingLogo ? (
+                  <div className="flex flex-col items-center gap-1 text-center">
+                    <RefreshCw size={20} className="animate-spin text-red-600" />
+                    <span className="text-[8px] font-black text-slate-500 uppercase">Otimizando</span>
+                  </div>
+                ) : logoUrl ? (
+                  <>
+                    <img src={logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                    <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center text-white text-[9px] font-bold uppercase text-center p-1">
+                      Alterar Logo
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center gap-1 text-center text-slate-400 dark:text-zinc-500 group-hover:text-red-600 transition-colors">
+                    <UploadCloud size={24} />
+                    <span className="text-[8px] font-black uppercase">Sem Imagem</span>
+                  </div>
+                )}
+              </div>
+
+              {logoUrl && (
+                <button
+                  type="button"
+                  onClick={handleRemoveLogo}
+                  className="text-[10px] text-red-600 hover:text-red-700 font-bold uppercase flex items-center gap-1 cursor-pointer transition-colors"
+                >
+                  <Trash2 size={11} />
+                  <span>Remover</span>
+                </button>
               )}
             </div>
 
-            <div className="flex-1 w-full space-y-1">
-              <label className={labelStyle}>URL do Logotipo do Cliente (PNG Transparente)</label>
-              <input
-                type="url"
-                value={logoUrl}
-                onChange={(e) => { setLogoUrl(e.target.value); setIsDirty(true); }}
-                placeholder="https://exemplo.com/logo-empresa.png"
-                className={inputStyle}
-              />
-              <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-sans">
-                O logo será exibido nos cabeçalhos de relatórios executivos de vistoria e etiquetas QR Code.
+            {/* Interface de Ação de Upload ou Inserção de URL */}
+            <div className="flex-1 w-full space-y-2">
+              {logoMode === 'device' ? (
+                <div
+                  onDragOver={(e) => { e.preventDefault(); setIsDragOver(true); }}
+                  onDragLeave={() => setIsDragOver(false)}
+                  onDrop={handleDropImage}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`p-4 rounded-xl border-2 border-dashed flex flex-col items-center justify-center text-center cursor-pointer transition-all ${
+                    isDragOver
+                      ? 'border-red-600 bg-red-500/10'
+                      : theme === 'dark'
+                      ? 'border-zinc-800 bg-zinc-950/60 hover:border-zinc-700 hover:bg-zinc-950'
+                      : 'border-slate-300 bg-white hover:border-red-500 hover:bg-red-50/20'
+                  }`}
+                >
+                  <FolderOpen size={24} className="text-red-600 dark:text-rose-500 mb-1.5" />
+                  <p className="text-xs font-black uppercase text-slate-950 dark:text-zinc-100">
+                    Buscar arquivo no seu computador / celular
+                  </p>
+                  <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-sans mt-0.5">
+                    Arraste a imagem aqui ou clique para navegar (PNG transparente recomendado, JPG ou SVG)
+                  </p>
+
+                  {logoFileName && (
+                    <div className="mt-2.5 px-3 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold flex items-center gap-1.5 font-mono">
+                      <CheckCircle2 size={12} />
+                      <span>{logoFileName}</span>
+                      {logoFileSizeKb && <span>({logoFileSizeKb} KB)</span>}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className={labelStyle}>URL do Logotipo (PNG com Fundo Transparente)</label>
+                  <input
+                    type="url"
+                    value={logoUrl}
+                    onChange={(e) => { setLogoUrl(e.target.value); setIsDirty(true); }}
+                    placeholder="https://sua-empresa.com/logo-transparente.png"
+                    className={inputStyle}
+                  />
+                  <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-sans">
+                    Cole o link direto da imagem hospedada na web ou em bucket de armazenamento.
+                  </p>
+                </div>
+              )}
+
+              <p className="text-[10px] text-slate-500 dark:text-zinc-400 font-sans leading-relaxed">
+                ℹ️ Esta marca corporativa é inserida automaticamente nos cabeçalhos de relatórios de vistoria em PDF e nas etiquetas QR Code dos ativos vinculados a este contrato.
               </p>
             </div>
           </div>
