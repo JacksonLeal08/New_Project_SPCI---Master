@@ -85,13 +85,13 @@ export const Header = ({ onScanClick, onProfileClick, onMenuClick, onGestaoAtivo
               aria-label="Selecionar Contrato Ativo"
             >
               <option value="TODOS OS SITES (Acesso Global)" className="text-slate-800 bg-white font-medium">
-                🌐 TODOS OS SITES (Global - {contractAssetCounts?.total || 651} Ativos)
+                🌐 TODOS OS SITES (Global - {contractAssetCounts?.total ?? 0} Ativos)
               </option>
               <option value="SALOBO" className="text-slate-800 bg-white font-medium">
-                🏢 SALOBO ({contractAssetCounts?.salobo || 0} Ativos)
+                🏢 SALOBO ({contractAssetCounts?.salobo ?? 0} Ativos)
               </option>
               <option value="ONÇA PUMA" className="text-slate-800 bg-white font-medium">
-                🏭 ONÇA PUMA ({contractAssetCounts?.oncaPuma || 600} Ativos)
+                🏭 ONÇA PUMA ({contractAssetCounts?.oncaPuma ?? 0} Ativos)
               </option>
             </select>
           </div>

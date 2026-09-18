@@ -829,6 +829,12 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
         setComplianceLogs(mappedLogs);
         await idb.setAll('logs', mappedLogs);
+      } else if (recentInspections && recentInspections.length === 0) {
+        setComplianceLogs([]);
+        await idb.clear('logs').catch(console.error);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('spci_logs');
+        }
       }
       
       // Sincronizar logs de auditoria

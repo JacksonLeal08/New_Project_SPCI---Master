@@ -34,7 +34,7 @@ export const DeveloperBulkPurgeModal: React.FC<DeveloperBulkPurgeModalProps> = (
   activeContrato = 'ONÇA PUMA',
   availableAssets = []
 }) => {
-  const { userProfile, currentUser, syncWithRealDatabase, setExtintores } = useSpci();
+  const { userProfile, currentUser, syncWithRealDatabase, setExtintores, setComplianceLogs } = useSpci();
 
   // Estados do Modal
   const [step, setStep] = useState<Step>('ALERT');
@@ -196,6 +196,15 @@ export const DeveloperBulkPurgeModal: React.FC<DeveloperBulkPurgeModalProps> = (
           const cached = await idb.getAll('extintores');
           const cleanCached = (cached || []).filter((x: any) => !purgedIdSet.has(String(x.id)) && !purgedIdSet.has(String(x.numero_patrimonio)));
           await idb.setAll('extintores', cleanCached);
+
+          // Purgar logs de conformidade de extintores órfãos
+          setComplianceLogs((prev: any[]) => (prev || []).filter(l => !purgedIdSet.has(String(l.assetId))));
+          const cachedLogs = await idb.getAll('logs');
+          const cleanLogs = (cachedLogs || []).filter((l: any) => !purgedIdSet.has(String(l.assetId)));
+          await idb.setAll('logs', cleanLogs);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('spci_logs', JSON.stringify(cleanLogs));
+          }
         }
       } catch (cleanErr) {
         console.warn('Aviso na limpeza do cache IndexedDB pós-purge:', cleanErr);
@@ -211,8 +220,12 @@ export const DeveloperBulkPurgeModal: React.FC<DeveloperBulkPurgeModalProps> = (
 
   const handleReloadCockpit = async () => {
     try {
-      // Limpa cache local de extintores para forçar sincronização do banco mestre
+      // Limpa cache local de extintores e logs para forçar sincronização do banco mestre
       await idb.clear('extintores').catch(console.error);
+      await idb.clear('logs').catch(console.error);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('spci_logs');
+      }
       if (syncWithRealDatabase) {
         await syncWithRealDatabase();
       }

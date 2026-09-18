@@ -27,29 +27,30 @@ export default function ConformidadeStudyModal({
   const now = new Date();
 
   // Filter inspections of the current month that are related to extintores
-  const extintoresIds = new Set((extintores || []).map(e => e.idAtivo));
-  const currentMonthExtintoresLogs = (complianceLogs || []).filter(log => {
+  const extintoresIds = new Set((extintores || []).flatMap(e => [e.idAtivo, e.id, (e as any).numero_patrimonio, (e as any).patrimonio].filter(Boolean)));
+  const totalAssets = extintores?.length || total || 0;
+
+  const currentMonthExtintoresLogs = totalAssets === 0 ? [] : (complianceLogs || []).filter(log => {
     if (!log.date) return false;
     const logDate = new Date(log.date + 'T00:00:00');
     const isCurrentMonth = logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
-    const isExtintor = extintoresIds.has(log.assetId) || log.assetId?.startsWith('EXT-');
+    const isExtintor = extintoresIds.has(log.assetId);
     return isCurrentMonth && isExtintor;
   });
 
-  const totalInspecoes = currentMonthExtintoresLogs.length;
+  const totalInspecoes = totalAssets === 0 ? 0 : currentMonthExtintoresLogs.length;
 
   // FEITAS: Unique extintores inspected this month
   const uniqueInspectedExtintores = new Set(currentMonthExtintoresLogs.map(log => log.assetId));
-  const feitasCount = uniqueInspectedExtintores.size;
-  const totalAssets = extintores?.length || total || 0;
+  const feitasCount = totalAssets === 0 ? 0 : uniqueInspectedExtintores.size;
   const feitasPercent = totalAssets > 0 ? Math.round((feitasCount / totalAssets) * 100) : 0;
 
   // NÃO FEITAS: Extintores pending inspection this month
-  const naoFeitasCount = Math.max(0, totalAssets - feitasCount);
-  const naoFeitasPercent = totalAssets > 0 ? Math.round((naoFeitasCount / totalAssets) * 100) : 100;
+  const naoFeitasCount = totalAssets === 0 ? 0 : Math.max(0, totalAssets - feitasCount);
+  const naoFeitasPercent = totalAssets > 0 ? Math.round((naoFeitasCount / totalAssets) * 100) : 0;
 
   // OCORRÊNCIAS: Inspections with non-conforming status
-  const ocorrenciasCount = currentMonthExtintoresLogs.filter(log => {
+  const ocorrenciasCount = totalAssets === 0 ? 0 : currentMonthExtintoresLogs.filter(log => {
     const statusUpper = (log.status || '').toUpperCase();
     return statusUpper.includes('NÃO') || statusUpper.includes('INCONFORME') || statusUpper.includes('FALHA') || statusUpper.includes('VENCIDO') || statusUpper === 'ERROR';
   }).length;

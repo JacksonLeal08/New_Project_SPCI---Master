@@ -200,25 +200,25 @@ export default function ExtintoresPage() {
 
   // --- MONTHLY INSPECTION KPIs ---
   const now = new Date();
-  const extintoresIds = new Set((extintores || []).map(e => e.idAtivo));
-  const currentMonthExtintoresLogs = (complianceLogs || []).filter(log => {
+  const extintoresIds = new Set((extintores || []).flatMap(e => [e.idAtivo, e.id, e.numero_patrimonio, e.patrimonio].filter(Boolean)));
+  const currentMonthExtintoresLogs = totalExtintores === 0 ? [] : (complianceLogs || []).filter(log => {
     if (!log.date) return false;
     const logDate = new Date(log.date + 'T00:00:00');
     const isCurrentMonth = logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
-    const isExtintor = extintoresIds.has(log.assetId) || log.assetId?.startsWith('EXT-');
+    const isExtintor = extintoresIds.has(log.assetId);
     return isCurrentMonth && isExtintor;
   });
 
-  const totalInspecoes = currentMonthExtintoresLogs.length;
+  const totalInspecoes = totalExtintores === 0 ? 0 : currentMonthExtintoresLogs.length;
 
   // FEITAS: Unique extintores inspected this month
   const uniqueInspectedExtintores = new Set(currentMonthExtintoresLogs.map(log => log.assetId));
-  const feitasCount = uniqueInspectedExtintores.size;
+  const feitasCount = totalExtintores === 0 ? 0 : uniqueInspectedExtintores.size;
   const feitasPercent = totalExtintores > 0 ? Math.round((feitasCount / totalExtintores) * 100) : 0;
 
   // NÃO FEITAS: Extintores pending inspection this month
-  const naoFeitasCount = Math.max(0, totalExtintores - feitasCount);
-  const naoFeitasPercent = totalExtintores > 0 ? Math.round((naoFeitasCount / totalExtintores) * 100) : 100;
+  const naoFeitasCount = totalExtintores === 0 ? 0 : Math.max(0, totalExtintores - feitasCount);
+  const naoFeitasPercent = totalExtintores > 0 ? Math.round((naoFeitasCount / totalExtintores) * 100) : 0;
 
   // OCORRÊNCIAS: Inspections with non-conforming status
   const extintoresComOcorrencia = new Set(
@@ -229,7 +229,7 @@ export default function ExtintoresPage() {
       })
       .map(log => log.assetId)
   );
-  const ocorrenciasCount = extintoresComOcorrencia.size;
+  const ocorrenciasCount = totalExtintores === 0 ? 0 : extintoresComOcorrencia.size;
   const ocorrenciasPercent = totalInspecoes > 0 ? Math.round((currentMonthExtintoresLogs.filter(log => {
     const statusUpper = (log.status || '').toUpperCase();
     return statusUpper.includes('NÃO') || statusUpper.includes('INCONFORME') || statusUpper.includes('FALHA') || statusUpper.includes('VENCIDO') || statusUpper === 'ERROR';
