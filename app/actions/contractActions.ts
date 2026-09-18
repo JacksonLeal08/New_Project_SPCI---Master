@@ -356,24 +356,60 @@ export async function updateContractAction(
   try {
     const supabase = getSupabaseAdminClient();
 
-    if (!id) {
-      return { success: false, error: 'ID do contrato não fornecido.' };
+    const cleanNome = String(payload.nome || '').trim().toUpperCase();
+
+    // 1. Busca contrato atual por ID (usando limit(1) para evitar quebra com duplicatas)
+    let current: any = null;
+    if (id) {
+      const { data: listById } = await supabase
+        .from('contratos')
+        .select('*')
+        .eq('id', id)
+        .limit(1);
+      if (listById && listById.length > 0) {
+        current = listById[0];
+      }
     }
 
-    // Busca dados atuais do contrato
-    const { data: current, error: fetchErr } = await supabase
-      .from('contratos')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (fetchErr || !current) {
-      return { success: false, error: 'Contrato não localizado para atualização.' };
+    // 2. Se não localizou pelo ID, tenta localizar pelo Nome Operacional
+    if (!current && cleanNome) {
+      const { data: listByName } = await supabase
+        .from('contratos')
+        .select('*')
+        .ilike('nome', cleanNome)
+        .limit(1);
+      if (listByName && listByName.length > 0) {
+        current = listByName[0];
+      }
     }
 
+    // 3. Fallback inteligente: se ainda não constar no banco, cadastra como novo contrato
+    // aproveitando todos os dados preenchidos no formulário (conforme solicitado pelo operador)
+    if (!current) {
+      const fallbackSlug = cleanNome.replace(/[^A-Z0-9_]/g, '_') || 'NOVO_CONTRATO';
+      const createRes = await createContractAction({
+        nome: cleanNome,
+        codigo_slug: fallbackSlug,
+        razao_social: payload.razao_social || `EMPRESA CONTRATANTE - ${cleanNome}`,
+        cnpj: payload.cnpj || 'NÃO INFORMADO',
+        cidade_uf: payload.cidade_uf || 'Pará - PA',
+        endereco: payload.endereco,
+        latitude: payload.latitude,
+        longitude: payload.longitude,
+        telefone_emergencia: payload.telefone_emergencia,
+        email_gestor: payload.email_gestor,
+        whatsapp_gestor: payload.whatsapp_gestor,
+        logo_url: payload.logo_url,
+        status: payload.status || 'ATIVO'
+      });
+      return { success: createRes.success, error: createRes.error };
+    }
+
+    const targetId = current.id;
     const currentMeta = parseDescricaoMetadata(current.descricao);
     const updatedMeta = {
       ...currentMeta,
+      nome: cleanNome || current.nome,
       razao_social: payload.razao_social ?? currentMeta.razao_social,
       cnpj: payload.cnpj ?? currentMeta.cnpj,
       cidade_uf: payload.cidade_uf ?? currentMeta.cidade_uf,
@@ -390,23 +426,26 @@ export async function updateContractAction(
     const isAtivo = payload.status === 'ENCERRADO' ? false : (payload.ativo !== undefined ? payload.ativo : current.ativo);
 
     const updatePayload: any = {
+      ...updatedMeta,
+      nome: cleanNome || current.nome,
       descricao: JSON.stringify(updatedMeta),
-      ativo: isAtivo,
-      ...updatedMeta
+      ativo: isAtivo
     };
 
-    // Tenta atualizar com colunas
+    // Tenta atualizar com colunas dedicadas
     let { error } = await supabase
       .from('contratos')
       .update(updatePayload)
-      .eq('id', id);
+      .eq('id', targetId);
 
+    // Se colunas extras não existirem no schema físico, persiste via JSON no campo descricao
     if (error && (error.code === 'PGRST204' || error.message?.includes('column'))) {
       const fallbackPayload = {
+        nome: cleanNome || current.nome,
         descricao: JSON.stringify(updatedMeta),
         ativo: isAtivo
       };
-      const retry = await supabase.from('contratos').update(fallbackPayload).eq('id', id);
+      const retry = await supabase.from('contratos').update(fallbackPayload).eq('id', targetId);
       error = retry.error;
     }
 

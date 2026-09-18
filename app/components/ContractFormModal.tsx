@@ -19,10 +19,18 @@ import {
 } from 'lucide-react';
 import { compressImage } from '@/lib/imageCompressor';
 
+export interface ContractSaveSuccessDetails {
+  contractNome: string;
+  isEdit: boolean;
+  hasLogo: boolean;
+  logoUrl?: string;
+  contrato?: ContratoSite;
+}
+
 interface ContractFormModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (savedContract?: ContratoSite) => void;
+  onSuccess: (details?: ContractSaveSuccessDetails) => void;
   contractToEdit?: ContratoSite | null;
   theme?: 'dark' | 'light';
 }
@@ -233,7 +241,12 @@ export default function ContractFormModal({
           return;
         }
         setIsDirty(false);
-        onSuccess();
+        onSuccess({
+          contractNome: cleanNome,
+          isEdit: true,
+          hasLogo: Boolean(logoUrl.trim()),
+          logoUrl: logoUrl.trim()
+        });
         onClose();
       } else {
         const res = await createContractAction({
@@ -257,7 +270,13 @@ export default function ContractFormModal({
           return;
         }
         setIsDirty(false);
-        onSuccess(res.contrato);
+        onSuccess({
+          contractNome: cleanNome,
+          isEdit: false,
+          hasLogo: Boolean(logoUrl.trim()),
+          logoUrl: logoUrl.trim(),
+          contrato: res.contrato
+        });
         onClose();
       }
     } catch (err: any) {

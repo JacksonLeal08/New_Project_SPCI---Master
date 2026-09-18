@@ -124,7 +124,7 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.92, y: 15 }}
           transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-          className="bg-white/95 border border-slate-200/90 backdrop-blur-xl rounded-3xl w-full max-w-md shadow-2xl shadow-slate-950/30 p-6 relative overflow-hidden space-y-5 text-slate-900"
+          className="bg-white/95 dark:bg-zinc-900/95 border border-slate-200/90 dark:border-zinc-800 backdrop-blur-xl rounded-3xl w-full max-w-md shadow-2xl shadow-slate-950/30 p-6 relative overflow-hidden space-y-5 text-slate-900 dark:text-zinc-100"
         >
           {/* Accent Line Superior */}
           <div className={`absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r ${getAccentLine()} rounded-t-3xl`} />
@@ -132,7 +132,7 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
           {/* Botão Fechar no Canto */}
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-all cursor-pointer border-none"
+            className="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-full transition-all cursor-pointer border-none"
             aria-label="Fechar aviso"
           >
             <X className="w-4 h-4" />
@@ -147,19 +147,19 @@ export const CustomAlertDialog: React.FC<CustomAlertDialogProps> = ({
               <span className={`text-[9px] font-extrabold uppercase font-mono px-2.5 py-0.5 rounded-md border inline-block ${getBadgeStyle()}`}>
                 {getBadgeText()}
               </span>
-              <h3 className="font-['Hanken_Grotesk'] font-black text-lg text-slate-900 leading-tight">
+              <h3 className="font-['Hanken_Grotesk'] font-black text-lg text-slate-900 dark:text-zinc-100 leading-tight">
                 {title}
               </h3>
             </div>
           </div>
 
-          {/* Mensagem */}
-          <p className="text-xs text-slate-600 font-medium leading-relaxed bg-slate-50/80 p-3.5 rounded-2xl border border-slate-200/60 font-sans">
+          {/* Mensagem com quebra de linha preservada */}
+          <div className="text-xs text-slate-600 dark:text-zinc-300 font-medium leading-relaxed bg-slate-50/90 dark:bg-zinc-950/80 p-3.5 rounded-2xl border border-slate-200/70 dark:border-zinc-800 font-sans whitespace-pre-line">
             {message}
-          </p>
+          </div>
 
           {/* Ações */}
-          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+          <div className="flex flex-col-reverse sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-zinc-800">
             {showCancelButton || onConfirm ? (
               <>
                 <button

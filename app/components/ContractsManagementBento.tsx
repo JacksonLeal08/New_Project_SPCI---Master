@@ -594,11 +594,40 @@ export default function ContractsManagementBento({ theme = 'light' }: ContractsM
       <ContractFormModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        onSuccess={() => {
+        onSuccess={(details) => {
           loadData();
+          setIsModalOpen(false);
+
+          const userName = userProfile?.name || userProfile?.userName || 'Operador SPCI';
+          const isEdit = details?.isEdit ?? Boolean(contractToEdit);
+          const contractName = details?.contractNome || contractToEdit?.nome || 'Contrato';
+          const hasLogo = details?.hasLogo;
+
+          const actionTitle = isEdit 
+            ? 'Alterações Salvas com Sucesso! 🟢' 
+            : 'Contrato Cadastrado com Sucesso! 🟢';
+
+          const actionDesc = isEdit
+            ? `Atualização cadastral do contrato "${contractName}" homologada`
+            : `Implantação do novo contrato "${contractName}" concluída`;
+
+          const logoDesc = hasLogo 
+            ? '\n• Logotipo Corporativo: Vinculado e otimizado com sucesso.' 
+            : '';
+
+          const fullMessage = `👤 Usuário: ${userName}\n⚙️ Ação: ${actionDesc}.${logoDesc}\n🕒 Data/Hora: ${new Date().toLocaleString('pt-BR')}\n\nAs diretrizes e parametrizações deste contrato foram sincronizadas em todo o ecossistema SPCI.`;
+
+          // 1. Popup Modal Executivo de Confirmação com usuário e ação
+          showAlertModal(
+            actionTitle,
+            fullMessage,
+            'success'
+          );
+
+          // 2. Toast de Notificação
           triggerSuccessNotification(
-            contractToEdit ? 'Contrato Atualizado!' : 'Contrato Cadastrado!',
-            'As diretrizes do site operacional foram sincronizadas no sistema.'
+            isEdit ? 'Contrato Atualizado!' : 'Contrato Cadastrado!',
+            `${contractName}: Operação registrada com sucesso por ${userName}.`
           );
         }}
         contractToEdit={contractToEdit}
