@@ -22,6 +22,7 @@ import {
 import { useWindowModal } from '@/app/context/WindowModalContext';
 import QrCameraScanner from './QrCameraScanner';
 import { parseInmetroCode } from '@/lib/utils';
+import { LocalizacoesService } from '@/lib/localizacoesService';
 import AppFooter from './AppFooter';
 
 interface AssetAddModalProps {
@@ -116,36 +117,54 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
       const loadMetadata = async () => {
         setLoadingMetadata(true);
         try {
-          // 1. Buscar locais
-          const { data: locales, error: locErr } = await supabase
-            .from('locais')
+          // 1. Buscar localizações operacionais (setores e sub-locais)
+          const { data: locOps } = await supabase
+            .from('localizacoes_operacionais')
             .select('*')
-            .order('nome', { ascending: true });
-          
-          let loadedLocales = locales || [];
+            .eq('is_ativo', true)
+            .order('setor_planta', { ascending: true });
+
+          let loadedLocales: any[] = [];
+          let loadedSubLocales: any[] = [];
+
+          if (locOps && locOps.length > 0) {
+            const uniqueSetores = Array.from(
+              new Set(locOps.map((o: any) => (o.setor_planta || '').trim().toUpperCase()).filter(Boolean))
+            ) as string[];
+
+            loadedLocales = uniqueSetores.map(nome => ({ id: `loc_${nome}`, nome }));
+            loadedSubLocales = locOps
+              .filter((o: any) => o.setor_planta && o.sub_local)
+              .map((o: any) => ({
+                id: o.id || `sub_${o.setor_planta}_${o.sub_local}`,
+                local_id: `loc_${o.setor_planta.trim().toUpperCase()}`,
+                nome: o.sub_local.trim().toUpperCase()
+              }));
+          } else {
+            try {
+              const { data: bkpLocales } = await supabase
+                .from('_bkp_legado_locais')
+                .select('*')
+                .order('nome', { ascending: true });
+              if (bkpLocales && bkpLocales.length > 0) {
+                loadedLocales = bkpLocales.map((b: any) => ({ id: b.id, nome: b.nome }));
+              }
+            } catch {}
+          }
+
           if (loadedLocales.length === 0) {
-            // Seed se vazio
             const defaultLocales = [
-              { nome: 'MANGANÊS' },
-              { nome: 'ALMOXARIFADO' },
-              { nome: 'SALA ELÉTRICA' },
-              { nome: 'BARRAGEM DO AZUL' },
-              { nome: 'ROTA DE FUGA 01' },
-              { nome: 'ROTA DE FUGA 02' },
-              { nome: 'RECEPÇÃO' },
-              { nome: 'COBRE' },
-              { nome: 'FERRO' }
+              { id: 'loc_ALMOXARIFADO', nome: 'ALMOXARIFADO' },
+              { id: 'loc_OFICINA', nome: 'OFICINA' },
+              { id: 'loc_USINA', nome: 'USINA' },
+              { id: 'loc_GERAL', nome: 'GERAL' }
             ];
-            const { data: seeded } = await supabase
-              .from('locais')
-              .insert(defaultLocales)
-              .select('*');
-            if (seeded) loadedLocales = seeded;
+            loadedLocales = defaultLocales;
           }
           setLocaisList(loadedLocales);
 
           // 2. Buscar modelos_extintores
-          const { data: models, error: modErr } = await supabase
+          const { data: models } = await supabase
             .from('modelos_extintores')
             .select('*')
             .order('nome', { ascending: true });
@@ -153,16 +172,12 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
           let loadedModels = models || [];
           if (loadedModels.length === 0) {
             const defaultModels = [
-              { nome: 'PQS ABC - 8KG' },
-              { nome: 'CO2 - 6KG' },
-              { nome: 'ÁGUA PRESSURIZADA - 10L' },
-              { nome: 'PQS BC - 4KG' }
+              { id: '3a38c7aa-441d-4e70-867e-cd6126b85597', nome: 'ABC - PREMIUM' },
+              { id: 'd684498d-33e9-47b2-a912-2ac96152b8ba', nome: 'ABC' },
+              { id: '528b5198-5d47-4d17-9e13-1334be286079', nome: 'BC' },
+              { id: '8f418962-9706-4ae1-9c32-e769b21d6540', nome: 'CO²' }
             ];
-            const { data: seeded } = await supabase
-              .from('modelos_extintores')
-              .insert(defaultModels)
-              .select('*');
-            if (seeded) loadedModels = seeded;
+            loadedModels = defaultModels;
           }
           setModelosList(loadedModels);
           if (loadedModels.length > 0) {
@@ -170,13 +185,7 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
             setFormModel(loadedModels[0].nome);
           }
 
-          // 3. Buscar sub_locais
-          const { data: subLocales } = await supabase
-            .from('sub_locais')
-            .select('*')
-            .order('nome', { ascending: true });
-          
-          setSubLocaisList(subLocales || []);
+          setSubLocaisList(loadedSubLocales);
         } catch (e) {
           console.error('Erro ao carregar metadados do Supabase:', e);
         } finally {
@@ -319,24 +328,15 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
 
     if (selectedLocalId === 'NEW') {
       const uppercaseNewLocal = newLocalName.trim().toUpperCase();
-      const localDup = locaisList.find(l => l.nome.toUpperCase() === uppercaseNewLocal);
-      if (localDup) {
-        finalLocalId = localDup.id;
-        finalLocalName = localDup.nome;
-      } else {
-        const { data: newLocObj, error: locInsErr } = await supabase
-          .from('locais')
-          .insert({ nome: uppercaseNewLocal })
-          .select('*')
-          .single();
+      finalLocalId = `loc_${uppercaseNewLocal}`;
+      finalLocalName = uppercaseNewLocal;
 
-        if (locInsErr) throw locInsErr;
-        if (newLocObj) {
-          finalLocalId = newLocObj.id;
-          finalLocalName = newLocObj.nome;
-          setLocaisList(prev => [...prev, newLocObj].sort((a, b) => a.nome.localeCompare(b.nome)));
-        }
-      }
+      setLocaisList(prev => {
+        if (prev.some(l => l.nome === uppercaseNewLocal)) return prev;
+        return [...prev, { id: finalLocalId, nome: uppercaseNewLocal }].sort((a, b) => a.nome.localeCompare(b.nome));
+      });
+    } else if (selectedLocalId) {
+      finalLocalName = locaisList.find(l => l.id === selectedLocalId)?.nome || formLocal;
     }
 
     let finalSubLocalId = selectedSubLocalId;
@@ -344,24 +344,24 @@ export default function AssetAddModal({ isOpen, onClose }: AssetAddModalProps) {
 
     if (selectedSubLocalId === 'NEW') {
       const uppercaseNewSub = newSubLocalName.trim().toUpperCase();
-      const subDup = subLocaisList.find(s => s.local_id === finalLocalId && s.nome.toUpperCase() === uppercaseNewSub);
-      if (subDup) {
-        finalSubLocalId = subDup.id;
-        finalSubLocalName = subDup.nome;
-      } else {
-        const { data: newSubObj, error: subInsErr } = await supabase
-          .from('sub_locais')
-          .insert({ local_id: finalLocalId, nome: uppercaseNewSub })
-          .select('*')
-          .single();
+      finalSubLocalId = `sub_${uppercaseNewSub}`;
+      finalSubLocalName = uppercaseNewSub;
 
-        if (subInsErr) throw subInsErr;
-        if (newSubObj) {
-          finalSubLocalId = newSubObj.id;
-          finalSubLocalName = newSubObj.nome;
-          setSubLocaisList(prev => [...prev, newSubObj].sort((a, b) => a.nome.localeCompare(b.nome)));
-        }
-      }
+      setSubLocaisList(prev => {
+        if (prev.some(s => s.nome === uppercaseNewSub && s.local_id === finalLocalId)) return prev;
+        return [...prev, { id: finalSubLocalId, local_id: finalLocalId, nome: uppercaseNewSub }].sort((a, b) => a.nome.localeCompare(b.nome));
+      });
+    } else if (selectedSubLocalId) {
+      finalSubLocalName = subLocaisList.find(s => s.id === selectedSubLocalId)?.nome || formSubLocal;
+    }
+
+    const currentSite = !isGlobalScope ? (userProfile?.site || 'SALOBO') : selectedSite;
+    if (finalLocalName && finalSubLocalName) {
+      LocalizacoesService.registrarOuReaproveitarLocalizacao(
+        currentSite,
+        finalLocalName,
+        finalSubLocalName
+      ).catch(err => console.warn('[AssetAddModal] Aviso localizacao:', err));
     }
 
     const getPrefix = () => {

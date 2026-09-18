@@ -13,6 +13,8 @@ import { parseInmetroCode } from '@/lib/utils';
 import { TipoMovimentacaoType, TIPO_MOVIMENTACAO_OPTIONS, TIPO_MOVIMENTACAO_MAP } from '@/lib/types';
 import { useGeoCapture } from '@/hooks/useGeoCapture';
 import { processAssetLocationUpdateAction, uploadAssetPhotoAction } from '@/app/actions/geoTrackingActions';
+import { saveSingleAssetStockAction } from '@/app/actions/assetStockActions';
+import { LocalizacoesService } from '@/lib/localizacoesService';
 import { GeoCoordinates } from '@/lib/geoUtils';
 
 interface ExtintorAddModalProps {
@@ -239,20 +241,61 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       const loadMetadata = async () => {
         setLoadingMetadata(true);
         try {
-          const { data: locales } = await supabase
-            .from('locais')
+          const { data: locOps } = await supabase
+            .from('localizacoes_operacionais')
             .select('*')
-            .order('nome', { ascending: true });
-          
-          const loadedLocales = locales || [];
-          setLocaisList(loadedLocales);
+            .eq('is_ativo', true)
+            .order('setor_planta', { ascending: true });
 
-          const { data: subLocales } = await supabase
-            .from('sub_locais')
-            .select('*')
-            .order('nome', { ascending: true });
-          
-          setSubLocaisList(subLocales || []);
+          let loadedLocales: any[] = [];
+          let loadedSubLocales: any[] = [];
+
+          if (locOps && locOps.length > 0) {
+            const uniqueSetores = Array.from(
+              new Set(locOps.map((o: any) => (o.setor_planta || '').trim().toUpperCase()).filter(Boolean))
+            ) as string[];
+
+            loadedLocales = uniqueSetores.map(nome => ({
+              id: `loc_${nome}`,
+              nome: nome
+            }));
+
+            loadedSubLocales = locOps
+              .filter((o: any) => o.setor_planta && o.sub_local)
+              .map((o: any) => ({
+                id: o.id || `sub_${o.setor_planta}_${o.sub_local}`,
+                local_id: `loc_${o.setor_planta.trim().toUpperCase()}`,
+                nome: o.sub_local.trim().toUpperCase()
+              }));
+          } else {
+            try {
+              const { data: bkpLocales } = await supabase
+                .from('_bkp_legado_locais')
+                .select('*')
+                .order('nome', { ascending: true });
+              if (bkpLocales && bkpLocales.length > 0) {
+                loadedLocales = bkpLocales.map((b: any) => ({
+                  id: b.id,
+                  nome: b.nome
+                }));
+              }
+            } catch {}
+          }
+
+          if (loadedLocales.length === 0) {
+            const defaultSetores = [
+              'ALMOXARIFADO / ESTOQUE',
+              'OFICINA CENTRAL',
+              'USINA DE BENEFICIAMENTO',
+              'CASA DE BOMBAS',
+              'PRÉDIO ADMINISTRATIVO',
+              'GERAL'
+            ];
+            loadedLocales = defaultSetores.map(nome => ({ id: `loc_${nome}`, nome }));
+          }
+
+          setLocaisList(loadedLocales);
+          setSubLocaisList(loadedSubLocales);
 
           // Carrega áreas e projetos customizados do localStorage
           try {
@@ -510,27 +553,13 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       // 1. Dynamic Local creation if new
       if (selectedLocalId === 'NEW') {
         const uppercaseNewLocal = newLocalName.trim().toUpperCase();
-        
-        // check local cache duplicate
-        const localDup = locaisList.find(l => l.nome.toUpperCase() === uppercaseNewLocal);
-        if (localDup) {
-          finalLocalId = localDup.id;
-          finalLocalName = localDup.nome;
-        } else {
-          // insert new local
-          const { data: newLocObj, error: locInsErr } = await supabase
-            .from('locais')
-            .insert({ nome: uppercaseNewLocal })
-            .select('*')
-            .single();
+        finalLocalId = `loc_${uppercaseNewLocal}`;
+        finalLocalName = uppercaseNewLocal;
 
-          if (locInsErr) throw locInsErr;
-          if (newLocObj) {
-            finalLocalId = newLocObj.id;
-            finalLocalName = newLocObj.nome;
-            setLocaisList(prev => [...prev, newLocObj].sort((a, b) => a.nome.localeCompare(b.nome)));
-          }
-        }
+        setLocaisList(prev => {
+          if (prev.some(l => l.nome === uppercaseNewLocal)) return prev;
+          return [...prev, { id: finalLocalId, nome: uppercaseNewLocal }].sort((a, b) => a.nome.localeCompare(b.nome));
+        });
       } else {
         finalLocalName = locaisList.find(l => l.id === selectedLocalId)?.nome || '';
       }
@@ -541,29 +570,25 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
 
       if (selectedSubLocalId === 'NEW') {
         const uppercaseNewSub = newSubLocalName.trim().toUpperCase();
-        
-        // check sub-local duplicate in cache
-        const subDup = subLocaisList.find(s => s.local_id === finalLocalId && s.nome.toUpperCase() === uppercaseNewSub);
-        if (subDup) {
-          finalSubLocalId = subDup.id;
-          finalSubLocalName = subDup.nome;
-        } else {
-          // insert new sub-local
-          const { data: newSubObj, error: subInsErr } = await supabase
-            .from('sub_locais')
-            .insert({ local_id: finalLocalId, nome: uppercaseNewSub })
-            .select('*')
-            .single();
+        finalSubLocalId = `sub_${uppercaseNewSub}`;
+        finalSubLocalName = uppercaseNewSub;
 
-          if (subInsErr) throw subInsErr;
-          if (newSubObj) {
-            finalSubLocalId = newSubObj.id;
-            finalSubLocalName = newSubObj.nome;
-            setSubLocaisList(prev => [...prev, newSubObj].sort((a, b) => a.nome.localeCompare(b.nome)));
-          }
-        }
+        setSubLocaisList(prev => {
+          if (prev.some(s => s.nome === uppercaseNewSub && s.local_id === finalLocalId)) return prev;
+          return [...prev, { id: finalSubLocalId, local_id: finalLocalId, nome: uppercaseNewSub }].sort((a, b) => a.nome.localeCompare(b.nome));
+        });
       } else {
         finalSubLocalName = subLocaisList.find(s => s.id === selectedSubLocalId)?.nome || '';
+      }
+
+      // Auto-provisionar de forma assíncrona na governança de localizações
+      const finalSiteForLoc = !isGlobalScope ? (userProfile?.site || 'SALOBO') : selectedSite;
+      if (finalLocalName && finalSubLocalName) {
+        LocalizacoesService.registrarOuReaproveitarLocalizacao(
+          finalSiteForLoc,
+          finalLocalName,
+          finalSubLocalName
+        ).catch(err => console.warn('[ExtintorAddModal] Aviso ao registrar localização:', err));
       }
 
       // 1.6. Dynamic Area & Projeto resolution
@@ -695,6 +720,35 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       setExtintores(updated);
       await saveAssetsList('extintores', updated);
 
+      // Persistência robusta direta no Supabase via Server Action com credencial de administração
+      try {
+        await saveSingleAssetStockAction({
+          id: uniqueId,
+          id_ativo: codePatrimonio,
+          patrimonio: codePatrimonio,
+          numero_serie: formChassi || 'N/A',
+          category: 'extintores',
+          model: finalModelName,
+          location: finalLocalName,
+          sub_location: finalSubLocalName || formSubLocal || 'GERAL',
+          status: 'Conforme',
+          status_estoque: tipoMovimentacao === 'na_area_aplicado' ? 'NA ÁREA (APLICADO)' : 'ESTOQUE APLICAÇÃO',
+          tipo_movimentacao: tipoMovimentacao,
+          site: finalSite,
+          peso_capacidade: formWeightCap,
+          data_fabricacao: formAnoFabricacao ? `${formAnoFabricacao}-01-01` : undefined,
+          validadeRecarga: dateVencimentoStr,
+          ultima_recarga: dateUltimaRecargaStr,
+          details: {
+            ...newObj,
+            site: finalSite,
+            contrato_id: finalSite
+          }
+        });
+      } catch (actErr) {
+        console.warn('[ExtintorAddModal] Aviso na persistência direta Server Action:', actErr);
+      }
+
       // Processar rastreamento geoespacial no backend se houver GPS capturado
       if (finalGps) {
         processAssetLocationUpdateAction({
@@ -719,9 +773,9 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       playTacticalBeep('success');
       setRegisteredAssetData({ patrimonio: codePatrimonio, chassi: newObj.chassi });
       setShowSuccessPopup(true);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error saving extintor:", error);
-      alert("Erro ao salvar o extintor. Verifique a conexão com o banco.");
+      alert(error?.message ? `Erro ao salvar o extintor: ${error.message}` : "Erro ao salvar o extintor. Verifique os dados inseridos.");
     } finally {
       setIsSaving(false);
     }

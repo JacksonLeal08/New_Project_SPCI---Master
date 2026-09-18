@@ -211,6 +211,11 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       assignedSite = 'SALOBO';
     }
 
+    const validEnumValues = ['ESTOQUE APLICAÇÃO', 'ESTOQUE MANUTENÇÃO', 'EM MANUTENÇÃO', 'CONDENADOS'];
+    const validStEstoque = validEnumValues.includes(String(stEstoque).trim().toUpperCase())
+      ? (String(stEstoque).trim().toUpperCase() as StatusEstoqueType)
+      : null;
+
     const payload = {
       id: assetId,
       id_ativo: patrimonio,
@@ -218,11 +223,10 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       numero_serie: asset.numero_serie || '',
       category: asset.category || 'extintores',
       model: asset.model || 'Padrão',
-      site: assignedSite,
       location: asset.location || 'Almoxarifado',
       sub_location: asset.sub_location || 'Geral',
       status: asset.status || 'Conforme',
-      status_estoque: stEstoque,
+      status_estoque: validStEstoque,
       tipo_movimentacao: tipoMov,
       data_fabricacao: asset.data_fabricacao || null,
       data_vencimento_teste: asset.validadeRecarga || asset.data_vencimento_teste || null,
