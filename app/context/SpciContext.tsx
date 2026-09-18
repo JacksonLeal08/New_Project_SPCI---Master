@@ -33,12 +33,7 @@ import { CustomAlertDialog, AlertType } from '@/app/components/CustomAlertDialog
 
 
 // --- INITIAL SEED DATA ---
-const INITIAL_EXTINTORES = [
-  { id: '101', idAtivo: 'PAT-E-101', model: 'PQS ABC - 8KG', location: 'Almoxarifado Central', subLocation: 'Setor B', seloInmetro: '98765432', chassi: 'E-4011', peso: '8', lastRecarga: '2023-03-15', recurrenceInterval: '1 Ano', validadeRecarga: '2024-03-15', validadeTesteHidro: '2027', status: 'Vencido' },
-  { id: '102', idAtivo: 'PAT-E-102', model: 'CO2 - 6KG', location: 'Painel Elétrico Principal', subLocation: 'Setor Máquinas', seloInmetro: '98765433', chassi: 'E-4012', peso: '6', lastRecarga: '2024-05-10', recurrenceInterval: '1 Ano', validadeRecarga: '2025-05-10', validadeTesteHidro: '2028', status: 'Em Manutenção' },
-  { id: '103', idAtivo: 'PAT-E-103', model: 'Água Pressurizada - 10L', location: 'Corredor Administrativo', subLocation: 'Térreo', seloInmetro: '98765438', chassi: 'E-4013', peso: '10', lastRecarga: '2024-12-12', recurrenceInterval: '1 Ano', validadeRecarga: '2025-12-12', validadeTesteHidro: '2029', status: 'Conforme' },
-  { id: '104', idAtivo: 'PAT-E-104', model: 'PQS BC - 4KG', location: 'Casa de Máquinas 02', subLocation: 'Geradores', seloInmetro: '98765439', chassi: 'E-4014', peso: '4', lastRecarga: '2025-01-05', recurrenceInterval: '1 Ano', validadeRecarga: '2026-01-05', validadeTesteHidro: '2030', status: 'Conforme' }
-];
+const INITIAL_EXTINTORES: any[] = [];
 
 const INITIAL_HIDRANTES = [
   { id: '201', idAtivo: 'PAT-H-1042', location: 'Setor B - Logística', subLocation: 'Corredor Principal, Coluna 4', components: ['2 Mangueiras (15m)', '1 Esguicho Regulável', '2 Chaves Storz'], lastInsp: '2025-08-12', nextInsp: '2026-10-12', status: 'Conforme' },
@@ -660,17 +655,35 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           
           if (item.store === 'extintores') {
+            // Elimina dados fictícios legados de protótipo (PAT-E-101 a 104) do cache do navegador
+            const isMockExt = (x: any) => 
+              x.id === '101' || x.id === '102' || x.id === '103' || x.id === '104' ||
+              String(x.idAtivo || '').startsWith('PAT-E-10') ||
+              String(x.idAtivo || '').startsWith('PAT-S-10');
+            list = (list || []).filter((x: any) => !isMockExt(x));
             const cleanExt = deduplicateAssetsList(list);
             setExtintores(cleanExt);
-            if (cleanExt.length !== list.length) {
-              idb.setAll('extintores', cleanExt).catch(console.error);
+            await idb.setAll('extintores', cleanExt).catch(console.error);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('spci_extintores', JSON.stringify(cleanExt));
             }
           }
           else if (item.store === 'hidrantes') setHidrantes(list);
           else if (item.store === 'sinalizacoes') setSinalizacoes(list);
           else if (item.store === 'iluminacao') setIluminacoes(list);
           else if (item.store === 'bombas') setBombas(list);
-          else if (item.store === 'logs') setComplianceLogs(list);
+          else if (item.store === 'logs') {
+            const isMockLog = (l: any) => 
+              l.assetId === '101' || l.assetId === '102' || l.assetId === '103' || l.assetId === '104' ||
+              String(l.assetId || '').startsWith('PAT-E-10') ||
+              String(l.assetId || '').startsWith('PAT-S-10');
+            list = (list || []).filter((l: any) => !isMockLog(l));
+            setComplianceLogs(list);
+            await idb.setAll('logs', list).catch(console.error);
+            if (typeof window !== 'undefined') {
+              localStorage.setItem('spci_logs', JSON.stringify(list));
+            }
+          }
           else if (item.store === 'audit_logs') setAuditLogs(list);
         }
 
@@ -723,30 +736,45 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
       addConsoleLog(`[Sincronia] Carregando dados atualizados do Banco de Dados...`, 'INFO');
       
       const extDb = await getAssetsList('extintores');
-      if (extDb && extDb.length > 0) {
+      if (Array.isArray(extDb)) {
         const cleanExtDb = deduplicateAssetsList(extDb);
         setExtintores(cleanExtDb);
         await idb.setAll('extintores', cleanExtDb);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('spci_extintores', JSON.stringify(cleanExtDb));
+        }
       }
       const hidDb = await getAssetsList('hidrantes');
-      if (hidDb && hidDb.length > 0) {
+      if (Array.isArray(hidDb)) {
         setHidrantes(hidDb);
         await idb.setAll('hidrantes', hidDb);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('spci_hidrantes', JSON.stringify(hidDb));
+        }
       }
       const sinDb = await getAssetsList('sinalizacoes');
-      if (sinDb && sinDb.length > 0) {
+      if (Array.isArray(sinDb)) {
         setSinalizacoes(sinDb);
         await idb.setAll('sinalizacoes', sinDb);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('spci_sinalizacoes', JSON.stringify(sinDb));
+        }
       }
       const lumDb = await getAssetsList('iluminacao');
-      if (lumDb && lumDb.length > 0) {
+      if (Array.isArray(lumDb)) {
         setIluminacoes(lumDb);
         await idb.setAll('iluminacao', lumDb);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('spci_iluminacao', JSON.stringify(lumDb));
+        }
       }
       const bomDb = await getAssetsList('bombas');
-      if (bomDb && bomDb.length > 0) {
+      if (Array.isArray(bomDb)) {
         setBombas(bomDb);
         await idb.setAll('bombas', bomDb);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('spci_bombas', JSON.stringify(bomDb));
+        }
       }
       
       // Sincronizar checklist de extintores configurado no Supabase (com deduplicação atômica)
