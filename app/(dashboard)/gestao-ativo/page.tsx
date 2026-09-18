@@ -71,43 +71,15 @@ export default function GestaoAtivoPage() {
     };
   }, [activeSite]);
 
-  // 1. RBAC - Acesso para Administrador e Desenvolvedor
-  const canAccess = userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Administrador' || (userProfile as any)?.role === 'admin';
-
-  if (!canAccess) {
-    return (
-      <div className="min-h-[70vh] flex items-center justify-center p-4">
-        <motion.div 
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="max-w-md w-full bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl p-6 text-center font-mono select-none"
-        >
-          <div className="w-16 h-16 bg-red-950/40 border border-red-900/60 rounded-full flex items-center justify-center mx-auto mb-5 text-red-500 shadow-inner">
-            <Lock className="w-7 h-7" />
-          </div>
-          <h2 className="text-sm font-black text-slate-100 uppercase tracking-widest">
-            Acesso Restrito
-          </h2>
-          <p className="text-[10px] text-slate-400 font-sans leading-relaxed mt-3 px-2">
-            Esta área contém configurações avançadas de setores, prédios, sub-locais e checklists estruturais. Apenas credenciais com privilégios de <strong>Administrador ou Desenvolvedor SPCI</strong> podem acessar.
-          </p>
-          <button
-            onClick={() => router.push('/dashboard')}
-            className="mt-6 w-full py-3 bg-red-650 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-md flex items-center justify-center gap-2"
-          >
-            <ArrowLeft className="w-4 h-4" /> Voltar ao Dashboard
-          </button>
-        </motion.div>
-      </div>
-    );
-  }
-
-  // 2. Cálculo dos contadores oficiais da tabela mestre de Localizações Operacionais (SSOT)
+  // 1. Cálculo dos contadores oficiais da tabela mestre de Localizações Operacionais (SSOT) - SEMPRE antes de retornos condicionais
   const setoresOficiais = useMemo(() => {
     return Array.from(new Set(locaisOficiais.map(l => l.setor_planta).filter(Boolean))).sort();
   }, [locaisOficiais]);
 
   const totalSubLocaisOficiais = locaisOficiais.length;
+
+  // 2. RBAC - Acesso para Administrador e Desenvolvedor
+  const canAccess = userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Administrador' || (userProfile as any)?.role === 'admin';
 
   // Contadores de ativos em memória (para badges de ocorrências e checklist)
   const allLocations = Array.from(new Set([
@@ -148,6 +120,34 @@ export default function GestaoAtivoPage() {
     hidden: { opacity: 0, y: 15 },
     show: { opacity: 1, y: 0, transition: { type: 'spring' as const, stiffness: 100 } }
   };
+
+  if (!canAccess) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className="max-w-md w-full bg-slate-900 border border-slate-800 shadow-2xl rounded-2xl p-6 text-center font-mono select-none"
+        >
+          <div className="w-16 h-16 bg-red-950/40 border border-red-900/60 rounded-full flex items-center justify-center mx-auto mb-5 text-red-500 shadow-inner">
+            <Lock className="w-7 h-7" />
+          </div>
+          <h2 className="text-sm font-black text-slate-100 uppercase tracking-widest">
+            Acesso Restrito
+          </h2>
+          <p className="text-[10px] text-slate-400 font-sans leading-relaxed mt-3 px-2">
+            Esta área contém configurações avançadas de setores, prédios, sub-locais e checklists estruturais. Apenas credenciais com privilégios de <strong>Administrador ou Desenvolvedor SPCI</strong> podem acessar.
+          </p>
+          <button
+            onClick={() => router.push('/dashboard')}
+            className="mt-6 w-full py-3 bg-red-650 hover:bg-red-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer border-none shadow-md flex items-center justify-center gap-2"
+          >
+            <ArrowLeft className="w-4 h-4" /> Voltar ao Dashboard
+          </button>
+        </motion.div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 select-none font-sans">

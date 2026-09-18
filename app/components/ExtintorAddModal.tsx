@@ -9,7 +9,7 @@ import { MediaQueue } from '@/lib/mediaQueue';
 import { 
   Flame, Check, X, Minus, Maximize2, Minimize2, Upload, Shield, Calendar, MapPin, 
   ClipboardList, Info, Plus, QrCode, ArrowRightLeft, Building2, Hash, Tag, Scale, 
-  RotateCcw, AlertTriangle, CheckCircle2, Sparkles, Layers 
+  RotateCcw, AlertTriangle, CheckCircle2, Sparkles, Layers, Camera 
 } from 'lucide-react';
 import { useWindowModal } from '@/app/context/WindowModalContext';
 import QrCameraScanner from './QrCameraScanner';
@@ -123,7 +123,6 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
   const [selectedModel, setSelectedModel] = useState(''); // "AB", "ABC", "ABC-PREMIUM", "CO²", "CUSTOM"
   const [customModelName, setCustomModelName] = useState('');
   const [formWeightCap, setFormWeightCap] = useState('');
-  const [formEtiquetaGarantia, setFormEtiquetaGarantia] = useState('');
 
   // Month/Year selects
   const [lastRechargeMonth, setLastRechargeMonth] = useState<number | ''>('');
@@ -162,15 +161,26 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
   const [selectedProjeto, setSelectedProjeto] = useState<string>('');
   const [newProjetoInput, setNewProjetoInput] = useState<string>('');
 
-  // --- IMAGE & COMPRESSION STATES ---
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
-  const [compressionDetails, setCompressionDetails] = useState<{
+  // --- IMAGENS (DUPLO REGISTRO: ATIVO COMPLETO & ETIQUETA/SELO) ---
+  // 1. Foto Geral do Extintor
+  const [selectedFileGeral, setSelectedFileGeral] = useState<File | null>(null);
+  const [previewUrlGeral, setPreviewUrlGeral] = useState<string | null>(null);
+  const [compressionDetailsGeral, setCompressionDetailsGeral] = useState<{
     original: string;
     compressed: string;
     reduction: number;
   } | null>(null);
+
+  // 2. Foto da Etiqueta do Extintor (Selo INMETRO / Lacres)
+  const [selectedFileEtiqueta, setSelectedFileEtiqueta] = useState<File | null>(null);
+  const [previewUrlEtiqueta, setPreviewUrlEtiqueta] = useState<string | null>(null);
+  const [compressionDetailsEtiqueta, setCompressionDetailsEtiqueta] = useState<{
+    original: string;
+    compressed: string;
+    reduction: number;
+  } | null>(null);
+
+  const [uploadingImage, setUploadingImage] = useState(false);
 
   // Generate Year options
   const currentYear = new Date().getFullYear();
@@ -271,33 +281,8 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                 local_id: `loc_${o.setor_planta.trim().toUpperCase()}`,
                 nome: o.sub_local.trim().toUpperCase()
               }));
-          } else {
-            try {
-              const { data: bkpLocales } = await supabase
-                .from('_bkp_legado_locais')
-                .select('*')
-                .order('nome', { ascending: true });
-              if (bkpLocales && bkpLocales.length > 0) {
-                loadedLocales = bkpLocales.map((b: any) => ({
-                  id: b.id,
-                  nome: b.nome
-                }));
-              }
-            } catch {}
           }
-
-          if (loadedLocales.length === 0) {
-            const defaultSetores = [
-              'ALMOXARIFADO / ESTOQUE',
-              'OFICINA CENTRAL',
-              'USINA DE BENEFICIAMENTO',
-              'CASA DE BOMBAS',
-              'PRÉDIO ADMINISTRATIVO',
-              'GERAL'
-            ];
-            loadedLocales = defaultSetores.map(nome => ({ id: `loc_${nome}`, nome }));
-          }
-
+          // Caso não haja setores cadastrados no banco para o site, a lista permanece vazia
           setLocaisList(loadedLocales);
           setSubLocaisList(loadedSubLocales);
 
@@ -345,9 +330,14 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         setRecommendedPatrimonio(recommended);
         setFormPatrimonio(String(recommended));
 
-        setSelectedFile(null);
-        setPreviewUrl(null);
-        setCompressionDetails(null);
+        // Reset Fotos
+        setSelectedFileGeral(null);
+        setPreviewUrlGeral(null);
+        setCompressionDetailsGeral(null);
+        setSelectedFileEtiqueta(null);
+        setPreviewUrlEtiqueta(null);
+        setCompressionDetailsEtiqueta(null);
+
         setIsSaving(false);
         setShowSuccessPopup(false);
         setRegisteredAssetData(null);
@@ -371,7 +361,6 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         setSelectedModel('');
         setCustomModelName('');
         setFormWeightCap('');
-        setFormEtiquetaGarantia('');
         setFormDataPesagemCo2('');
       }, 0);
     }
@@ -410,14 +399,14 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
   const activeModelName = selectedModel === 'CUSTOM' ? customModelName : selectedModel;
   const isCo2 = activeModelName.toUpperCase().includes('CO2') || activeModelName.toUpperCase().includes('CO²');
 
-  // --- HANDLE PHOTO UPLOAD & COMPRESSION ---
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // --- HANDLE PHOTO UPLOAD & COMPRESSION (FOTO GERAL E FOTO ETIQUETA) ---
+  const handleFileChangeGeral = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
       try {
         const result = await compressImage(file);
-        setSelectedFile(result.file);
-        setPreviewUrl(result.previewUrl);
+        setSelectedFileGeral(result.file);
+        setPreviewUrlGeral(result.previewUrl);
         
         const originalStr = result.originalSizeKb > 1024 
           ? `${(result.originalSizeKb / 1024).toFixed(2)} MB` 
@@ -427,22 +416,56 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
           ? `${(result.compressedSizeKb / 1024).toFixed(2)} MB` 
           : `${result.compressedSizeKb.toFixed(0)} KB`;
 
-        setCompressionDetails({
+        setCompressionDetailsGeral({
           original: originalStr,
           compressed: compressedStr,
           reduction: result.reductionPercentage
         });
 
         playTacticalBeep('compress');
-
         triggerSuccessNotification(
-          "Imagem Otimizada! 📸",
-          `Imagem compactada. Redução de ${result.reductionPercentage}% (${originalStr} → ${compressedStr})`
+          "Foto do Extintor Otimizada! 📸",
+          `Compactada: ${originalStr} → ${compressedStr} (${result.reductionPercentage}% economia)`
         );
       } catch (err: any) {
-        console.error('Error compressing image:', err);
-        setSelectedFile(file);
-        setPreviewUrl(URL.createObjectURL(file));
+        console.error('Error compressing general photo:', err);
+        setSelectedFileGeral(file);
+        setPreviewUrlGeral(URL.createObjectURL(file));
+      }
+    }
+  };
+
+  const handleFileChangeEtiqueta = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      try {
+        const result = await compressImage(file);
+        setSelectedFileEtiqueta(result.file);
+        setPreviewUrlEtiqueta(result.previewUrl);
+        
+        const originalStr = result.originalSizeKb > 1024 
+          ? `${(result.originalSizeKb / 1024).toFixed(2)} MB` 
+          : `${result.originalSizeKb.toFixed(0)} KB`;
+          
+        const compressedStr = result.compressedSizeKb > 1024 
+          ? `${(result.compressedSizeKb / 1024).toFixed(2)} MB` 
+          : `${result.compressedSizeKb.toFixed(0)} KB`;
+
+        setCompressionDetailsEtiqueta({
+          original: originalStr,
+          compressed: compressedStr,
+          reduction: result.reductionPercentage
+        });
+
+        playTacticalBeep('compress');
+        triggerSuccessNotification(
+          "Foto da Etiqueta Otimizada! 🏷️",
+          `Compactada: ${originalStr} → ${compressedStr} (${result.reductionPercentage}% economia)`
+        );
+      } catch (err: any) {
+        console.error('Error compressing label photo:', err);
+        setSelectedFileEtiqueta(file);
+        setPreviewUrlEtiqueta(URL.createObjectURL(file));
       }
     }
   };
@@ -455,7 +478,6 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     setSelectedModel('');
     setCustomModelName('');
     setFormWeightCap('');
-    setFormEtiquetaGarantia('');
     setLastRechargeMonth('');
     setLastRechargeYear('');
     setExpiryMonth('');
@@ -472,9 +494,12 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
     setNewAreaInput('');
     setSelectedProjeto('');
     setNewProjetoInput('');
-    setSelectedFile(null);
-    setPreviewUrl(null);
-    setCompressionDetails(null);
+    setSelectedFileGeral(null);
+    setPreviewUrlGeral(null);
+    setCompressionDetailsGeral(null);
+    setSelectedFileEtiqueta(null);
+    setPreviewUrlEtiqueta(null);
+    setCompressionDetailsEtiqueta(null);
 
     playTacticalBeep('compress');
     triggerSuccessNotification("Formulário Limpo!", "Todos os campos foram resetados para os valores padrão.");
@@ -642,28 +667,52 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
       }
 
       const uniqueId = generateUUID();
-      let uploadedFotoUrl = '';
 
-      if (previewUrl || selectedFile) {
-        const isOnline = typeof window !== 'undefined' && navigator.onLine;
+      let uploadedFotoGeralUrl = '';
+      let uploadedFotoEtiquetaUrl = '';
+      const isOnline = typeof window !== 'undefined' && navigator.onLine;
 
-        if (isOnline && previewUrl) {
+      // 1. Upload Foto Geral do Extintor
+      if (previewUrlGeral || selectedFileGeral) {
+        if (isOnline && previewUrlGeral) {
           try {
-            const upRes = await uploadAssetPhotoAction(codePatrimonio, previewUrl);
+            const upRes = await uploadAssetPhotoAction(codePatrimonio, previewUrlGeral);
             if (upRes.success && upRes.publicUrl) {
-              uploadedFotoUrl = upRes.publicUrl;
+              uploadedFotoGeralUrl = upRes.publicUrl;
             } else {
-              console.warn('Upload via action falhou, enfileirando offline:', upRes.error);
+              console.warn('Upload foto geral via action falhou, enfileirando offline:', upRes.error);
             }
           } catch (err: any) {
-            console.warn('Image storage upload failed, enqueuing offline:', err);
+            console.warn('Image storage upload failed (geral), enqueuing offline:', err);
           }
         }
 
-        if (!uploadedFotoUrl && selectedFile) {
-          const fileExt = selectedFile.name.split('.').pop() || 'jpg';
-          const fileName = `ext_${codePatrimonio}_${Date.now()}.${fileExt}`;
-          await MediaQueue.enqueue(uniqueId, 'extintores', fileName, selectedFile);
+        if (!uploadedFotoGeralUrl && selectedFileGeral) {
+          const fileExt = selectedFileGeral.name.split('.').pop() || 'jpg';
+          const fileName = `ext_${codePatrimonio}_geral_${Date.now()}.${fileExt}`;
+          await MediaQueue.enqueue(uniqueId, 'extintores', fileName, selectedFileGeral);
+        }
+      }
+
+      // 2. Upload Foto da Etiqueta do Extintor (Selo INMETRO / Lacres)
+      if (previewUrlEtiqueta || selectedFileEtiqueta) {
+        if (isOnline && previewUrlEtiqueta) {
+          try {
+            const upEtiquetaRes = await uploadAssetPhotoAction(`${codePatrimonio}_etiqueta`, previewUrlEtiqueta);
+            if (upEtiquetaRes.success && upEtiquetaRes.publicUrl) {
+              uploadedFotoEtiquetaUrl = upEtiquetaRes.publicUrl;
+            } else {
+              console.warn('Upload foto etiqueta via action falhou, enfileirando offline:', upEtiquetaRes.error);
+            }
+          } catch (err: any) {
+            console.warn('Image storage upload failed (etiqueta), enqueuing offline:', err);
+          }
+        }
+
+        if (!uploadedFotoEtiquetaUrl && selectedFileEtiqueta) {
+          const fileExt = selectedFileEtiqueta.name.split('.').pop() || 'jpg';
+          const fileName = `ext_${codePatrimonio}_etiqueta_${Date.now()}.${fileExt}`;
+          await MediaQueue.enqueue(uniqueId, 'extintores', fileName, selectedFileEtiqueta);
         }
       }
 
@@ -705,7 +754,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         peso: formWeightCap.replace(/\D/g, ''), 
         seloInmetro: formSelo || 'NBR',
         chassi: formChassi || 'N/A',
-        etiqueta_garantia: formEtiquetaGarantia || null,
+        etiqueta_garantia: null,
         data_ultima_recarga: dateUltimaRecargaStr,
         lastRecarga: dateUltimaRecargaStr,
         meses_validade_recarga: calculatedValidityMonths,
@@ -715,8 +764,11 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         anoFabricacao: parseInt(formAnoFabricacao, 10) || new Date().getFullYear(),
         ano_fabricacao: parseInt(formAnoFabricacao, 10) || new Date().getFullYear(),
         data_pesagem_co2: isCo2 ? (formDataPesagemCo2 || null) : null,
-        fotoUrl: uploadedFotoUrl,
-        foto_url: uploadedFotoUrl,
+        fotoUrl: uploadedFotoGeralUrl,
+        foto_url: uploadedFotoGeralUrl,
+        foto_extintor_url: uploadedFotoGeralUrl,
+        foto_etiqueta_url: uploadedFotoEtiquetaUrl,
+        fotoEtiquetaUrl: uploadedFotoEtiquetaUrl,
         validadeRecarga: dateVencimentoStr
       };
 
@@ -762,7 +814,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
           longitude: finalGps.longitude,
           accuracy: finalGps.accuracy,
           tipoEvento: 'CADASTRO_ESTOQUE',
-          fotoEvidenciaUrl: uploadedFotoUrl || null
+          fotoEvidenciaUrl: uploadedFotoGeralUrl || uploadedFotoEtiquetaUrl || null
         }).catch(err => console.warn('[ExtintorAddModal] Aviso ao registrar histórico geoespacial:', err));
       }
 
@@ -1062,8 +1114,8 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                 </span>
               </div>
 
-              {/* Sub-bloco: Especificação de Modelo e Capacidade */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mb-4">
+              {/* Sub-bloco: Especificação de Modelo e Capacidade (2 Colunas Amplas e Balanceadas) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                 {/* Modelo dropdown */}
                 <div className="space-y-1">
                   <label className="block text-[10px] font-extrabold uppercase text-slate-600">
@@ -1082,24 +1134,21 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                     <option value="CO²">CO² - Dióxido de Carbono</option>
                     <option value="CUSTOM">+ Outro Modelo Especial...</option>
                   </select>
-                </div>
 
-                {/* Custom Model Input (se Custom selecionado) */}
-                {selectedModel === 'CUSTOM' && (
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-extrabold uppercase text-red-600">
-                      Nome do Modelo Personalizado *
-                    </label>
-                    <input 
-                      type="text" 
-                      value={customModelName}
-                      onChange={(e) => setCustomModelName(e.target.value)}
-                      placeholder="Ex: ESPUMA MECÂNICA CLASSE B"
-                      className="w-full bg-white border border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2.5 text-xs outline-none font-bold uppercase transition-all shadow-2xs"
-                      required
-                    />
-                  </div>
-                )}
+                  {/* Custom Model Input (se Custom selecionado) */}
+                  {selectedModel === 'CUSTOM' && (
+                    <div className="pt-2">
+                      <input 
+                        type="text" 
+                        value={customModelName}
+                        onChange={(e) => setCustomModelName(e.target.value)}
+                        placeholder="Ex: ESPUMA MECÂNICA CLASSE B"
+                        className="w-full bg-white border border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2.5 text-xs outline-none font-bold uppercase transition-all shadow-2xs"
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
 
                 {/* Capacidade Operacional (Carga) */}
                 <div className="space-y-1">
@@ -1126,20 +1175,6 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                     <option value="50KG">50 KG (Sobre Rodas / Carreta Pesada)</option>
                     <option value="55KG">55 KG (Sobre Rodas / Carreta Especial)</option>
                   </select>
-                </div>
-
-                {/* Etiqueta Garantia */}
-                <div className="space-y-1">
-                  <label className="block text-[10px] font-extrabold uppercase text-slate-600">
-                    Etiqueta Garantia (Código)
-                  </label>
-                  <input 
-                    type="text" 
-                    value={formEtiquetaGarantia}
-                    onChange={(e) => setFormEtiquetaGarantia(e.target.value)}
-                    placeholder="Ex: GAR-09823"
-                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2.5 text-xs outline-none font-mono font-bold text-slate-800 transition-all shadow-2xs placeholder:text-slate-400 placeholder:font-normal"
-                  />
                 </div>
               </div>
 
@@ -1309,44 +1344,95 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                 </div>
               </div>
 
-              {/* Sub-bloco: Registro Fotográfico com Otimização de Rede */}
-              <div className="border-2 border-dashed border-slate-200 hover:border-red-500 transition-all rounded-xl p-4 flex flex-col items-center justify-center bg-slate-50/50 cursor-pointer relative group">
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  onChange={handleFileChange}
-                  className="absolute inset-0 opacity-0 cursor-pointer z-10"
-                />
-                {previewUrl ? (
-                  <div className="flex flex-col items-center gap-2.5">
-                    <img src={previewUrl} alt="Preview" className="h-32 object-contain rounded-xl border border-slate-200 bg-white shadow-xs" />
-                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider group-hover:text-red-600 transition-colors">
-                      Clique para substituir a foto
+              {/* Sub-bloco: Registro Fotográfico Duplo (Padrão de Inspeção NBR 12962) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* 1. Foto Geral do Extintor (Corpo Inteiro) */}
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Camera className="w-3.5 h-3.5 text-red-600" />
+                      1. Foto do Extintor (Corpo Inteiro)
                     </span>
-                    {compressionDetails && (
-                      <div className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1 rounded-lg font-sans font-bold text-center shadow-2xs">
-                        <span className="flex items-center justify-center gap-1">
-                          <Check className="w-3 h-3 text-emerald-600" /> FOTO COMPACTADA NATIVAMENTE
+                    <span className="text-[8px] text-slate-400 uppercase font-bold">ATIVO COMPLETO</span>
+                  </label>
+                  <div className="border-2 border-dashed border-slate-200 hover:border-red-500 transition-all rounded-xl p-3.5 flex flex-col items-center justify-center bg-slate-50/50 cursor-pointer relative group min-h-[140px]">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleFileChangeGeral}
+                      className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                    />
+                    {previewUrlGeral ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <img src={previewUrlGeral} alt="Extintor Geral" className="h-28 object-contain rounded-xl border border-slate-200 bg-white shadow-xs" />
+                        <span className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider group-hover:text-red-600 transition-colors">
+                          Toque para alterar foto geral
                         </span>
-                        <span className="block font-mono text-[8.5px] mt-0.5 text-emerald-700">
-                          {compressionDetails.original} → {compressionDetails.compressed} ({compressionDetails.reduction}% de economia de rede)
+                        {compressionDetailsGeral && (
+                          <div className="text-[8px] bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-0.5 rounded font-bold">
+                            ⚡ {compressionDetailsGeral.compressed} ({compressionDetailsGeral.reduction}% economia)
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 text-center text-slate-400 group-hover:text-red-600 transition-colors py-2">
+                        <div className="w-9 h-9 rounded-full bg-slate-100 group-hover:bg-red-50 flex items-center justify-center text-slate-400 group-hover:text-red-600 transition-all">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-700 group-hover:text-red-600">
+                          Foto Geral do Ativo
+                        </span>
+                        <span className="text-[8px] font-sans text-slate-400">
+                          Extintor instalado no suporte ou posição
                         </span>
                       </div>
                     )}
                   </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-1.5 text-center text-slate-400 group-hover:text-red-600 transition-colors">
-                    <div className="w-10 h-10 rounded-full bg-slate-100 group-hover:bg-red-50 flex items-center justify-center text-slate-400 group-hover:text-red-600 transition-all">
-                      <Upload className="w-5 h-5" />
-                    </div>
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 group-hover:text-red-600">
-                      Selecionar ou Tirar Foto do Extintor
+                </div>
+
+                {/* 2. Foto da Etiqueta do Extintor (Selo INMETRO / Lacres) */}
+                <div className="space-y-1.5">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Tag className="w-3.5 h-3.5 text-red-600" />
+                      2. Foto da Etiqueta / Selo INMETRO
                     </span>
-                    <span className="text-[8.5px] font-sans text-slate-400">
-                      Otimização automática de resolução para máxima velocidade em campo
-                    </span>
+                    <span className="text-[8px] text-slate-400 uppercase font-bold">ETIQUETA E SELO</span>
+                  </label>
+                  <div className="border-2 border-dashed border-slate-200 hover:border-red-500 transition-all rounded-xl p-3.5 flex flex-col items-center justify-center bg-slate-50/50 cursor-pointer relative group min-h-[140px]">
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      onChange={handleFileChangeEtiqueta}
+                      className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                    />
+                    {previewUrlEtiqueta ? (
+                      <div className="flex flex-col items-center gap-2">
+                        <img src={previewUrlEtiqueta} alt="Etiqueta e Selo" className="h-28 object-contain rounded-xl border border-slate-200 bg-white shadow-xs" />
+                        <span className="text-[8.5px] text-slate-500 font-bold uppercase tracking-wider group-hover:text-red-600 transition-colors">
+                          Toque para alterar foto da etiqueta
+                        </span>
+                        {compressionDetailsEtiqueta && (
+                          <div className="text-[8px] bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-0.5 rounded font-bold">
+                            ⚡ {compressionDetailsEtiqueta.compressed} ({compressionDetailsEtiqueta.reduction}% economia)
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-1 text-center text-slate-400 group-hover:text-red-600 transition-colors py-2">
+                        <div className="w-9 h-9 rounded-full bg-slate-100 group-hover:bg-red-50 flex items-center justify-center text-slate-400 group-hover:text-red-600 transition-all">
+                          <Upload className="w-4 h-4" />
+                        </div>
+                        <span className="text-[9.5px] font-extrabold uppercase tracking-wider text-slate-700 group-hover:text-red-600">
+                          Foto da Etiqueta & Selo
+                        </span>
+                        <span className="text-[8px] font-sans text-slate-400">
+                          Selo INMETRO, anel de recarga e lacres
+                        </span>
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
               </div>
             </div>
 
