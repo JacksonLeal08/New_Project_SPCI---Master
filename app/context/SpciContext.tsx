@@ -489,6 +489,7 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [userPrompt, setUserPrompt] = useState('');
   const [aiGenerating, setAiGenerating] = useState(false);
   const isSyncingRef = React.useRef(false);
+  const isSyncingDatabaseRef = React.useRef(false);
   const syncTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
   const lastNotificationTimeRef = React.useRef<number>(0);
   const localActionRef = React.useRef(false);
@@ -732,6 +733,10 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   // --- MEMOIZED SUPABASE SYNC FUNCTION ---
   const syncWithRealDatabase = useCallback(async () => {
+    if (isSyncingDatabaseRef.current) {
+      return;
+    }
+    isSyncingDatabaseRef.current = true;
     try {
       addConsoleLog(`[Sincronia] Carregando dados atualizados do Banco de Dados...`, 'INFO');
       
@@ -866,6 +871,8 @@ export const SpciProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (err) {
       console.warn('Erro ao sincronizar com banco em tempo real:', err);
       addConsoleLog(`[Sincronia] Erro ao sincronizar com o Banco de Dados.`, 'ERRO');
+    } finally {
+      isSyncingDatabaseRef.current = false;
     }
   }, [addConsoleLog]);
 
