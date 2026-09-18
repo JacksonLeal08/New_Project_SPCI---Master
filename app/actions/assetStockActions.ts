@@ -85,12 +85,22 @@ const mapStatusEstoqueToTipoMovimentacao = (status: string | undefined): string 
 const mapStatusEstoqueToStatusOperacional = (status: string | undefined): string => {
   if (!status) return 'ESTOQUE_APLICACAO';
   const clean = String(status).toUpperCase();
-  if (clean.includes('EM MANUTENÇÃO') || clean.includes('EM MANUTENCAO') || clean === 'EM_MANUTENCAO') return 'EM_MANUTENCAO_EXTERNA';
-  if (clean.includes('AG. MANUT') || clean.includes('AG_MANUT') || clean.includes('ESTOQUE MANUTENÇÃO') || clean.includes('ESTOQUE MANUTENCAO')) return 'ESTOQUE_MANUTENCAO';
-  if (clean.includes('APLICAÇÃO') || clean.includes('APLICACAO')) return 'ESTOQUE_APLICACAO';
-  if (clean.includes('CONDENAD')) return 'CONDENADO_DESCARTE';
   if (clean.includes('ÁREA') || clean.includes('AREA') || clean.includes('APLICADO')) return 'NA_AREA_APLICADO';
+  if (clean.includes('APLICAÇÃO') || clean.includes('APLICACAO')) return 'ESTOQUE_APLICACAO';
+  if (clean.includes('MANUTENÇÃO') || clean.includes('MANUTENCAO') || clean.includes('AG. MANUT') || clean.includes('AG_MANUT') || clean.includes('OFICINA')) return 'ESTOQUE_MANUTENCAO';
+  if (clean.includes('CONDENAD')) return 'ESTOQUE_MANUTENCAO';
   return 'ESTOQUE_APLICACAO';
+};
+
+const mapToDbEnum = (val: any): any => {
+  if (!val) return null;
+  const str = String(val).trim().toUpperCase();
+  if (str === 'ESTOQUE APLICAÇÃO' || str === 'ESTOQUE_APLICACAO' || str.includes('APLICAÇÃO') || str.includes('APLICACAO')) return 'ESTOQUE APLICAÇÃO';
+  if (str === 'ESTOQUE MANUTENÇÃO' || str === 'ESTOQUE_MANUTENCAO' || str.includes('AG. MANUT') || str.includes('AG_MANUT')) return 'ESTOQUE MANUTENÇÃO';
+  if (str.includes('CONDENAD')) return 'CONDENADO';
+  if (str.includes('ÁREA') || str.includes('AREA') || str.includes('APLICADO')) return 'APLICADO';
+  if (str.includes('MANUTEN')) return 'ESTOQUE MANUTENÇÃO';
+  return null;
 };
 
 /**
@@ -211,10 +221,8 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       assignedSite = 'SALOBO';
     }
 
-    const validEnumValues = ['ESTOQUE APLICAÇÃO', 'ESTOQUE MANUTENÇÃO', 'EM MANUTENÇÃO', 'CONDENADOS'];
-    const validStEstoque = validEnumValues.includes(String(stEstoque).trim().toUpperCase())
-      ? (String(stEstoque).trim().toUpperCase() as StatusEstoqueType)
-      : null;
+    const dbStatusEstoque = mapToDbEnum(stEstoque);
+    const statusOp = mapStatusEstoqueToStatusOperacional(stEstoque);
 
     const payload = {
       id: assetId,
@@ -226,7 +234,8 @@ export async function saveSingleAssetStockAction(asset: Partial<AssetStockItemRe
       location: asset.location || 'Almoxarifado',
       sub_location: asset.sub_location || 'Geral',
       status: asset.status || 'Conforme',
-      status_estoque: validStEstoque,
+      status_estoque: dbStatusEstoque,
+      status_operacional: statusOp,
       tipo_movimentacao: tipoMov,
       data_fabricacao: asset.data_fabricacao || null,
       data_vencimento_teste: asset.validadeRecarga || asset.data_vencimento_teste || null,
@@ -350,6 +359,7 @@ export async function bulkImportAssetsAction(
 
       const stEstoque = categoriaDestino || matchAsset?.status_estoque || 'ESTOQUE APLICAÇÃO';
       const tipoMov = mapStatusEstoqueToTipoMovimentacao(stEstoque);
+      const statusOp = mapStatusEstoqueToStatusOperacional(stEstoque);
 
       payloadAssets.push({
         id: assetId,
@@ -363,7 +373,8 @@ export async function bulkImportAssetsAction(
         location: r.location || matchAsset?.location || 'Almoxarifado',
         sub_location: r.sub_location || matchAsset?.sub_location || 'Estoque',
         status: 'Conforme',
-        status_estoque: stEstoque,
+        status_estoque: mapToDbEnum(stEstoque),
+        status_operacional: statusOp,
         tipo_movimentacao: tipoMov,
         data_vencimento_teste: validadeFormatted,
         details: {

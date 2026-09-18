@@ -94,12 +94,12 @@ BEGIN
         NEW.latitude := NULL;
         NEW.longitude := NULL;
     ELSIF NEW.status_operacional = 'EM_MANUTENCAO_EXTERNA' THEN
-        NEW.status_estoque := 'EM MANUTENÇÃO';
+        NEW.status_estoque := 'ESTOQUE MANUTENÇÃO';
         NEW.tipo_movimentacao := 'em_manutencao';
         NEW.latitude := NULL;
         NEW.longitude := NULL;
     ELSIF NEW.status_operacional = 'CONDENADO_DESCARTE' THEN
-        NEW.status_estoque := 'CONDENADOS';
+        NEW.status_estoque := 'CONDENADO';
         NEW.tipo_movimentacao := 'condenado';
     ELSIF NEW.status_operacional = 'NA_AREA_APLICADO' THEN
         NEW.status_estoque := NULL;

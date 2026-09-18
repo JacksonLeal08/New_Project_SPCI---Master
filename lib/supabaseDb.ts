@@ -118,17 +118,11 @@ const getNormalizedCategory = (collectionName: string) => {
 export const getValidStatusEstoqueEnum = (val: any): string | null => {
   if (!val) return null;
   const str = String(val).trim().toUpperCase();
-  const valid = [
-    'ESTOQUE APLICAÇÃO',
-    'ESTOQUE MANUTENÇÃO',
-    'EM MANUTENÇÃO',
-    'CONDENADOS'
-  ];
-  if (valid.includes(str)) return str;
-  if (str === 'ESTOQUE' || str.includes('ESTOQUE_APLICACAO') || str.includes('APLICACAO')) return 'ESTOQUE APLICAÇÃO';
-  if (str.includes('ESTOQUE_MANUTENCAO')) return 'ESTOQUE MANUTENÇÃO';
-  if (str === 'MANUTENCAO' || str.includes('EM_MANUTENCAO')) return 'EM MANUTENÇÃO';
-  if (str === 'CONDENADO' || str.includes('CONDENAD')) return 'CONDENADOS';
+  if (str === 'ESTOQUE APLICAÇÃO' || str === 'ESTOQUE_APLICACAO' || str.includes('APLICAÇÃO') || str.includes('APLICACAO')) return 'ESTOQUE APLICAÇÃO';
+  if (str === 'ESTOQUE MANUTENÇÃO' || str === 'ESTOQUE_MANUTENCAO' || str.includes('AG. MANUT') || str.includes('AG_MANUT')) return 'ESTOQUE MANUTENÇÃO';
+  if (str.includes('CONDENAD')) return 'CONDENADO';
+  if (str.includes('ÁREA') || str.includes('AREA') || str.includes('APLICADO')) return 'APLICADO';
+  if (str.includes('MANUTEN')) return 'ESTOQUE MANUTENÇÃO';
   return null;
 };
 
