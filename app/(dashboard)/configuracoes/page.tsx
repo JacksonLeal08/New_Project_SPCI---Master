@@ -2,26 +2,17 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useSpci } from '@/app/context/SpciContext';
 import { 
-  RefreshCw, 
-  Trash2, 
-  UserPlus, 
-  Check,
-  Pencil,
-  Share2,
-  Copy
-} from 'lucide-react';
-import { copyToClipboard } from '@/lib/utils';
-import { 
   fetchSitesAction, 
-  fetchContratosAction, 
-  createContratoAction, 
-  deleteContratoAction 
+  fetchContratosAction 
 } from '@/app/actions/userActions';
+import ProfileManagementBento from '@/app/components/ProfileManagementBento';
+import UsersManagementBento from '@/app/components/UsersManagementBento';
 import SuppliersManagementBento from '@/app/components/SuppliersManagementBento';
-
+import ContractsManagementBento from '@/app/components/ContractsManagementBento';
+import { Moon, Sun } from 'lucide-react';
 
 const DEFAULT_SITES = [
   'TODOS OS SITES (Acesso Global)',
@@ -32,301 +23,88 @@ const DEFAULT_SITES = [
 export default function ConfiguracoesPage() {
   const router = useRouter();
   
-  // Context states & methods
   const {
-    currentUser,
     userProfile,
-    authChecking,
-    userList,
-    loadingUsersList,
-    fetchUsers,
-    handleAdminRoleStatusChange,
-    handleAdminDeleteUser,
-    handleUpdateUserFull,
-    handleInviteUser,
-    handleUpdateLogoAndProfile,
-    triggerSuccessNotification,
-    addConsoleLog,
-    showAlertModal,
-    showConfirmModal
+    authChecking
   } = useSpci();
 
-  // Navigation tab state
+  // Estado da aba ativa
   const [activeTab, setActiveTab] = useState<'profile' | 'users' | 'suppliers' | 'contratos'>('profile');
 
-  // Guard: exclusive for admin/dev/gestor and credential login (google users blocked)
-  const isAdmin = userProfile?.role === 'Administrador' || userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Gestor' || userProfile?.role === 'admin';
-  const canManageContratos = userProfile?.role === 'Desenvolvedor' || userProfile?.role === 'Gestor';
+  // Estado do tema local para garantir alta fidelidade de contraste (Dark Cockpit vs Executive Light)
+  const [theme, setTheme] = useState<'dark' | 'light'>('light');
 
-  // --- TAB 1: MEU PERFIL STATES ---
-  const [profileNameInput, setProfileNameInput] = useState('');
-  const [profileLogoUrlInput, setProfileLogoUrlInput] = useState('');
-  const [updatingProfile, setUpdatingProfile] = useState(false);
-
-  // --- SITES & CONTRATOS STATES ---
+  // Lista de sites e contratos
   const [sitesList, setSitesList] = useState<string[]>(DEFAULT_SITES);
-  const [contratosList, setContratosList] = useState<any[]>([]);
-  const [loadingContratos, setLoadingContratos] = useState<boolean>(false);
-  const [newContratoNome, setNewContratoNome] = useState<string>('');
-  const [newContratoDesc, setNewContratoDesc] = useState<string>('');
-  const [creatingContrato, setCreatingContrato] = useState<boolean>(false);
 
-  const [newInviteSiteInput, setNewInviteSiteInput] = useState<string>('');
-  const [showNewInviteSiteInput, setShowNewInviteSiteInput] = useState<boolean>(false);
-
-  const [newEditSiteInput, setNewEditSiteInput] = useState<string>('');
-  const [showNewEditSiteInput, setShowNewEditSiteInput] = useState<boolean>(false);
-
-  // ESC key handler for modals
+  // Detecção inicial de tema do sistema ou preferência salva
   useEffect(() => {
-    const handleEsc = () => {
-      setShowInviteModal(false);
-      setEditingUser(null);
-      setUserToDelete(null);
-      setSharingUser(null);
-      setCreatedCredentials(null);
-      setShowNewInviteSiteInput(false);
-      setShowNewEditSiteInput(false);
-    };
-    window.addEventListener('spci-close-modals', handleEsc);
-    return () => window.removeEventListener('spci-close-modals', handleEsc);
+    if (typeof window !== 'undefined') {
+      const isDark = document.documentElement.classList.contains('dark') || 
+        window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setTheme(isDark ? 'dark' : 'light');
+    }
   }, []);
 
-  // Sync contratos e sites oficiais
-  const syncAllContratos = async () => {
-    setLoadingContratos(true);
-    try {
-      const res = await fetchContratosAction();
-      if (res.success && res.contratos) {
-        setContratosList(res.contratos);
-        const dbNomes = res.contratos.map((c: any) => c.nome);
-        const combined = Array.from(new Set([...DEFAULT_SITES, ...dbNomes]));
-        setSitesList(combined);
+  const handleThemeChange = (newPref: 'dark' | 'light' | 'system') => {
+    if (newPref === 'system') {
+      const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setTheme(isDark ? 'dark' : 'light');
+      if (isDark) {
+        document.documentElement.classList.add('dark');
       } else {
-        const sitesRes = await fetchSitesAction();
-        const combined = Array.from(new Set([...DEFAULT_SITES, ...(sitesRes.sites || [])]));
-        setSitesList(combined);
+        document.documentElement.classList.remove('dark');
       }
-    } catch (e) {
-      console.warn('Erro ao carregar contratos/sites:', e);
-    } finally {
-      setLoadingContratos(false);
-    }
-  };
-
-  useEffect(() => {
-    syncAllContratos();
-  }, []);
-
-  const handleAddNewSite = async (newSiteName: string, targetModal: 'invite' | 'edit') => {
-    const trimmed = newSiteName.trim().toUpperCase();
-    if (!trimmed) return;
-
-    if (!canManageContratos) {
-      showAlertModal('Acesso Restrito 🔒', 'Somente usuários com perfil Desenvolvedor ou Gestor têm permissão para cadastrar novos contratos/sites.', 'warning');
-      return;
-    }
-
-    // Check duplicate (case-insensitive)
-    const existing = sitesList.find(s => s.toLowerCase() === trimmed.toLowerCase());
-    if (existing) {
-      showAlertModal('Contrato Já Cadastrado 🏢', `O contrato/site "${existing}" já está registrado e disponível no sistema!`, 'warning');
-      if (targetModal === 'invite') {
-        setInviteSite(existing);
-        setShowNewInviteSiteInput(false);
-        setNewInviteSiteInput('');
-      } else {
-        setEditSite(existing);
-        setShowNewEditSiteInput(false);
-        setNewEditSiteInput('');
-      }
-      return;
-    }
-
-    // Persiste no banco Supabase na tabela public.contratos
-    try {
-      const res = await createContratoAction({
-        nome: trimmed,
-        codigo: trimmed.replace(/\s+/g, '_')
-      });
-      if (!res.success) {
-        throw new Error(res.error || 'Falha ao salvar contrato no banco.');
-      }
-    } catch (dbErr: any) {
-      showAlertModal('Erro ao Cadastrar Contrato ❌', dbErr.message || 'Falha ao salvar no banco.', 'error');
-      return;
-    }
-
-    const updatedSites = [...sitesList, trimmed];
-    setSitesList(updatedSites);
-
-    if (targetModal === 'invite') {
-      setInviteSite(trimmed);
-      setShowNewInviteSiteInput(false);
-      setNewInviteSiteInput('');
     } else {
-      setEditSite(trimmed);
-      setShowNewEditSiteInput(false);
-      setNewEditSiteInput('');
-    }
-
-    await syncAllContratos();
-    triggerSuccessNotification('Novo Contrato Cadastrado! 🏢', `O contrato/site "${trimmed}" foi registrado e homologado no Banco de Dados.`);
-  };
-
-  const handleDeleteSite = async (siteName: string) => {
-    if (!canManageContratos) {
-      showAlertModal('Acesso Restrito 🔒', 'Somente usuários com perfil Desenvolvedor ou Gestor podem remover contratos.', 'warning');
-      return;
-    }
-
-    // Protege os contratos default — não podem ser excluídos
-    if (['TODOS OS SITES (Acesso Global)', 'SALOBO', 'ONÇA PUMA'].includes(siteName.toUpperCase())) {
-      showAlertModal('Ação Bloqueada 🔒', `O contrato "${siteName}" é estrutural do sistema e não pode ser removido.`, 'warning');
-      return;
-    }
-
-    try {
-      // Procura o contrato correspondente
-      const targetContrato = contratosList.find(c => c.nome.toUpperCase() === siteName.toUpperCase());
-      const res = await deleteContratoAction(targetContrato ? targetContrato.id : siteName);
-      if (!res.success) {
-        showAlertModal('Erro ao Excluir Contrato ❌', res.error || 'Falha ao remover o contrato do banco de dados.', 'error');
-        return;
+      setTheme(newPref);
+      if (newPref === 'dark') {
+        document.documentElement.classList.add('dark');
+      } else {
+        document.documentElement.classList.remove('dark');
       }
-
-      await syncAllContratos();
-      triggerSuccessNotification('Contrato Removido! 🗑️', `O contrato "${siteName}" foi desativado do sistema.`);
-    } catch (err: any) {
-      showAlertModal('Erro ao Excluir Contrato ❌', err?.message || 'Falha inesperada.', 'error');
     }
   };
 
-  // Sync profile details locally on profile load
+  // Guard: exclusivo para administradores credenciados do SPCI
+  const isAdmin = userProfile?.role === 'Administrador' || 
+    userProfile?.role === 'Desenvolvedor' || 
+    userProfile?.role === 'Gestor' || 
+    userProfile?.role === 'admin';
+
+  const canManageContratos = userProfile?.role === 'Desenvolvedor' || 
+    userProfile?.role === 'Gestor' || 
+    userProfile?.role === 'Administrador';
+
+  // Sincronização de Sites e Contratos oficiais
   useEffect(() => {
-    if (userProfile) {
-      setTimeout(() => {
-        setProfileNameInput(userProfile.name || '');
-        setProfileLogoUrlInput(userProfile.logoUrl || '');
-      }, 0);
+    async function syncSites() {
+      try {
+        const res = await fetchContratosAction();
+        if (res.success && res.contratos) {
+          const dbNomes = res.contratos.map((c: any) => c.nome);
+          const combined = Array.from(new Set([...DEFAULT_SITES, ...dbNomes]));
+          setSitesList(combined);
+        } else {
+          const sitesRes = await fetchSitesAction();
+          const combined = Array.from(new Set([...DEFAULT_SITES, ...(sitesRes.sites || [])]));
+          setSitesList(combined);
+        }
+      } catch (e) {
+        console.warn('Erro ao carregar sites:', e);
+      }
     }
-  }, [userProfile]);
+    syncSites();
+  }, []);
 
-  // --- TAB 2: CONTROLE DE USUÁRIOS STATES ---
-  const [showInviteModal, setShowInviteModal] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteUsername, setInviteUsername] = useState('');
-  const [inviteName, setInviteName] = useState('');
-  const [invitePhone, setInvitePhone] = useState('');
-  const [inviteRole, setInviteRole] = useState<'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário'>('Usuário');
-  const [inviteSite, setInviteSite] = useState<string>('TODOS OS SITES (Acesso Global)');
-  const [inviteExpiresAt, setInviteExpiresAt] = useState('');
-  const [invitePassword, setInvitePassword] = useState('');
-  const [inviting, setInviting] = useState(false);
-  const [selectedModules, setSelectedModules] = useState<string[]>([
-    'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts'
-  ]);
-
-  // Onboarding credentials & delete confirmation display state
-  const [createdCredentials, setCreatedCredentials] = useState<any | null>(null);
-  const [copied, setCopied] = useState(false);
-  const [userToDelete, setUserToDelete] = useState<any | null>(null);
-  const [deletingUser, setDeletingUser] = useState(false);
-
-  // User edit modal states
-  const [editingUser, setEditingUser] = useState<any | null>(null);
-  const [editName, setEditName] = useState('');
-  const [editUsername, setEditUsername] = useState('');
-  const [editEmail, setEditEmail] = useState('');
-  const [editPhone, setEditPhone] = useState('');
-  const [editRole, setEditRole] = useState<'Desenvolvedor' | 'Gestor' | 'Administrador' | 'Usuário'>('Usuário');
-  const [editSite, setEditSite] = useState<string>('TODOS OS SITES (Acesso Global)');
-  const [editStatus, setEditStatus] = useState<'Ativo' | 'Pendente' | 'Inativo/Suspenso'>('Ativo');
-  const [editExpiresAt, setEditExpiresAt] = useState('');
-  const [editPassword, setEditPassword] = useState('');
-  const [editModules, setEditModules] = useState<string[]>([
-    'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts'
-  ]);
-  const [savingEdit, setSavingEdit] = useState(false);
-
-  // User share credentials modal & quick copy states
-  const [sharingUser, setSharingUser] = useState<any | null>(null);
-  const [shareCustomPassword, setShareCustomPassword] = useState('');
-  const [shareCopied, setShareCopied] = useState(false);
-
-  const handleOpenShareModal = (user: any) => {
-    setSharingUser(user);
-    setShareCustomPassword('');
-    setShareCopied(false);
-  };
-
-  const handleQuickCopyUserCredentials = async (user: any) => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://spci-master.vercel.app';
-    const textToCopy = `🏢 *GRUPO OMG // SPCI MASTER*\n───────────────\n🔥 *CREDENCIAIS DE ACESSO CORPORATIVO*\n\nOlá, *${user.name}*!\nSeu perfil de acesso ao *SPCI Master* está ativo.\n\n📍 *Nível de Acesso:* ${user.role || 'Usuário'}\n🌐 *Link do Cockpit:* ${origin}/login\n📧 *E-mail / Login:* ${user.email}\n👤 *Username:* @${user.userName || user.username || 'usuario'}\n` + (user.dataExpiracao ? `⏳ *Validade:* até ${new Date(user.dataExpiracao).toLocaleDateString('pt-BR')}\n` : '') + `\n───────────────\n⚠️ *Instrução:* Acesse o link acima para entrar no sistema com suas credenciais.\n\n_Grupo OMG © 2026 - Todos os Direitos Reservados_`;
-
-    try {
-      await copyToClipboard(textToCopy);
-      triggerSuccessNotification("Credenciais Copiadas! 📋", `Os dados de acesso de ${user.name} foram copiados.`);
-    } catch (e) {
-      console.error('Erro ao copiar credenciais:', e);
-    }
-  };
-
-  const handleOpenEditModal = (user: any) => {
-    setEditingUser(user);
-    setEditName(user.name || '');
-    setEditUsername(user.userName || user.username || '');
-    setEditEmail(user.email || '');
-    setEditPhone(user.telefoneWhatsapp || user.phone || '');
-    setEditRole(user.role || 'Usuário');
-    setEditSite(user.site || 'TODOS OS SITES (Acesso Global)');
-    setShowNewEditSiteInput(false);
-    setEditStatus(
-      user.status === 'active' || user.status === 'Ativo' 
-        ? 'Ativo' 
-        : user.status === 'pending' || user.status === 'Pendente' 
-          ? 'Pendente' 
-          : 'Inativo/Suspenso'
-    );
-    setEditExpiresAt(user.dataExpiracao ? new Date(user.dataExpiracao).toISOString().split('T')[0] : '');
-    setEditPassword('');
-    setEditModules(
-      user.role === 'Desenvolvedor' || userProfile?.role === 'Desenvolvedor'
-        ? ['dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts', 'configuracoes']
-        : ['dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts']
-    );
-  };
-
-  // Load user list on mount and tab switch
-  useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers, activeTab]);
-
-  const saveProfileHandler = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!profileNameInput) {
-      triggerSuccessNotification("Nome Requerido ⚠️", "Por favor, digite seu nome de exibição.");
-      return;
-    }
-    setUpdatingProfile(true);
-    try {
-      await handleUpdateLogoAndProfile(profileLogoUrlInput, profileNameInput);
-    } catch (err) {
-      console.error("Erro salvando perfil:", err);
-    } finally {
-      setUpdatingProfile(false);
-    }
-  };
-
-  // --- RENDERING RESTRICTED VIEW FOR SPECTATOR/NON-ADMINS ---
-  if (!isAdmin) {
+  // Bloqueio de visualização para operadores sem papel administrativo
+  if (!isAdmin && !authChecking) {
     return (
-      <div className="flex flex-col items-center justify-center p-12 text-center bg-white border border-slate-200 rounded-2xl max-w-md mx-auto shadow-2xl space-y-4 my-12 font-mono relative text-slate-800">
+      <div className="flex flex-col items-center justify-center p-12 text-center bg-white dark:bg-zinc-900 border border-slate-200 dark:border-zinc-800 rounded-2xl max-w-md mx-auto shadow-2xl space-y-4 my-12 font-mono relative text-slate-800 dark:text-zinc-100">
         <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-600 rounded-t-2xl" />
         <span className="text-4xl" role="img" aria-label="Acesso restrito">🚫</span>
-        <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider">Acesso Restrito</h3>
-        <p className="text-xs text-slate-500 font-sans leading-relaxed">
-          Esta área de configurações e governança do sistema é exclusiva para administradores credenciados do SPCI (Logins padrão via credenciais).
+        <h3 className="font-bold text-sm text-slate-900 dark:text-zinc-100 uppercase tracking-wider">Acesso Restrito</h3>
+        <p className="text-xs text-slate-500 dark:text-zinc-400 font-sans leading-relaxed">
+          Esta área de configurações e governança do sistema é exclusiva para administradores credenciados do SPCI Master.
         </p>
         <button 
           onClick={() => router.push('/dashboard')}
@@ -342,1641 +120,182 @@ export default function ConfiguracoesPage() {
     <motion.div 
       initial={{ opacity: 0, y: 12 }} 
       animate={{ opacity: 1, y: 0 }} 
-      className="w-full space-y-6 pb-24 font-mono select-none text-slate-850"
+      className={`w-full space-y-6 pb-24 font-mono select-none transition-colors duration-200 ${
+        theme === 'dark' ? 'text-zinc-100' : 'text-slate-900'
+      }`}
     >
-      {/* Header section */}
-      <div className="bg-white border border-slate-200 p-6 shadow-sm relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4 rounded-2xl">
-        <div className="absolute top-0 left-0 right-0 h-[3px] bg-red-600 rounded-t-2xl" />
+      {/* 1. CABEÇALHO EXECUTIVO COM ALTERNADOR RÁPIDO DE TEMA */}
+      <div
+        className={`border p-6 relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-4 rounded-2xl shadow-xs transition-colors duration-200 ${
+          theme === 'dark'
+            ? 'bg-zinc-900 border-zinc-800 text-zinc-100'
+            : 'bg-white border-slate-200 text-slate-900'
+        }`}
+      >
+        <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-red-600 via-rose-600 to-red-700" />
         <div className="absolute -right-10 -bottom-10 opacity-5 text-9xl select-none pointer-events-none" aria-hidden="true">⚙️</div>
+
         <div>
-          <h2 className="font-black text-xl text-slate-900 uppercase tracking-wider flex items-center gap-2">
-            <span>⚙️</span> Painel Administrativo SPCI
+          <h2 className="font-black text-xl uppercase tracking-wider flex items-center gap-2.5">
+            <span className="p-1.5 rounded-xl bg-red-500/10 text-red-600 dark:text-rose-500 border border-red-500/20 text-lg">
+              ⚙️
+            </span>
+            <span>Painel de Configurações & Governança</span>
           </h2>
-          <p className="text-slate-500 text-xs mt-1 font-sans leading-relaxed">
-            Centralize o gerenciamento do seu perfil e governança de credenciais de usuários do SPCI.
+          <p className="text-slate-500 dark:text-zinc-400 text-xs mt-1.5 font-sans leading-relaxed">
+            Centralize o gerenciamento do seu perfil, governança de credenciais, fornecedores e controle multi-tenant de contratos operacionais.
           </p>
+        </div>
+
+        {/* Alternador Rápido de Tema (Dark / Light) */}
+        <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => handleThemeChange(theme === 'dark' ? 'light' : 'dark')}
+            title={theme === 'dark' ? 'Mudar para Tema Claro (Executive Light)' : 'Mudar para Tema Escuro (Cockpit Dark)'}
+            className={`px-3 py-2 rounded-xl border flex items-center gap-2 text-xs font-bold transition-all cursor-pointer ${
+              theme === 'dark'
+                ? 'bg-zinc-950 border-zinc-800 text-amber-400 hover:border-zinc-700'
+                : 'bg-slate-50 border-slate-300 text-slate-700 hover:bg-slate-100 shadow-xs'
+            }`}
+          >
+            {theme === 'dark' ? (
+              <>
+                <Sun size={15} />
+                <span className="hidden sm:inline">Executive Light</span>
+              </>
+            ) : (
+              <>
+                <Moon size={15} />
+                <span className="hidden sm:inline">Cockpit Dark</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* HORIZONTAL TAB BAR */}
-      <div className="flex border-b border-slate-200 gap-1 overflow-x-auto shrink-0 scrollbar-none">
+      {/* 2. BARRA DE NAVEGAÇÃO POR ABAS HORIZONTAIS */}
+      <div
+        className={`flex border-b gap-1 overflow-x-auto shrink-0 scrollbar-none transition-colors duration-200 ${
+          theme === 'dark' ? 'border-zinc-800' : 'border-slate-200'
+        }`}
+      >
+        {/* Aba 1: Meu Perfil */}
         <button 
           onClick={() => setActiveTab('profile')}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-t-xl flex items-center gap-2 ${
             activeTab === 'profile' 
-              ? 'bg-white border-t-2 border-t-red-600 border-x border-x-slate-200 text-red-600 font-extrabold shadow-xs' 
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'
+              ? theme === 'dark'
+                ? 'bg-zinc-900 border-t-2 border-t-red-500 border-x border-x-zinc-800 text-red-500 font-black shadow-xs'
+                : 'bg-white border-t-2 border-t-red-600 border-x border-x-slate-200 text-red-600 font-extrabold shadow-xs'
+              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100/50 dark:hover:bg-zinc-800/40'
           }`}
         >
           <span>👤</span> Meu Perfil
         </button>
+
+        {/* Aba 2: Controle de Usuários */}
         <button 
           onClick={() => setActiveTab('users')}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-t-xl flex items-center gap-2 ${
             activeTab === 'users' 
-              ? 'bg-white border-t-2 border-t-red-600 border-x border-x-slate-200 text-red-600 font-extrabold shadow-xs' 
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'
+              ? theme === 'dark'
+                ? 'bg-zinc-900 border-t-2 border-t-red-500 border-x border-x-zinc-800 text-red-500 font-black shadow-xs'
+                : 'bg-white border-t-2 border-t-red-600 border-x border-x-slate-200 text-red-600 font-extrabold shadow-xs'
+              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100/50 dark:hover:bg-zinc-800/40'
           }`}
         >
           <span>👥</span> Controle de Usuários
         </button>
+
+        {/* Aba 3: Fornecedores & Prestadores */}
         <button 
           onClick={() => setActiveTab('suppliers')}
           className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-t-xl flex items-center gap-2 ${
             activeTab === 'suppliers' 
-              ? 'bg-white border-t-2 border-t-red-600 border-x border-x-slate-200 text-red-600 font-extrabold shadow-xs' 
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'
+              ? theme === 'dark'
+                ? 'bg-zinc-900 border-t-2 border-t-red-500 border-x border-x-zinc-800 text-red-500 font-black shadow-xs'
+                : 'bg-white border-t-2 border-t-red-600 border-x border-x-slate-200 text-red-600 font-extrabold shadow-xs'
+              : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100/50 dark:hover:bg-zinc-800/40'
           }`}
         >
           <span>🏢</span> Fornecedores & Prestadores
         </button>
+
+        {/* Aba 4: Gestão de Contratos (Sites) */}
         {canManageContratos && (
           <button 
             onClick={() => setActiveTab('contratos')}
             className={`px-5 py-3 text-xs font-bold uppercase tracking-wider transition-all duration-200 cursor-pointer rounded-t-xl flex items-center gap-2 ${
               activeTab === 'contratos' 
-                ? 'bg-white border-t-2 border-t-red-600 border-x border-x-slate-200 text-red-600 font-extrabold shadow-xs' 
-                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-100/50'
+                ? theme === 'dark'
+                  ? 'bg-zinc-900 border-t-2 border-t-red-500 border-x border-x-zinc-800 text-red-500 font-black shadow-xs'
+                  : 'bg-white border-t-2 border-t-red-600 border-x border-x-slate-200 text-red-600 font-extrabold shadow-xs'
+                : 'text-slate-500 dark:text-zinc-400 hover:text-slate-900 dark:hover:text-zinc-200 hover:bg-slate-100/50 dark:hover:bg-zinc-800/40'
             }`}
           >
-            <span>📋</span> Gestão de Contratos (Sites)
+            <span>📋</span> Gestão de Contratos (SITES)
           </button>
         )}
       </div>
 
-      {/* TAB CONTENT PANELS */}
-      <div className="space-y-6">
-        
-        {/* TAB 1: MEU PERFIL */}
+      {/* 3. CONTEÚDO DA ABA ATIVA (COMPONENTES BENTO MODULARES) */}
+      <AnimatePresence mode="wait">
         {activeTab === 'profile' && (
-          <motion.div 
-            initial={{ opacity: 0, x: -10 }} 
-            animate={{ opacity: 1, x: 0 }} 
-            className="grid grid-cols-1 lg:grid-cols-3 gap-6"
+          <motion.div
+            key="tab-profile"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15 }}
           >
-            {/* Profile detail card */}
-            <div className="bg-white border border-slate-200 p-6 shadow-sm relative space-y-6 rounded-2xl">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-red-600 rounded-t-2xl" />
-              <h3 className="font-bold text-xs text-slate-800 uppercase tracking-widest flex items-center gap-2 pb-3 border-b border-slate-100">
-                <span>🛡️</span> Credencial Ativa
-              </h3>
-
-              <div className="flex flex-col items-center text-center space-y-4 py-4">
-                {userProfile?.logoUrl ? (
-                  <div className="w-20 h-20 bg-white border border-slate-200 p-1 flex items-center justify-center relative shadow-sm rounded-xl">
-                    <img 
-                      src={userProfile.logoUrl} 
-                      alt="Logo corporativo" 
-                      className="w-full h-full object-contain rounded-lg" 
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                ) : (
-                  <div className="w-20 h-20 bg-red-50 border border-red-100 flex items-center justify-center text-red-600 text-3xl font-black shadow-inner rounded-xl">
-                    🧯
-                  </div>
-                )}
-                <div>
-                  <h4 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide">
-                    {userProfile?.name || 'TÉCNICO SPCI'}
-                  </h4>
-                  <p className="text-[10px] text-slate-500 font-sans mt-0.5">{userProfile?.email}</p>
-                </div>
-              </div>
-
-              <div className="space-y-3 pt-3 border-t border-slate-100 text-xs text-slate-700">
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-slate-500 uppercase font-bold">Nível de Acesso</span>
-                  <span className="bg-red-50 border border-red-100 text-red-600 font-bold px-2 py-0.5 uppercase text-[9px] rounded-lg">
-                    {userProfile?.role === 'Desenvolvedor' ? '💻 Desenvolvedor' : userProfile?.role === 'Administrador' ? '🛡️ Administrador' : '👷 Técnico'}
-                  </span>
-                </div>
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-slate-500 uppercase font-bold">Status do Perfil</span>
-                  <span className="bg-emerald-50 border border-emerald-100 text-emerald-600 font-bold px-2 py-0.5 uppercase text-[9px] rounded-lg">
-                    Ativo
-                  </span>
-                </div>
-                {userProfile?.dataExpiracao && (
-                  <div className="flex justify-between items-center py-1">
-                    <span className="text-slate-500 uppercase font-bold">Validade da Conta</span>
-                    <span className="text-amber-600 font-bold font-mono">
-                      {new Date(userProfile.dataExpiracao).toLocaleDateString('pt-BR')}
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Profile update form */}
-            <div className="lg:col-span-2 bg-white border border-slate-200 p-6 shadow-sm relative space-y-6 rounded-2xl">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-red-600 rounded-t-2xl" />
-              <h3 className="font-bold text-xs text-slate-800 uppercase tracking-widest flex items-center gap-2 pb-3 border-b border-slate-100">
-                <span>🔧</span> Configurações de Identificação & Logomarca
-              </h3>
-
-              <form onSubmit={saveProfileHandler} className="space-y-5 text-xs text-slate-600">
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">
-                    Nome de Exibição / Razão Social
-                  </label>
-                  <input 
-                    type="text" 
-                    required 
-                    value={profileNameInput}
-                    onChange={(e) => setProfileNameInput(e.target.value)}
-                    placeholder="Ex: Inspetor Técnico João"
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 focus:shadow-[0_0_8px_rgba(220,38,38,0.05)] rounded-xl p-3 text-xs text-slate-850 focus:outline-none font-bold shadow-xs transition-all"
-                  />
-                  <p className="text-[9px] text-slate-400 font-sans mt-0.5">Nome utilizado para homologar laudos de vistorias.</p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">
-                    URL do Logotipo (.png / .jpg)
-                  </label>
-                  <input 
-                    type="text" 
-                    value={profileLogoUrlInput}
-                    onChange={(e) => setProfileLogoUrlInput(e.target.value)}
-                    placeholder="https://exemplo.com/sua-logo.png"
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 focus:shadow-[0_0_8px_rgba(220,38,38,0.05)] rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs transition-all"
-                  />
-                  <p className="text-[9px] text-slate-400 font-sans mt-0.5">Link público para o logotipo personalizado da empresa parceira.</p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">
-                    📁 Escolher Foto/Imagem do Dispositivo
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input 
-                      type="file" 
-                      accept="image/*"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const reader = new FileReader();
-                          reader.onload = (event) => {
-                            if (event.target?.result) {
-                              setProfileLogoUrlInput(event.target.result as string);
-                            }
-                          };
-                          reader.readAsDataURL(file);
-                        }
-                      }}
-                      className="block w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-extrabold file:uppercase file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer border border-slate-200 rounded-xl p-1 bg-slate-50"
-                    />
-                  </div>
-                  <p className="text-[9px] text-slate-400 font-sans mt-0.5">Selecione qualquer arquivo de imagem (PNG, JPG, WEBP) armazenado no seu dispositivo.</p>
-                </div>
-
-                <div className="space-y-2">
-                  <span className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">Sugestões de Avatares & Logos Corporativas</span>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    {[
-                      { name: '🔥 Capacete SPCI', url: 'https://images.unsplash.com/photo-1541888946425-d0fbb186a5b3?w=120&auto=format&fit=crop&q=80' },
-                      { name: '🛡️ Escudo OMG', url: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=120&auto=format&fit=crop&q=80' },
-                      { name: '👷 Técnico Campo', url: 'https://images.unsplash.com/photo-1581092160607-ee22621dd758?w=120&auto=format&fit=crop&q=80' },
-                      { name: '⚙️ Planta Industrial', url: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?w=120&auto=format&fit=crop&q=80' },
-                      { name: '🏢 SPCI Governança', url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=120&auto=format&fit=crop&q=80' },
-                      { name: '🌿 EcoPrevenir NBR', url: 'https://images.unsplash.com/photo-1448375240586-882707db888b?w=120&auto=format&fit=crop&q=80' }
-                    ].map(preset => (
-                      <button
-                        key={preset.name}
-                        type="button"
-                        onClick={() => setProfileLogoUrlInput(preset.url)}
-                        className={`border p-2 bg-slate-50 hover:bg-slate-100 flex items-center gap-3 cursor-pointer transition-all rounded-xl text-left ${
-                          profileLogoUrlInput === preset.url ? 'border-red-600 ring-2 ring-red-600/20' : 'border-slate-200'
-                        }`}
-                      >
-                        <img 
-                          src={preset.url} 
-                          alt={preset.name} 
-                          className="w-9 h-9 object-cover bg-white p-0.5 shadow-sm rounded-lg" 
-                          referrerPolicy="no-referrer"
-                        />
-                        <span className="text-[9px] font-extrabold text-slate-700 leading-tight block uppercase truncate">{preset.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-100 flex justify-end">
-                  <button
-                    type="submit"
-                    disabled={updatingProfile}
-                    className="px-6 py-3 bg-red-600 hover:bg-red-500 text-white font-black text-xs uppercase tracking-wider transition-all cursor-pointer border-none rounded-xl active:scale-[0.97] flex items-center gap-2 shadow-xs"
-                  >
-                    {updatingProfile ? (
-                      <>
-                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        SALVANDO...
-                      </>
-                    ) : (
-                      <>
-                        <Check className="w-3.5 h-3.5 font-bold" />
-                        SALVAR PERFIL
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <ProfileManagementBento 
+              availableSites={sitesList} 
+              currentTheme={theme} 
+              onThemeChange={handleThemeChange} 
+            />
           </motion.div>
         )}
 
-        {/* TAB 2: CONTROLE DE USUÁRIOS */}
         {activeTab === 'users' && (
-          <motion.div 
-            initial={{ opacity: 0, x: -10 }} 
-            animate={{ opacity: 1, x: 0 }} 
-            className="space-y-6 text-slate-800"
+          <motion.div
+            key="tab-users"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15 }}
           >
-            {/* Stat Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className="bg-white border border-slate-200 p-5 shadow-sm flex items-center gap-4 rounded-2xl">
-                <div className="w-12 h-12 bg-red-50 border border-red-100 text-red-600 flex items-center justify-center text-xl font-bold rounded-xl shadow-xs" aria-hidden="true">🎯</div>
-                <div>
-                  <h4 className="text-slate-500 text-[9px] font-bold uppercase tracking-widest leading-none">Total Cadastrados</h4>
-                  <p className="font-black text-xl text-slate-800 mt-1.5">{userList.length}</p>
-                </div>
-              </div>
-              <div className="bg-white border border-slate-200 p-5 shadow-sm flex items-center gap-4 rounded-2xl">
-                <div className="w-12 h-12 bg-red-50 border border-red-100 text-red-600 flex items-center justify-center text-xl font-bold rounded-xl shadow-xs" aria-hidden="true">🛡️</div>
-                <div>
-                  <h4 className="text-slate-500 text-[9px] font-bold uppercase tracking-widest leading-none">Administradores e Devs</h4>
-                  <p className="font-black text-xl text-slate-800 mt-1.5">
-                    {userList.filter(u => u.role === 'Administrador' || u.role === 'Desenvolvedor').length}
-                  </p>
-                </div>
-              </div>
-              <div className="bg-white border border-slate-200 p-5 shadow-sm flex items-center gap-4 rounded-2xl">
-                <div className="w-12 h-12 bg-red-50 border border-red-100 text-red-600 flex items-center justify-center text-xl font-bold rounded-xl shadow-xs" aria-hidden="true">⏳</div>
-                <div>
-                  <h4 className="text-slate-500 text-[9px] font-bold uppercase tracking-widest leading-none">Pendentes / Inativos</h4>
-                  <p className="font-black text-xl text-slate-800 mt-1.5">
-                    {userList.filter(u => u.status !== 'active').length}
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Table wrapper */}
-            <div className="bg-white border border-slate-200 shadow-sm relative rounded-2xl text-slate-800">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-red-600 rounded-t-2xl" />
-              
-              <div className="border-b border-slate-200/80 p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                  <h3 className="font-bold text-xs text-slate-900 uppercase tracking-widest">
-                    Quadro Geral de Credenciais
-                  </h3>
-                  <p className="text-[10px] text-slate-500 mt-0.5 font-sans">Listagem direta do Banco de Dados ativo.</p>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <button 
-                    onClick={() => {
-                      addConsoleLog("[Admin] Recarregando lista de usuários...");
-                      fetchUsers();
-                    }}
-                    className="px-3.5 py-2 border border-slate-200 hover:border-slate-300 bg-slate-50 text-slate-650 font-bold text-[10px] uppercase cursor-pointer rounded-xl transition-all active:scale-95 flex items-center gap-1.5 shadow-xs"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" /> Recarregar
-                  </button>
-                  <button 
-                    onClick={() => {
-                      if (userProfile?.role !== 'Desenvolvedor' && inviteRole === 'Desenvolvedor') {
-                        setInviteRole('Usuário');
-                      }
-                      setShowInviteModal(true);
-                    }}
-                    className="px-4 py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black text-[10px] uppercase cursor-pointer rounded-xl transition-all active:scale-95 flex items-center gap-1.5 border-none shadow-md shadow-red-600/30 tracking-wider"
-                  >
-                    <UserPlus className="w-3.5 h-3.5" /> NOVO USUÁRIO
-                  </button>
-                </div>
-              </div>
-
-              {loadingUsersList ? (
-                <div className="p-12 text-center text-xs text-slate-500 font-mono flex items-center justify-center gap-2">
-                  <span className="w-3.5 h-3.5 border-2 border-red-650 border-t-transparent animate-spin rounded-full"></span>
-                  Sincronizando usuários do Banco de Dados...
-                </div>
-              ) : userList.length === 0 ? (
-                <div className="p-12 text-center text-xs text-slate-500 font-mono">
-                  Nenhum usuário adicional cadastrado. Clique no botão de convite para adicionar novos técnicos ou administradores.
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 text-slate-550 uppercase tracking-wider text-[9px] font-bold border-b border-slate-200">
-                        <th className="p-4 font-black">Colaborador</th>
-                        <th className="p-4 font-black">Username / E-mail</th>
-                        <th className="p-4 font-black">Site / Planta</th>
-                        <th className="p-4 font-black">Nível de Acesso (RBAC)</th>
-                        <th className="p-4 font-black">Status de Acesso</th>
-                        <th className="p-4 text-center font-black">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 font-mono text-[11px]">
-                      {userList.map(u => {
-                        const isOwnAccount = u.uid === currentUser?.uid;
-                        const isPrimaryAdmin = u.email?.toLowerCase() === 'jacksonflr@outlook.com.br';
-                        const disableActions = isOwnAccount || 
-                          (isPrimaryAdmin && userProfile?.role !== 'Desenvolvedor') || 
-                          (u.role === 'Desenvolvedor' && userProfile?.role !== 'Desenvolvedor');
-                        
-                        return (
-                          <tr key={u.uid} className="hover:bg-slate-50 transition-all text-slate-700">
-                            <td className="p-4 flex items-center gap-3">
-                              {u.logoUrl ? (
-                                <div className="w-8 h-8 bg-white border border-slate-200 p-0.5 flex items-center justify-center rounded-lg">
-                                  <img 
-                                    src={u.logoUrl} 
-                                    className="w-full h-full object-contain rounded-md" 
-                                    alt="Logo"
-                                    referrerPolicy="no-referrer"
-                                  />
-                                </div>
-                              ) : (
-                                <div className="w-8 h-8 bg-slate-100 text-slate-550 font-bold flex items-center justify-center text-xs border border-slate-200 uppercase rounded-lg">
-                                  {u.name ? u.name.charAt(0) : '?'}
-                                </div>
-                              )}
-                              <div>
-                                <p className="font-extrabold text-slate-900">{u.name}</p>
-                                {u.dataExpiracao && (
-                                  <p className="text-[8px] text-amber-600 font-mono mt-0.5 font-bold uppercase tracking-wider">
-                                    Expira em: {new Date(u.dataExpiracao).toLocaleDateString('pt-BR')}
-                                  </p>
-                                )}
-                              </div>
-                            </td>
-                            <td className="p-4 text-[10px] text-slate-500">
-                              <div className="flex items-center gap-1.5">
-                                <p className="font-bold text-red-650">@{u.userName || 'n/a'}</p>
-                                <button
-                                  type="button"
-                                  onClick={() => handleQuickCopyUserCredentials(u)}
-                                  className="p-1 hover:bg-slate-100 text-slate-400 hover:text-red-650 rounded-md transition-all cursor-pointer border border-transparent hover:border-slate-200"
-                                  title="Copiar dados de acesso do colaborador (1 clique)"
-                                >
-                                  <Copy className="w-3 h-3" />
-                                </button>
-                              </div>
-                              <p className="text-slate-400 mt-0.5">{u.email}</p>
-                              {u.telefoneWhatsapp && (
-                                <p className="text-emerald-600 font-bold mt-0.5">📞 {u.telefoneWhatsapp}</p>
-                              )}
-                            </td>
-                            <td className="p-4">
-                               <span className={`px-2.5 py-1 rounded-md font-mono text-[9px] font-extrabold uppercase inline-block border shadow-xs ${
-                                 !u.site || u.site.startsWith('TODOS')
-                                   ? 'bg-blue-50 text-blue-700 border-blue-200'
-                                   : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                               }`}>
-                                 {!u.site || u.site.startsWith('TODOS') ? '🌐 TODOS OS SITES' : `📍 ${u.site}`}
-                               </span>
-                            </td>
-                            <td className="p-4">
-                              <select 
-                                value={u.role} 
-                                disabled={disableActions}
-                                onChange={(e) => handleAdminRoleStatusChange(u.uid, e.target.value as any, u.status)}
-                                className="bg-white border border-slate-200 rounded-xl p-2 font-bold text-[10px] text-slate-700 focus:outline-none focus:border-red-650 cursor-pointer disabled:opacity-40 shadow-xs"
-                              >
-                                {(userProfile?.role === 'Desenvolvedor' || u.role === 'Desenvolvedor') && (
-                                  <option value="Desenvolvedor">💻 Desenvolvedor</option>
-                                )}
-                                <option value="Gestor">👔 Gestor</option>
-                                <option value="Administrador">🛡️ Administrador</option>
-                                <option value="Usuário">👷 Técnico de Campo</option>
-                              </select>
-                            </td>
-                            <td className="p-4">
-                              <select 
-                                value={u.status} 
-                                disabled={disableActions}
-                                onChange={(e) => handleAdminRoleStatusChange(u.uid, u.role, e.target.value as any)}
-                                className={`border rounded-xl p-2 font-bold text-[10px] focus:outline-none cursor-pointer disabled:opacity-40 shadow-xs ${
-                                  u.status === 'active' 
-                                    ? 'bg-emerald-50 text-emerald-600 border-emerald-200' 
-                                    : u.status === 'pending' 
-                                      ? 'bg-amber-50 text-amber-600 border-amber-200' 
-                                      : 'bg-red-50 text-red-600 border-red-200'
-                                }`}
-                              >
-                                <option value="active">🟢 Ativo (Acesso Liberado)</option>
-                                <option value="pending">🟡 Pendente (Sem Acesso)</option>
-                                <option value="inactive">🔴 Inativo / Suspenso</option>
-                              </select>
-                            </td>
-                            <td className="p-4 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <button 
-                                  onClick={() => handleOpenShareModal(u)}
-                                  className="text-emerald-600 hover:text-emerald-700 p-2 bg-emerald-50/70 hover:bg-emerald-100/70 border border-emerald-200/80 rounded-xl cursor-pointer transition-all shadow-xs"
-                                  title="Compartilhar credenciais de acesso via WhatsApp ou Copiar"
-                                >
-                                  <Share2 className="w-3.5 h-3.5" />
-                                </button>
-                                <button 
-                                  onClick={() => handleOpenEditModal(u)}
-                                  disabled={disableActions}
-                                  className="text-slate-600 hover:text-red-650 p-2 bg-white border border-slate-200 hover:border-red-200 rounded-xl cursor-pointer transition-all disabled:opacity-20 disabled:pointer-events-none shadow-xs"
-                                  title="Editar perfil completo e permissões do colaborador"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                                <button 
-                                  onClick={() => setUserToDelete(u)}
-                                  disabled={disableActions}
-                                  className="text-slate-400 hover:text-red-600 p-2 bg-white border border-slate-200 hover:border-red-200 rounded-xl cursor-pointer transition-all disabled:opacity-20 disabled:pointer-events-none shadow-xs"
-                                  title="Solicitar exclusão do perfil"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </div>
+            <UsersManagementBento 
+              availableSites={sitesList} 
+              theme={theme} 
+            />
           </motion.div>
         )}
 
-        {/* TAB 3: FORNECEDORES & PRESTADORES */}
         {activeTab === 'suppliers' && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            key="tab-suppliers"
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15 }}
           >
             <SuppliersManagementBento />
           </motion.div>
         )}
 
-        {/* TAB 4: GESTÃO DE CONTRATOS & SITES (EXCLUSIVO DESENVOLVEDOR E GESTOR) */}
         {activeTab === 'contratos' && canManageContratos && (
           <motion.div
-            initial={{ opacity: 0, y: 10 }}
+            key="tab-contratos"
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            className="space-y-6"
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.15 }}
           >
-            {/* Header & New Contract Form Card */}
-            <div className="bg-white border border-slate-200 p-6 shadow-sm relative space-y-5 rounded-2xl">
-              <div className="absolute top-0 left-0 right-0 h-1 bg-red-600 rounded-t-2xl" />
-              
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pb-4 border-b border-slate-100">
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-2 font-mono">
-                    <span>🏢</span> Gerenciamento de Contratos & Plantas Oficiais
-                  </h3>
-                  <p className="text-[11px] text-slate-500 font-sans mt-0.5">
-                    Contratos definem as unidades de segregação multi-tenant do sistema SPCI. Os ativos e inspeções são isolados estritamente por contrato.
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="px-3 py-1 bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 font-mono">
-                    Total: {sitesList.filter(s => !s.startsWith('TODOS')).length} Contratos
-                  </span>
-                  <button
-                    onClick={syncAllContratos}
-                    disabled={loadingContratos}
-                    className="p-2 bg-slate-50 hover:bg-slate-100 text-slate-600 rounded-xl border border-slate-200 transition-all cursor-pointer"
-                    title="Atualizar lista de contratos"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${loadingContratos ? 'animate-spin text-red-600' : ''}`} />
-                  </button>
-                </div>
-              </div>
-
-              {/* Formulário de Cadastro de Novo Contrato */}
-              <form 
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  const trimmed = newContratoNome.trim().toUpperCase();
-                  if (!trimmed) return;
-                  setCreatingContrato(true);
-                  try {
-                    const res = await createContratoAction({
-                      nome: trimmed,
-                      codigo: trimmed.replace(/\s+/g, '_'),
-                      descricao: newContratoDesc.trim() || undefined
-                    });
-                    if (!res.success) {
-                      throw new Error(res.error || 'Falha ao cadastrar contrato.');
-                    }
-                    setNewContratoNome('');
-                    setNewContratoDesc('');
-                    await syncAllContratos();
-                    triggerSuccessNotification('Contrato Registrado! 🏢', `O contrato "${trimmed}" foi criado e já está disponível para vinculação de usuários e ativos.`);
-                  } catch (err: any) {
-                    showAlertModal('Erro ao Cadastrar ❌', err.message || 'Falha ao cadastrar contrato.', 'error');
-                  } finally {
-                    setCreatingContrato(false);
-                  }
-                }}
-                className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1"
-              >
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Nome do Contrato / Site *</label>
-                  <input
-                    type="text"
-                    required
-                    value={newContratoNome}
-                    onChange={(e) => setNewContratoNome(e.target.value.toUpperCase())}
-                    placeholder="Ex: PROJETO SOSSEGO"
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-900 font-bold focus:outline-none shadow-xs"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Descrição / Cidade / UF</label>
-                  <input
-                    type="text"
-                    value={newContratoDesc}
-                    onChange={(e) => setNewContratoDesc(e.target.value)}
-                    placeholder="Ex: Unidade Canaã dos Carajás - PA"
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none shadow-xs"
-                  />
-                </div>
-
-                <div className="flex items-end">
-                  <button
-                    type="submit"
-                    disabled={creatingContrato || !newContratoNome.trim()}
-                    className="w-full py-2.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-xs uppercase tracking-wider transition-all cursor-pointer border-none shadow-md disabled:opacity-40 flex items-center justify-center gap-2 active:scale-98"
-                  >
-                    {creatingContrato ? (
-                      <>
-                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full inline-block"></span>
-                        CADASTRANDO...
-                      </>
-                    ) : (
-                      <>
-                        <span>➕</span> Cadastrar Novo Contrato
-                      </>
-                    )}
-                  </button>
-                </div>
-              </form>
-            </div>
-
-            {/* Tabela de Contratos Cadastrados */}
-            <div className="bg-white border border-slate-200 shadow-sm relative overflow-hidden rounded-2xl">
-              <div className="p-4 bg-slate-50/70 border-b border-slate-200/80 flex items-center justify-between">
-                <span className="text-[10px] font-black uppercase text-slate-700 tracking-wider font-mono">
-                  Lista de Contratos e Plantas Reconhecidas
-                </span>
-                <span className="text-[9px] text-slate-500 font-sans">
-                  Segregação por RLS e Localidade Ativa
-                </span>
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b border-slate-200 text-[9px] uppercase tracking-wider text-slate-400 bg-slate-50/50">
-                      <th className="p-4 font-bold">Contrato / Site</th>
-                      <th className="p-4 font-bold">Identificador / Código</th>
-                      <th className="p-4 font-bold">Status</th>
-                      <th className="p-4 font-bold text-center">Governança</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {/* Linhas de Contratos Base */}
-                    {['SALOBO', 'ONÇA PUMA'].map((baseName) => (
-                      <tr key={baseName} className="hover:bg-slate-50/70 transition-all text-slate-700">
-                        <td className="p-4 font-black text-slate-900 flex items-center gap-2">
-                          <span className="text-base">🏭</span>
-                          <div>
-                            <p className="font-extrabold text-slate-900">{baseName}</p>
-                            <span className="text-[9px] text-slate-400 font-sans">Planta Operacional SPCI</span>
-                          </div>
-                        </td>
-                        <td className="p-4 font-mono text-[10px] text-slate-600 font-bold">
-                          SITE_{baseName.replace(/\s+/g, '_')}
-                        </td>
-                        <td className="p-4">
-                          <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[9px] font-extrabold uppercase">
-                            🟢 Ativo (Homologado)
-                          </span>
-                        </td>
-                        <td className="p-4 text-center">
-                          <span className="px-2.5 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-lg text-[9px] font-bold uppercase inline-flex items-center gap-1">
-                            <span>🔒</span> Contrato Base Protegido
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-
-                    {/* Outros Contratos Cadastrados */}
-                    {contratosList
-                      .filter(c => !['SALOBO', 'ONÇA PUMA'].includes(c.nome.toUpperCase()))
-                      .map((contrato) => (
-                        <tr key={contrato.id || contrato.nome} className="hover:bg-slate-50/70 transition-all text-slate-700">
-                          <td className="p-4 font-black text-slate-900 flex items-center gap-2">
-                            <span className="text-base">🏢</span>
-                            <div>
-                              <p className="font-extrabold text-slate-900">{contrato.nome}</p>
-                              {contrato.descricao && (
-                                <span className="text-[9px] text-slate-400 font-sans">{contrato.descricao}</span>
-                              )}
-                            </div>
-                          </td>
-                          <td className="p-4 font-mono text-[10px] text-slate-600 font-bold">
-                            {contrato.codigo || `SITE_${contrato.nome.replace(/\s+/g, '_')}`}
-                          </td>
-                          <td className="p-4">
-                            <span className="px-2.5 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-lg text-[9px] font-extrabold uppercase">
-                              🟢 Ativo
-                            </span>
-                          </td>
-                          <td className="p-4 text-center">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                showConfirmModal({
-                                  title: 'Excluir Contrato 🗑️',
-                                  message: `Deseja realmente desativar e excluir o contrato "${contrato.nome}"? Usuários vinculados a ele perderão o acesso a essa planta.`,
-                                  type: 'error',
-                                  confirmText: 'EXCLUIR CONTRATO',
-                                  cancelText: 'CANCELAR',
-                                  onConfirm: () => handleDeleteSite(contrato.nome)
-                                });
-                              }}
-                              className="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 border border-red-200 rounded-xl text-[10px] font-bold uppercase transition-all cursor-pointer"
-                            >
-                              Excluir
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
+            <ContractsManagementBento theme={theme} />
           </motion.div>
         )}
-
-      </div>
-
-      {/* --- FLOATING DIALOGS & OVERLAYS --- */}
-
-      {/* 2. Modal: NOVO USUÁRIO */}
-      {showInviteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-sans select-none">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.96, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.96, y: 12 }}
-            className="bg-white border border-slate-200 rounded-3xl w-full max-w-xl lg:max-w-2xl shadow-2xl p-6 relative overflow-hidden space-y-4 text-xs text-slate-800 max-h-[92vh] flex flex-col"
-          >
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-red-650 rounded-t-3xl" />
-
-            {/* Modal Header */}
-            <div className="flex items-center gap-3 pb-3 border-b border-slate-100 shrink-0">
-              <div className="w-11 h-11 bg-red-50 border border-red-100 text-red-650 rounded-2xl flex items-center justify-center text-xl shrink-0 shadow-inner font-bold">
-                👤
-              </div>
-              <div>
-                <h3 className="font-black text-sm text-slate-900 uppercase tracking-wide flex items-center gap-2 font-mono">
-                  NOVO USUÁRIO
-                </h3>
-                <p className="text-[10px] text-slate-500 mt-0.5 font-sans leading-relaxed">
-                  Registro de credenciais corporativas no Banco de Dados com atribuição de perfil RBAC e localidade.
-                </p>
-              </div>
-            </div>
-
-            <form onSubmit={async (e) => {
-              e.preventDefault();
-              if (inviting) return;
-
-              if (invitePassword.length < 6) {
-                alert('A senha de acesso deve conter no mínimo 6 caracteres.');
-                return;
-              }
-
-              setInviting(true);
-              try {
-                const expiresAtIso = inviteExpiresAt ? new Date(`${inviteExpiresAt}T23:59:59.999Z`).toISOString() : null;
-                const creds = await handleInviteUser(
-                  inviteEmail,
-                  inviteUsername,
-                  inviteName,
-                  inviteRole,
-                  invitePassword,
-                  invitePhone,
-                  expiresAtIso,
-                  userProfile?.role === 'Desenvolvedor' ? selectedModules : null,
-                  inviteSite
-                );
-                
-                setCreatedCredentials({ 
-                  ...creds, 
-                  password: invitePassword,
-                  phone: invitePhone,
-                  expires_at: expiresAtIso,
-                  site: inviteSite
-                });
-                
-                await fetchUsers();
-                setShowInviteModal(false);
-                setInviteEmail('');
-                setInviteUsername('');
-                setInviteName('');
-                setInvitePhone('');
-                setInvitePassword('');
-                setInviteRole('Usuário');
-                setInviteSite('TODOS OS SITES (Acesso Global)');
-                setInviteExpiresAt('');
-                setSelectedModules([
-                  'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts'
-                ]);
-              } catch (err: any) {
-                alert(`Erro ao cadastrar usuário: ${err.message || err}`);
-              } finally {
-                setInviting(false);
-              }
-            }} className="space-y-4 overflow-y-auto pr-1 flex-1 scrollbar-thin">
-              
-              {/* Card 1: Identificação do Usuário */}
-              <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 space-y-3">
-                <h4 className="text-[10px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5 font-mono">
-                  <span>👤</span> Identificação do Usuário
-                </h4>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="block text-[9px] font-bold uppercase text-slate-500">Nome Completo</label>
-                    <input 
-                      type="text" 
-                      required 
-                      value={inviteName}
-                      onChange={(e) => setInviteName(e.target.value)}
-                      placeholder="Ex: João da Silva"
-                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-900 focus:outline-none font-bold shadow-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-[9px] font-bold uppercase text-slate-500">Nome de Usuário (@username)</label>
-                    <input 
-                      type="text" 
-                      required 
-                      value={inviteUsername}
-                      onChange={(e) => setInviteUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                      placeholder="Ex: joaosilva (sem espaços)"
-                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-red-650 focus:outline-none font-mono font-bold shadow-xs"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <label className="block text-[9px] font-bold uppercase text-slate-500">E-mail Corporativo</label>
-                    <input 
-                      type="email" 
-                      required 
-                      value={inviteEmail}
-                      onChange={(e) => setInviteEmail(e.target.value)}
-                      placeholder="Ex: joao.silva@empresa.com"
-                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-850 focus:outline-none shadow-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-[9px] font-bold uppercase text-slate-500">Telefone / WhatsApp</label>
-                    <input 
-                      type="text" 
-                      required 
-                      value={invitePhone}
-                      onChange={(e) => setInvitePhone(e.target.value)}
-                      placeholder="Ex: 5511999999999 (somente números)"
-                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 2: Localidade e Credenciais */}
-              <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 space-y-3">
-                <h4 className="text-[10px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5 font-mono">
-                  <span>🏢</span> Localidade e Credenciais de Acesso
-                </h4>
-
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Site / Planta (Localidade dos Ativos)</label>
-                  <select 
-                    value={showNewInviteSiteInput ? '+ ADD_NEW_SITE' : inviteSite} 
-                    onChange={(e) => {
-                      if (e.target.value === '+ ADD_NEW_SITE') {
-                        setShowNewInviteSiteInput(true);
-                      } else {
-                        setShowNewInviteSiteInput(false);
-                        setInviteSite(e.target.value);
-                      }
-                    }}
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
-                  >
-                    {sitesList.map((site) => (
-                      <option key={site} value={site}>
-                        {site.startsWith('TODOS') ? '🌐 TODOS OS SITES (Acesso Global)' : `📍 ${site}`}
-                      </option>
-                    ))}
-                    <option value="+ ADD_NEW_SITE">➕ + Adicionar Novo Site</option>
-                  </select>
-
-                  {showNewInviteSiteInput && (
-                    <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 pt-2">
-                      <input 
-                        type="text" 
-                        autoFocus 
-                        value={newInviteSiteInput} 
-                        onChange={(e) => setNewInviteSiteInput(e.target.value)}
-                        placeholder="Digite o nome do novo Site (ex: SALOBO IV)"
-                        className="flex-1 bg-white border border-red-400 rounded-xl p-2 text-xs text-slate-800 focus:outline-none font-bold"
-                      />
-                      <button 
-                        type="button" 
-                        onClick={() => handleAddNewSite(newInviteSiteInput, 'invite')}
-                        className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer border-none"
-                      >
-                        ➕ Cadastrar
-                      </button>
-                      <button 
-                        type="button" 
-                        onClick={() => { setShowNewInviteSiteInput(false); setNewInviteSiteInput(''); }}
-                        className="px-2.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl cursor-pointer border-none"
-                      >
-                        Cancelar
-                      </button>
-                    </motion.div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <label className="block text-[9px] font-bold uppercase text-slate-500">Nível de Conta (RBAC)</label>
-                    <select 
-                      value={inviteRole} 
-                      onChange={(e) => {
-                        const newRole = e.target.value as any;
-                        setInviteRole(newRole);
-                        if (newRole === 'Desenvolvedor' && !selectedModules.includes('configuracoes')) {
-                          setSelectedModules(prev => [...prev, 'configuracoes']);
-                        }
-                      }}
-                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
-                    >
-                      {userProfile?.role === 'Desenvolvedor' && <option value="Desenvolvedor">💻 Desenvolvedor</option>}
-                      <option value="Gestor">👔 Gestor</option>
-                      <option value="Administrador">🛡️ Administrador</option>
-                      <option value="Usuário">👷 Técnico de Campo</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-[9px] font-bold uppercase text-slate-500">Senha de Acesso</label>
-                    <input 
-                      type="text" 
-                      required 
-                      value={invitePassword}
-                      onChange={(e) => setInvitePassword(e.target.value)}
-                      placeholder="Mínimo 6 dígitos"
-                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block text-[9px] font-bold uppercase text-slate-500">Data de Expiração</label>
-                    <input 
-                      type="date" 
-                      value={inviteExpiresAt}
-                      onChange={(e) => setInviteExpiresAt(e.target.value)}
-                      className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-2.5 text-xs text-slate-850 focus:outline-none shadow-xs font-bold"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Card 3: Módulos Autorizados */}
-              {userProfile?.role === 'Desenvolvedor' && (
-                <div className="bg-slate-50/70 border border-slate-200/80 rounded-2xl p-4 space-y-2">
-                  <h4 className="text-[10px] font-black uppercase text-slate-700 tracking-wider flex items-center gap-1.5 font-mono">
-                    <span>🛡️</span> Módulos e Elementos Autorizados
-                  </h4>
-                  <p className="text-[9px] text-slate-500">
-                    Defina quais módulos estarão visíveis no menu lateral para este usuário.
-                  </p>
-                  
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-1">
-                    {[
-                      { id: 'dashboard', label: '📊 Dashboard' },
-                      { id: 'extintores', label: '🧯 Extintores' },
-                      { id: 'hidrantes', label: '💧 Hidrantes' },
-                      { id: 'sinalizacao', label: '⚠️ Sinalização' },
-                      { id: 'iluminacao', label: '💡 Iluminação' },
-                      { id: 'bombas', label: '🔧 Casa de Bombas' },
-                      { id: 'ronda', label: '📱 Ronda & Campo' },
-                      { id: 'mapa', label: '🗺️ Mapa Operacional' },
-                      { id: 'alerts', label: '🔔 Alertas' },
-                      ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'configuracoes', label: '⚙️ Configurações' }] : [])
-                    ].map(mod => (
-                      <label 
-                        key={mod.id} 
-                        className={`flex items-center gap-2 p-2 rounded-xl cursor-pointer border transition-all select-none text-[10px] ${
-                          selectedModules.includes(mod.id)
-                            ? 'bg-red-50/80 border-red-200 text-red-950 font-black shadow-2xs'
-                            : 'bg-white border-slate-200 text-slate-600 font-bold hover:bg-slate-100'
-                        }`}
-                      >
-                        <input 
-                          type="checkbox"
-                          checked={selectedModules.includes(mod.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setSelectedModules(prev => [...prev, mod.id]);
-                            } else {
-                              setSelectedModules(prev => prev.filter(id => id !== mod.id));
-                            }
-                          }}
-                          className="rounded border-slate-350 text-red-650 focus:ring-red-500 w-3.5 h-3.5 cursor-pointer"
-                        />
-                        <span>{mod.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Modal Actions Footer */}
-              <div className="flex gap-2.5 pt-3 border-t border-slate-100 justify-end shrink-0">
-                <button 
-                  type="button" 
-                  onClick={() => {
-                    setShowInviteModal(false);
-                    setSelectedModules([
-                      'dashboard', 'extintores', 'hidrantes', 'sinalizacao', 'iluminacao', 'bombas', 'ronda', 'mapa', 'alerts'
-                    ]);
-                  }}
-                  className="px-4 py-2.5 border border-slate-200 hover:border-slate-350 bg-white text-slate-600 font-bold rounded-xl cursor-pointer text-[10px] uppercase transition-all shadow-xs"
-                >
-                  Cancelar
-                </button>
-                <button 
-                  type="submit" 
-                  disabled={inviting}
-                  className="px-5 py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black rounded-xl hover:opacity-95 disabled:opacity-40 transition-all flex items-center gap-2 cursor-pointer border-none text-[10px] uppercase shadow-md shadow-red-600/30 active:scale-95 tracking-wider"
-                >
-                  {inviting ? (
-                    <>
-                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full inline-block"></span>
-                      Cadastrando...
-                    </>
-                  ) : (
-                    <>💾 CADASTRAR USUÁRIO</>
-                  )}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
-
-      {/* 3. Modal: Copiar credentials do usuário convidado criado */}
-      {createdCredentials && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md">
-          <div className="bg-white border border-slate-200 rounded-2xl max-w-md w-full shadow-2xl p-6 relative overflow-hidden space-y-4 text-xs text-slate-700">
-            <div className="absolute top-0 left-0 right-0 h-[3px] bg-emerald-600 rounded-t-2xl" />
-            <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-lg mx-auto shadow-inner" aria-hidden="true">✓</div>
-            <h3 className="font-bold text-sm text-slate-900 uppercase tracking-wider text-center">
-              Acesso Criado com Sucesso! 🎉
-            </h3>
-            <p className="text-[10px] text-slate-500 text-center font-sans leading-relaxed">
-              Copie ou compartilhe os detalhes de acesso abaixo com o colaborador. A senha temporária não será exibida novamente.
-            </p>
-
-            <div className="bg-slate-50 border border-slate-150 rounded-xl p-4 font-mono text-[10px] text-slate-700 space-y-2 relative shadow-inner">
-              <div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Nome Completo</span>
-                <span className="text-slate-800 font-bold">{createdCredentials.name}</span>
-              </div>
-              <div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Username</span>
-                <span className="text-red-600 font-bold">@{createdCredentials.username}</span>
-              </div>
-              <div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">E-mail</span>
-                <span className="text-slate-800 font-bold">{createdCredentials.email}</span>
-              </div>
-              <div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">WhatsApp</span>
-                <span className="text-slate-800 font-bold">{createdCredentials.phone || 'N/A'}</span>
-              </div>
-              <div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Senha de Acesso</span>
-                <span className="text-red-500 font-black text-xs tracking-wider">{createdCredentials.password || createdCredentials.temp_password}</span>
-              </div>
-              {createdCredentials.expires_at && (
-                <div>
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Expiração da Conta</span>
-                  <span className="text-amber-600 font-bold">{new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <button 
-                onClick={() => {
-                  const pass = createdCredentials.password || createdCredentials.temp_password;
-                  const textToCopy = `🏢 *GRUPO OMG // SPCI MASTER*\n───────────────\n🔥 *CREDENCIAIS DE ACESSO CORPORATIVO*\n\nOlá, *${createdCredentials.name}*!\nSeu perfil de acesso ao *SPCI Master* foi cadastrado com sucesso.\n\n📍 *Nível de Acesso:* ${createdCredentials.role || 'Usuário'}\n🌐 *Link do Cockpit:* ${window.location.origin}/login\n📧 *E-mail / Login:* ${createdCredentials.email}\n👤 *Username:* @${createdCredentials.username}\n🔑 *Senha Temporária:* ${pass}\n` + (createdCredentials.expires_at ? `⏳ *Validade:* até ${new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}\n` : '') + `\n───────────────\n⚠️ *Instrução:* Acesse o link acima, faça o login e altere sua senha após a primeira sessão.\n\n_Grupo OMG © 2026 - Todos os Direitos Reservados_`;
-                  copyToClipboard(textToCopy)
-                    .then(() => {
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    })
-                    .catch((err) => {
-                      console.error('Erro ao copiar:', err);
-                    });
-                }}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer shadow-md"
-              >
-                {copied ? '✓ Mensagem Copiada!' : '📋 Copiar Mensagem Premium'}
-              </button>
-
-              <button 
-                onClick={() => {
-                  const pass = createdCredentials.password || createdCredentials.temp_password;
-                  const msg = `🏢 *GRUPO OMG // SPCI MASTER*\n───────────────\n🔥 *CREDENCIAIS DE ACESSO CORPORATIVO*\n\nOlá, *${createdCredentials.name}*!\nSeu perfil de acesso ao *SPCI Master* foi cadastrado com sucesso.\n\n📍 *Nível de Acesso:* ${createdCredentials.role || 'Usuário'}\n🌐 *Link do Cockpit:* https://spci-master.vercel.app/login\n📧 *E-mail / Login:* ${createdCredentials.email}\n👤 *Username:* @${createdCredentials.username}\n🔑 *Senha Temporária:* ${pass}\n` + (createdCredentials.expires_at ? `⏳ *Validade:* até ${new Date(createdCredentials.expires_at).toLocaleDateString('pt-BR')}\n` : '') + `\n───────────────\n⚠️ *Instrução:* Acesse o link acima, faça o login e altere sua senha após a primeira sessão.\n\n_Grupo OMG © 2026 - Todos os Direitos Reservados_`;
-                  const cleanPhone = createdCredentials.phone ? createdCredentials.phone.replace(/\D/g, '') : '';
-                  const whatsappUrl = cleanPhone 
-                    ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
-                    : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                  window.open(whatsappUrl, '_blank');
-                }}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-2 transition-all border-none cursor-pointer shadow-md"
-              >
-                <span>📲</span> Compartilhar Credenciais via WhatsApp Premium
-              </button>
-              
-              <button 
-                onClick={() => setCreatedCredentials(null)}
-                className="w-full py-2.5 border border-slate-200 hover:bg-slate-50 bg-white text-slate-500 font-bold rounded-xl text-[10px] uppercase transition-all cursor-pointer shadow-xs"
-              >
-                Fechar
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* 3.5. Modal: Compartilhamento de Credenciais de Usuário Existente */}
-      {sharingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-mono select-none">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 12 }}
-            className="bg-white border border-slate-200 rounded-2xl w-full max-w-md shadow-2xl p-6 relative overflow-hidden space-y-4 text-xs text-slate-800"
-          >
-            <div className="absolute top-0 left-0 right-0 h-1 bg-emerald-600 rounded-t-2xl" />
-
-            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-              <div className="w-10 h-10 bg-emerald-50 border border-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-inner">
-                📲
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-                  Compartilhar Credenciais
-                </h3>
-                <p className="text-[10px] text-slate-500 font-sans mt-0.5">
-                  Envio de dados de acesso corporativo e link do Cockpit SPCI
-                </p>
-              </div>
-            </div>
-
-            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-4 space-y-2.5 text-[11px]">
-              <div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Colaborador</span>
-                <span className="font-extrabold text-slate-900 text-xs">{sharingUser.name}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Username</span>
-                  <span className="text-red-650 font-bold">@{sharingUser.userName || sharingUser.username}</span>
-                </div>
-                <div>
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Nível RBAC</span>
-                  <span className="text-slate-800 font-bold">{sharingUser.role || 'Usuário'}</span>
-                </div>
-              </div>
-              <div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">E-mail Corporativo</span>
-                <span className="text-slate-800 font-bold">{sharingUser.email}</span>
-              </div>
-              {sharingUser.telefoneWhatsapp && (
-                <div>
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">WhatsApp Cadastrado</span>
-                  <span className="text-emerald-700 font-bold">📞 {sharingUser.telefoneWhatsapp}</span>
-                </div>
-              )}
-              <div>
-                <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Site / Localidade</span>
-                <span className="text-slate-700 font-bold">{sharingUser.site || 'TODOS OS SITES (Acesso Global)'}</span>
-              </div>
-              {sharingUser.dataExpiracao && (
-                <div>
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Expiração da Conta</span>
-                  <span className="text-amber-600 font-bold">{new Date(sharingUser.dataExpiracao).toLocaleDateString('pt-BR')}</span>
-                </div>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <label className="block text-[9px] font-bold uppercase text-slate-500">
-                Senha Provisória / Nova Senha (Opcional)
-              </label>
-              <input
-                type="text"
-                value={shareCustomPassword}
-                onChange={(e) => setShareCustomPassword(e.target.value)}
-                placeholder="Ex: Digite uma nova senha caso queira incluir"
-                className="w-full bg-white border border-slate-200 focus:border-emerald-600 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold shadow-xs"
-              />
-              <p className="text-[9px] text-slate-400 font-sans">
-                Deixe em branco para enviar a instrução de login com a senha já definida pelo usuário.
-              </p>
-            </div>
-
-            <div className="space-y-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => {
-                  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://spci-master.vercel.app';
-                  const passText = shareCustomPassword.trim() 
-                    ? `🔑 *Senha Temporária:* ${shareCustomPassword.trim()}\n` 
-                    : `🔑 *Senha:* Utilize sua senha já cadastrada no sistema.\n`;
-                  const textToCopy = `🏢 *GRUPO OMG // SPCI MASTER*\n───────────────\n🔥 *CREDENCIAIS DE ACESSO CORPORATIVO*\n\nOlá, *${sharingUser.name}*!\nSeu perfil de acesso ao *SPCI Master* está pronto para uso.\n\n📍 *Nível de Acesso:* ${sharingUser.role || 'Usuário'}\n🌐 *Link do Cockpit:* ${origin}/login\n📧 *E-mail / Login:* ${sharingUser.email}\n👤 *Username:* @${sharingUser.userName || sharingUser.username}\n${passText}` + (sharingUser.dataExpiracao ? `⏳ *Validade:* até ${new Date(sharingUser.dataExpiracao).toLocaleDateString('pt-BR')}\n` : '') + `\n───────────────\n⚠️ *Instrução:* Acesse o link acima para entrar no sistema.\n\n_Grupo OMG © 2026 - Todos os Direitos Reservados_`;
-                  
-                  copyToClipboard(textToCopy)
-                    .then(() => {
-                      setShareCopied(true);
-                      setTimeout(() => setShareCopied(false), 2000);
-                    })
-                    .catch((err) => console.error('Erro ao copiar:', err));
-                }}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-1.5 transition-all border-none cursor-pointer shadow-md"
-              >
-                {shareCopied ? '✓ Mensagem Copiada!' : '📋 Copiar Mensagem de Acesso'}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://spci-master.vercel.app';
-                  const passText = shareCustomPassword.trim() 
-                    ? `🔑 *Senha Temporária:* ${shareCustomPassword.trim()}\n` 
-                    : `🔑 *Senha:* Utilize sua senha já cadastrada no sistema.\n`;
-                  const msg = `🏢 *GRUPO OMG // SPCI MASTER*\n───────────────\n🔥 *CREDENCIAIS DE ACESSO CORPORATIVO*\n\nOlá, *${sharingUser.name}*!\nSeu perfil de acesso ao *SPCI Master* está pronto para uso.\n\n📍 *Nível de Acesso:* ${sharingUser.role || 'Usuário'}\n🌐 *Link do Cockpit:* ${origin}/login\n📧 *E-mail / Login:* ${sharingUser.email}\n👤 *Username:* @${sharingUser.userName || sharingUser.username}\n${passText}` + (sharingUser.dataExpiracao ? `⏳ *Validade:* até ${new Date(sharingUser.dataExpiracao).toLocaleDateString('pt-BR')}\n` : '') + `\n───────────────\n⚠️ *Instrução:* Acesse o link acima para entrar no sistema.\n\n_Grupo OMG © 2026 - Todos os Direitos Reservados_`;
-                  const rawPhone = sharingUser.telefoneWhatsapp || sharingUser.phone || '';
-                  const cleanPhone = rawPhone.replace(/\D/g, '');
-                  const whatsappUrl = cleanPhone 
-                    ? `https://api.whatsapp.com/send?phone=${cleanPhone}&text=${encodeURIComponent(msg)}`
-                    : `https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`;
-                  window.open(whatsappUrl, '_blank');
-                }}
-                className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black rounded-xl text-[10px] uppercase flex items-center justify-center gap-2 transition-all border-none cursor-pointer shadow-md"
-              >
-                <span>📲</span> Compartilhar via WhatsApp
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setSharingUser(null)}
-                className="w-full py-2.5 border border-slate-200 hover:bg-slate-50 bg-white text-slate-500 font-bold rounded-xl text-[10px] uppercase transition-all cursor-pointer shadow-xs"
-              >
-                Fechar
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* 4. Modal: Confirmação de Exclusão de Perfil do Colaborador (Desenvolvedor e Administrador) */}
-      {userToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-mono select-none">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 12 }}
-            className="bg-white border border-slate-200 rounded-2xl w-full max-w-md md:max-w-lg lg:max-w-xl shadow-2xl p-6 relative overflow-hidden space-y-5 text-xs text-slate-800"
-          >
-            <div className="absolute top-0 left-0 right-0 h-1 bg-red-600 rounded-t-2xl" />
-            
-            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
-              <div className="w-10 h-10 bg-red-50 border border-red-100 text-red-600 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-inner">
-                🗑️
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-                  Confirmar Exclusão de Perfil
-                </h3>
-                <p className="text-[10px] text-slate-500 font-sans mt-0.5">
-                  Governança e Gerenciamento de Credenciais SPCI
-                </p>
-              </div>
-            </div>
-
-            {/* Dados do Colaborador a Ser Excluído */}
-            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2 text-left font-mono shadow-inner">
-              <div className="flex justify-between items-start gap-2">
-                <div>
-                  <span className="text-[8px] font-extrabold text-slate-400 uppercase tracking-widest block">Nome do Colaborador</span>
-                  <p className="font-black text-sm text-slate-900 uppercase mt-0.5">{userToDelete.name}</p>
-                </div>
-                <span className="px-2 py-0.5 bg-red-100 text-red-700 font-black text-[9px] uppercase rounded-md border border-red-200 shrink-0">
-                  {userToDelete.role === 'Desenvolvedor' ? '💻 Dev' : userToDelete.role === 'Administrador' ? '🛡️ Admin' : '👷 Técnico'}
-                </span>
-              </div>
-
-              <div className="pt-2 border-t border-slate-200/60 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[10px]">
-                <div>
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Username</span>
-                  <span className="text-red-650 font-bold">@{userToDelete.userName || 'usuario'}</span>
-                </div>
-                <div>
-                  <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">E-mail</span>
-                  <span className="text-slate-700 font-bold truncate block">{userToDelete.email}</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Caixa de Alerta Crítico */}
-            <div className="bg-amber-50 border border-amber-200 text-amber-950 rounded-xl p-4 text-[11px] leading-relaxed font-sans font-bold flex gap-3 items-start shadow-xs">
-              <span className="text-xl shrink-0 leading-none">⚠️</span>
-              <div className="space-y-1">
-                <p className="font-black text-amber-900 uppercase tracking-wider text-[10px]">
-                  Atenção: Ação Definitiva e Irreversível!
-                </p>
-                <p className="text-amber-800 text-[11px]">
-                  Tem certeza de que deseja excluir permanentemente o perfil de <strong>{userToDelete.name}</strong>? Esta ação removerá a conta do Banco de Dados e excluirá seus registros de acesso. <strong>Após confirmada, não será possível desfazer.</strong>
-                </p>
-              </div>
-            </div>
-
-            {/* Ações */}
-            <div className="flex flex-col-reverse sm:flex-row gap-3 pt-2 justify-end">
-              <button
-                type="button"
-                disabled={deletingUser}
-                onClick={() => setUserToDelete(null)}
-                className="px-5 py-2.5 border border-slate-200 hover:border-slate-350 bg-white text-slate-600 font-bold rounded-xl cursor-pointer text-xs uppercase transition-all shadow-xs disabled:opacity-50"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                disabled={deletingUser}
-                onClick={async () => {
-                  setDeletingUser(true);
-                  try {
-                    await handleAdminDeleteUser(userToDelete.uid);
-                    setUserToDelete(null);
-                  } catch (err) {
-                    console.error("Erro ao deletar usuário:", err);
-                  } finally {
-                    setDeletingUser(false);
-                  }
-                }}
-                className="px-6 py-2.5 bg-red-600 hover:bg-red-500 text-white font-black rounded-xl text-xs uppercase flex items-center justify-center gap-2 transition-all cursor-pointer border-none shadow-md disabled:opacity-40 active:scale-95"
-              >
-                {deletingUser ? (
-                  <>
-                    <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full inline-block"></span>
-                    EXCLUINDO...
-                  </>
-                ) : (
-                  <>
-                    <span>🗑️</span> Sim, Confirmar Exclusão
-                  </>
-                )}
-              </button>
-            </div>
-          </motion.div>
-        </div>
-      )}
-
-      {/* 5. Modal: Edição Completa de Perfil do Colaborador (Desenvolvedor e Administrador) */}
-      {editingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md font-mono select-none">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 12 }}
-            className="bg-white border border-slate-200 rounded-2xl w-full max-w-lg lg:max-w-2xl shadow-2xl p-6 relative overflow-hidden space-y-4 text-xs text-slate-800 max-h-[92vh] flex flex-col"
-          >
-            <div className="absolute top-0 left-0 right-0 h-1 bg-red-650 rounded-t-2xl" />
-
-            <div className="flex items-center gap-3 pb-3 border-b border-slate-100 shrink-0">
-              <div className="w-10 h-10 bg-red-50 border border-red-100 text-red-650 rounded-xl flex items-center justify-center text-xl shrink-0 shadow-inner">
-                ✏️
-              </div>
-              <div>
-                <h3 className="font-extrabold text-sm text-slate-900 uppercase tracking-wide flex items-center gap-1.5">
-                  Editar Cadastro do Colaborador
-                </h3>
-                <p className="text-[10px] text-slate-500 font-sans mt-0.5">
-                  Atualização de credenciais, nível de acesso RBAC, validade e permissões no Banco de Dados
-                </p>
-              </div>
-            </div>
-
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                if (savingEdit) return;
-                setSavingEdit(true);
-                try {
-                  const expiresAtIso = editExpiresAt ? new Date(`${editExpiresAt}T23:59:59.999Z`).toISOString() : null;
-                  await handleUpdateUserFull(editingUser.uid, {
-                    name: editName,
-                    username: editUsername,
-                    email: editEmail,
-                    phone: editPhone,
-                    role: editRole,
-                    status: editStatus,
-                    expiresAt: expiresAtIso,
-                    password: editPassword || undefined,
-                    allowedModules: userProfile?.role === 'Desenvolvedor' ? editModules : null,
-                    site: editSite
-                  });
-                  setEditingUser(null);
-                } catch (err: any) {
-                  showAlertModal('Erro ao Salvar Perfil ❌', err.message || 'Ocorreu um erro ao atualizar os dados no Banco de Dados.', 'error');
-                } finally {
-                  setSavingEdit(false);
-                }
-              }}
-              className="space-y-4 overflow-y-auto pr-1 flex-1 scrollbar-thin"
-            >
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Nome Completo</label>
-                  <input
-                    type="text"
-                    required
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    placeholder="Nome completo do colaborador"
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none font-bold shadow-xs"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Username (@)</label>
-                  <input
-                    type="text"
-                    required
-                    value={editUsername}
-                    onChange={(e) => setEditUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                    placeholder="Ex: joaosilva"
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none font-bold shadow-xs"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">E-mail Corporativo</label>
-                  <input
-                    type="email"
-                    required
-                    value={editEmail}
-                    onChange={(e) => setEditEmail(e.target.value)}
-                    placeholder="E-mail de acesso"
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs"
-                  />
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Telefone / WhatsApp</label>
-                  <input
-                    type="text"
-                    value={editPhone}
-                    onChange={(e) => setEditPhone(e.target.value)}
-                    placeholder="DDD + Número"
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-mono font-bold"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-[9px] font-bold uppercase text-slate-500">Site / Planta (Localidade dos Ativos)</label>
-                <div className="flex items-center gap-2">
-                  <select
-                    value={showNewEditSiteInput ? '+ ADD_NEW_SITE' : editSite}
-                    onChange={(e) => {
-                      if (e.target.value === '+ ADD_NEW_SITE') {
-                        setShowNewEditSiteInput(true);
-                      } else {
-                        setShowNewEditSiteInput(false);
-                        setEditSite(e.target.value);
-                      }
-                    }}
-                    className="flex-1 bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
-                  >
-                    {sitesList.map((site) => (
-                      <option key={site} value={site}>
-                        {site.startsWith('TODOS') ? '🌐 TODOS OS SITES (Acesso Global)' : `📍 ${site}`}
-                      </option>
-                    ))}
-                    <option value="+ ADD_NEW_SITE">➕ + Adicionar Novo Site</option>
-                  </select>
-
-                  {/* Botão de exclusão do site selecionado (oculto para site default) */}
-                  {editSite && !DEFAULT_SITES.includes(editSite) && !showNewEditSiteInput && (
-                    <button
-                      type="button"
-                      title={`Excluir site "${editSite}" do sistema`}
-                      onClick={() => {
-                        showConfirmModal({
-                          title: 'Excluir Site 🗑️',
-                          message: `Deseja realmente excluir o site "${editSite}" do sistema? Esta ação removerá a localidade do Banco de Dados.`,
-                          type: 'error',
-                          confirmText: 'EXCLUIR SITE',
-                          cancelText: 'CANCELAR',
-                          onConfirm: () => {
-                            handleDeleteSite(editSite);
-                            setEditSite('TODOS OS SITES (Acesso Global)');
-                          }
-                        });
-                      }}
-                      className="shrink-0 p-2.5 bg-red-50 hover:bg-red-100 text-red-600 hover:text-red-700 rounded-xl border border-red-200 transition-all cursor-pointer active:scale-95"
-                    >
-                      <Trash2 size={14} strokeWidth={2.5} />
-                    </button>
-                  )}
-                </div>
-
-                {showNewEditSiteInput && (
-                  <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 pt-2">
-                    <input 
-                      type="text" 
-                      autoFocus 
-                      value={newEditSiteInput} 
-                      onChange={(e) => setNewEditSiteInput(e.target.value)}
-                      placeholder="Digite o nome do novo Site (ex: SALOBO IV)"
-                      className="flex-1 bg-white border border-red-400 rounded-xl p-2.5 text-xs text-slate-800 focus:outline-none font-bold"
-                    />
-                    <button 
-                      type="button" 
-                      onClick={() => handleAddNewSite(newEditSiteInput, 'edit')}
-                      className="px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer border-none"
-                    >
-                      ➕ Cadastrar
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => { setShowNewEditSiteInput(false); setNewEditSiteInput(''); }}
-                      className="px-2.5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs rounded-xl cursor-pointer border-none"
-                    >
-                      Cancelar
-                    </button>
-                  </motion.div>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Nível de Conta (RBAC)</label>
-                  <select
-                    value={editRole}
-                    onChange={(e) => setEditRole(e.target.value as any)}
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
-                  >
-                    {userProfile?.role === 'Desenvolvedor' && <option value="Desenvolvedor">💻 Desenvolvedor</option>}
-                    <option value="Gestor">👔 Gestor</option>
-                    <option value="Administrador">🛡️ Administrador</option>
-                    <option value="Usuário">👷 Técnico de Campo</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Status da Conta</label>
-                  <select
-                    value={editStatus}
-                    onChange={(e) => setEditStatus(e.target.value as any)}
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-800 focus:outline-none font-bold cursor-pointer shadow-xs"
-                  >
-                    <option value="Ativo">🟢 Ativo (Liberado)</option>
-                    <option value="Pendente">🟡 Pendente (Sem Acesso)</option>
-                    <option value="Inativo/Suspenso">🔴 Inativo / Suspenso</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500">Data de Expiração</label>
-                  <input
-                    type="date"
-                    value={editExpiresAt}
-                    onChange={(e) => setEditExpiresAt(e.target.value)}
-                    className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-bold"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-1 pt-2 border-t border-slate-100">
-                <label className="block text-[9px] font-bold uppercase text-slate-500">
-                  Nova Senha de Acesso <span className="text-slate-400 font-normal">(Opcional — deixe em branco para não alterar)</span>
-                </label>
-                <input
-                  type="text"
-                  value={editPassword}
-                  onChange={(e) => setEditPassword(e.target.value)}
-                  placeholder="Digite uma nova senha de no mínimo 6 caracteres"
-                  className="w-full bg-white border border-slate-200 focus:border-red-650 rounded-xl p-3 text-xs text-slate-850 focus:outline-none shadow-xs font-mono"
-                />
-              </div>
-
-              {userProfile?.role === 'Desenvolvedor' && (
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <label className="block text-[9px] font-bold uppercase text-slate-500 tracking-wider">
-                    Módulos Autorizados (Abas de Elementos)
-                  </label>
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
-                    {[
-                      { id: 'dashboard', label: '📊 Dashboard' },
-                      { id: 'extintores', label: '🧯 Extintores' },
-                      { id: 'hidrantes', label: '💧 Hidrantes' },
-                      { id: 'sinalizacao', label: '⚠️ Sinalização' },
-                      { id: 'iluminacao', label: '💡 Iluminação' },
-                      { id: 'bombas', label: '🔧 Casa de Bombas' },
-                      { id: 'ronda', label: '📱 Ronda & Campo' },
-                      { id: 'mapa', label: '🗺️ Mapa Operacional' },
-                      { id: 'alerts', label: '🔔 Alertas' },
-                      ...(userProfile?.role === 'Desenvolvedor' ? [{ id: 'configuracoes', label: '⚙️ Configurações' }] : [])
-                    ].map(mod => (
-                      <label
-                        key={mod.id}
-                        className="flex items-center gap-2 p-2 bg-slate-50 border border-slate-200 rounded-xl cursor-pointer hover:bg-slate-100 transition-all select-none text-[10px]"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={editModules.includes(mod.id)}
-                          onChange={(e) => {
-                            if (e.target.checked) {
-                              setEditModules(prev => [...prev, mod.id]);
-                            } else {
-                              setEditModules(prev => prev.filter(id => id !== mod.id));
-                            }
-                          }}
-                          className="rounded border-slate-350 text-red-600 focus:ring-red-500 w-3.5 h-3.5"
-                        />
-                        <span className="font-bold text-slate-700">{mod.label}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <div className="flex gap-2.5 pt-3 border-t border-slate-100 justify-end shrink-0">
-                <button
-                  type="button"
-                  disabled={savingEdit}
-                  onClick={() => setEditingUser(null)}
-                  className="px-5 py-2.5 border border-slate-200 hover:border-slate-350 bg-white text-slate-600 font-bold rounded-xl cursor-pointer text-xs uppercase transition-all shadow-xs"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingEdit}
-                  className="px-6 py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black rounded-xl hover:opacity-95 disabled:opacity-40 transition-all flex items-center gap-1.5 cursor-pointer border-none text-xs uppercase shadow-md shadow-red-600/30 active:scale-95 tracking-wider"
-                >
-                  {savingEdit ? (
-                    <>
-                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent animate-spin rounded-full inline-block"></span>
-                      SALVANDO...
-                    </>
-                  ) : (
-                    <>
-                      <span>💾</span> Salvar Alterações
-                    </>
-                  )}
-                </button>
-              </div>
-            </form>
-          </motion.div>
-        </div>
-      )}
+      </AnimatePresence>
     </motion.div>
   );
 }

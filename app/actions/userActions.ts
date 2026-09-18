@@ -814,3 +814,112 @@ export async function resolveEmailByUsernameAction(username: string): Promise<{ 
     return { success: false, error: globalErr.message || 'Erro ao validar nome de usuário.' };
   }
 }
+
+/**
+ * Server Action para o operador atualizar suas próprias informações de perfil (Meu Perfil)
+ */
+export async function updateSelfProfileAction(
+  userId: string,
+  payload: {
+    name: string;
+    phone?: string;
+    avatarUrl?: string;
+    matricula?: string;
+    cargoFuncao?: string;
+    temaPreferido?: 'escuro' | 'claro' | 'sistema';
+    alertasSonoros?: boolean;
+    volumeAlertas?: number;
+    sitePadrao?: string;
+  }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!userId) {
+      return { success: false, error: 'Usuário não autenticado.' };
+    }
+
+    const supabaseAdmin = getSupabaseAdminClient();
+
+    // 1. Atualiza metadados no Auth
+    await supabaseAdmin.auth.admin.updateUserById(userId, {
+      user_metadata: {
+        full_name: payload.name,
+        telefone_whatsapp: payload.phone || '',
+        avatar_url: payload.avatarUrl || '',
+        matricula: payload.matricula || '',
+        cargo_funcao: payload.cargoFuncao || '',
+        tema_preferido: payload.temaPreferido || 'sistema',
+        alertas_sonoros: payload.alertasSonoros ?? true,
+        volume_alertas: payload.volumeAlertas ?? 0.8,
+        site_padrao: payload.sitePadrao || ''
+      }
+    }).catch(e => console.warn('[updateSelfProfileAction Auth Warning]', e.message));
+
+    // 2. Atualiza tabela pública "usuarios"
+    const userPayload: any = {
+      id: userId,
+      nome_completo: payload.name,
+      telefone_whatsapp: payload.phone || '',
+      updated_at: new Date().toISOString()
+    };
+
+    if (payload.avatarUrl) userPayload.avatar_url = payload.avatarUrl;
+    if (payload.matricula) userPayload.matricula = payload.matricula;
+    if (payload.cargoFuncao) userPayload.cargo_funcao = payload.cargoFuncao;
+    if (payload.temaPreferido) userPayload.tema_preferido = payload.temaPreferido;
+    if (payload.alertasSonoros !== undefined) userPayload.alertas_sonoros = payload.alertasSonoros;
+    if (payload.volumeAlertas !== undefined) userPayload.volume_alertas = payload.volumeAlertas;
+    if (payload.sitePadrao) userPayload.site_padrao = payload.sitePadrao;
+
+    const { error: dbErr } = await supabaseAdmin
+      .from('usuarios')
+      .upsert([userPayload], { onConflict: 'id' });
+
+    if (dbErr) {
+      // Se houver coluna não suportada no schema atual, faz fallback apenas com campos básicos
+      const basicPayload = {
+        id: userId,
+        nome_completo: payload.name,
+        telefone_whatsapp: payload.phone || '',
+        updated_at: new Date().toISOString()
+      };
+      await supabaseAdmin.from('usuarios').upsert([basicPayload], { onConflict: 'id' });
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[updateSelfProfileAction]', err);
+    return { success: false, error: err.message || 'Erro ao atualizar perfil.' };
+  }
+}
+
+/**
+ * Server Action para o próprio operador alterar sua senha de acesso
+ */
+export async function changeSelfPasswordAction(
+  userId: string,
+  newPassword: string
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    if (!userId) {
+      return { success: false, error: 'Identificação de usuário ausente.' };
+    }
+    if (!newPassword || newPassword.trim().length < 6) {
+      return { success: false, error: 'A nova senha deve ter no mínimo 6 caracteres.' };
+    }
+
+    const supabaseAdmin = getSupabaseAdminClient();
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: newPassword.trim()
+    });
+
+    if (error) {
+      return { success: false, error: `Falha ao atualizar senha: ${error.message}` };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.error('[changeSelfPasswordAction]', err);
+    return { success: false, error: err.message || 'Erro inesperado ao alterar senha.' };
+  }
+}
+
