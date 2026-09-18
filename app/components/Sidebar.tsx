@@ -209,7 +209,7 @@ export const Sidebar = ({ onProfileClick, onLogoutClick, isOpen, onClose, onColl
       shortLabel: 'Etiquetas QR Code',
       icon: <QrCode className="w-4 h-4 shrink-0 text-red-400" />,
       path: '/extintores/gerar-qrcodes',
-      isActive: pathname.startsWith('/extintores/gerar-qrcodes'),
+      isActive: pathname.startsWith('/extintores/gerar-qrcodes') || pathname.startsWith('/extintores/gerador-etiquetas'),
       badgeTag: 'NOVO'
     }
   ];

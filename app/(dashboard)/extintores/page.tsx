@@ -304,8 +304,8 @@ export default function ExtintoresPage() {
     { id: 'edit_mass', label: 'Edição em massa', icon: Settings, borderClass: 'border-l-4 border-l-emerald-500 hover:border-emerald-500', iconColor: 'text-emerald-600', badgeClass: 'bg-emerald-100 text-emerald-800' },
     { id: 'edit_check', label: 'Edição de checklist', icon: CheckSquare, borderClass: 'border-l-4 border-l-red-650 hover:border-red-650', iconColor: 'text-red-750', badgeClass: 'bg-red-100 text-red-800' },
     { id: 'history', label: 'Histórico Inspeções', icon: History, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeClass: 'bg-rose-100 text-rose-800' },
-    { id: 'manutencao', label: 'Retorno Manutenção', icon: Wrench, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600', badgeText: 'Desenvolvimento', badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black' },
-    { id: 'laudos', label: 'Certificados/Laudos', icon: FileText, borderClass: 'border-l-4 border-l-teal-500 hover:border-teal-500', iconColor: 'text-teal-600', badgeText: 'Desenvolvimento', badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300 font-black' },
+    { id: 'manutencao', label: 'Retorno Manutenção', icon: Wrench, borderClass: 'border-l-4 border-l-rose-500 hover:border-rose-500', iconColor: 'text-rose-600' },
+    { id: 'laudos', label: 'Certificados/Laudos', icon: FileText, borderClass: 'border-l-4 border-l-teal-500 hover:border-teal-500', iconColor: 'text-teal-600' },
     ...(isDev ? [{
       id: 'purge_dev',
       label: 'Expurgo de Dados',
@@ -323,7 +323,7 @@ export default function ExtintoresPage() {
         setShowPurgeModal(true);
         break;
       case 'qr':
-        setScanModal(true);
+        router.push('/extintores/gerar-qrcodes');
         break;
       case 'novo':
         setShowExtintorAddModal(true);
@@ -340,6 +340,12 @@ export default function ExtintoresPage() {
         setShowChecklistModal(true);
         break;
       case 'history':
+        router.push('/extintores/historico-inspecoes');
+        break;
+      case 'manutencao':
+        router.push('/extintores/retorno-manutencao');
+        break;
+      case 'laudos':
         router.push('/extintores/historico-inspecoes');
         break;
       default:
@@ -1014,7 +1020,7 @@ export default function ExtintoresPage() {
               whileHover={{ y: -2, scale: 1.01 }}
               whileTap={{ scale: 0.98 }}
               onClick={() => handleToolbarClick(card.id)}
-              className={`flex flex-col items-center justify-center p-3 bg-white border border-slate-200 shadow-sm rounded-xl cursor-pointer text-center relative transition-all duration-300 min-h-[96px] ${card.borderClass}`}
+              className={`flex flex-col items-center justify-center p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm rounded-xl cursor-pointer text-center relative transition-all duration-300 min-h-[96px] hover:-translate-y-0.5 hover:shadow-md ${card.borderClass}`}
             >
               {card.badgeText ? (
                 <span className={`absolute top-1.5 right-1.5 text-[7px] font-sans font-black px-1.5 py-0.5 rounded-full select-none ${card.badgeClass}`}>
@@ -1026,7 +1032,7 @@ export default function ExtintoresPage() {
                 </span>
               ) : null}
               <IconComponent className={`w-5 h-5 mb-2 transition-transform duration-300 ${card.iconColor}`} />
-              <span className="text-[8.5px] font-sans font-black uppercase leading-tight tracking-wider text-slate-800">
+              <span className="text-[8.5px] font-sans font-black uppercase leading-tight tracking-wider text-slate-800 dark:text-slate-200">
                 {card.label}
               </span>
             </motion.button>

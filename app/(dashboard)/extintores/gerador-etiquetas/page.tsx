@@ -3,6 +3,6 @@
 import React from 'react';
 import { GeradorEtiquetasQRView } from '@/app/components/GeradorEtiquetasQRView';
 
-export default function GerarQrcodesPage() {
+export default function GeradorEtiquetasAliasPage() {
   return <GeradorEtiquetasQRView />;
 }
