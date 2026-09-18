@@ -6,7 +6,11 @@ import { useSpci } from '@/app/context/SpciContext';
 import { supabase } from '@/lib/supabaseClient';
 import { compressImage } from '@/lib/imageCompressor';
 import { MediaQueue } from '@/lib/mediaQueue';
-import { Flame, Check, X, Minus, Maximize2, Minimize2, Upload, Shield, Calendar, MapPin, ClipboardList, Info, Plus, QrCode, ArrowRightLeft } from 'lucide-react';
+import { 
+  Flame, Check, X, Minus, Maximize2, Minimize2, Upload, Shield, Calendar, MapPin, 
+  ClipboardList, Info, Plus, QrCode, ArrowRightLeft, Building2, Hash, Tag, Scale, 
+  RotateCcw, AlertTriangle, CheckCircle2, Sparkles, Layers 
+} from 'lucide-react';
 import { useWindowModal } from '@/app/context/WindowModalContext';
 import QrCameraScanner from './QrCameraScanner';
 import { parseInmetroCode } from '@/lib/utils';
@@ -856,28 +860,38 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: 15 }}
         onClick={(e) => e.stopPropagation()}
-        className={`bg-white border border-slate-200 shadow-2xl relative overflow-hidden flex flex-col text-slate-800 cursor-default ${
-          isMaximized ? 'w-screen h-screen rounded-none max-h-screen' : 'w-full max-w-2xl rounded-2xl max-h-[92vh]'
+        className={`bg-white border border-slate-200 shadow-2xl relative overflow-hidden flex flex-col text-slate-800 cursor-default transition-all duration-300 ${
+          isMaximized 
+            ? 'w-screen h-screen rounded-none max-h-screen' 
+            : 'w-full max-w-4xl rounded-2xl max-h-[92vh] mx-3'
         }`}
       >
         {/* SPCI Red Top Line */}
-        <div className="h-1.5 w-full bg-red-600 shrink-0" />
+        <div className="h-1.5 w-full bg-gradient-to-r from-red-600 via-rose-600 to-red-600 shrink-0" />
 
         {/* Modal Header com Cockpit Controls */}
-        <div className="flex justify-between items-center px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 bg-slate-50/50 shrink-0">
+        <div className="flex justify-between items-center px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-100 bg-slate-50/70 shrink-0">
           <div className="flex flex-col gap-0.5">
-            <span className="text-red-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
-              <Flame className="w-4 h-4 animate-pulse" /> SPCI PLANTA CORPORATIVA
-            </span>
-            <h2 className="text-sm font-black text-slate-900 uppercase tracking-wider mt-1">
+            <div className="flex items-center gap-2">
+              <span className="text-red-600 text-[10px] font-black uppercase tracking-widest flex items-center gap-1.5">
+                <Flame className="w-4 h-4 animate-pulse" /> SPCI PLANTA CORPORATIVA
+              </span>
+              <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                {selectedSite || 'SALOBO'}
+              </span>
+            </div>
+            <h2 className="text-base font-black text-slate-900 uppercase tracking-wide mt-0.5 flex items-center gap-2">
               REGISTRO DE NOVO EXTINTOR
             </h2>
+            <p className="text-[10px] text-slate-500 font-sans font-medium">
+              Conformidade normativa ABNT NBR 12962 e rastreabilidade metrológica INMETRO
+            </p>
           </div>
           <div className="flex items-center gap-1.5">
             <button 
               type="button"
               onClick={handleMinimize}
-              className="text-slate-400 hover:text-slate-700 border border-slate-200 bg-white p-2 transition-all rounded-xl cursor-pointer"
+              className="text-slate-400 hover:text-slate-700 border border-slate-200 bg-white p-2 transition-all rounded-xl cursor-pointer hover:shadow-2xs"
               title="Minimizar para a barra inferior"
             >
               <Minus className="w-4 h-4" />
@@ -885,7 +899,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
             <button 
               type="button"
               onClick={toggleMaximize}
-              className="text-slate-400 hover:text-slate-700 border border-slate-200 bg-white p-2 transition-all rounded-xl cursor-pointer"
+              className="text-slate-400 hover:text-slate-700 border border-slate-200 bg-white p-2 transition-all rounded-xl cursor-pointer hover:shadow-2xs"
               title={isMaximized ? "Restaurar tamanho" : "Maximizar tela cheia"}
             >
               {isMaximized ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
@@ -893,7 +907,7 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
             <button 
               type="button"
               onClick={onClose}
-              className="text-slate-400 hover:text-rose-600 border border-slate-200 bg-white p-2 transition-all rounded-xl cursor-pointer"
+              className="text-slate-400 hover:text-red-600 border border-slate-200 bg-white p-2 transition-all rounded-xl cursor-pointer hover:shadow-2xs"
               title="Fechar (Esc)"
             >
               <X className="w-4 h-4" />
@@ -902,183 +916,221 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
         </div>
 
         {/* Modal Body */}
-        <div className="p-6 space-y-6 overflow-y-auto no-scrollbar flex-grow bg-slate-50/20">
-          <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="p-4 sm:p-6 space-y-5 overflow-y-auto no-scrollbar flex-grow bg-slate-50/40">
+          <form onSubmit={handleSubmit} className="space-y-5">
             
-            {/* SEÇÃO 1: IDENTIFICAÇÃO DO ATIVO */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 space-y-4 shadow-xs relative">
-              <div className="absolute top-3 right-4 text-[8px] font-black text-slate-400">SEÇÃO 01</div>
-              <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
-                📂 IDENTIFICAÇÃO E SELOS DO ATIVO
-              </h3>
+            {/* SEÇÃO 1: IDENTIFICAÇÃO E SELOS DO ATIVO */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs relative transition-all">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-red-50 text-red-600 flex items-center justify-center">
+                    <Building2 className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                      IDENTIFICAÇÃO E SELOS DO ATIVO
+                    </h3>
+                    <span className="text-[10px] text-slate-400 font-sans">
+                      Dados primários para rastreabilidade e etiquetagem QR Code
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wider">
+                  SEÇÃO 01
+                </span>
+              </div>
               
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 {/* Contrato / Site */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5 flex items-center justify-between">
-                    <span>🏢 Contrato / Site *</span>
-                    {!isGlobalScope && <span className="text-[8px] text-emerald-600 font-bold">EXCLUSIVO</span>}
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600 flex items-center justify-between">
+                    <span className="flex items-center gap-1">🏢 Contrato / Site *</span>
+                    {!isGlobalScope && (
+                      <span className="text-[8px] text-emerald-700 bg-emerald-50 px-1.5 py-0.2 rounded font-bold">
+                        FIXO
+                      </span>
+                    )}
                   </label>
                   {isGlobalScope ? (
                     <select 
                       value={selectedSite}
                       onChange={(e) => setSelectedSite(e.target.value)}
-                      className="w-full bg-emerald-50 border border-emerald-300 text-slate-900 focus:border-emerald-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer shadow-xs"
+                      className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 text-slate-900 rounded-xl p-2.5 text-xs outline-none font-bold cursor-pointer transition-all shadow-2xs"
                     >
                       <option value="SALOBO">🏢 SALOBO</option>
                       <option value="ONÇA PUMA">🏭 ONÇA PUMA</option>
                     </select>
                   ) : (
-                    <div className="flex items-center gap-2 p-2 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 text-xs font-bold select-none cursor-not-allowed">
+                    <div className="flex items-center gap-2 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-700 text-xs font-bold select-none cursor-not-allowed">
                       <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
                       <span className="truncate">{userProfile?.site || activeSite || 'SALOBO'}</span>
-                      <span className="ml-auto text-[8px] text-slate-400 font-normal shrink-0">(Fixo)</span>
                     </div>
                   )}
-                  <span className="text-[8px] text-slate-400 block mt-1">
-                    {isGlobalScope ? 'Contrato de alocação deste ativo' : 'Vinculado ao seu contrato ativo'}
+                  <span className="text-[8.5px] text-slate-400 block">
+                    {isGlobalScope ? 'Contrato de alocação deste extintor' : 'Vinculado ao seu contrato ativo'}
                   </span>
                 </div>
 
-                {/* Patrimonio */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                    Patrimônio *
+                {/* Patrimônio */}
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600 flex items-center gap-1">
+                    <Hash className="w-3 h-3 text-red-600" /> Patrimônio *
                   </label>
-                  <div className="flex rounded-lg overflow-hidden border border-slate-200 bg-slate-100">
-                    <span className="bg-slate-200 text-slate-600 text-xs px-3 flex items-center select-none font-bold border-r border-slate-300">
+                  <div className="flex rounded-xl overflow-hidden border border-slate-200 bg-slate-50 shadow-2xs">
+                    <span className="bg-slate-100 text-slate-600 text-xs px-3 flex items-center select-none font-bold border-r border-slate-200">
                       EXT-
                     </span>
                     <input 
                       type="text" 
                       value={formPatrimonio}
                       readOnly
-                      className="w-full bg-slate-100 text-slate-700 p-2 text-xs outline-none font-mono font-bold cursor-not-allowed select-none"
+                      className="w-full bg-slate-50 text-slate-800 p-2.5 text-xs outline-none font-mono font-black cursor-not-allowed select-none"
                     />
                   </div>
-                  <span className="text-[8.5px] text-slate-500 font-sans font-medium block mt-1">
-                    🔒 Patrimônio gerado automaticamente pelo sistema (Sugerido: EXT-{recommendedPatrimonio})
+                  <span className="text-[8.5px] text-slate-400 block font-sans">
+                    🔒 Gerado pelo sistema (Sugerido: EXT-{recommendedPatrimonio})
                   </span>
                 </div>
 
-                {/* Chassi */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                    Chassi / Lote
+                {/* Chassi / Lote */}
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600 flex items-center gap-1">
+                    <Tag className="w-3 h-3 text-slate-400" /> Chassi / Lote
                   </label>
                   <input 
                     type="text" 
                     value={formChassi}
                     onChange={(e) => setFormChassi(e.target.value)}
-                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-1 focus:ring-red-100 rounded-lg p-2 text-xs outline-none font-bold uppercase"
+                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2.5 text-xs outline-none font-bold uppercase transition-all shadow-2xs placeholder:text-slate-400 placeholder:font-normal"
                     placeholder="Ex: CH-9088"
                   />
+                  <span className="text-[8.5px] text-slate-400 block">
+                    Gravação no anel ou corpo do cilindro
+                  </span>
                 </div>
 
-                {/* Selo Inmetro */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                    Selo INMETRO
+                {/* Selo INMETRO (Com leitor QR Code embutido sem estourar o modal) */}
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600 flex items-center justify-between">
+                    <span className="flex items-center gap-1">
+                      <Shield className="w-3 h-3 text-red-600" /> Selo INMETRO
+                    </span>
+                    <span className="text-[8.5px] text-red-600 font-bold">QR CÂMERA</span>
                   </label>
-                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                  <div className="relative flex items-center w-full">
                     <input 
                       type="text" 
                       value={formSelo}
                       onChange={(e) => setFormSelo(e.target.value)}
-                      className="flex-1 min-w-[140px] bg-white border border-slate-200 focus:border-red-500 focus:ring-1 focus:ring-red-100 rounded-lg p-2 text-xs outline-none font-mono font-bold"
+                      className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl py-2.5 pl-3 pr-11 text-xs outline-none font-mono font-bold text-slate-900 transition-all placeholder:text-slate-400 placeholder:font-sans shadow-2xs"
                       placeholder="Ex: S-809221"
                     />
                     <button
                       type="button"
                       onClick={() => setIsScannerOpen(true)}
-                      className="w-[44px] h-[44px] min-w-[44px] min-h-[44px] bg-red-650 hover:bg-red-700 text-white rounded-lg flex items-center justify-center cursor-pointer transition-colors shadow-sm active:scale-95 border-none shrink-0"
-                      title="Escanear Selo com a Câmera"
+                      className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-lg bg-red-600 hover:bg-red-700 active:scale-95 text-white flex items-center justify-center cursor-pointer transition-all shadow-sm"
+                      title="Escanear Selo INMETRO com a Câmera"
                     >
-                      <QrCode className="w-5 h-5" />
+                      <QrCode className="w-4 h-4" />
                     </button>
                   </div>
+                  <span className="text-[8.5px] text-slate-400 block">
+                    Digite ou clique no ícone para escanear
+                  </span>
                 </div>
               </div>
             </div>
 
-            {/* SEÇÃO 2: DADOS TÉCNICOS & VALIDADE */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 space-y-4 shadow-xs relative">
-              <div className="absolute top-3 right-4 text-[8px] font-black text-slate-400">SEÇÃO 02</div>
-              <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
-                ⚙️ DADOS TÉCNICOS E VISTORIAS DO EQUIPAMENTO
-              </h3>
+            {/* SEÇÃO 2: DADOS TÉCNICOS E VISTORIAS DO EQUIPAMENTO */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs relative transition-all">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <Layers className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                      DADOS TÉCNICOS E VISTORIAS DO EQUIPAMENTO
+                    </h3>
+                    <span className="text-[10px] text-slate-400 font-sans">
+                      Especificação de carga, histórico de manutenção e prazos normativos
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wider">
+                  SEÇÃO 02
+                </span>
+              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                
+              {/* Sub-bloco: Especificação de Modelo e Capacidade */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5 mb-4">
                 {/* Modelo dropdown */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600">
                     Modelo do Equipamento *
                   </label>
                   <select 
                     value={selectedModel}
                     onChange={(e) => setSelectedModel(e.target.value)}
-                    className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
+                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 text-slate-800 rounded-xl p-2.5 text-xs outline-none font-bold cursor-pointer transition-all shadow-2xs"
                     required
                   >
-                    <option value="">Selecione...</option>
-                    <option value="AB">AB</option>
-                    <option value="ABC">ABC</option>
-                    <option value="ABC-PREMIUM">ABC-PREMIUM</option>
-                    <option value="CO²">CO²</option>
-                    <option value="CUSTOM">+ Outro Modelo...</option>
+                    <option value="">Selecione o Modelo...</option>
+                    <option value="AB">AB - Água Pressurizada</option>
+                    <option value="ABC">ABC - Pó Químico Polivalente</option>
+                    <option value="ABC-PREMIUM">ABC-PREMIUM - Alta Eficiência</option>
+                    <option value="CO²">CO² - Dióxido de Carbono</option>
+                    <option value="CUSTOM">+ Outro Modelo Especial...</option>
                   </select>
                 </div>
 
-                {/* Custom Model Input (if Custom selected) */}
+                {/* Custom Model Input (se Custom selecionado) */}
                 {selectedModel === 'CUSTOM' && (
-                  <div>
-                    <label className="block text-[9px] font-extrabold uppercase text-red-650 mb-1.5">
-                      Escreva o Nome do Modelo *
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-extrabold uppercase text-red-600">
+                      Nome do Modelo Personalizado *
                     </label>
                     <input 
                       type="text" 
                       value={customModelName}
                       onChange={(e) => setCustomModelName(e.target.value)}
-                      placeholder="Ex: ESPUMA MECÂNICA ABC"
-                      className="w-full bg-white border border-red-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold uppercase"
+                      placeholder="Ex: ESPUMA MECÂNICA CLASSE B"
+                      className="w-full bg-white border border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2.5 text-xs outline-none font-bold uppercase transition-all shadow-2xs"
                       required
                     />
                   </div>
                 )}
 
-                {/* Capacidade Operacional (Carga) - Condicional */}
-                {selectedModel !== '' && (
-                  <div>
-                    <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                      Capacidade Operacional (Carga) *
-                    </label>
-                    <select 
-                      value={formWeightCap}
-                      onChange={(e) => setFormWeightCap(e.target.value)}
-                      className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
-                      required
-                    >
-                      <option value="">Selecione...</option>
-                      <option value="2KG">2KG</option>
-                      <option value="4KG">4KG</option>
-                      <option value="4,5KG">4,5KG</option>
-                      <option value="6KG">6KG</option>
-                      <option value="8KG">8KG</option>
-                      <option value="9KG">9KG</option>
-                      <option value="12KG">12KG</option>
-                      <option value="20KG">20KG</option>
-                      <option value="25KG">25KG</option>
-                      <option value="30KG">30KG</option>
-                      <option value="50KG">50KG</option>
-                      <option value="55KG">55KG</option>
-                    </select>
-                  </div>
-                )}
+                {/* Capacidade Operacional (Carga) */}
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600">
+                    Capacidade Operacional (Carga) *
+                  </label>
+                  <select 
+                    value={formWeightCap}
+                    onChange={(e) => setFormWeightCap(e.target.value)}
+                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 text-slate-800 rounded-xl p-2.5 text-xs outline-none font-bold cursor-pointer transition-all shadow-2xs"
+                    required
+                  >
+                    <option value="">Selecione a Carga...</option>
+                    <option value="2KG">2 KG (Portátil Veicular / Especial)</option>
+                    <option value="4KG">4 KG (Portátil)</option>
+                    <option value="4,5KG">4,5 KG (Portátil Padrão)</option>
+                    <option value="6KG">6 KG (Portátil Comercial)</option>
+                    <option value="8KG">8 KG (Portátil Industrial)</option>
+                    <option value="9KG">9 KG (Portátil Pesado)</option>
+                    <option value="12KG">12 KG (Portátil Extra)</option>
+                    <option value="20KG">20 KG (Sobre Rodas / Carreta)</option>
+                    <option value="25KG">25 KG (Sobre Rodas / Carreta)</option>
+                    <option value="30KG">30 KG (Sobre Rodas / Carreta)</option>
+                    <option value="50KG">50 KG (Sobre Rodas / Carreta Pesada)</option>
+                    <option value="55KG">55 KG (Sobre Rodas / Carreta Especial)</option>
+                  </select>
+                </div>
 
                 {/* Etiqueta Garantia */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600">
                     Etiqueta Garantia (Código)
                   </label>
                   <input 
@@ -1086,138 +1138,179 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                     value={formEtiquetaGarantia}
                     onChange={(e) => setFormEtiquetaGarantia(e.target.value)}
                     placeholder="Ex: GAR-09823"
-                    className="w-full bg-white border border-slate-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-mono"
+                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2.5 text-xs outline-none font-mono font-bold text-slate-800 transition-all shadow-2xs placeholder:text-slate-400 placeholder:font-normal"
                   />
                 </div>
+              </div>
 
-                {/* Data Última Recarga Month/Year Select */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                    Mês/Ano Última Recarga *
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <select 
-                      value={lastRechargeMonth}
-                      onChange={(e) => handleLastRechargeChange(e.target.value ? parseInt(e.target.value, 10) : '', lastRechargeYear)}
-                      className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none cursor-pointer"
+              {/* Sub-bloco: Recarga, Vencimento e Ciclo de Inspeção (Bento Box de Validade) */}
+              <div className="bg-slate-50/80 border border-slate-200/80 rounded-xl p-3.5 sm:p-4 mb-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+                  {/* Data Última Recarga Month/Year */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-600 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-slate-400" /> Mês/Ano Última Recarga *
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <select 
+                        value={lastRechargeMonth}
+                        onChange={(e) => handleLastRechargeChange(e.target.value ? parseInt(e.target.value, 10) : '', lastRechargeYear)}
+                        className="w-full bg-white border border-slate-200 focus:border-red-500 text-slate-800 rounded-xl p-2 text-xs outline-none font-bold cursor-pointer shadow-2xs"
+                        required
+                      >
+                        <option value="">Mês...</option>
+                        {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                      </select>
+                      <select 
+                        value={lastRechargeYear}
+                        onChange={(e) => handleLastRechargeChange(lastRechargeMonth, e.target.value ? parseInt(e.target.value, 10) : '')}
+                        className="w-full bg-white border border-slate-200 focus:border-red-500 text-slate-800 rounded-xl p-2 text-xs outline-none font-bold cursor-pointer shadow-2xs"
+                        required
+                      >
+                        <option value="">Ano...</option>
+                        {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                    </div>
+                    <span className="text-[8.5px] text-slate-400 block font-sans">
+                      Calcula vencimento padrão de 12 meses
+                    </span>
+                  </div>
+
+                  {/* Data Vencimento Month/Year */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-600 flex items-center gap-1">
+                      <RotateCcw className="w-3 h-3 text-red-600" /> Mês/Ano do Vencimento *
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      <select 
+                        value={expiryMonth}
+                        onChange={(e) => setExpiryMonth(e.target.value ? parseInt(e.target.value, 10) : '')}
+                        className="w-full bg-white border border-slate-200 focus:border-red-500 text-slate-800 rounded-xl p-2 text-xs outline-none font-bold cursor-pointer shadow-2xs"
+                        required
+                      >
+                        <option value="">Mês...</option>
+                        {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
+                      </select>
+                      <select 
+                        value={expiryYear}
+                        onChange={(e) => setExpiryYear(e.target.value ? parseInt(e.target.value, 10) : '')}
+                        className="w-full bg-white border border-slate-200 focus:border-red-500 text-slate-800 rounded-xl p-2 text-xs outline-none font-bold cursor-pointer shadow-2xs"
+                        required
+                      >
+                        <option value="">Ano...</option>
+                        {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
+                      </select>
+                    </div>
+                    {/* Status de Vencimento Dinâmico */}
+                    {expiryYear && expiryMonth ? (
+                      <div className="mt-1">
+                        <span className={`text-[9px] font-black px-2 py-0.5 rounded-md inline-flex items-center gap-1 border ${
+                          isExpired 
+                            ? 'text-red-700 bg-red-50 border-red-200' 
+                            : 'text-emerald-800 bg-emerald-50 border-emerald-200'
+                        }`}>
+                          {isExpired ? (
+                            <>
+                              <AlertTriangle className="w-3 h-3 text-red-600 shrink-0" />
+                              Expirado há {Math.abs(daysRemaining)} dias
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                              {daysRemaining} dias restantes
+                            </>
+                          )}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[8.5px] text-slate-400 block font-sans">
+                        Prazo para nova recarga
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Validade Recarga (Meses - Calculado) */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-500">
+                      Validade da Recarga
+                    </label>
+                    <div className="p-2 bg-white border border-slate-200 rounded-xl flex items-center justify-between shadow-2xs">
+                      <span className="text-xs font-black text-slate-700">
+                        {calculatedValidityMonths > 0 ? `${calculatedValidityMonths} Meses` : '0 Meses'}
+                      </span>
+                      <span className="text-[8.5px] font-bold text-slate-400 uppercase">
+                        NBR 12962
+                      </span>
+                    </div>
+                    <span className="text-[8.5px] text-slate-400 block font-sans">
+                      Intervalo regulamentar
+                    </span>
+                  </div>
+
+                  {/* Ano Teste Hidrostático */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-600">
+                      Ano Último Teste Hidro *
+                    </label>
+                    <input 
+                      type="number" 
+                      value={formAnoTesteHidro}
+                      onChange={(e) => setFormAnoTesteHidro(e.target.value)}
+                      min="1950"
+                      max="2100"
+                      placeholder="Ex: 2026"
+                      className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2 text-xs outline-none font-bold text-slate-800 shadow-2xs transition-all"
                       required
-                    >
-                      <option value="">Mês...</option>
-                      {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                    </select>
-                    <select 
-                      value={lastRechargeYear}
-                      onChange={(e) => handleLastRechargeChange(lastRechargeMonth, e.target.value ? parseInt(e.target.value, 10) : '')}
-                      className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none cursor-pointer"
-                      required
-                    >
-                      <option value="">Ano...</option>
-                      {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
+                    />
+                    <span className="text-[8.5px] text-slate-400 block font-sans">
+                      Validade de 5 anos para teste hidrostático
+                    </span>
                   </div>
                 </div>
 
-                {/* Data Vencimento Month/Year Select */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                    Mês/Ano do Vencimento *
-                  </label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <select 
-                      value={expiryMonth}
-                      onChange={(e) => setExpiryMonth(e.target.value ? parseInt(e.target.value, 10) : '')}
-                      className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none cursor-pointer"
+                {/* Linha auxiliar: Ano de Fabricação & Pesagem CO2 */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 mt-3.5 pt-3 border-t border-slate-200/60">
+                  {/* Ano Fabricação */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-extrabold uppercase text-slate-600">
+                      Ano de Fabricação do Cilindro *
+                    </label>
+                    <input 
+                      type="number" 
+                      value={formAnoFabricacao}
+                      onChange={(e) => setFormAnoFabricacao(e.target.value)}
+                      min="1900"
+                      max="2100"
+                      placeholder="Ex: 2026"
+                      className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2.5 text-xs outline-none font-bold text-slate-800 shadow-2xs transition-all"
                       required
-                    >
-                      <option value="">Mês...</option>
-                      {MONTHS.map(m => <option key={m.value} value={m.value}>{m.label}</option>)}
-                    </select>
-                    <select 
-                      value={expiryYear}
-                      onChange={(e) => setExpiryYear(e.target.value ? parseInt(e.target.value, 10) : '')}
-                      className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none cursor-pointer"
-                      required
-                    >
-                      <option value="">Ano...</option>
-                      {YEARS.map(y => <option key={y} value={y}>{y}</option>)}
-                    </select>
+                    />
                   </div>
-                  {/* Days remaining display */}
-                  {expiryYear && expiryMonth && (
-                    <div className="mt-1 flex items-center gap-1.5">
-                      <span className={`text-[8.5px] font-bold ${isExpired ? 'text-rose-600' : 'text-emerald-700 bg-emerald-50 border border-emerald-100/60 px-1.5 py-0.5 rounded'}`}>
-                        {isExpired ? `⚠️ Expirado há ${Math.abs(daysRemaining)} dias` : `⏱️ ${daysRemaining} dias restantes para vencimento`}
-                      </span>
+
+                  {/* Campo Condicional: Pesagem CO2 */}
+                  {isCo2 ? (
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-extrabold uppercase text-red-600 flex items-center gap-1.5">
+                        <Scale className="w-3.5 h-3.5" /> Data da Última Pesagem de CO² *
+                      </label>
+                      <input 
+                        type="date" 
+                        value={formDataPesagemCo2}
+                        onChange={(e) => setFormDataPesagemCo2(e.target.value)}
+                        className="w-full bg-white border border-red-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2.5 text-xs outline-none font-bold text-slate-800 shadow-2xs transition-all"
+                        required={isCo2}
+                      />
+                    </div>
+                  ) : (
+                    <div className="hidden sm:flex items-center text-[10px] text-slate-400 font-sans p-2">
+                      <span>ℹ️ Extintor de agente químico padrão. Teste e pesagem sob norma NBR 12962.</span>
                     </div>
                   )}
                 </div>
-
-                {/* Validade Recarga (Meses) - Bloqueado */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-400 mb-1.5">
-                    Validade da Recarga (Meses - Calculado)
-                  </label>
-                  <input 
-                    type="text" 
-                    value={calculatedValidityMonths > 0 ? `${calculatedValidityMonths} Meses` : '0 Meses'}
-                    disabled
-                    className="w-full bg-slate-100 border border-slate-200 text-slate-500 rounded-lg p-2 text-xs outline-none font-bold"
-                  />
-                </div>
-
-                {/* Ano Teste Hidrostático */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                    Ano Último Teste Hidro *
-                  </label>
-                  <input 
-                    type="number" 
-                    value={formAnoTesteHidro}
-                    onChange={(e) => setFormAnoTesteHidro(e.target.value)}
-                    min="1950"
-                    max="2100"
-                    placeholder="Ex: 2026"
-                    className="w-full bg-white border border-slate-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold"
-                    required
-                  />
-                </div>
-
-                {/* Ano Fabricação */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                    Ano Fabricação *
-                  </label>
-                  <input 
-                    type="number" 
-                    value={formAnoFabricacao}
-                    onChange={(e) => setFormAnoFabricacao(e.target.value)}
-                    min="1900"
-                    max="2100"
-                    placeholder="Ex: 2026"
-                    className="w-full bg-white border border-slate-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold"
-                    required
-                  />
-                </div>
-
-                {/* Conditional Field: Pesagem CO2 */}
-                {isCo2 && (
-                  <div>
-                    <label className="block text-[9px] font-extrabold uppercase text-red-650 mb-1.5 flex items-center gap-1">
-                      ⚖️ Data Pesagem CO2 *
-                    </label>
-                    <input 
-                      type="date" 
-                      value={formDataPesagemCo2}
-                      onChange={(e) => setFormDataPesagemCo2(e.target.value)}
-                      className="w-full bg-white border border-red-200 focus:border-red-500 rounded-lg p-2.5 text-xs outline-none font-bold"
-                      required={isCo2}
-                    />
-                  </div>
-                )}
               </div>
 
-              {/* Photo Upload with Compression Info */}
-              <div className="border border-dashed border-slate-200 hover:border-red-500 transition-all rounded-xl p-4.5 flex flex-col items-center justify-center bg-slate-50/50 cursor-pointer relative group">
+              {/* Sub-bloco: Registro Fotográfico com Otimização de Rede */}
+              <div className="border-2 border-dashed border-slate-200 hover:border-red-500 transition-all rounded-xl p-4 flex flex-col items-center justify-center bg-slate-50/50 cursor-pointer relative group">
                 <input 
                   type="file" 
                   accept="image/*" 
@@ -1225,146 +1318,162 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                   className="absolute inset-0 opacity-0 cursor-pointer z-10"
                 />
                 {previewUrl ? (
-                  <div className="flex flex-col items-center gap-2">
-                    <img src={previewUrl} alt="Preview" className="h-32 object-contain rounded-lg border border-slate-200 bg-white" />
-                    <span className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Clique para alterar foto</span>
+                  <div className="flex flex-col items-center gap-2.5">
+                    <img src={previewUrl} alt="Preview" className="h-32 object-contain rounded-xl border border-slate-200 bg-white shadow-xs" />
+                    <span className="text-[9px] text-slate-500 font-bold uppercase tracking-wider group-hover:text-red-600 transition-colors">
+                      Clique para substituir a foto
+                    </span>
                     {compressionDetails && (
-                      <div className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-700 px-2.5 py-1 rounded-md font-sans font-bold text-center">
-                        <span>⚡ FOTO COMPACTADA NATIVAMENTE ⚡</span>
-                        <span className="block font-mono mt-0.5">{compressionDetails.original} → {compressionDetails.compressed} ({compressionDetails.reduction}% economia)</span>
+                      <div className="text-[9px] bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-1 rounded-lg font-sans font-bold text-center shadow-2xs">
+                        <span className="flex items-center justify-center gap-1">
+                          <Check className="w-3 h-3 text-emerald-600" /> FOTO COMPACTADA NATIVAMENTE
+                        </span>
+                        <span className="block font-mono text-[8.5px] mt-0.5 text-emerald-700">
+                          {compressionDetails.original} → {compressionDetails.compressed} ({compressionDetails.reduction}% de economia de rede)
+                        </span>
                       </div>
                     )}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center gap-1 text-center text-slate-400 group-hover:text-red-500">
-                    <span className="text-xl">📷</span>
-                    <span className="text-[9px] font-bold uppercase tracking-wider">Selecionar Foto do Extintor</span>
-                    <span className="text-[7.5px] font-sans text-slate-400">Filtro de otimização de banda de rede</span>
+                  <div className="flex flex-col items-center gap-1.5 text-center text-slate-400 group-hover:text-red-600 transition-colors">
+                    <div className="w-10 h-10 rounded-full bg-slate-100 group-hover:bg-red-50 flex items-center justify-center text-slate-400 group-hover:text-red-600 transition-all">
+                      <Upload className="w-5 h-5" />
+                    </div>
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-700 group-hover:text-red-600">
+                      Selecionar ou Tirar Foto do Extintor
+                    </span>
+                    <span className="text-[8.5px] font-sans text-slate-400">
+                      Otimização automática de resolução para máxima velocidade em campo
+                    </span>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* SEÇÃO 3: LOCALIZAÇÃO DO EXTINTOR */}
-            <div className="bg-white border border-slate-200/80 rounded-2xl p-4.5 space-y-4 shadow-xs relative">
-              <div className="absolute top-3 right-4 text-[8px] font-black text-slate-400">SEÇÃO 03</div>
-              <h3 className="text-[10px] font-black uppercase tracking-wider text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
-                📍 LOCALIZAÇÃO DO ATIVO NA PLANTA
-              </h3>
+            {/* SEÇÃO 3: LOCALIZAÇÃO DO ATIVO NA PLANTA */}
+            <div className="bg-white border border-slate-200/90 rounded-2xl p-4 sm:p-5 shadow-xs relative transition-all">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                    <MapPin className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase tracking-wider text-slate-900">
+                      LOCALIZAÇÃO DO ATIVO NA PLANTA
+                    </h3>
+                    <span className="text-[10px] text-slate-400 font-sans">
+                      Posicionamento físico, endereçamento hierárquico e status de movimentação
+                    </span>
+                  </div>
+                </div>
+                <span className="text-[9px] font-black px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 uppercase tracking-wider">
+                  SEÇÃO 03
+                </span>
+              </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
                 {/* Campo ÁREA */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                    Área *
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600">
+                    Área Operacional *
                   </label>
                   <select 
                     value={selectedArea}
                     onChange={(e) => setSelectedArea(e.target.value)}
-                    className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
+                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 text-slate-800 rounded-xl p-2.5 text-xs outline-none font-bold cursor-pointer transition-all shadow-2xs"
                     required
                   >
-                    <option value="">Selecione...</option>
+                    <option value="">Selecione a Área...</option>
                     {areasList.map(a => (
                       <option key={a} value={a}>{a}</option>
                     ))}
                     <option value="NEW_AREA">+ Adicionar Nova Área...</option>
                   </select>
+
+                  {/* Campo Novo Input de ÁREA */}
+                  {selectedArea === 'NEW_AREA' && (
+                    <div className="pt-2">
+                      <input 
+                        type="text" 
+                        value={newAreaInput}
+                        onChange={(e) => setNewAreaInput(e.target.value)}
+                        placeholder="Ex: ÁREA 11 - MOAGEM"
+                        className="w-full bg-white border border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2 text-xs outline-none font-bold uppercase transition-all shadow-2xs"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Campo Novo Input de ÁREA */}
-                {selectedArea === 'NEW_AREA' && (
-                  <div>
-                    <label className="block text-[9px] font-extrabold uppercase text-red-600 mb-1.5">
-                      Nome da Nova Área *
-                    </label>
-                    <input 
-                      type="text" 
-                      value={newAreaInput}
-                      onChange={(e) => setNewAreaInput(e.target.value)}
-                      placeholder="Ex: ÁREA 11 - ALMOXARIFADO"
-                      className="w-full bg-white border border-red-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold uppercase"
-                      required
-                    />
-                  </div>
-                )}
-
                 {/* Campo PROJETO */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
-                    Projeto *
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600">
+                    Projeto / Unidade *
                   </label>
                   <select 
                     value={selectedProjeto}
                     onChange={(e) => setSelectedProjeto(e.target.value)}
-                    className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
+                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 text-slate-800 rounded-xl p-2.5 text-xs outline-none font-bold cursor-pointer transition-all shadow-2xs"
                     required
                   >
-                    <option value="">Selecione...</option>
+                    <option value="">Selecione o Projeto...</option>
                     {projetosList.map(p => (
                       <option key={p} value={p}>{p}</option>
                     ))}
                     <option value="NEW_PROJETO">+ Adicionar Novo Projeto...</option>
                   </select>
+
+                  {/* Campo Novo Input de PROJETO */}
+                  {selectedProjeto === 'NEW_PROJETO' && (
+                    <div className="pt-2">
+                      <input 
+                        type="text" 
+                        value={newProjetoInput}
+                        onChange={(e) => setNewProjetoInput(e.target.value)}
+                        placeholder="Ex: SALOBO IV"
+                        className="w-full bg-white border border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2 text-xs outline-none font-bold uppercase transition-all shadow-2xs"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* Campo Novo Input de PROJETO */}
-                {selectedProjeto === 'NEW_PROJETO' && (
-                  <div>
-                    <label className="block text-[9px] font-extrabold uppercase text-red-600 mb-1.5">
-                      Nome do Novo Projeto *
-                    </label>
-                    <input 
-                      type="text" 
-                      value={newProjetoInput}
-                      onChange={(e) => setNewProjetoInput(e.target.value)}
-                      placeholder="Ex: SALOBO IV"
-                      className="w-full bg-white border border-red-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold uppercase"
-                      required
-                    />
-                  </div>
-                )}
-
                 {/* Sector / Setor */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600">
                     Setor da Planta *
                   </label>
                   <select 
                     value={selectedLocalId}
                     onChange={(e) => setSelectedLocalId(e.target.value)}
-                    className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
+                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 text-slate-800 rounded-xl p-2.5 text-xs outline-none font-bold cursor-pointer transition-all shadow-2xs"
                     required
                   >
-                    <option value="">Selecione...</option>
+                    <option value="">Selecione o Setor...</option>
                     {locaisList.map(loc => (
                       <option key={loc.id} value={loc.id}>{loc.nome}</option>
                     ))}
                     <option value="NEW">+ Adicionar Novo Setor...</option>
                   </select>
+
+                  {/* New Sector Input (se selecionado NEW) */}
+                  {selectedLocalId === 'NEW' && (
+                    <div className="pt-2">
+                      <input 
+                        type="text" 
+                        value={newLocalName}
+                        onChange={(e) => setNewLocalName(e.target.value)}
+                        placeholder="Ex: CALDEIRAS E TURBINAS"
+                        className="w-full bg-white border border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2 text-xs outline-none font-bold uppercase transition-all shadow-2xs"
+                        required
+                      />
+                    </div>
+                  )}
                 </div>
 
-                {/* New Sector Input (if selected NEW) */}
-                {selectedLocalId === 'NEW' && (
-                  <div>
-                    <label className="block text-[9px] font-extrabold uppercase text-red-600 mb-1.5">
-                      Nome do Novo Setor *
-                    </label>
-                    <input 
-                      type="text" 
-                      value={newLocalName}
-                      onChange={(e) => setNewLocalName(e.target.value)}
-                      placeholder="Ex: CALDEIRAS"
-                      className="w-full bg-white border border-red-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold uppercase"
-                      required
-                    />
-                  </div>
-                )}
-
                 {/* Sub Local Select */}
-                <div>
-                  <label className="block text-[9px] font-extrabold uppercase text-slate-500 mb-1.5">
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-600">
                     Sub-Local (Posição Física) *
                   </label>
                   <select
@@ -1374,112 +1483,110 @@ export default function ExtintorAddModal({ isOpen, onClose }: ExtintorAddModalPr
                       const selectedSub = filteredSubLocais.find(s => s.id === e.target.value);
                       setFormSubLocal(selectedSub ? selectedSub.nome : '');
                     }}
-                    className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold cursor-pointer"
+                    className="w-full bg-white border border-slate-200 focus:border-red-500 focus:ring-2 focus:ring-red-100 text-slate-800 rounded-xl p-2.5 text-xs outline-none font-bold cursor-pointer transition-all shadow-2xs"
                     required
                   >
-                    <option value="">Selecione...</option>
+                    <option value="">Selecione a Posição...</option>
                     {filteredSubLocais.map(sub => (
                       <option key={sub.id} value={sub.id}>{sub.nome}</option>
                     ))}
                     <option value="NEW">+ Adicionar Novo Sub-Local...</option>
                   </select>
-                </div>
 
-                {/* New Sub-Local Input (if selected NEW) */}
-                {selectedSubLocalId === 'NEW' && (
-                  <div>
-                    <label className="block text-[9px] font-extrabold uppercase text-red-600 mb-1.5">
-                      Nome do Novo Sub-Local *
-                    </label>
-                    <input
-                      type="text"
-                      value={newSubLocalName}
-                      onChange={(e) => setNewSubLocalName(e.target.value)}
-                      placeholder="Ex: COPA"
-                      className="w-full bg-white border border-red-200 focus:border-red-500 rounded-lg p-2 text-xs outline-none font-bold uppercase"
-                      required
-                    />
-                  </div>
-                )}
-
-                {/* Campo TIPO DE MOVIMENTAÇÃO */}
-                <div className="md:col-span-2 bg-slate-50/70 p-3 rounded-xl border border-slate-200">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className="block text-[9px] font-extrabold uppercase text-slate-700 flex items-center gap-1.5">
-                      <ArrowRightLeft className="w-3 h-3 text-red-600" />
-                      Tipo de Movimentação *
-                    </label>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border flex items-center gap-1 ${TIPO_MOVIMENTACAO_MAP[tipoMovimentacao]?.badgeClass || ''}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${TIPO_MOVIMENTACAO_MAP[tipoMovimentacao]?.dotColor || 'bg-slate-400'}`}></span>
-                      {TIPO_MOVIMENTACAO_MAP[tipoMovimentacao]?.label || tipoMovimentacao}
-                    </span>
-                  </div>
-                  <select 
-                    value={tipoMovimentacao}
-                    onChange={(e) => setTipoMovimentacao(e.target.value as TipoMovimentacaoType)}
-                    className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 rounded-lg p-2.5 text-xs outline-none font-bold cursor-pointer font-sans"
-                    required
-                  >
-                    {TIPO_MOVIMENTACAO_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label} — {opt.description}
-                      </option>
-                    ))}
-                  </select>
-
-                  {/* Indicador de Captura de GPS no Momento 1 (Estoque / Depósito) */}
-                  {tipoMovimentacao === 'estoque_aplicacao' && (
-                    <div className="mt-2.5 p-2 rounded-lg bg-blue-50/90 border border-blue-200 text-blue-900 text-[10px] flex items-center justify-between gap-2 shadow-2xs">
-                      <div className="flex items-center gap-1.5 min-w-0">
-                        <MapPin className="w-3.5 h-3.5 text-blue-600 shrink-0" />
-                        <span className="truncate">
-                          {isCapturingGps 
-                            ? '🛰️ Obtendo coordenadas GPS do almoxarifado...' 
-                            : capturedGps 
-                            ? `📍 Depósito/Almoxarifado: ${capturedGps.latitude.toFixed(5)}, ${capturedGps.longitude.toFixed(5)} (±${capturedGps.accuracy}m)` 
-                            : '📍 Coordenadas do almoxarifado serão registradas automaticamente ao salvar.'}
-                        </span>
-                      </div>
-                      {!isCapturingGps && (
-                        <button
-                          type="button"
-                          onClick={() => capturePosition({ enableHighAccuracy: true }).then(c => c && setCapturedGps(c))}
-                          className="text-[9px] underline font-bold cursor-pointer text-blue-700 hover:text-blue-900 shrink-0 bg-white px-2 py-0.5 rounded border border-blue-200 shadow-2xs"
-                        >
-                          {capturedGps ? 'Recapturar' : 'Capturar GPS'}
-                        </button>
-                      )}
+                  {/* New Sub-Local Input (se selecionado NEW) */}
+                  {selectedSubLocalId === 'NEW' && (
+                    <div className="pt-2">
+                      <input
+                        type="text"
+                        value={newSubLocalName}
+                        onChange={(e) => setNewSubLocalName(e.target.value)}
+                        placeholder="Ex: PILAR P-14 / QUADRO ELÉTRICO"
+                        className="w-full bg-white border border-red-300 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2 text-xs outline-none font-bold uppercase transition-all shadow-2xs"
+                        required
+                      />
                     </div>
                   )}
                 </div>
               </div>
+
+              {/* Bloco de Tipo de Movimentação e Georreferenciamento */}
+              <div className="mt-4 bg-slate-50/80 p-3.5 sm:p-4 rounded-xl border border-slate-200/80">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <label className="block text-[10px] font-extrabold uppercase text-slate-700 flex items-center gap-1.5">
+                    <ArrowRightLeft className="w-3.5 h-3.5 text-red-600" />
+                    Tipo de Movimentação Operacional *
+                  </label>
+                  <span className={`text-[9.5px] font-black px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 shadow-2xs ${TIPO_MOVIMENTACAO_MAP[tipoMovimentacao]?.badgeClass || ''}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${TIPO_MOVIMENTACAO_MAP[tipoMovimentacao]?.dotColor || 'bg-slate-400'}`}></span>
+                    {TIPO_MOVIMENTACAO_MAP[tipoMovimentacao]?.label || tipoMovimentacao}
+                  </span>
+                </div>
+                <select 
+                  value={tipoMovimentacao}
+                  onChange={(e) => setTipoMovimentacao(e.target.value as TipoMovimentacaoType)}
+                  className="w-full bg-white border border-slate-200 text-slate-800 focus:border-red-500 focus:ring-2 focus:ring-red-100 rounded-xl p-2.5 text-xs outline-none font-bold cursor-pointer transition-all shadow-2xs"
+                  required
+                >
+                  {TIPO_MOVIMENTACAO_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label} — {opt.description}
+                    </option>
+                  ))}
+                </select>
+
+                {/* Indicador de Captura de GPS */}
+                {tipoMovimentacao === 'estoque_aplicacao' && (
+                  <div className="mt-3 p-2.5 rounded-xl bg-blue-50/90 border border-blue-200 text-blue-900 text-[10px] flex items-center justify-between gap-2 shadow-2xs">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <MapPin className="w-4 h-4 text-blue-600 shrink-0" />
+                      <span className="truncate font-medium">
+                        {isCapturingGps 
+                          ? '🛰️ Obtendo coordenadas GPS do almoxarifado...' 
+                          : capturedGps 
+                          ? `📍 Almoxarifado: ${capturedGps.latitude.toFixed(5)}, ${capturedGps.longitude.toFixed(5)} (±${capturedGps.accuracy}m)` 
+                          : '📍 Coordenadas do almoxarifado serão associadas automaticamente.'}
+                      </span>
+                    </div>
+                    {!isCapturingGps && (
+                      <button
+                        type="button"
+                        onClick={() => capturePosition({ enableHighAccuracy: true }).then(c => c && setCapturedGps(c))}
+                        className="text-[9px] font-bold cursor-pointer text-blue-700 hover:text-blue-900 shrink-0 bg-white px-2.5 py-1 rounded-lg border border-blue-200 shadow-2xs hover:bg-blue-50 transition-colors"
+                      >
+                        {capturedGps ? 'Recapturar GPS' : 'Capturar GPS'}
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* Modal Actions Footer */}
-            <div className="flex justify-between items-center pt-5 border-t border-slate-100">
-              <div className="flex gap-2.5">
+            <div className="flex flex-wrap sm:flex-nowrap justify-between items-center gap-3 pt-4 border-t border-slate-200">
+              <div className="flex items-center gap-2">
                 <button 
                   type="button"
                   onClick={onClose}
-                  className="text-slate-500 hover:text-slate-800 text-[10px] font-bold uppercase tracking-wider underline decoration-dotted transition-all cursor-pointer"
+                  className="px-4 py-2.5 text-slate-500 hover:text-slate-800 text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer rounded-xl hover:bg-slate-100"
                 >
-                  Fechar
+                  Cancelar
                 </button>
                 <button 
                   type="button"
                   onClick={handleResetForm}
-                  className="px-4 py-2 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-bold uppercase tracking-wider cursor-pointer transition-colors"
+                  className="px-4 py-2.5 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer transition-colors shadow-2xs"
                 >
-                  LIMPAR
+                  Limpar Campos
                 </button>
               </div>
               
               <button 
                 type="submit" 
                 disabled={uploadingImage || isSaving}
-                className="px-6 py-3 text-[10px] font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-xl cursor-pointer shadow-lg transition-all active:scale-[0.97]"
+                className="w-full sm:w-auto px-7 py-3 text-xs font-black uppercase tracking-wider text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 rounded-xl cursor-pointer shadow-md hover:shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
               >
-                {isSaving ? 'REGISTRANDO ATIVO...' : 'GRAVAR EXTINTOR'}
+                <Flame className="w-4 h-4" />
+                {isSaving ? 'REGISTRANDO EXTINTOR...' : 'REGISTRAR EXTINTOR'}
               </button>
             </div>
 
